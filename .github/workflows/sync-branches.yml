@@ -1,0 +1,42 @@
+name: Merge Master into Staging
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+      
+      - name: Merge master into staging
+        run: |
+          # Fetch all branches
+          git fetch origin
+          
+          # Create staging from master if it doesn't exist
+          if ! git show-ref --verify --quiet refs/remotes/origin/staging; then
+            git checkout -b staging origin/master
+            git push origin staging
+            exit 0
+          fi
+          
+          # Checkout staging and merge master into it
+          git checkout staging
+          git merge origin/master --no-ff -m "Merge master into staging"
+          
+          # Push changes to staging
+          git push origin staging

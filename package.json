@@ -1,0 +1,28 @@
+{
+  "name": "stratagem",
+  "version": "1.0.0",
+  "description": "Stratagem - Freelancer Management Platform",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm start",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "cd server && npm run build",
+    "build:client": "cd client && npm run build",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "cd server && npm test",
+    "test:client": "cd client && npm run test:e2e",
+    "test:ci": "npm run test:server && npm run test:client:ci",
+    "test:client:ci": "cd client && npm run test:e2e:ci",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "start:ci": "concurrently \"npm run start:server:ci\" \"npm run start:client:ci\"",
+    "start:server:ci": "cd server && PORT=5001 npm run dev",
+    "start:client:ci": "cd client && npm start"
+  },
+  "dependencies": {
+    "mongodb": "^6.19.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

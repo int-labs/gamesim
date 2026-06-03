@@ -1,0 +1,41 @@
+{
+  "collections": {
+    "balancesheetconfigs": {
+      "strategy": "replace"
+    },
+    "baseData": {
+      "strategy": "replace"
+    },
+    "bizperfconfigs": {
+      "strategy": "replace"
+    },
+    "cashflowconfigs": {
+      "strategy": "replace"
+    },
+    "events": {
+      "strategy": "replace"
+    },
+    "globalInputs": {
+      "strategy": "replace"
+    },
+    "paramList": {
+      "strategy": "replace"
+    },
+    "pnlconfigs": {
+      "strategy": "replace"
+    },
+    "products": {
+      "strategy": "replace"
+    },
+    "segments": {
+      "strategy": "replace"
+    },
+    "simulationTypes": {
+      "strategy": "replace"
+    },
+    "users": {
+      "strategy": "replace"
+    }
+  }
+}
+

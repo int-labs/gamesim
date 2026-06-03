@@ -1,0 +1,160 @@
+[{
+  "_id": {
+    "$oid": "67ff7db735e15aae730ab80a"
+  },
+  "name": "Branch Re-Design and Concept Branches",
+  "details": "LIFE Bank will redesign its branches to focus on self-service portals and promotional displays. Successfully transformed branches will be well-positioned to deliver a customer experience attuned to the evolving needs of our clientele. Drawing inspiration from Apple concept stores, LIFE Bank will create branches in high-traffic areas featuring: - Expanded spaces for consultation - A welcoming reception are - A sleek, modern design that conveys tranquility and transparency Major transactions will be conducted online or through humanized ATMs at the branch, allowing for efficient and personalized service. This redesign aims to create a seamless and engaging customer experience, blending technology and human touch.",
+  "costConsumption": "10000000",
+  "energyConsumption": 10,
+  "createdAt": {
+    "$date": "2025-04-16T09:51:51.016Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:51:51.016Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7db735e15aae730ab806"
+  },
+  "name": "Bank Wide Job Rotation Program",
+  "details": "A structured program is established for employees to rotate across all divisions and geographic locations within LIFE bank. This initiative aims to enhance employees' understanding of the bank's comprehensive capabilities and diverse regional challenges, promoting early cross-divisional teamwork and collaboration.",
+  "costConsumption": "5000000",
+  "energyConsumption": 5,
+  "createdAt": {
+    "$date": "2025-01-20T10:13:08.226Z"
+  },
+  "updatedAt": {
+    "$date": "2025-01-21T08:25:56.261Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7db735e15aae730ab809"
+  },
+  "name": "Tech Transformation",
+  "details": "Technology is the backbone of LIFE Bank. With the integration of advanced digital capabilities and the evolving customer behaviors towards technology, LIFE Bank needs to align with these changing times. LIFE Bank can choose to launch a new IT enterprise architecture to streamline application delivery across the bank. This architecture will enhance the bank's ability to respond to agile business requests and drive innovative products.",
+  "costConsumption": "15000000",
+  "energyConsumption": 10,
+  "createdAt": {
+    "$date": "2025-04-16T09:51:51.016Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:51:51.016Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7db735e15aae730ab807"
+  },
+  "name": "Culture of Innovation and Internal Ideation Challenge",
+  "details": "In our transition towards an agile business mindset, fostering creativity to tackle new challenges is crucial. We propose launching a series of \"hackathons\" involving senior and mid-level executives. Additionally, an internal ideation challenge will be initiated, inviting all employees to submit digital ideas for revenue generation, enhancing digital acquisitions, or improving processes. The winning idea will earn the opportunity to collaborate with the latest digital team initiative.",
+  "costConsumption": "5000000",
+  "energyConsumption": 5,
+  "createdAt": {
+    "$date": "2025-04-16T09:51:51.016Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:51:51.016Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7db735e15aae730ab808"
+  },
+  "name": "Enterprise Risk Management",
+  "details": "LIFE bank aims to enhance its bank-wide risk management through a comprehensive review and upgrade of the existing framework and supporting architecture. This initiative will encompass a thorough assessment of all bank processes to align with risk appetite, focusing on global standards, market risk, and credit risk. The program seeks to advance risk management methodologies and integrate risk practices into daily operational decisions.",
+  "costConsumption": "15000000",
+  "energyConsumption": 5,
+  "createdAt": {
+    "$date": "2025-04-16T09:51:51.016Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:51:51.016Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7ee935e15aae730ab80d"
+  },
+  "name": "SME Focus",
+  "details": "LIFE Bank focuses on acquiring SME customers by prioritizing online banking and an effortless banking experience. Key initiatives include: - Online account opening - Auto-populated data from ACRA details to streamline facility applications - Relationship Managers (RMs) using iPads to stay connected and informed about their clients on the go Additionally, LIFE Bank will create a social media community to bring SME clients together for discussions, forums, and support. This integrated approach aims to provide SMEs with a seamless, efficient, and supportive banking experience.",
+  "costConsumption": "10000000",
+  "energyConsumption": 5,
+  "createdAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7ee935e15aae730ab80f"
+  },
+  "name": "Paperless, Online Credit Approval Process",
+  "details": "LIFE Bank credit approvers and Relationship Managers (RMs) are frustrated with the iterations, paperwork, and time required to process credit applications. To leverage digital capabilities, LIFE Bank initiates a paperless credit approval system that facilitates quick updates from both parties. This system will ensure that the latest information, comments, and updates are clearly visible to relevant team members, thereby streamlining discussions and reducing turnaround times. By embracing this digital solution, LIFE Bank aims to enhance efficiency and improve the overall experience for both internal stakeholders and clients.",
+  "costConsumption": "10000000",
+  "energyConsumption": 5,
+  "createdAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7ee935e15aae730ab80e"
+  },
+  "name": "Global Industry Framework",
+  "details": "LIFE Bank aspires to move beyond the region and acquire large clients in other markets. The Global Industry Framework initiative aims to build industry-specific capability and expertise within Wholesale Banking. Industry specialists within the bank will assist Wholesale Banking clients by addressing business needs based on industry dynamics and trends. This specialization will enhance their credibility with clients and enable greater cross-selling opportunities, positioning LIFE Bank as a trusted partner in diverse markets.",
+  "costConsumption": "10000000",
+  "energyConsumption": 5,
+  "createdAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7ee935e15aae730ab80c"
+  },
+  "name": "Drive Momentum in Bancassurance",
+  "details": "Bancassurance is a growing business for LIFE Bank. In the region, LIFE Bank can choose to invest in strengthening its partnership with a leading insurance provider, M-life. LIFE Bank can enhance this partnership by understanding its customers' needs and collaborating with M-life to offer a comprehensive suite of innovative and customized insurance solutions. This strategic alliance will allow LIFE Bank to provide its customers with tailored insurance products that meet their unique needs, further solidifying the bank's position in the market.",
+  "costConsumption": "5000000",
+  "energyConsumption": 5,
+  "createdAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "67ff7ee935e15aae730ab80b"
+  },
+  "name": "Branch Manager as CEO",
+  "details": "This initiative focuses on transforming the mindset of branch managers, encouraging them to think like CEOs. Firstly, instead of merely executing plans defined by senior management, branch managers should run their branches as if they are their own businesses. This includes experimenting with new approaches that add value for customers and improve business results for LIFE Bank. Secondly, branch managers must think beyond the four walls of the branch. This means actively reaching out to community leaders, social organizations, and businesses rather than waiting for customers to contact the bank. By fostering these connections, branch managers can create a more dynamic and community-oriented banking experience.",
+  "costConsumption": "5000000",
+  "energyConsumption": 5,
+  "createdAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "updatedAt": {
+    "$date": "2025-04-16T09:56:57.159Z"
+  },
+  "__v": 0
+}]

@@ -1,0 +1,532 @@
+name: Preview Approval Check
+# Updated: 2025-09-01
+
+# Configure permissions for GITHUB_TOKEN
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+  issues: write
+
+on:
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR Number to approve'
+        required: true
+        type: string
+      reviewer:
+        description: 'Reviewer name'
+        required: true
+        type: string
+      approved:
+        description: 'Approval status'
+        required: true
+        type: boolean
+        default: true
+      comments:
+        description: 'Review comments'
+        required: false
+        type: string
+
+  # External webhook trigger
+  repository_dispatch:
+    types: [preview-approval]
+    
+  # Create initial pending status when PR is created
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  preview-approval:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Get PR details
+      id: pr-details
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+          echo "reviewer=${{ github.event.inputs.reviewer }}" >> $GITHUB_OUTPUT
+          echo "approved=${{ github.event.inputs.approved }}" >> $GITHUB_OUTPUT
+          echo "comments=${{ github.event.inputs.comments }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          echo "reviewer=system" >> $GITHUB_OUTPUT
+          echo "approved=pending" >> $GITHUB_OUTPUT
+          echo "comments=Waiting for preview approval" >> $GITHUB_OUTPUT
+        else
+          echo "pr_number=${{ github.event.client_payload.pr_number }}" >> $GITHUB_OUTPUT
+          echo "reviewer=${{ github.event.client_payload.reviewer }}" >> $GITHUB_OUTPUT
+          echo "approved=${{ github.event.client_payload.approved }}" >> $GITHUB_OUTPUT
+          echo "comments=${{ github.event.client_payload.comments }}" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Validate PR exists
+      id: validate-pr
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        echo "Checking PR #$PR_NUMBER..."
+        
+        # Debug: Show the API call
+        echo "API URL: https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER"
+        
+        # Check if PR exists and is open
+        PR_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+        
+        echo "API Response: $PR_RESPONSE"
+        
+        PR_STATUS=$(echo "$PR_RESPONSE" | jq -r '.state // "null"')
+        echo "PR Status: $PR_STATUS"
+        
+        if [ "$PR_STATUS" = "open" ]; then
+          echo "PR #$PR_NUMBER is open and valid"
+          echo "valid=true" >> $GITHUB_OUTPUT
+        else
+          echo "PR #$PR_NUMBER is not open or doesn't exist (status: $PR_STATUS)"
+          echo "valid=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Check secrets presence (no values)
+      if: always()
+      run: |
+        echo "HAS_RENDER_API_KEY=$([ -n \"${{ secrets.RENDER_API_KEY }}\" ] && echo yes || echo no)"
+        echo "HAS_RENDER_SERVICE_ID=$([ -n \"${{ secrets.RENDER_SERVICE_ID }}\" ] && echo yes || echo no)"
+        echo "HAS_DISCORD_STAGING_WEBHOOK=$([ -n \"${{ secrets.DISCORD_STAGING_WEBHOOK }}\" ] && echo yes || echo no)"
+        
+    - name: Add approval comment
+      if: steps.validate-pr.outputs.valid == 'true' && (steps.pr-details.outputs.approved == 'true' || steps.pr-details.outputs.approved == true)
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        REVIEWER="${{ steps.pr-details.outputs.reviewer }}"
+        COMMENTS="${{ steps.pr-details.outputs.comments }}"
+        
+        COMMENT_BODY="## ✅ Preview Approved
+        
+        **Reviewer:** $REVIEWER
+        **Status:** Approved
+        **Date:** $(date -u +"%Y-%m-%d %H:%M UTC")
+        
+        $([ -n "$COMMENTS" ] && echo "**Comments:** $COMMENTS" || echo "")
+        
+        ---
+        *This approval was submitted via the preview environment.*"
+        
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+          -d "{\"body\":\"$COMMENT_BODY\"}"
+          
+    - name: Add rejection comment
+      if: steps.validate-pr.outputs.valid == 'true' && (steps.pr-details.outputs.approved == 'false' || steps.pr-details.outputs.approved == false)
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        REVIEWER="${{ steps.pr-details.outputs.reviewer }}"
+        COMMENTS="${{ steps.pr-details.outputs.comments }}"
+        
+        COMMENT_BODY="## ❌ Preview Rejected
+        
+        **Reviewer:** $REVIEWER
+        **Status:** Rejected
+        **Date:** $(date -u +"%Y-%m-%d %H:%M UTC")
+        
+        $([ -n "$COMMENTS" ] && echo "**Comments:** $COMMENTS" || echo "")
+        
+        ---
+        *This rejection was submitted via the preview environment.*"
+        
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+          -d "{\"body\":\"$COMMENT_BODY\"}"
+          
+    - name: Update PR status
+      if: steps.validate-pr.outputs.valid == 'true'
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        APPROVED="${{ steps.pr-details.outputs.approved }}"
+        REVIEWER="${{ steps.pr-details.outputs.reviewer }}"
+        
+        if [ "$APPROVED" = "true" ]; then
+          STATUS="success"
+          DESCRIPTION="Preview approved by $REVIEWER"
+        elif [ "$APPROVED" = "pending" ]; then
+          STATUS="pending"
+          DESCRIPTION="Waiting for preview approval"
+        else
+          STATUS="failure"
+          DESCRIPTION="Preview rejected by $REVIEWER"
+        fi
+        
+        # Get the latest commit SHA for this PR
+        COMMIT_SHA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER" | \
+          jq -r '.head.sha')
+          
+        # Create status check that will block merging
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/statuses/$COMMIT_SHA" \
+          -d "{
+            \"state\": \"$STATUS\",
+            \"target_url\": \"https://github.com/${{ github.repository }}/pull/$PR_NUMBER\",
+            \"description\": \"$DESCRIPTION\",
+            \"context\": \"preview-approval\"
+          }"
+          
+        echo "Status check created: preview-approval = $STATUS"
+        echo "This status check will block PR merging until approved"
+        
+    - name: Auto-Merge PR (if approved)
+      if: steps.validate-pr.outputs.valid == 'true' && (steps.pr-details.outputs.approved == 'true' || steps.pr-details.outputs.approved == true)
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        echo "🔄 Auto-merging PR #$PR_NUMBER..."
+        
+        # Choose token: prefer PERSONAL_GITHUB_TOKEN if available (to avoid 403), otherwise GITHUB_TOKEN
+        if [ -n "${{ secrets.PERSONAL_GITHUB_TOKEN }}" ]; then
+          TOKEN="${{ secrets.PERSONAL_GITHUB_TOKEN }}"
+          echo "Using PAT for merge"
+        else
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          echo "Using GITHUB_TOKEN for merge"
+        fi
+
+        # Get PR details to check if it can be merged
+        PR_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+        
+        MERGEABLE=$(echo "$PR_RESPONSE" | jq -r '.mergeable // "unknown"')
+        MERGEABLE_STATE=$(echo "$PR_RESPONSE" | jq -r '.mergeable_state // "unknown"')
+        
+        echo "Mergeable: $MERGEABLE, State: $MERGEABLE_STATE"
+        
+        if [ "$MERGEABLE" = "true" ] && [ "$MERGEABLE_STATE" = "clean" ]; then
+          echo "✅ PR is ready to merge, attempting auto-merge..."
+          
+          MERGE_RESPONSE=$(curl -s -X PUT \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER/merge" \
+            -d '{"merge_method": "squash"}')
+          
+          echo "Merge response: $MERGE_RESPONSE"
+          
+          if echo "$MERGE_RESPONSE" | jq -e '.merged' > /dev/null 2>&1; then
+            echo "✅ PR #$PR_NUMBER successfully auto-merged!"
+          else
+            echo "⚠️ Auto-merge failed, but approval was successful"
+          fi
+        else
+          echo "⚠️ PR is not ready for auto-merge (mergeable: $MERGEABLE, state: $MERGEABLE_STATE)"
+          echo "Manual merge required or additional checks needed"
+        fi
+        
+    - name: Shutdown Render Preview (if approved)
+      if: steps.validate-pr.outputs.valid == 'true' && (steps.pr-details.outputs.approved == 'true' || steps.pr-details.outputs.approved == true)
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        echo "🔄 Shutting down Render preview for PR #$PR_NUMBER..."
+        
+        # Get Render service ID from secrets
+        RENDER_SERVICE_ID="${{ secrets.RENDER_SERVICE_ID }}"
+        RENDER_API_KEY="${{ secrets.RENDER_API_KEY }}"
+        
+        echo "HAS_RENDER_API_KEY=$([ -n \"$RENDER_API_KEY\" ] && echo yes || echo no)"
+        echo "HAS_RENDER_SERVICE_ID=$([ -n \"$RENDER_SERVICE_ID\" ] && echo yes || echo no)"
+
+        if [ -z "$RENDER_SERVICE_ID" ] || [ -z "$RENDER_API_KEY" ]; then
+          echo "⚠️ Render credentials not configured, skipping preview shutdown"
+          exit 0
+        fi
+        
+        # Get the branch name from the PR
+        echo "🔍 Getting branch name for PR #$PR_NUMBER..."
+        PR_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/int-labs/stratagem/pulls/$PR_NUMBER")
+        
+        BRANCH_NAME=$(echo "$PR_RESPONSE" | jq -r '.head.ref')
+        echo "📋 Branch name: $BRANCH_NAME"
+        
+        if [ "$BRANCH_NAME" == "null" ] || [ -z "$BRANCH_NAME" ]; then
+          echo "❌ Could not get branch name for PR #$PR_NUMBER"
+          exit 1
+        fi
+        
+        # Retry lookup up to 2 minutes; match by branch+parent, then fall back to name containing PR number
+        echo "🔍 Looking for preview environment for branch: $BRANCH_NAME"
+        ATTEMPTS=24
+        SLEEP_SEC=5
+        PREVIEW_ID=""
+        while [ $ATTEMPTS -gt 0 ] && { [ -z "$PREVIEW_ID" ] || [ "$PREVIEW_ID" = "null" ]; }; do
+          ALL_SERVICES_RESPONSE=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services")
+          echo "📊 Services: $(echo "$ALL_SERVICES_RESPONSE" | jq -r '.[].service.name' | tr '\n' ' ')"
+
+          PREVIEW_ID=$(echo "$ALL_SERVICES_RESPONSE" | jq -r ".[] | select(.service.branch == \"$BRANCH_NAME\" and .service.serviceDetails.parentServer.id == \"$RENDER_SERVICE_ID\") | .service.id" | head -1)
+
+          if [ -z "$PREVIEW_ID" ] || [ "$PREVIEW_ID" = "null" ]; then
+            # Fallback: match name containing PR number (Render often names previews like 'PR #123')
+            PREVIEW_ID=$(echo "$ALL_SERVICES_RESPONSE" | jq -r ".[] | select((.service.name // \"\") | test(\"PR #$PR_NUMBER\")) and .service.serviceDetails.parentServer.id == \"$RENDER_SERVICE_ID\" | .service.id" | head -1)
+          fi
+
+          if [ -z "$PREVIEW_ID" ] || [ "$PREVIEW_ID" = "null" ]; then
+            ATTEMPTS=$((ATTEMPTS-1))
+            echo "⏳ Preview not found yet; retrying ($ATTEMPTS left)..."
+            sleep $SLEEP_SEC
+          else
+            break
+          fi
+        done
+
+        if [ -n "$PREVIEW_ID" ] && [ "$PREVIEW_ID" != "null" ]; then
+          echo "🗑️ Deleting preview service: $PREVIEW_ID"
+
+          DELETE_RESPONSE=$(curl -s -X DELETE -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$RENDER_SERVICE_ID/previews/$PREVIEW_ID")
+          echo "Preview delete response: $DELETE_RESPONSE"
+
+          if [[ "$DELETE_RESPONSE" == *"404"* ]] || [[ "$DELETE_RESPONSE" == *"not found"* ]]; then
+            echo "🔄 Preview endpoint failed, trying direct service deletion..."
+            DELETE_RESPONSE=$(curl -s -X DELETE -H "Authorization: Bearer $RENDER_API_KEY" "https://api.render.com/v1/services/$PREVIEW_ID")
+            echo "Direct delete response: $DELETE_RESPONSE"
+          fi
+          echo "✅ Preview environment shutdown initiated"
+        else
+          echo "⚠️ No preview environment found after retries for branch: $BRANCH_NAME (PR #$PR_NUMBER)"
+        fi
+        
+    - name: Cleanup MongoDB Atlas Database (if approved)
+      if: steps.validate-pr.outputs.valid == 'true' && (steps.pr-details.outputs.approved == 'true' || steps.pr-details.outputs.approved == true)
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        echo "🗄️ Cleaning up MongoDB Atlas database for PR #$PR_NUMBER..."
+        
+        # Check if MongoDB Atlas credentials are configured
+        if [ -z "${{ secrets.MONGODB_ATLAS_URI }}" ]; then
+          echo "⚠️ MongoDB Atlas URI not configured, skipping database cleanup"
+          exit 0
+        fi
+        
+        # Extract connection details from URI
+        ATLAS_URI="${{ secrets.MONGODB_ATLAS_URI }}"
+        DB_NAME="preview_${PR_NUMBER}"
+        
+        echo "📁 Dropping database: $DB_NAME"
+        
+        # Use mongosh to drop the database
+        # Note: This requires mongosh to be available in the GitHub Actions runner
+        if command -v mongosh &> /dev/null; then
+          echo "🔧 Using mongosh to drop database..."
+          mongosh "$ATLAS_URI" --eval "use $DB_NAME; db.dropDatabase();" --quiet
+          echo "✅ Database $DB_NAME dropped successfully"
+        else
+          echo "⚠️ mongosh not available, using Node.js script instead..."
+          
+          # Create a simple Node.js script to drop the database
+          cat > drop-db.js << 'EOF'
+          import { MongoClient } from 'mongodb';
+          
+          const uri = process.env.MONGODB_ATLAS_URI;
+          const dbName = process.env.DB_NAME;
+          
+          async function dropDatabase() {
+            try {
+              const client = new MongoClient(uri);
+              await client.connect();
+              
+              const db = client.db(dbName);
+              await db.dropDatabase();
+              
+              console.log(`Database ${dbName} dropped successfully`);
+              await client.close();
+            } catch (error) {
+              console.error('Error dropping database:', error);
+              process.exit(1);
+            }
+          }
+          
+          dropDatabase();
+          EOF
+          
+          # Run the script
+          MONGODB_ATLAS_URI="$ATLAS_URI" DB_NAME="$DB_NAME" node drop-db.js
+        fi
+        
+        echo "✅ MongoDB Atlas database cleanup completed"
+        
+    - name: Delete Feature Branch (if approved)
+      if: steps.validate-pr.outputs.valid == 'true' && (steps.pr-details.outputs.approved == 'true' || steps.pr-details.outputs.approved == true)
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        echo "🌿 Deleting feature branch for PR #$PR_NUMBER..."
+        
+        # Get the branch name from the PR
+        PR_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+        
+        BRANCH_NAME=$(echo "$PR_RESPONSE" | jq -r '.head.ref')
+        BRANCH_OWNER=$(echo "$PR_RESPONSE" | jq -r '.head.user.login')
+        
+        echo "📋 Branch name: $BRANCH_NAME"
+        echo "👤 Branch owner: $BRANCH_OWNER"
+        
+        if [ "$BRANCH_NAME" == "null" ] || [ -z "$BRANCH_NAME" ]; then
+          echo "❌ Could not get branch name for PR #$PR_NUMBER"
+          exit 1
+        fi
+        
+        # Check if branch is from a fork or same repository
+        if [ "$BRANCH_OWNER" = "${{ github.repository_owner }}" ]; then
+          echo "🏠 Branch is in same repository, attempting to delete..."
+          
+          # Try to delete the branch
+          DELETE_RESPONSE=$(curl -s -X DELETE \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/heads/$BRANCH_NAME")
+          
+          if [ -z "$DELETE_RESPONSE" ]; then
+            echo "✅ Branch $BRANCH_NAME deleted successfully"
+          else
+            echo "⚠️ Branch deletion response: $DELETE_RESPONSE"
+            echo "Branch may have been deleted automatically or deletion failed"
+          fi
+        else
+          echo "🔗 Branch is from fork ($BRANCH_OWNER), cannot delete automatically"
+          echo "Branch owner will need to delete it manually"
+        fi
+        
+        echo "✅ Feature branch cleanup completed"
+        
+    - name: Notify Discord of Approval
+      if: steps.validate-pr.outputs.valid == 'true' && (steps.pr-details.outputs.approved == 'true' || steps.pr-details.outputs.approved == true)
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        REVIEWER="${{ steps.pr-details.outputs.reviewer }}"
+        COMMENTS="${{ steps.pr-details.outputs.comments }}"
+        
+        # Get PR details for Discord notification
+        PR_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+        
+        PR_TITLE=$(echo "$PR_RESPONSE" | jq -r '.title // "Unknown"')
+        AUTHOR=$(echo "$PR_RESPONSE" | jq -r '.user.login // "Unknown"')
+        PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url // ""')
+        
+        # Determine Discord webhook URL based on environment
+        if [[ "$PR_NUMBER" == *"staging"* ]] || [[ "$PR_NUMBER" -gt 100 ]]; then
+          DISCORD_WEBHOOK="${{ secrets.DISCORD_STAGING_WEBHOOK }}"
+        elif [[ "$PR_NUMBER" == *"preview"* ]] || [[ "$PR_NUMBER" -lt 50 ]]; then
+          DISCORD_WEBHOOK="${{ secrets.DISCORD_PREVIEW_WEBHOOK }}"
+        else
+          DISCORD_WEBHOOK="${{ secrets.DISCORD_PRODUCTION_WEBHOOK }}"
+        fi
+        
+        if [ -z "$DISCORD_WEBHOOK" ]; then
+          echo "⚠️ Discord webhook not configured, skipping notification"
+          exit 0
+        fi
+        
+        # Create Discord embed
+        EMBED_BODY="{
+          \"embeds\": [{
+            \"title\": \"✅ Preview Approved & Auto-Merged\",
+            \"description\": \"PR #$PR_NUMBER has been approved and auto-merged!\",
+            \"color\": 65280,
+            \"fields\": [
+              {\"name\": \"PR\", \"value\": \"#$PR_NUMBER\", \"inline\": true},
+              {\"name\": \"Author\", \"value\": \"$AUTHOR\", \"inline\": true},
+              {\"name\": \"Reviewer\", \"value\": \"$REVIEWER\", \"inline\": true},
+              {\"name\": \"Title\", \"value\": \"$PR_TITLE\", \"inline\": false},
+              {\"name\": \"Comments\", \"value\": \"${COMMENTS:-No comments provided}\", \"inline\": false}
+            ],
+            \"url\": \"$PR_URL\",
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+            \"footer\": {\"text\": \"Preview Approval System\"}
+          }]
+        }"
+        
+        echo "📢 Sending Discord approval notification..."
+        if [ -z "$DISCORD_WEBHOOK" ]; then
+          echo "No Discord webhook configured; skipping"
+          exit 0
+        fi
+
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Content-Type: application/json" -d "$EMBED_BODY" "$DISCORD_WEBHOOK")
+        echo "Discord HTTP status: $HTTP_CODE"
+        if [ "$HTTP_CODE" != "204" ] && [ "$HTTP_CODE" != "200" ]; then
+          echo "⚠️ Discord returned non-success status"
+        fi
+        
+    - name: Notify Discord of Rejection
+      if: steps.validate-pr.outputs.valid == 'true' && (steps.pr-details.outputs.approved == 'false' || steps.pr-details.outputs.approved == false)
+      run: |
+        PR_NUMBER="${{ steps.pr-details.outputs.pr_number }}"
+        REVIEWER="${{ steps.pr-details.outputs.reviewer }}"
+        COMMENTS="${{ steps.pr-details.outputs.comments }}"
+        
+        # Get PR details for Discord notification
+        PR_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+        
+        PR_TITLE=$(echo "$PR_RESPONSE" | jq -r '.title // "Unknown"')
+        AUTHOR=$(echo "$PR_RESPONSE" | jq -r '.user.login // "Unknown"')
+        PR_URL=$(echo "$PR_RESPONSE" | jq -r '.html_url // ""')
+        
+        # Determine Discord webhook URL based on environment
+        if [[ "$PR_NUMBER" == *"staging"* ]] || [[ "$PR_NUMBER" -gt 100 ]]; then
+          DISCORD_WEBHOOK="${{ secrets.DISCORD_STAGING_WEBHOOK }}"
+        elif [[ "$PR_NUMBER" == *"preview"* ]] || [[ "$PR_NUMBER" -lt 50 ]]; then
+          DISCORD_WEBHOOK="${{ secrets.DISCORD_PREVIEW_WEBHOOK }}"
+        else
+          DISCORD_WEBHOOK="${{ secrets.DISCORD_PRODUCTION_WEBHOOK }}"
+        fi
+        
+        if [ -z "$DISCORD_WEBHOOK" ]; then
+          echo "⚠️ Discord webhook not configured, skipping notification"
+          exit 0
+        fi
+        
+        # Create Discord embed
+        EMBED_BODY="{
+          \"embeds\": [{
+            \"title\": \"❌ Preview Rejected\",
+            \"description\": \"PR #$PR_NUMBER has been rejected and requires changes.\",
+            \"color\": 16711680,
+            \"fields\": [
+              {\"name\": \"PR\", \"value\": \"#$PR_NUMBER\", \"inline\": true},
+              {\"name\": \"Author\", \"value\": \"$AUTHOR\", \"inline\": true},
+              {\"name\": \"Reviewer\", \"value\": \"$REVIEWER\", \"inline\": true},
+              {\"name\": \"Title\", \"value\": \"$PR_TITLE\", \"inline\": false},
+              {\"name\": \"Feedback\", \"value\": \"${COMMENTS:-No feedback provided}\", \"inline\": false}
+            ],
+            \"url\": \"$PR_URL\",
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+            \"footer\": {\"text\": \"Preview Approval System\"}
+          }]
+        }"
+        
+        echo "📢 Sending Discord rejection notification..."
+        curl -H "Content-Type: application/json" -d "$EMBED_BODY" "$DISCORD_WEBHOOK" || echo "Discord notification failed (non-critical)"
+          
+    - name: Log approval result
+      run: |
+        echo "=== Preview Approval Result ==="
+        echo "PR Number: ${{ steps.pr-details.outputs.pr_number }}"
+        echo "Reviewer: ${{ steps.pr-details.outputs.reviewer }}"
+        echo "Approved: ${{ steps.pr-details.outputs.approved }}"
+        echo "Comments: ${{ steps.pr-details.outputs.comments }}"
+        echo "Valid PR: ${{ steps.validate-pr.outputs.valid }}"
+        echo "================================"

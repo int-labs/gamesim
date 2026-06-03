@@ -1,0 +1,154 @@
+[
+  {
+    "fieldKey": "interest_rate",
+    "coefficient": 3.2,
+    "teamValues": [
+      {
+        "teamIndex": 0,
+        "teamId": "682a955ed004359931e89abb",
+        "originalValue": 0.07,
+        "zScore": 0.10976425998969044,
+        "weightedScore": 0.3512456319670094,
+        "weightedScoreNormalCDF": 1.7398460240387246
+      },
+      {
+        "teamIndex": 1,
+        "teamId": "682a955ed004359931e89ac1",
+        "originalValue": 0.08,
+        "zScore": 0.5488212999484516,
+        "weightedScore": 1.7562281598350453,
+        "weightedScoreNormalCDF": 2.2669951384331273
+      },
+      {
+        "teamIndex": 2,
+        "teamId": "682a955ed004359931e89ac7",
+        "originalValue": 0.03,
+        "zScore": -1.6464638998453553,
+        "weightedScore": -5.268684479505137,
+        "weightedScoreNormalCDF": 0.15946921256820126
+      },
+      {
+        "teamIndex": 3,
+        "teamId": "682a955fd004359931e89acd",
+        "originalValue": 0.09,
+        "zScore": 0.9878783399072127,
+        "weightedScore": 3.161210687703081,
+        "weightedScoreNormalCDF": 2.682860408029793
+      }
+    ]
+  },
+  {
+    "fieldKey": "fees",
+    "coefficient": 9,
+    "teamValues": [
+      {
+        "teamIndex": 0,
+        "teamId": "682a955ed004359931e89abb",
+        "originalValue": 250,
+        "zScore": -0.8115026712006891,
+        "weightedScore": -7.303524040806201,
+        "weightedScoreNormalCDF": 2.8768462518508753
+      },
+      {
+        "teamIndex": 1,
+        "teamId": "682a955ed004359931e89ac1",
+        "originalValue": 100,
+        "zScore": -1.172170525067662,
+        "weightedScore": -10.549534725608957,
+        "weightedScoreNormalCDF": 2.0850792454342733
+      },
+      {
+        "teamIndex": 2,
+        "teamId": "682a955ed004359931e89ac7",
+        "originalValue": 1000,
+        "zScore": 0.9918365981341756,
+        "weightedScore": 8.92652938320758,
+        "weightedScoreNormalCDF": 8.554252353082541
+      },
+      {
+        "teamIndex": 3,
+        "teamId": "682a955fd004359931e89acd",
+        "originalValue": 1000,
+        "zScore": 0.9918365981341756,
+        "weightedScore": 8.92652938320758,
+        "weightedScoreNormalCDF": 8.554252353082541
+      }
+    ]
+  },
+  {
+    "fieldKey": "product_level",
+    "coefficient": 2.3,
+    "teamValues": [
+      {
+        "teamIndex": 0,
+        "teamId": "682a955ed004359931e89abb",
+        "originalValue": 3,
+        "zScore": 0,
+        "weightedScore": 0,
+        "weightedScoreNormalCDF": 1.15000000115
+      },
+      {
+        "teamIndex": 1,
+        "teamId": "682a955ed004359931e89ac1",
+        "originalValue": 4,
+        "zScore": 1.414213562373095,
+        "weightedScore": 3.252691193458118,
+        "weightedScoreNormalCDF": 2.1191057932097284
+      },
+      {
+        "teamIndex": 2,
+        "teamId": "682a955ed004359931e89ac7",
+        "originalValue": 3,
+        "zScore": 0,
+        "weightedScore": 0,
+        "weightedScoreNormalCDF": 1.15000000115
+      },
+      {
+        "teamIndex": 3,
+        "teamId": "682a955fd004359931e89acd",
+        "originalValue": 2,
+        "zScore": -1.414213562373095,
+        "weightedScore": -3.252691193458118,
+        "weightedScoreNormalCDF": 0.18089420679027154
+      }
+    ]
+  },
+  {
+    "fieldKey": "marketing_spent",
+    "coefficient": 8.5,
+    "teamValues": [
+      {
+        "teamIndex": 0,
+        "teamId": "682a955ed004359931e89abb",
+        "originalValue": 10000,
+        "zScore": -0.22941573387056177,
+        "weightedScore": -1.950033737899775,
+        "weightedScoreNormalCDF": 3.4788200638033975
+      },
+      {
+        "teamIndex": 1,
+        "teamId": "682a955ed004359931e89ac1",
+        "originalValue": 20000,
+        "zScore": 1.6059101370939324,
+        "weightedScore": 13.650236165298425,
+        "weightedScoreNormalCDF": 8.039751981112788
+      },
+      {
+        "teamIndex": 2,
+        "teamId": "682a955ed004359931e89ac7",
+        "originalValue": 10000,
+        "zScore": -0.22941573387056177,
+        "weightedScore": -1.950033737899775,
+        "weightedScoreNormalCDF": 3.4788200638033975
+      },
+      {
+        "teamIndex": 3,
+        "teamId": "682a955fd004359931e89acd",
+        "originalValue": 5000,
+        "zScore": -1.1470786693528088,
+        "weightedScore": -9.750168689498874,
+        "weightedScoreNormalCDF": 1.0682341885639088
+      }
+    ]
+  }
+]

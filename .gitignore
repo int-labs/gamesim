@@ -1,0 +1,91 @@
+# Node.js modules
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directories
+coverage/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database and MongoDB-related files
+*.db
+*.sqlite
+dump/
+
+# Build directories
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# Temporary files
+*.swp
+*.swo
+*.tmp
+*.temp
+
+# Debug and profiling
+debug/
+*.prof
+*.swp
+*.swo
+*.trace
+*.profraw
+
+# IDEs and editors
+.idea/
+.vscode/
+*.iml
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+*.~lock.*
+*.~undo-tree.*
+*.un~
+.nfs*
+
+# Test files
+# jest/
+# test/
+# __tests__/
+# coverage/
+# *.lcov
+# .nyc_output/
+
+# Cypress
+client/cypress/videos/
+client/cypress/screenshots/
+client/cypress/downloads/
+
+# Dependency directories
+jspm_packages/
+bower_components/
+
+# Miscellaneous
+!.gitkeep
+
+/scripts/
+
+# agents
+/.agent
+
+# Claude Code runtime cache (worktrees, settings, launch configs, sessions)
+.claude/
