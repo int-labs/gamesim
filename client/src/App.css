@@ -1,0 +1,13 @@
+.recharts-layer tspan {
+    color: var(--Colors-Gray-950, #030712) !important;
+    font-family: "Inter" !important;
+    font-size: 12px !important;
+    font-style: normal !important;
+    font-weight: 400 !important;
+    line-height: 16px !important;
+    letter-spacing: 0.06px !important;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
