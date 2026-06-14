@@ -6,8 +6,9 @@ import {
   updateRoundStatus,
   deleteRound,
 } from "../controllers/roundControllers";
-import { authenticate } from "../middleware/authenticate";
-import { authorise } from "../middleware/authorise";
+import { authenticate } from "../middleware/authentication";
+import { authorize } from "../middleware/authorization";
+import { ROLES } from "../constants/roles";
 
 const router = Router();
 
@@ -19,9 +20,9 @@ router.use(authenticate);
 // PATCH  /rounds/:id/status      → advance/update round status (admin/operator)
 // DELETE /rounds/:id             → delete round (admin)
 router.get("/", getRoundsBySimulation);
-router.post("/", authorise("admin", "operator"), createRound);
+router.post("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), createRound);
 router.get("/:id", getRoundById);
-router.patch("/:id/status", authorise("admin", "operator"), updateRoundStatus);
-router.delete("/:id", authorise("admin"), deleteRound);
+router.patch("/:id/status", authorize([ROLES.ADMIN, ROLES.OPERATOR]), updateRoundStatus);
+router.delete("/:id", authorize([ROLES.ADMIN]), deleteRound);
 
 export default router;

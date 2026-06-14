@@ -6,8 +6,9 @@ import {
   updateProduct,
   deleteProduct,
 } from "../controllers/productControllers";
-import { authenticate } from "../middleware/authenticate";
-import { authorise } from "../middleware/authorise";
+import { authenticate } from "../middleware/authentication";
+import { authorize } from "../middleware/authorization";
+import { ROLES } from "../constants/roles";
 
 const router = Router();
 
@@ -20,9 +21,9 @@ router.use(authenticate);
 // PATCH  /products/:id       → update product (admin)
 // DELETE /products/:id       → delete product (admin)
 router.get("/", getProductsBySimulationType);
-router.post("/", authorise("admin"), createProduct);
+router.post("/", authorize([ROLES.ADMIN]), createProduct);
 router.get("/:id", getProductById);
-router.patch( "/:id", authorise("admin"), updateProduct);
-router.delete("/:id", authorise("admin"), deleteProduct);
+router.patch( "/:id", authorize([ROLES.ADMIN]), updateProduct);
+router.delete("/:id", authorize([ROLES.ADMIN]), deleteProduct);
 
 export default router;

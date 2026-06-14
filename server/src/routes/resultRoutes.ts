@@ -6,8 +6,9 @@ import {
   updateResult,
   deleteResult,
 } from "../controllers/resultControllers";
-import { authenticate } from "../middleware/authenticate";
-import { authorise } from "../middleware/authorise";
+import { authenticate } from "../middleware/authentication";
+import { authorize } from "../middleware/authorization";
+import { ROLES } from "../constants/roles";
 
 const router = Router();
 
@@ -20,9 +21,9 @@ router.use(authenticate);
 // PATCH  /results/:id       → update result (admin/operator)
 // DELETE /results/:id       → delete result (admin)
 router.get("/", getResults);
-router.post( "/", authorise("admin", "operator"), createResult);
+router.post( "/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), createResult);
 router.get("/:id", getResultById);
-router.patch( "/:id", authorise("admin", "operator"), updateResult);
-router.delete("/:id", authorise("admin"),              deleteResult);
+router.patch( "/:id", authorize([ROLES.ADMIN, ROLES.OPERATOR]), updateResult);
+router.delete("/:id", authorize([ROLES.ADMIN]), deleteResult);
 
 export default router;

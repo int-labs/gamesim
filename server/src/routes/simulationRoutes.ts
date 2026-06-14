@@ -6,8 +6,9 @@ import {
   updateSimulation,
   deleteSimulation,
 } from "../controllers/simulationControllers";
-import { authenticate } from "../middleware/authenticate";
-import { authorise } from "../middleware/authorise";
+import { authenticate } from "../middleware/authentication";
+import { authorize } from "../middleware/authorization";
+import { ROLES } from "../constants/roles";
 
 const router = Router();
 
@@ -19,9 +20,9 @@ router.use(authenticate);
 // PATCH  /simulations/:id    → update simulation (admin/operator)
 // DELETE /simulations/:id    → delete simulation (admin)
 router.get("/", getAllSimulations);
-router.post("/", authorise("admin", "operator"), createSimulation);
+router.post("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), createSimulation);
 router.get("/:id", getSimulationById);
-router.patch("/:id", authorise("admin", "operator"), updateSimulation);
-router.delete("/:id", authorise("admin"), deleteSimulation);
+router.patch("/:id", authorize([ROLES.ADMIN, ROLES.OPERATOR]), updateSimulation);
+router.delete("/:id", authorize([ROLES.ADMIN]), deleteSimulation);
 
 export default router;

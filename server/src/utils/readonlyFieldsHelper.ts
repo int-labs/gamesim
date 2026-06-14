@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
-import { DecisionInterface } from "../models/decisions";
-import { ProductInterface } from "../models/products";
+import { DecisionInterface } from "../models/decisions.js";
+import { ProductInterface } from "../models/products.js";
 import { evaluateFormula, FieldResolver, getTextDropdownCosts } from "./evaluateFormula";
 
 interface ReadonlyCalculationParams {

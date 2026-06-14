@@ -2,12 +2,11 @@ import { Router } from "express";
 import {
   getProjectionsByTeam,
   getProjectionById,
-  submitDecision,
-  recalcProjections,
   deleteProjection,
 } from "../controllers/projectionControllers";
-import { authenticate } from "../middleware/authenticate";
-import { authorise } from "../middleware/authorise";
+import { authenticate } from "../middleware/authentication";
+import { authorize } from "../middleware/authorization";
+import { ROLES } from "../constants/roles";
 
 const router = Router();
 
@@ -31,9 +30,9 @@ router.use(authenticate);
 //          → delete a projection document (admin)
 
 router.get("/", getProjectionsByTeam);
-router.post("/submit", submitDecision);           // team decision entry point
-router.post("/:id/recalc", authorise("admin", "operator"), recalcProjections);
+// router.post("/submit", submitDecision);           // team decision entry point
+// router.post("/:id/recalc", authorize([ROLES.ADMIN, ROLES.OPERATOR]), recalcProjections);
 router.get("/:id", getProjectionById);
-router.delete("/:id", authorise("admin"), deleteProjection);
+router.delete("/:id", authorize([ROLES.ADMIN]), deleteProjection);
 
 export default router;

@@ -1,8 +1,8 @@
-import { DecisionInterface } from "../models/decisions";
+import { DecisionInterface } from "../models/decisions.js";
 import {
   ProductInterface,
   ProductUnlockPrerequisite,
-} from "../models/products";
+} from "../models/products.js";
 
 export interface PrerequisiteCheckResult {
   isMet: boolean;

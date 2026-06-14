@@ -6,8 +6,9 @@ import {
   updateUser,
   deleteUser,
 } from "../controllers/userControllers";
-import { authenticate } from "../middleware/authenticate";
-import { authorise } from "../middleware/authorise";
+import { authenticate } from "../middleware/authentication";
+import { authorize } from "../middleware/authorization";
+import { ROLES } from "../constants/roles";
 
 const router = Router();
 
@@ -19,10 +20,10 @@ router.use(authenticate);
 // GET    /users/:id        → get single user
 // PATCH  /users/:id        → update user
 // DELETE /users/:id        → delete user   (admin)
-router.get("/", authorise("admin", "operator"), getAllUsers);
-router.post("/", authorise("admin"), createUser);
+router.get("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), getAllUsers);
+router.post("/", authorize([ROLES.ADMIN]), createUser);
 router.get("/:id", getUserById);
 router.patch("/:id", updateUser);
-router.delete("/:id", authorise("admin"), deleteUser);
+router.delete("/:id", authorize([ROLES.ADMIN]), deleteUser);
 
 export default router;
