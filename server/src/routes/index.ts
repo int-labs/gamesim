@@ -6,25 +6,27 @@ import simulationRoutes     from "./simulationRoutes";
 import simulationTypeRoutes from "./simulationTypeRoutes";
 import roundRoutes          from "./roundRoutes";
 import baseDataRoutes       from "./baseDataRoutes";
-import decisionRoutes       from "./decisionRoutes";
+import decisionRoutes       from "./decisionsRoutes";
 import projectionRoutes     from "./projectionRoutes";
 import resultRoutes         from "./resultRoutes";
 import productRoutes        from "./productRoutes";
 import uploadRoutes         from "./uploadRoutes";
+import imageAssetsRoutes    from "./imageAssetsRoutes";
 
 const router = Router();
 
-router.use("/auth",             authRoutes);
-router.use("/users",            userRoutes);
-router.use("/simulations",      simulationRoutes);
+router.use("/auth", authRoutes);
+router.use("/users", userRoutes);
+router.use("/simulations", simulationRoutes);
 router.use("/simulation-types", simulationTypeRoutes);
-router.use("/rounds",           roundRoutes);
-router.use("/base-data",        baseDataRoutes);
-router.use("/decisions",        decisionRoutes);
-router.use("/projections",      projectionRoutes);
-router.use("/results",          resultRoutes);
-router.use("/products",         productRoutes);
-router.use("/upload",           uploadRoutes);
+router.use("/rounds", roundRoutes);
+router.use("/base-data", baseDataRoutes);
+router.use("/decisions", decisionRoutes);
+router.use("/projections", projectionRoutes);
+router.use("/results", resultRoutes);
+router.use("/products", productRoutes);
+router.use("/upload", uploadRoutes);
+router.use("/image-assets", imageAssetsRoutes)
 
 router.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });

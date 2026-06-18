@@ -26,6 +26,7 @@ export interface IDecision extends Document {
   roundNumber:  number;
   productId:    Types.ObjectId;
   segmentId:    Types.ObjectId;
+  subProductKey:  string;
   inputs:       Record<string, number>;
   createdAt:    Date;
   updatedAt:    Date;
@@ -40,6 +41,7 @@ const DecisionSchema = new Schema<IDecision>(
     productId:    { type: Schema.Types.ObjectId, ref: "Product",    required: true },
     segmentId:    { type: Schema.Types.ObjectId, ref: "Segment",    required: true },
     inputs:       { type: DecisionInputsSchema,                      required: true },
+    subProductKey: { type: String, required: true },
   },
   {
     timestamps: true,
@@ -50,7 +52,7 @@ const DecisionSchema = new Schema<IDecision>(
 // One decision document per team per product per segment per round per simulation.
 // Insert only — no resubmission after a decision is locked.
 DecisionSchema.index(
-  { simulationId: 1, teamId: 1, roundNumber: 1, productId: 1, segmentId: 1 },
+  { simulationId: 1, teamId: 1, roundNumber: 1, productId: 1, segmentId: 1, subProductKey: 1 },
   { unique: true }
 );
 

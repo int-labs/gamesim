@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/users";
-import RefreshToken from "../models/refreshTokens";
+import RefreshToken from "../models/refreshToken";
 
 const ACCESS_TOKEN_EXPIRY  = "15m";
 const REFRESH_TOKEN_EXPIRY = "7d";

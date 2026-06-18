@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
+import Segment from "./segment";
 
 // ============================================================
 // Interfaces
@@ -21,27 +22,24 @@ export interface SubProduct {
 }
 
 export interface ProductInterface extends Document {
-  simulationTypeId:       Types.ObjectId;
-  segmentId:              Types.ObjectId;
-  productName:            string;
-  baseVariables:          Record<string, number> | null;
-  fields:                 ProductField[];
-  chargeoffCoefficient:   number | null;
-  useChargeoff:           boolean;
-  order:                  number;
-  chartPosition:          string | null;
-  description:            string | null;
-  displayDescription:     string | null;
-  displayTitle:           string | null;
-  productScopedColumns:   string[];
-  subProducts:            SubProduct[];
-  // Merged from productTypes
-  productTypeKey:         string | null;
-  productTypeName:        string | null;
-  productTypeDescription: string | null;
-  productTypeActive:      boolean;
-  createdAt:              Date;
-  updatedAt:              Date;
+  simulationTypeId:     Types.ObjectId;
+  segmentId:            Types.ObjectId;
+  productName:          string;
+  productType:          string | null;
+  active:               boolean;
+  baseVariables:        Record<string, number> | null;
+  fields:               ProductField[];
+  chargeoffCoefficient: number | null;
+  useChargeoff:         boolean;
+  order:                number;
+  chartPosition:        string | null;
+  description:          string | null;
+  displayDescription:   string | null;
+  displayTitle:         string | null;
+  productScopedColumns: string[];
+  subProducts:          SubProduct[];
+  createdAt:            Date;
+  updatedAt:            Date;
 }
 
 // ============================================================
@@ -76,101 +74,52 @@ const subProductSchema = new Schema(
 
 const productSchema = new Schema<ProductInterface>(
   {
-    simulationTypeId: {
-      type:     Schema.Types.ObjectId,
-      required: true,
-      ref:      "SimulationType",
-      index:    true,
-    },
-    segmentId: {
-      type:     Schema.Types.ObjectId,
-      required: true,
-      ref:      "Segment",
-      index:    true,
-    },
-    productName: {
-      type:     String,
-      required: true,
-    },
-    baseVariables: {
-      type:    Schema.Types.Mixed, // { [variableKey]: number }
-      default: null,
-    },
-    fields: {
-      type:    [productFieldSchema],
-      default: [],
-    },
-    chargeoffCoefficient: {
-      type:    Number,
-      default: null,
-    },
-    useChargeoff: {
-      type:    Boolean,
-      default: false,
-    },
-    order: {
-      type:    Number,
-      default: 0,
-    },
-    chartPosition: {
-      type:    String,
-      default: null,
-    },
-    description: {
-      type:    String,
-      default: null,
-    },
-    displayDescription: {
-      type:    String,
-      default: null,
-    },
-    displayTitle: {
-      type:    String,
-      default: null,
-    },
-    productScopedColumns: {
-      type:    [String],
-      default: [],
-    },
-    subProducts: {
-      type:    [subProductSchema],
-      default: [],
-    },
-    // Merged from productTypes
-    productTypeKey: {
-      type:    String,
-      default: null,
-    },
-    productTypeName: {
-      type:    String,
-      default: null,
-    },
-    productTypeDescription: {
-      type:    String,
-      default: null,
-    },
-    productTypeActive: {
-      type:    Boolean,
-      default: true,
-    },
+    simulationTypeId: { type: Schema.Types.ObjectId, required: true, ref: "SimulationType", index: true },
+    segmentId:        { type: Schema.Types.ObjectId, required: true, ref: "Segment", index: true },
+    productName:      { type: String, required: true },
+    productType:      { type: String, default: null },
+    active:           { type: Boolean, default: true },
+    baseVariables:    { type: Schema.Types.Mixed, default: null },
+    fields:           { type: [productFieldSchema], default: [] },
+    chargeoffCoefficient: { type: Number, default: null },
+    useChargeoff:         { type: Boolean, default: false },
+    order:                { type: Number, default: 0 },
+    chartPosition:        { type: String, default: null },
+    description:          { type: String, default: null },
+    displayDescription:   { type: String, default: null },
+    displayTitle:         { type: String, default: null },
+    productScopedColumns: { type: [String], default: [] },
+    subProducts:          { type: [subProductSchema], default: [] },
   },
   { timestamps: true }
 );
 
-// One product name per segment per simulation type
-productSchema.index(
-  { simulationTypeId: 1, segmentId: 1, productName: 1 },
-  { unique: true }
-);
+// ============================================================
+// Pre-save hook
+// ============================================================
+
+productSchema.pre("save", async function (next) {
+  if (this.active === false) return next();
+
+  try {
+    const segment = await Segment.findById(this.segmentId);
+
+    if (!segment) {
+      return next(new Error(`Segment with ID "${this.segmentId}" does not exist.`));
+    }
+
+    if (!segment.active) {
+      return next(new Error(`Cannot activate product — parent segment "${segment.name}" is inactive.`));
+    }
+
+    next();
+  } catch (err: any) {
+    next(err);
+  }
+});
 
 // ============================================================
 // Model export
 // ============================================================
 
-const Product = mongoose.model<ProductInterface>(
-  "Product",
-  productSchema,
-  "products"
-);
-
-export default Product;
+export default mongoose.model<ProductInterface>("Product", productSchema);

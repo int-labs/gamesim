@@ -1,10 +1,10 @@
 import { Router } from "express";
 import {
-  getDecisionsByTeam,
   getDecisionById,
-  submitDecision,
+  createDecision,
   deleteDecision,
-} from "../controllers/decisionControllers";
+  getDecisions,
+} from "../controllers/decisionsControllers";
 import { authenticate } from "../middleware/authentication";
 import { authorize }    from "../middleware/authorization";
 import { ROLES } from "../constants/roles";
@@ -28,8 +28,8 @@ router.use(authenticate);
 //          → hard delete a decision (admin only)
 //            use sparingly — decisions are meant to be immutable after submission
 
-router.get("/", getDecisionsByTeam);
-router.post("/", submitDecision);
+router.get("/", getDecisions);
+router.post("/", createDecision);
 router.get("/:id", getDecisionById);
 router.delete("/:id", authorize([ROLES.ADMIN]), deleteDecision);
 
