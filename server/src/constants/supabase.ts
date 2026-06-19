@@ -1,7 +1,13 @@
+import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 
-const SUPABASE_URL      = process.env.SUPABASE_URL      as string;
-const SUPABASE_KEY      = process.env.SUPABASE_SERVICE_KEY as string;
+dotenv.config()
+
+globalThis.WebSocket = ws as any;
+
+const SUPABASE_URL      = process.env.SUPABASE_URL;
+const SUPABASE_KEY      = process.env.SUPABASE_KEY;
 const SUPABASE_BUCKET   = "imageAsset";
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {

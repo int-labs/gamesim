@@ -12,7 +12,7 @@ import { ROLES } from "../constants/roles";
 
 const router = Router();
 
-router.use(authenticate);
+// router.use(authenticate);
 
 // GET    /products?simulationTypeId=&segmentId=
 //          → list products; filter by simulationTypeId and/or segmentId

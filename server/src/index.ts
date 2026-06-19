@@ -69,6 +69,10 @@ app.use(express.json({ limit: "500kb" })); // Middleware to parse JSON requests
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Register API routes
+app.get("/", (_req: Request, res: Response) => {
+  res.status(200).send("API Server Running");
+});
+
 app.use("/api", routes);
 
 // In Docker/production, serve the React build from ../public (copied in Dockerfile)

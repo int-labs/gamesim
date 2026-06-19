@@ -1,29 +1,25 @@
 import { Router } from "express";
 import {
-  getAllUsers,
-  getUserById,
   createUser,
+  getUsers,
+  getUserById,
   updateUser,
+  regeneratePasskey,
   deleteUser,
 } from "../controllers/userControllers";
 import { authenticate } from "../middleware/authentication";
-import { authorize } from "../middleware/authorization";
-import { ROLES } from "../constants/roles";
+import { authorize }    from "../middleware/authorization";
+import { ROLES }        from "../constants/roles";
 
 const router = Router();
 
-// All user routes require authentication
-router.use(authenticate);
+// router.use(authenticate);
 
-// GET    /users            → list all users (admin/operator)
-// POST   /users            → create user   (admin)
-// GET    /users/:id        → get single user
-// PATCH  /users/:id        → update user
-// DELETE /users/:id        → delete user   (admin)
-router.get("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), getAllUsers);
 router.post("/", authorize([ROLES.ADMIN]), createUser);
-router.get("/:id", getUserById);
+router.get("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), getUsers);
+router.get("/:id", authorize([ROLES.ADMIN, ROLES.OPERATOR]), getUserById);
 router.patch("/:id", updateUser);
+router.patch("/:id/regenerate-passkey", authorize([ROLES.ADMIN]), regeneratePasskey);
 router.delete("/:id", authorize([ROLES.ADMIN]), deleteUser);
 
 export default router;

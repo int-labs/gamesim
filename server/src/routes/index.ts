@@ -10,8 +10,9 @@ import decisionRoutes       from "./decisionsRoutes";
 import projectionRoutes     from "./projectionRoutes";
 import resultRoutes         from "./resultRoutes";
 import productRoutes        from "./productRoutes";
-import uploadRoutes         from "./uploadRoutes";
+// import uploadRoutes         from "./uploadRoutes";
 import imageAssetsRoutes    from "./imageAssetsRoutes";
+import initiativeRoutes     from "./initiativeRoutes";
 
 const router = Router();
 
@@ -25,8 +26,9 @@ router.use("/decisions", decisionRoutes);
 router.use("/projections", projectionRoutes);
 router.use("/results", resultRoutes);
 router.use("/products", productRoutes);
-router.use("/upload", uploadRoutes);
-router.use("/image-assets", imageAssetsRoutes)
+// router.use("/upload", uploadRoutes);
+router.use("/image-assets", imageAssetsRoutes);
+router.use("/initiatives", initiativeRoutes);
 
 router.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });

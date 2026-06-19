@@ -12,7 +12,7 @@ import { ROLES } from "../constants/roles";
 
 const router = Router();
 
-router.use(authenticate);
+// router.use(authenticate);
 
 // GET    /simulations        → list all simulations
 // POST   /simulations        → create simulation (admin/operator)

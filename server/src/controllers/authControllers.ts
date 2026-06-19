@@ -3,14 +3,15 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/users";
 import RefreshToken from "../models/refreshToken";
+import { Types } from "mongoose";
 
 const ACCESS_TOKEN_EXPIRY  = "15m";
 const REFRESH_TOKEN_EXPIRY = "7d";
 const REFRESH_TOKEN_MS     = 7 * 24 * 60 * 60 * 1000;
 
-function generateAccessToken(userId: string, role: string): string {
+function generateAccessToken(userId: string, role: string, teamId?: string): string {
   return jwt.sign(
-    { id: userId, role },
+    { id: userId, role, ...(teamId && { teamId }) },
     process.env.JWT_SECRET as string,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
@@ -46,11 +47,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const accessToken  = generateAccessToken(user._id.toString(), user.role);
-    const refreshToken = generateRefreshToken(user._id.toString());
+    const userId      = (user._id as Types.ObjectId).toString();
+    const accessToken  = generateAccessToken(userId, user.role);
+    const refreshToken = generateRefreshToken(userId);
 
     await RefreshToken.create({
-      userId:    user._id,
+      userId:    user._id as Types.ObjectId,
       token:     refreshToken,
       expiresAt: new Date(Date.now() + REFRESH_TOKEN_MS),
     });
@@ -65,7 +67,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.status(200).json({
       accessToken,
       user: {
-        _id:    user._id,
+        _id:    user._id as Types.ObjectId,
         email:  user.email,
         role:   user.role,
         teamId: user.teamId ?? null,
@@ -73,6 +75,57 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Login failed." });
+  }
+};
+
+// POST /auth/login/passkey
+export const passkeyLogin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { passkey } = req.body;
+
+    if (!passkey) {
+      res.status(400).json({ message: "Passkey is required." });
+      return;
+    }
+
+    const user = await User.findOne({ passkey });
+    if (!user) {
+      res.status(401).json({ message: "Invalid passkey." });
+      return;
+    }
+
+    const userId      = (user._id as Types.ObjectId).toString();
+    const accessToken  = generateAccessToken(
+      userId,
+      user.role,
+      user.teamId?.toString()
+    );
+    const refreshToken = generateRefreshToken(userId);
+
+    await RefreshToken.create({
+      userId:    user._id as Types.ObjectId,
+      token:     refreshToken,
+      expiresAt: new Date(Date.now() + REFRESH_TOKEN_MS),
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge:   REFRESH_TOKEN_MS,
+    });
+
+    res.status(200).json({
+      accessToken,
+      user: {
+        _id:          user._id as Types.ObjectId,
+        role:         user.role,
+        teamId:       user.teamId       ?? null,
+        simulationId: user.simulationId ?? null,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Passkey login failed." });
   }
 };
 
@@ -124,11 +177,16 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
 
     await RefreshToken.findOneAndDelete({ token });
 
-    const newAccessToken  = generateAccessToken(user._id.toString(), user.role);
-    const newRefreshToken = generateRefreshToken(user._id.toString());
+    const userId          = (user._id as Types.ObjectId).toString();
+    const newAccessToken  = generateAccessToken(
+      userId,
+      user.role,
+      user.teamId?.toString()
+    );
+    const newRefreshToken = generateRefreshToken(userId);
 
     await RefreshToken.create({
-      userId:    user._id,
+      userId:    user._id as Types.ObjectId,
       token:     newRefreshToken,
       expiresAt: new Date(Date.now() + REFRESH_TOKEN_MS),
     });

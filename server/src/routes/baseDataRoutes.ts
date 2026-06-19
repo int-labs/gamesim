@@ -12,7 +12,7 @@ import { ROLES } from "../constants/roles";
 
 const router = Router();
 
-router.use(authenticate);
+// router.use(authenticate);
 
 // GET    /base-data?simulationTypeId=   → get base data for a simulation type
 // POST   /base-data                     → create base data record (admin)

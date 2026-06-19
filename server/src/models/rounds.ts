@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
-import Simulation from "./simulation";
+import Simulation from "./simulations";
 
 interface RoundTimer {
   startDate?:       Date;

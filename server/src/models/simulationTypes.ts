@@ -6,6 +6,10 @@ interface Output {
   aggregationType: "sum" | "average" | "min" | "max" | "count";
   unit:            string;
   description:     string;
+  source:          "pnl" | "bizperf" | "csat" | "custom";
+  format:          "money" | "percentage" | "number";
+  order:           number;
+  styles?:         Record<string, string>;
 }
 
 interface ReportPlacement {
@@ -34,6 +38,10 @@ const OutputSchema = new Schema<Output>(
     aggregationType: { type: String, enum: ["sum", "average", "min", "max", "count"], required: true },
     unit:            { type: String, required: true },
     description:     { type: String, required: true },
+    source:          { type: String, enum: ["pnl", "bizperf", "csat", "custom"], required: true },
+    format:          { type: String, enum: ["money", "percentage", "number"], required: true },
+    order:           { type: Number, required: true, default: 0 },
+    styles:          { type: Schema.Types.Mixed },
   },
   { _id: false }
 );
