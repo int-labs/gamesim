@@ -6,6 +6,7 @@ import Segment from "./segment";
 // ============================================================
 
 export interface ProductField {
+  _id?:     Types.ObjectId;
   key:      string;
   label:    string;
   type:     string;
@@ -46,16 +47,15 @@ export interface ProductInterface extends Document {
 // Sub-schemas
 // ============================================================
 
-const productFieldSchema = new Schema(
-  {
-    key:      { type: String, required: true },
-    label:    { type: String, required: true },
-    type:     { type: String, required: true, enum: ["number", "percentage", "currency", "text"] },
-    order:    { type: Number, default: 0 },
-    required: { type: Boolean, default: false },
-  },
-  { _id: false }
-);
+const productFieldSchema = new Schema({
+  key:      { type: String, required: true },
+  label:    { type: String, required: true },
+  type:     { type: String, required: true },
+  order:    { type: Number, default: 0 },
+  required: { type: Boolean, default: false },
+});
+// _id intentionally left default (true) — was previously { _id: false }.
+// Each field now needs its own ObjectId so /products/:id/fields/:fieldId can address it directly.
 
 const subProductSchema = new Schema(
   {

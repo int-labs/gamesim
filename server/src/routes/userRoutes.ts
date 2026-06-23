@@ -13,7 +13,7 @@ import { ROLES }        from "../constants/roles";
 
 const router = Router();
 
-// router.use(authenticate);
+router.use(authenticate);
 
 router.post("/", authorize([ROLES.ADMIN]), createUser);
 router.get("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), getUsers);

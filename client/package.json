@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.tsx",
   "scripts": {
-    "start": "vite --port ${CLIENT_PORT:-3001}",
+    "start": "vite --port 3001",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",

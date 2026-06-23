@@ -12,7 +12,7 @@ import { ROLES } from "../constants/roles";
 
 const router = Router();
 
-// router.use(authenticate);
+router.use(authenticate);
 
 // GET    /rounds?simulationId=   → list all rounds for a simulation
 // POST   /rounds                 → create a new round (admin/operator)

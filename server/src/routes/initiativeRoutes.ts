@@ -12,7 +12,7 @@ import { ROLES }        from "../constants/roles";
 
 const router = Router();
 
-// router.use(authenticate);
+router.use(authenticate);
 
 router.post("/", authorize([ROLES.ADMIN]), createInitiative);
 router.get("/", getInitiatives);

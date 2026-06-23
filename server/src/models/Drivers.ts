@@ -1,5 +1,4 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
-import Team from "./teams";
 import Product from "./products";
 
 export interface DriverYearData {
@@ -8,14 +7,12 @@ export interface DriverYearData {
 
 export interface DriverInterface extends Document {
   productId: Types.ObjectId;
-  teamId:    Types.ObjectId;
-  years:     DriverYearData;
+  years: DriverYearData;
 }
 
 const driverSchema = new Schema<DriverInterface>(
   {
     productId: { type: Schema.Types.ObjectId, required: true, ref: "Product", index: true },
-    teamId:    { type: Schema.Types.ObjectId, required: true, ref: "Team",    index: true },
     years:     {
       type:    Schema.Types.Mixed,
       default: null,
@@ -35,17 +32,12 @@ const driverSchema = new Schema<DriverInterface>(
 
 driverSchema.pre("save", async function (next) {
   try {
-    const [product, team] = await Promise.all([
+    const [product] = await Promise.all([
       Product.findById(this.productId),
-      Team.findById(this.teamId),
     ]);
 
     if (!product) {
       return next(new Error(`Product with ID "${this.productId}" does not exist.`));
-    }
-
-    if (!team) {
-      return next(new Error(`Team with ID "${this.teamId}" does not exist.`));
     }
 
     next();
@@ -54,6 +46,6 @@ driverSchema.pre("save", async function (next) {
   }
 });
 
-driverSchema.index({ productId: 1, teamId: 1 }, { unique: true });
+driverSchema.index({ productId: 1 }, { unique: true });
 
 export default mongoose.model<DriverInterface>("Driver", driverSchema, "drivers");

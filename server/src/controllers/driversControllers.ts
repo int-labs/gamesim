@@ -4,14 +4,14 @@ import Driver from "../models/drivers";
 // POST /drivers
 export const createDriver = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { productId, teamId, years } = req.body;
+    const { productId, segmentId, years } = req.body;
 
-    if (!productId || !teamId) {
-      res.status(400).json({ message: "productId and teamId are required." });
+    if (!productId || !segmentId) {
+      res.status(400).json({ message: "productId and segmentId are required." });
       return;
     }
 
-    const driver = await Driver.create({ productId, teamId, years });
+    const driver = await Driver.create({ productId, segmentId, years });
     res.status(201).json(driver);
   } catch (err: any) {
     if (err.code === 11000) {
@@ -25,14 +25,14 @@ export const createDriver = async (req: Request, res: Response): Promise<void> =
 // GET /drivers
 export const getDrivers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { productId, teamId } = req.query;
+    const { productId } = req.query;
 
-    if (!productId || !teamId) {
-      res.status(400).json({ message: "productId and teamId are required." });
+    if (!productId) {
+      res.status(400).json({ message: "productId are required." });
       return;
     }
 
-    const drivers = await Driver.find({ productId, teamId });
+    const drivers = await Driver.find({ productId });
     res.status(200).json(drivers);
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to fetch drivers." });

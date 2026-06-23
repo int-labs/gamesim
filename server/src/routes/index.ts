@@ -11,8 +11,12 @@ import projectionRoutes     from "./projectionRoutes";
 import resultRoutes         from "./resultRoutes";
 import productRoutes        from "./productRoutes";
 // import uploadRoutes         from "./uploadRoutes";
+import driverRoutes         from "./driverRoutes";
 import imageAssetsRoutes    from "./imageAssetsRoutes";
 import initiativeRoutes     from "./initiativeRoutes";
+import paramRoutes          from "./paramRoutes";
+import teamRoutes           from "./teamRoutes";
+import segmentRoutes        from "./segmentRoutes";
 
 const router = Router();
 
@@ -26,6 +30,10 @@ router.use("/decisions", decisionRoutes);
 router.use("/projections", projectionRoutes);
 router.use("/results", resultRoutes);
 router.use("/products", productRoutes);
+router.use("/drivers", driverRoutes);
+router.use("/param-list", paramRoutes);
+router.use("/teams", teamRoutes);
+router.use("/segments", segmentRoutes);
 // router.use("/upload", uploadRoutes);
 router.use("/image-assets", imageAssetsRoutes);
 router.use("/initiatives", initiativeRoutes);

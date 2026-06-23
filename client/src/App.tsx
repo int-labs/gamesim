@@ -1,278 +1,110 @@
-import { Box, Button, ThemeProvider, Typography } from "@mui/material";
-import CssBaseline from "@mui/material/CssBaseline";
-import { jwtDecode } from "jwt-decode";
-import React, { useEffect } from "react";
-import { Link, Route, Routes, useLocation } from "react-router-dom";
-import { useLocalStorage } from "./utils/hooks/useLocalStorage";
+import { useState } from "react";
+import SimulationsPage from "./pages/SimulationsPage";
+import SimulationTypesPage from "./pages/SimulationTypesPage";
+import RoundsPage from "./pages/RoundsPage";
+import TeamsPage from "./pages/TeamsPage";
+import UsersPage from "./pages/UsersPage";
+import SegmentsPage from "./pages/SegmentsPage";
+import ProductsPage from "./pages/ProductsPage";
+import DriversPage from "./pages/DriversPage";
+import InitiativesPage from "./pages/InitiativesPage";
+import DecisionsPage from "./pages/DecisionsPage";
+import ParamListPage from "./pages/ParamListPage";
+import ProjectionsPage from "./pages/ProjectionsPage";
+import ResultsPage from "./pages/ResultsPage";
+import BaseDataPage from "./pages/BaseDataPage";
+import ImageAssetsPage from "./pages/ImageAssetsPage";
+import ProductFieldsPage from "./pages/ProductFieldsPage";
 
-import PreviewToolbar from "./components/PreviewToolbar";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Admin from "./pages/Admin";
-import GlobalInputDetail from "./pages/admin/GlobalInputDetail";
-import NewGlobalInput from "./pages/admin/NewGlobalInput";
-import {
-  default as AdminNewProduct,
-  default as NewProduct,
-} from "./pages/admin/NewProduct";
-import NewSegment from "./pages/admin/NewSegment";
-import NewSimulationType from "./pages/admin/NewSimulationType";
-import ProductDetailUnderSimType from "./pages/admin/ProductDetailUnderSimType";
-import SegmentDetail from "./pages/admin/SegmentDetail";
-import SimulationDetailConfiguration from "./pages/admin/SimulationDetailConfiguration";
-import SimulationTypeDetail from "./pages/admin/SimulationTypeDetail";
-import SimulationTypeList from "./pages/admin/SimulationTypeList";
-import AdminAnalysis from "./pages/AdminAnalysis";
-import AdminEventList from "./pages/AdminEventList";
-import AdminNewEventPage from "./pages/AdminNewEvent";
-import AdminNewSimulationPage from "./pages/AdminNewSimulationPage";
-import AdminNewUser from "./pages/AdminNewUser";
-import AdminProductList from "./pages/AdminProductList";
-import AdminSimActiveRound from "./pages/AdminSimActiveRound";
-import AdminSimDetail from "./pages/AdminSimDetail";
-import AdminUpdateEventPage from "./pages/AdminUpdateEvent";
-import AdminUserList from "./pages/AdminUserList";
-import Analysis from "./pages/Analysis";
-import DecisionExample from "./pages/DecisionExample";
-import EnhancedGeneric from "./pages/EnhancedGeneric";
-import Home from "./pages/Home";
-import TestingSlides from "./pages/TestingSlides";
-import theme from "./theme";
+type View =
+  | "simulations"
+  | "simulation-types"
+  | "rounds"
+  | "teams"
+  | "users"
+  | "segments"
+  | "products"
+  | "product-fields"
+  | "drivers"
+  | "initiatives"
+  | "decisions"
+  | "param-list"
+  | "projections"
+  | "results"
+  | "base-data"
+  | "image-assets";
 
-import "./App.css";
+const NAV: { label: string; view: View }[] = [
+  { label: "Simulations", view: "simulations" },
+  { label: "Simulation Types", view: "simulation-types" },
+  { label: "Rounds", view: "rounds" },
+  { label: "Teams", view: "teams" },
+  { label: "Users", view: "users" },
+  { label: "Segments", view: "segments" },
+  { label: "Products", view: "products" },
+  { label: "Product Fields", view: "product-fields" },
+  { label: "Drivers", view: "drivers" },
+  { label: "Initiatives", view: "initiatives" },
+  { label: "Decisions", view: "decisions" },
+  { label: "Param List", view: "param-list" },
+  { label: "Projections", view: "projections" },
+  { label: "Results", view: "results" },
+  { label: "Base Data", view: "base-data" },
+  { label: "Image Assets", view: "image-assets" },
+];
 
-const NotFound = () => (
-  <Box
-    sx={{
-      height: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-      alignItems: "center",
-      textAlign: "center",
-      px: 2,
-      bgcolor: "#f8f9fa",
-    }}
-  >
-    <Typography variant="h2" color="error" gutterBottom>
-      404
-    </Typography>
-    <Typography variant="h5" gutterBottom>
-      Oops! The page you are looking for doesn’t exist.
-    </Typography>
-    <Typography variant="body1" sx={{ mb: 3 }}>
-      It might have been moved or deleted. Let’s get you back on track.
-    </Typography>
-    <Button
-      variant="contained"
-      color="primary"
-      component={Link}
-      to="/"
-      sx={{ textTransform: "none", px: 4, py: 1 }}
-    >
-      Back to Home
-    </Button>
-  </Box>
-);
+export default function App() {
+  const [view, setView] = useState<View>("simulations");
 
-const AuthListener: React.FC = () => {
-  const [token] = useLocalStorage("token", "", {
-    deserializer: (val) => val,
-    serializer: (val) => val,
-  });
-  const location = useLocation();
-
-  useEffect(() => {
-    if (token && (location.pathname === "/" || location.pathname === "/login")) {
-      try {
-        const decoded = jwtDecode<any>(token);
-        if (decoded.role === "team") {
-          sessionStorage.removeItem("redirect_to");
-          window.location.href = `/v2/${decoded.simulationId}?segmentId=${decoded.segmentId}`;
-        } else {
-          const redirectTo = sessionStorage.getItem("redirect_to");
-          if (redirectTo) {
-            sessionStorage.removeItem("redirect_to");
-            window.location.href = redirectTo;
-          }
-        }
-      } catch (error) {
-        console.error("AuthListener error:", error);
-      }
+  const renderView = () => {
+    switch (view) {
+      case "simulations": return <SimulationsPage />;
+      case "simulation-types": return <SimulationTypesPage />;
+      case "rounds": return <RoundsPage />;
+      case "teams": return <TeamsPage />;
+      case "users": return <UsersPage />;
+      case "segments": return <SegmentsPage />;
+      case "products": return <ProductsPage />;
+      case "drivers": return <DriversPage />;
+      case "initiatives": return <InitiativesPage />;
+      case "decisions": return <DecisionsPage />;
+      case "param-list": return <ParamListPage />;
+      case "projections": return <ProjectionsPage />;
+      case "results": return <ResultsPage />;
+      case "base-data": return <BaseDataPage />;
+      case "image-assets": return <ImageAssetsPage />;
+      case "product-fields": return <ProductFieldsPage />;
     }
-  }, [token, location.pathname]);
-
-  return null;
-};
-
-const App: React.FC = () => {
-  // Detect if we're in a preview environment
-  const isPreview = window.location.hostname.includes("onrender.com");
+  };
 
   return (
-    <React.Fragment>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <AuthListener />
-        <PreviewToolbar isPreview={isPreview} />
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<Home />} />
-          <Route path="/decision-example" element={<DecisionExample />} />
-          <Route path="/login" element={<Home />} />
-          <Route path="/test-slides" element={<TestingSlides />} />
-
-          {/* Team routes */}
-          <Route element={<ProtectedRoute allowedRoles={["team"]} />}>
-            <Route path="/analysis" element={<Analysis />} />
-
-            <Route
-              path="/v2/:simulationId"
-              element={<EnhancedGeneric segment="" />}
-            />
-            <Route
-              path="/v2/:simulationId/:segmentKey"
-              element={<EnhancedGeneric segment="" />}
-            />
-          </Route>
-
-          {/* Admin routes */}
-          <Route
-            path="admin"
-            element={
-              <ProtectedRoute allowedRoles={["admin", "operator", "client"]} />
-            }
-          >
-            {/** events */}
-            <Route index path="events" element={<AdminEventList />} />
-            <Route index path="events/new" element={<AdminNewEventPage />} />
-            <Route
-              index
-              path="events/:eventId"
-              element={<AdminUpdateEventPage />}
-            />
-
-            {/** products */}
-            <Route index path="products" element={<AdminProductList />} />
-            <Route index path="products/new" element={<NewProduct />} />
-
-            {/** simulations */}
-            <Route index path="simulations" element={<Admin />} />
-            <Route
-              path="simulations/new"
-              element={<AdminNewSimulationPage />}
-            />
-            <Route
-              path="simulations/:simulationId"
-              element={<AdminSimDetail />}
-            />
-            <Route
-              path="simulations/:simulationId/configs"
-              element={<SimulationDetailConfiguration />}
-            />
-            <Route
-              path="simulations/:simulationId/rounds/:roundNumber"
-              element={<AdminSimActiveRound />}
-            />
-            <Route
-              path="simulations/:simulationId/analysis"
-              element={<AdminAnalysis />}
-            />
-            <Route
-              path="simulations/:simulationId/rounds/:roundNumber/slides"
-              element={<TestingSlides />}
-            />
-
-            {/** users */}
-            <Route
-              element={
-                <ProtectedRoute
-                  allowedRoles={["admin", "operator"]}
-                  renderNavbar={false}
-                />
-              }
-            >
-              <Route index path="users" element={<AdminUserList />} />
-              <Route index path="users/new" element={<AdminNewUser />} />
-            </Route>
-
-            {/**
-             * simulation types
-             * accessible only via URL bar, not available in any menu
-             *
-             */}
-            <Route
-              element={
-                <ProtectedRoute allowedRoles={["admin"]} renderNavbar={false} />
-              }
-            >
-              <Route
-                index
-                path="simulation-types"
-                element={<SimulationTypeList />}
-              />
-              <Route
-                index
-                path="simulation-types/new"
-                element={<NewSimulationType />}
-              />
-              <Route
-                index
-                path="simulation-types/:simulationTypeId"
-                element={<SimulationTypeDetail />}
-              />
-
-              <Route
-                index
-                path="simulation-types/:simulationTypeId/segments/new"
-                element={<NewSegment />}
-              />
-              <Route
-                index
-                path="simulation-types/:simulationTypeId/segments/:segmentId"
-                element={<SegmentDetail />}
-              />
-
-              <Route
-                index
-                path="simulation-types/:simulationTypeId/products/:productId"
-                element={<ProductDetailUnderSimType />}
-              />
-
-              <Route
-                index
-                path="simulation-types/:simulationTypeId/products/new"
-                element={<AdminNewProduct />}
-              />
-
-              <Route
-                index
-                path="simulation-types/:simulationTypeId/events/new"
-                element={<AdminNewEventPage />}
-              />
-              <Route
-                index
-                path="simulation-types/:simulationTypeId/events/:eventId"
-                element={<AdminUpdateEventPage />}
-              />
-
-              <Route
-                index
-                path="simulation-types/:simulationTypeId/global-inputs/new"
-                element={<NewGlobalInput />}
-              />
-              <Route
-                index
-                path="simulation-types/:simulationTypeId/global-inputs/:globalInputId"
-                element={<GlobalInputDetail />}
-              />
-            </Route>
-          </Route>
-
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </ThemeProvider>
-    </React.Fragment>
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      <nav style={{ width: 200, borderRight: "1px solid #ccc", padding: 8, flexShrink: 0 }}>
+        <strong>Admin Dashboard</strong>
+        <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
+          {NAV.map(({ label, view: v }) => (
+            <li key={v} style={{ marginBottom: 4 }}>
+              <button
+                onClick={() => setView(v)}
+                style={{
+                  background: view === v ? "#eee" : "none",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  width: "100%",
+                  padding: "4px 6px",
+                  fontWeight: view === v ? "bold" : "normal",
+                }}
+              >
+                {label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <main style={{ padding: 16, flex: 1, overflow: "auto" }}>
+        {renderView()}
+      </main>
+    </div>
   );
-};
-
-export default App;
+}

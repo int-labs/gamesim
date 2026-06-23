@@ -10,7 +10,7 @@ import { ROLES } from "../constants/roles";
 
 const router = Router();
 
-// router.use(authenticate);
+router.use(authenticate);
 
 // GET    /projections?simulationId=&teamId=&roundNumber=
 //          → fetch projections for a team (filtered by sim / round)

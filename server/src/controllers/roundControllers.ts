@@ -45,25 +45,36 @@ export const createRound = async (req: Request, res: Response): Promise<void> =>
 // PATCH /rounds/:id/status
 export const updateRoundStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status } = req.body;
+    const { status, timer } = req.body;
 
-    if (!status) {
-      res.status(400).json({ message: "status is required." });
-      return;
-    }
-
-    const round = await Round.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    );
+    const round = await Round.findById(req.params.id);
     if (!round) {
       res.status(404).json({ message: "Round not found." });
       return;
     }
+
+    // If status is being flipped to Active, compute endDate
+    if (status === "Active") {
+      const durationMinutes = timer?.durationMinutes ?? round.timer?.durationMinutes;
+
+      if (!durationMinutes) {
+        res.status(400).json({ message: "durationMinutes is required to activate a round." });
+        return;
+      }
+
+      const startDate = new Date();
+      const endDate   = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+
+      round.timer = { startDate, durationMinutes, endDate };
+    }
+
+    if (status)        round.status = status;
+    if (timer && status !== "Active") round.timer = { ...round.timer, ...timer };
+
+    await round.save();
     res.status(200).json(round);
   } catch (err: any) {
-    res.status(500).json({ message: err?.message ?? "Failed to update round status." });
+    res.status(500).json({ message: err?.message ?? "Failed to update round." });
   }
 };
 

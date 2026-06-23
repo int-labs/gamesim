@@ -80,3 +80,96 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: err?.message ?? "Failed to delete product." });
   }
 };
+
+
+// POST /products/:id/fields
+export const createProductField = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { key, label, type, order, required } = req.body;
+
+    if (!key || !label || !type) {
+      res.status(400).json({ message: "key, label, and type are required." });
+      return;
+    }
+
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { $push: { fields: { key, label, type, order, required } } },
+      { new: true, runValidators: true }
+    );
+
+    if (!product) {
+      res.status(404).json({ message: "Product not found." });
+      return;
+    }
+
+    res.status(201).json(product);
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to create product field." });
+  }
+};
+
+// GET /products/:id/fields
+export const getProductFields = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      res.status(404).json({ message: "Product not found." });
+      return;
+    }
+
+    res.status(200).json(product.fields);
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to fetch product fields." });
+  }
+};
+
+// PATCH /products/:id/fields/:fieldId
+export const updateProductField = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { label, type, order, required } = req.body;
+
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, "fields._id": req.params.fieldId },
+      {
+        $set: {
+          "fields.$.label":    label,
+          "fields.$.type":     type,
+          "fields.$.order":    order,
+          "fields.$.required": required,
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!product) {
+      res.status(404).json({ message: "Product or field not found." });
+      return;
+    }
+
+    res.status(200).json(product);
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to update product field." });
+  }
+};
+
+// DELETE /products/:id/fields/:fieldId
+export const deleteProductField = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { $pull: { fields: { _id: req.params.fieldId } } },
+      { new: true }
+    );
+
+    if (!product) {
+      res.status(404).json({ message: "Product not found." });
+      return;
+    }
+
+    res.status(200).json(product);
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to delete product field." });
+  }
+};

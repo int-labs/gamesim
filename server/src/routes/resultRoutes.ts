@@ -12,7 +12,7 @@ import { ROLES } from "../constants/roles";
 
 const router = Router();
 
-// router.use(authenticate);
+router.use(authenticate);
 
 // GET    /results?simulationId=&roundNumber=&productId=&segmentId=
 //          → query results by any combination of the compound index fields

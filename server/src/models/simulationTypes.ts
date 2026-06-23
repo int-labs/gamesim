@@ -69,4 +69,4 @@ const SimulationTypeSchema = new Schema<SimulationTypeInterface>(
   { timestamps: true }
 );
 
-export default mongoose.model<SimulationTypeInterface>("SimulationType", SimulationTypeSchema);
+export default mongoose.model<SimulationTypeInterface>("SimulationType", SimulationTypeSchema, "simulationTypes");
