@@ -3,18 +3,53 @@ import { getProducts, createProduct, deleteProduct } from "../api";
 import type { Product } from "../types";
 
 const BLANK = {
-  simulationTypeId: "", segmentId: "", productName: "", productType: "",
-  chargeoffCoefficient: 0, useChargeoff: false, order: 0,
-  chartPosition: "", description: "", displayDescription: "", displayTitle: "",
+  simulationTypeId: "",
+  segmentId: "",
+  productName: "",
+  productType: "",
+  description: "",
 };
 
 export default function ProductsPage() {
+  
+  const [baseVariablesJson, setBaseVariablesJson] = useState("{}");
+  const [useChargeoffRate, setUseChargeoffRate] = useState(false);
+  const [chargeoffRate, setChargeoffRate] = useState(0);
   const [rows, setRows] = useState<Product[]>([]);
   const [form, setForm] = useState({ ...BLANK });
   const [filterSimType, setFilterSimType] = useState("");
   const [filterSegment, setFilterSegment] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [baseVariables, setBaseVariables] = useState<Record<string, number>>({});
+  const [bvForm, setBvForm] = useState({ key: "", value: 0 });
+  const [editingBvKey, setEditingBvKey] = useState<string | null>(null);
+
+  const resetBvForm = () => {
+    setBvForm({ key: "", value: 0 });
+    setEditingBvKey(null);
+  };
+
+  const handleAdd = () => {
+    if (!bvForm.key) return;
+    setBaseVariables(bv => ({ ...bv, [bvForm.key]: bvForm.value }));
+    resetBvForm();
+  };
+
+  const handleEdit = (key: string) => {
+    setEditingBvKey(key);
+    setBvForm({ key, value: baseVariables[key] });
+  };
+
+  const handleRemove = (key: string) => {
+    setBaseVariables(bv => {
+      const next = { ...bv };
+      delete next[key];
+      return next;
+    });
+    if (editingBvKey === key) resetBvForm();
+  };
 
   const load = async () => {
     try {
@@ -34,10 +69,16 @@ export default function ProductsPage() {
       await createProduct({
         ...form,
         active: true,
-        chargeoffCoefficient: Number(form.chargeoffCoefficient),
-        order: Number(form.order),
+        baseVariables: {
+          ...baseVariables,
+          ...(useChargeoffRate ? { chargeoffRate } : {}),
+        },
       });
       setForm({ ...BLANK });
+      setBaseVariables({});
+      resetBvForm();
+      setUseChargeoffRate(false);
+      setChargeoffRate(0);
       await load();
     } catch (e: any) {
       setError(e.response?.data?.message ?? e.message);
@@ -72,14 +113,66 @@ export default function ProductsPage() {
           <tr><td>Segment ID</td><td><input value={form.segmentId} onChange={e => setForm(f => ({ ...f, segmentId: e.target.value }))} /></td></tr>
           <tr><td>Product Name</td><td><input value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} /></td></tr>
           <tr><td>Product Type</td><td><input value={form.productType} onChange={e => setForm(f => ({ ...f, productType: e.target.value }))} /></td></tr>
-          <tr><td>Display Title</td><td><input value={form.displayTitle} onChange={e => setForm(f => ({ ...f, displayTitle: e.target.value }))} /></td></tr>
-          <tr><td>Order</td><td><input type="number" value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></td></tr>
-          <tr><td>Chart Position</td><td><input value={form.chartPosition} onChange={e => setForm(f => ({ ...f, chartPosition: e.target.value }))} /></td></tr>
+          <tr><td>Description</td><td><input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></td></tr>
           <tr>
-            <td>Use Chargeoff</td>
-            <td><input type="checkbox" checked={form.useChargeoff} onChange={e => setForm(f => ({ ...f, useChargeoff: e.target.checked }))} /></td>
+            <td>Base Variables</td>
+              <td>
+                <table border={1} cellPadding={4}>
+                  <thead>
+                    <tr><th>key</th><th>value</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(baseVariables).map(([key, value]) => (
+                      <tr key={key}>
+                        <td>{key}</td>
+                        <td>{value}</td>
+                        <td>
+                          <button onClick={() => handleEdit(key)}>Edit</button>{" "}
+                          <button onClick={() => handleRemove(key)}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ marginTop: 4 }}>
+                  <input
+                    placeholder="key"
+                    value={bvForm.key}
+                    onChange={e => setBvForm(f => ({ ...f, key: e.target.value }))}
+                    disabled={!!editingBvKey}
+                  />
+                  <input
+                    type="number"
+                    placeholder="value"
+                    value={bvForm.value}
+                    onChange={e => setBvForm(f => ({ ...f, value: Number(e.target.value) }))}
+                  />
+                  <button onClick={handleAdd}>{editingBvKey ? "Update" : "Add"} Variable</button>
+                  {editingBvKey && <button onClick={resetBvForm}>Cancel</button>}
+                </div>
+              </td>
+            </tr>
+          <tr>
+            <td>Use Chargeoff Rate</td>
+            <td>
+              <input
+                type="checkbox"
+                checked={useChargeoffRate}
+                onChange={e => setUseChargeoffRate(e.target.checked)}
+              />
+              {useChargeoffRate && (
+                <>
+                  {" "}Rate:{" "}
+                  <input
+                    type="number"
+                    value={chargeoffRate}
+                    onChange={e => setChargeoffRate(Number(e.target.value))}
+                    style={{ width: 100 }}
+                  />
+                </>
+              )}
+            </td>
           </tr>
-          <tr><td>Chargeoff Coefficient</td><td><input type="number" value={form.chargeoffCoefficient} onChange={e => setForm(f => ({ ...f, chargeoffCoefficient: Number(e.target.value) }))} /></td></tr>
         </tbody>
       </table>
       <button onClick={handleCreate} disabled={loading}>Create</button>

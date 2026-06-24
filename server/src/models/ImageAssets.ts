@@ -17,4 +17,4 @@ const ImageAssetSchema = new Schema<ImageAssetInterface>(
   { timestamps: true }
 );
 
-export default mongoose.model<ImageAssetInterface>("ImageAsset", ImageAssetSchema);
+export default mongoose.model<ImageAssetInterface>("ImageAsset", ImageAssetSchema, "imageAssets");

@@ -11,7 +11,7 @@ import { ROLES } from "../constants/roles";
 
 const router = Router();
 
-// router.use(authenticate);
+router.use(authenticate);
 
 // GET    /decisions?simulationId=&teamId=&roundNumber=&productId=&segmentId=
 //          → query decisions; filterable by any combination of index fields

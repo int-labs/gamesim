@@ -16,6 +16,112 @@ export default function BaseDataPage() {
     }
   };
 
+  const CsatDriversTable = ({ drivers }: { drivers: any[] }) => {
+    if (!drivers || drivers.length === 0) return null;
+
+    const yearKeys = Array.from(
+      new Set(drivers.flatMap(d => Object.keys(d.coefficients || {})))
+    ).sort((a, b) => Number(a) - Number(b));
+
+    return (
+      <table style={{ fontSize: 10, borderCollapse: "collapse", width: "100%" }}>
+        <thead>
+          <tr>
+            <th style={{ border: "1px solid #ccc", padding: 2, textAlign: "left" }}>key</th>
+            <th style={{ border: "1px solid #ccc", padding: 2, textAlign: "left" }}>label</th>
+            <th style={{ border: "1px solid #ccc", padding: 2 }}>choiceKey</th>
+            {yearKeys.map(y => (
+              <th key={y} style={{ border: "1px solid #ccc", padding: 2 }}>{y}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {drivers.map((d, i) => (
+            <tr key={`${d.key}-${i}`}>
+              <td style={{ border: "1px solid #ccc", padding: 2 }}>{d.key}</td>
+              <td style={{ border: "1px solid #ccc", padding: 2 }}>{d.label}</td>
+              <td style={{ border: "1px solid #ccc", padding: 2 }}>{d.choiceKey ?? ""}</td>
+              {yearKeys.map(y => (
+                <td key={y} style={{ border: "1px solid #ccc", padding: 2, textAlign: "right" }}>
+                  {d.coefficients?.[y] !== undefined ? String(d.coefficients[y]) : ""}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  };
+
+  const SegmentDriversBlock = ({ drivers }: { drivers: any[] }) => {
+    const globalDrivers = drivers.filter(d => d.level === "global");
+    const segmentDrivers = drivers.filter(d => d.level === "segment");
+    const productDrivers = drivers.filter(d => d.level === "product");
+
+    const productGroups: Record<string, any[]> = {};
+    productDrivers.forEach(d => {
+      const pid = d.productId?.$oid ?? d.productId ?? "unknown";
+      if (!productGroups[pid]) productGroups[pid] = [];
+      productGroups[pid].push(d);
+    });
+
+    return (
+      <div style={{ paddingLeft: 8 }}>
+        {globalDrivers.length > 0 && (
+          <div style={{ marginBottom: 6 }}>
+            <strong style={{ fontSize: 11 }}>Global — affects PnL globally</strong>
+            <CsatDriversTable drivers={globalDrivers} />
+          </div>
+        )}
+        {segmentDrivers.length > 0 && (
+          <div style={{ marginBottom: 6 }}>
+            <strong style={{ fontSize: 11 }}>Segment — affects this segment</strong>
+            <CsatDriversTable drivers={segmentDrivers} />
+          </div>
+        )}
+        {Object.keys(productGroups).length > 0 && (
+          <div style={{ marginBottom: 6 }}>
+            <strong style={{ fontSize: 11 }}>Product — affects specific products</strong>
+            {Object.entries(productGroups).map(([productId, ds]) => (
+              <div key={productId} style={{ paddingLeft: 8, marginBottom: 4 }}>
+                <em style={{ fontSize: 10 }}>Product {productId}</em>
+                <CsatDriversTable drivers={ds} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const CsatMarketModelView = ({ csatMarketModel }: { csatMarketModel: any }) => {
+    const [openSegments, setOpenSegments] = useState<Record<string, boolean>>({});
+
+    if (!csatMarketModel || !csatMarketModel.segments?.length) {
+      return <span style={{ color: "#888" }}>—</span>;
+    }
+
+    const toggleSegment = (id: string) =>
+      setOpenSegments(prev => ({ ...prev, [id]: !prev[id] }));
+
+    return (
+      <div style={{ maxWidth: 480, maxHeight: 280, overflow: "auto", fontSize: 11 }}>
+        {csatMarketModel.segments.map((segment: any) => {
+          const segmentId = segment.segmentId?.$oid ?? segment.segmentId;
+          const segOpen = !!openSegments[segmentId];
+          return (
+            <div key={segmentId} style={{ marginBottom: 4 }}>
+              <button onClick={() => toggleSegment(segmentId)} style={{ fontSize: 11, cursor: "pointer" }}>
+                {segOpen ? "▾" : "▸"} Segment {segmentId}
+              </button>
+              {segOpen && <SegmentDriversBlock drivers={segment.drivers || []} />}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const FieldsTable = ({ title, fields }: { title: string; fields: any[] }) => {
     if (!fields || fields.length === 0) return null;
 
@@ -225,6 +331,7 @@ export default function BaseDataPage() {
               <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(record.constants, null, 2)}</pre></td>
               <td><MarketDataView marketData={record.marketData} /></td>
               <td><MarketModelView marketModel={record.marketModel} /></td>
+              <td><CsatMarketModelView csatMarketModel={record.csatMarketModel} /></td>
               <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(record.csatMarketModel, null, 2)}</pre></td>
             </tr>
           )}

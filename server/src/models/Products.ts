@@ -14,35 +14,18 @@ export interface ProductField {
   required: boolean;
 }
 
-export interface SubProduct {
-  key:         string;
-  label:       string;
-  description: string | null;
-  order:       number;
-  active:      boolean;
-}
-
 export interface ProductInterface extends Document {
-  simulationTypeId:     Types.ObjectId;
-  segmentId:            Types.ObjectId;
-  productName:          string;
-  productType:          string | null;
-  active:               boolean;
-  baseVariables:        Record<string, number> | null;
-  fields:               ProductField[];
-  chargeoffCoefficient: number | null;
-  useChargeoff:         boolean;
-  order:                number;
-  chartPosition:        string | null;
-  description:          string | null;
-  displayDescription:   string | null;
-  displayTitle:         string | null;
-  productScopedColumns: string[];
-  subProducts:          SubProduct[];
-  createdAt:            Date;
-  updatedAt:            Date;
+  simulationTypeId: Types.ObjectId;
+  segmentId:        Types.ObjectId;
+  productName:      string;
+  productType:      string | null;
+  active:           boolean;
+  baseVariables:    Record<string, number> | null;
+  fields:           ProductField[];
+  description:      string | null;
+  createdAt:        Date;
+  updatedAt:        Date;
 }
-
 // ============================================================
 // Sub-schemas
 // ============================================================
@@ -54,19 +37,8 @@ const productFieldSchema = new Schema({
   order:    { type: Number, default: 0 },
   required: { type: Boolean, default: false },
 });
-// _id intentionally left default (true) — was previously { _id: false }.
-// Each field now needs its own ObjectId so /products/:id/fields/:fieldId can address it directly.
-
-const subProductSchema = new Schema(
-  {
-    key:         { type: String, required: true },
-    label:       { type: String, required: true },
-    description: { type: String, default: null },
-    order:       { type: Number, default: 0 },
-    active:      { type: Boolean, default: true },
-  },
-  { _id: false }
-);
+// _id intentionally left default (true) — each field needs its own
+// ObjectId so /products/:id/fields/:fieldId can address it directly.
 
 // ============================================================
 // Schema
@@ -80,16 +52,8 @@ const productSchema = new Schema<ProductInterface>(
     productType:      { type: String, default: null },
     active:           { type: Boolean, default: true },
     baseVariables:    { type: Schema.Types.Mixed, default: null },
+    description: { type: String, default: null },
     fields:           { type: [productFieldSchema], default: [] },
-    chargeoffCoefficient: { type: Number, default: null },
-    useChargeoff:         { type: Boolean, default: false },
-    order:                { type: Number, default: 0 },
-    chartPosition:        { type: String, default: null },
-    description:          { type: String, default: null },
-    displayDescription:   { type: String, default: null },
-    displayTitle:         { type: String, default: null },
-    productScopedColumns: { type: [String], default: [] },
-    subProducts:          { type: [subProductSchema], default: [] },
   },
   { timestamps: true }
 );
