@@ -36,4 +36,4 @@ const ParamListSchema = new Schema<ParamListInterface>(
 
 ParamListSchema.index({ segmentId: 1, productId: 1 }, { unique: true });
 
-export default mongoose.model<ParamListInterface>("ParamList", ParamListSchema);
+export default mongoose.model<ParamListInterface>("ParamList", ParamListSchema, "paramList");

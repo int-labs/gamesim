@@ -136,3 +136,13 @@ export const getResults = (simulationId?: string, roundNumber?: number, productI
 export const getBaseData = (simulationTypeId?: string) =>
   api.get("/base-data", { params: simulationTypeId ? { simulationTypeId } : {} });
 export const getBaseDataById = (id: string) => api.get(`/base-data/${id}`);
+
+export const createBaseData = (data: object) => api.post("/base-data", data);
+
+// ── Global Inputs ─────────────────────────────────────────────────
+export const getGlobalInputs = (simulationTypeId?: string, category?: string) =>
+  api.get("/global-inputs", { params: { ...(simulationTypeId ? { simulationTypeId } : {}), ...(category ? { category } : {}) } });
+export const getGlobalInputById = (id: string) => api.get(`/global-inputs/${id}`);
+export const createGlobalInput = (data: object) => api.post("/global-inputs", data);
+export const updateGlobalInput = (id: string, data: object) => api.patch(`/global-inputs/${id}`, data);
+export const deleteGlobalInput = (id: string) => api.delete(`/global-inputs/${id}`);

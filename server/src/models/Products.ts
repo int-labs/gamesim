@@ -6,12 +6,17 @@ import Segment from "./segment";
 // ============================================================
 
 export interface ProductField {
-  _id?:     Types.ObjectId;
-  key:      string;
-  label:    string;
-  type:     string;
-  order:    number;
-  required: boolean;
+  _id?:         Types.ObjectId;
+  key:          string;
+  label:        string;
+  type:         string;
+  order:        number;
+  required:     boolean;
+  minValue:     number | null;
+  maxValue:     number | null;
+  direction:    "higher" | "lower";
+  tightening:   number;
+  coefficients: Record<string, number>;
 }
 
 export interface ProductInterface extends Document {
@@ -31,11 +36,16 @@ export interface ProductInterface extends Document {
 // ============================================================
 
 const productFieldSchema = new Schema({
-  key:      { type: String, required: true },
-  label:    { type: String, required: true },
-  type:     { type: String, required: true },
-  order:    { type: Number, default: 0 },
-  required: { type: Boolean, default: false },
+  key:          { type: String, required: true },
+  label:        { type: String, required: true },
+  type:         { type: String, required: true },
+  order:        { type: Number, default: 0 },
+  required:     { type: Boolean, default: false },
+  minValue:     { type: Number, default: null },
+  maxValue:     { type: Number, default: null },
+  direction:    { type: String, enum: ["higher", "lower"], default: "higher" },
+  tightening:   { type: Number, default: 3 },
+  coefficients: { type: Schema.Types.Mixed, default: {} },
 });
 // _id intentionally left default (true) — each field needs its own
 // ObjectId so /products/:id/fields/:fieldId can address it directly.
@@ -86,4 +96,4 @@ productSchema.pre("save", async function (next) {
 // Model export
 // ============================================================
 
-export default mongoose.model<ProductInterface>("Product", productSchema);
+export default mongoose.model<ProductInterface>("Product", productSchema, "products");

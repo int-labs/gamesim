@@ -10,11 +10,27 @@ import {
 
 export default function ProductFieldsPage() {
   const [simulationTypes, setSimulationTypes] = useState<any[]>([]);
+  const [simulationYears, setSimulationYears] = useState<number[]>([]);
+// when selectedSimType changes, derive years from config
+// e.g. if years run -2 to 5: [-2, -1, 0, 1, 2, 3, 4, 5]
+
   const [selectedSimType, setSelectedSimType] = useState("");
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [fields, setFields] = useState<any[]>([]);
-  const [form, setForm] = useState({ key: "", label: "", type: "number", order: 0, required: false });
+  const [form, setForm] = useState({
+    key:          "",
+    label:        "",
+    type:         "number",
+    order:        0,
+    required:     false,
+    minValue:     null as number | null,
+    maxValue:     null as number | null,
+    direction:    "higher" as "higher" | "lower",
+    tightening:   3,
+    coefficients: {} as Record<string, number>,
+  });
+
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -53,7 +69,18 @@ export default function ProductFieldsPage() {
   }, [selectedProductId]);
 
   const resetForm = () => {
-    setForm({ key: "", label: "", type: "number", order: 0, required: false });
+    setForm({
+      key:          "",
+      label:        "",
+      type:         "number",
+      order:        0,
+      required:     false,
+      minValue:     null,
+      maxValue:     null,
+      direction:    "higher",
+      tightening:   3,
+      coefficients: {},
+    });
     setEditingFieldId(null);
   };
 
@@ -65,6 +92,11 @@ export default function ProductFieldsPage() {
           type: form.type,
           order: form.order,
           required: form.required,
+          minValue: form.minValue,
+          maxValue: form.maxValue,
+          direction:    form.direction,
+          tightening:   form.tightening,
+          coefficients: form.coefficients,
         });
       } else {
         await createProductField(selectedProductId, form);
@@ -79,11 +111,16 @@ export default function ProductFieldsPage() {
   const handleEdit = (field: any) => {
     setEditingFieldId(field._id);
     setForm({
-      key: field.key,
-      label: field.label,
-      type: field.type,
-      order: field.order,
-      required: field.required,
+      key:          field.key,
+      label:        field.label,
+      type:         field.type,
+      order:        field.order,
+      required:     field.required,
+      minValue:     field.minValue ?? null,
+      maxValue:     field.maxValue ?? null,
+      direction:    field.direction ?? "higher",
+      tightening:   field.tightening ?? 3,
+      coefficients: field.coefficients ?? {},
     });
   };
 
@@ -135,7 +172,7 @@ export default function ProductFieldsPage() {
           <table border={1} cellPadding={4}>
             <thead>
               <tr>
-                <th>key</th><th>label</th><th>type</th><th>order</th><th>required</th><th></th>
+                <th>key</th><th>label</th><th>type</th><th>order</th><th>required</th><th>Min</th><th>Max</th>
               </tr>
             </thead>
             <tbody>
@@ -146,6 +183,8 @@ export default function ProductFieldsPage() {
                   <td>{f.type}</td>
                   <td>{f.order}</td>
                   <td>{f.required ? "yes" : "no"}</td>
+                  <td>{f.minValue}</td>
+                  <td>{f.maxValue}</td>
                   <td>
                     <button onClick={() => handleEdit(f)}>Edit</button>{" "}
                     <button onClick={() => handleDelete(f._id)}>Delete</button>
@@ -169,16 +208,87 @@ export default function ProductFieldsPage() {
               onChange={e => setForm({ ...form, label: e.target.value })}
             />
             <input
-              placeholder="type (e.g. number, text, drag-drop-image)"
+              placeholder="type"
               value={form.type}
               onChange={e => setForm({ ...form, type: e.target.value })}
+              disabled={!!editingFieldId}
             />
+            {["percentage", "cost", "currency", "number"].includes(form.type) && (
+              <input
+                type="number"
+                placeholder="No minimum"
+                value={form.minValue ?? ""}
+                onChange={(e) => {
+                  const parsed = parseFloat(e.target.value);
+                  setForm((f) => ({
+                    ...f,
+                    minValue: e.target.value === "" || isNaN(parsed) ? null : parsed,
+                  }));
+                }}
+              />
+            )}
+
+            {["percentage", "cost", "currency", "number"].includes(form.type) && (
+              <input
+                type="number"
+                placeholder="No maximum"
+                value={form.maxValue ?? ""}
+                onChange={(e) => {
+                  const parsed = parseFloat(e.target.value);
+                  setForm((f) => ({
+                    ...f,
+                    maxValue: e.target.value === "" || isNaN(parsed) ? null : parsed,
+                  }));
+                }}
+              />
+            )}
             <input
               type="number"
               placeholder="order"
               value={form.order}
               onChange={e => setForm({ ...form, order: Number(e.target.value) })}
             />
+            {/* Direction */}
+            <select
+              value={form.direction}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, direction: e.target.value as "higher" | "lower" }))
+              }
+            >
+              <option value="higher">Higher is better</option>
+              <option value="lower">Lower is better</option>
+            </select>
+
+            {/* Tightening */}
+            <input
+              type="number"
+              placeholder="Tightening (default: 3)"
+              value={form.tightening}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, tightening: parseFloat(e.target.value) || 3 }))
+              }
+            />
+
+            {/* Coefficients — dynamic per simulation year */}
+            {simulationYears.map((year) => (
+              <div key={year}>
+                <label>Year {year} Coefficient</label>
+                <input
+                  type="number"
+                  value={form.coefficients[year.toString()] ?? ""}
+                  onChange={(e) => {
+                    const parsed = parseFloat(e.target.value);
+                    setForm((f) => ({
+                      ...f,
+                      coefficients: {
+                        ...f.coefficients,
+                        [year.toString()]: isNaN(parsed) ? 0 : parsed,
+                      },
+                    }));
+                  }}
+                />
+              </div>
+            ))}
             <label>
               <input
                 type="checkbox"

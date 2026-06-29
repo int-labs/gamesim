@@ -19,26 +19,22 @@ export interface MarketData {
 }
 
 export interface MarketModelField {
-  key: string;
-  label: string;
-  formula?: string;
-  type?: string;
-  coefficients: Record<string, number>;
-  direction: number;
-  tightening: number;
+  key:         string;
+  label:       string;
+  formula?:    string;
+  type?:       string;
   elasticity?: number;
-  level?: "global" | "segment" | "product" | "subproduct" | "dynamic";
+  level?:      "global" | "segment" | "product" | "dynamic";
 }
 
 export interface MarketModel {
   segments: Array<{
     segmentId: Types.ObjectId;
-    products: Array<{
-      productId: Types.ObjectId;
-      fields: MarketModelField[];
+    products:  Array<{
+      productId:     Types.ObjectId;
+      fields:        MarketModelField[];
       segmentFields: MarketModelField[];
-      globalFields: MarketModelField[];
-      subProducts?: Array<{ key: string; fields: MarketModelField[] }>;
+      globalFields:  MarketModelField[];
     }>;
   }>;
 }
@@ -62,24 +58,14 @@ export interface CSATMarketModel {
 
 export interface BaseDataInterface extends Document {
   simulationTypeId: Types.ObjectId;
-  constants?: Record<string, unknown>;
-  marketData: MarketData;
-  marketModel: MarketModel;
-  csatMarketModel: CSATMarketModel;
-  createdAt: Date;
-  updatedAt: Date;
-  // Helper methods
-  getCoefficientsForProduct(
-    segmentId: Types.ObjectId,
-    productId: Types.ObjectId,
-    fieldKey: string,
-    year: number,
-    subProductKey?: string,
-    level?: string
-  ): number | null;
+  constants?:       Record<string, unknown>;
+  marketData:       MarketData;
+  marketModel:      MarketModel;
+  csatMarketModel:  CSATMarketModel;
+  createdAt:        Date;
+  updatedAt:        Date;
   getAvailableYears(): string[];
 }
-
 // ============================================================
 // Sub-schemas
 // ============================================================

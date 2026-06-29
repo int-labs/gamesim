@@ -81,4 +81,4 @@ RoundSchema.pre("save", async function (next) {
   }
 });
 
-export default mongoose.model<RoundInterface>("Round", RoundSchema);
+export default mongoose.model<RoundInterface>("Round", RoundSchema, "rounds");

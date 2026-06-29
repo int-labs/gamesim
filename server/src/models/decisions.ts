@@ -87,4 +87,4 @@ DecisionSchema.index(
   { unique: true }
 );
 
-export default mongoose.model<IDecision>("Decision", DecisionSchema);
+export default mongoose.model<IDecision>("Decision", DecisionSchema, "decisions");
