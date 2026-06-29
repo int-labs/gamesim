@@ -17,6 +17,7 @@ import initiativeRoutes     from "./initiativeRoutes";
 import paramRoutes          from "./paramRoutes";
 import teamRoutes           from "./teamRoutes";
 import segmentRoutes        from "./segmentRoutes";
+import globalInputRoutes    from "./globalInputRoutes";
 
 const router = Router();
 
@@ -34,6 +35,7 @@ router.use("/drivers", driverRoutes);
 router.use("/param-list", paramRoutes);
 router.use("/teams", teamRoutes);
 router.use("/segments", segmentRoutes);
+router.use("/global-inputs", globalInputRoutes);
 // router.use("/upload", uploadRoutes);
 router.use("/image-assets", imageAssetsRoutes);
 router.use("/initiatives", initiativeRoutes);

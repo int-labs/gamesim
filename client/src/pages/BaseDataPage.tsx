@@ -3,13 +3,12 @@ import { getBaseData, createBaseData, getSegments, getProducts, getGlobalInputs 
 import type { BaseData } from "../types";
 import { getSimulationTypes } from "../api";
 
-const BLANK_FIELD = { key: "", label: "", formula: "", type: "", level: "product", direction: 1, tightening: 3, elasticity: 1 };
+const BLANK_FIELD = { key: "", label: "", formula: "", type: "", level: "", direction: 1, tightening: 3, elasticity: 1 };
 const BLANK_DRIVER = { level: "global", key: "", label: "", productId: "", globalInputId: "", choiceKey: "" };
-
 
 export default function BaseDataPage() {
   type MarketModelField = {
-    key: string; label: string; formula: string; type: string; level: string;
+    key: string; label: string; formula: string; type: string; level?: string;
     direction: number; tightening: number; elasticity: number;
     coefficients: Record<string, number>;
   };
@@ -359,7 +358,6 @@ export default function BaseDataPage() {
         <div style={{ marginTop: 4 }}>
           <select value={form.level} onChange={e => setForm(f => ({ ...f, level: e.target.value }))}>
             <option value="global">global</option>
-            <option value="segment">segment</option>
             <option value="product">product</option>
           </select>
           <input placeholder="key" value={form.key} onChange={e => setForm(f => ({ ...f, key: e.target.value }))} disabled={!!editingKey} />
@@ -695,18 +693,19 @@ export default function BaseDataPage() {
 
     const handleAdd = () => {
       if (!form.key || !form.label) return;
+      const entry: MarketModelField = { ...form, level: form.level || undefined };
       if (editingKey) {
-        onChange(fields.map(f => (f.key === editingKey ? { ...form } : f)));
+        onChange(fields.map(f => (f.key === editingKey ? entry : f)));
       } else {
         if (fields.some(f => f.key === form.key)) return;
-        onChange([...fields, { ...form }]);
+        onChange([...fields, entry]);
       }
       resetForm();
     };
 
     const handleEdit = (f: MarketModelField) => {
       setEditingKey(f.key);
-      setForm({ ...f, coefficients: Object.fromEntries(yearKeys.map(y => [y, f.coefficients?.[y] ?? 0])) });
+      setForm({ ...f, level: f.level ?? "", coefficients: Object.fromEntries(yearKeys.map(y => [y, f.coefficients?.[y] ?? 0])) });
     };
 
     const handleDelete = (key: string) => {
@@ -730,6 +729,8 @@ export default function BaseDataPage() {
               <tr key={f.key}>
                 <td>{f.key}</td>
                 <td>{f.label}</td>
+                <td>{f.formula}</td>
+                <td>{f.type}</td>
                 <td>{f.level}</td>
                 <td>{f.direction}</td>
                 <td>{f.tightening}</td>
@@ -747,18 +748,17 @@ export default function BaseDataPage() {
         <div style={{ marginTop: 4 }}>
           <input placeholder="key" value={form.key} onChange={e => setForm(f => ({ ...f, key: e.target.value }))} disabled={!!editingKey} />
           <input placeholder="label" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
-          <input placeholder="formula" value={form.formula} onChange={e => setForm(f => ({ ...f, formula: e.target.value }))} />
-          <input placeholder="type" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} />
+          <input placeholder="formula (optional)" value={form.formula} onChange={e => setForm(f => ({ ...f, formula: e.target.value }))} />
+          <input placeholder="type (optional)" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} />
           <select value={form.level} onChange={e => setForm(f => ({ ...f, level: e.target.value }))}>
+            <option value="">-- none --</option>
             <option value="global">global</option>
             <option value="segment">segment</option>
             <option value="product">product</option>
-            <option value="subproduct">subproduct</option>
-            <option value="dynamic">dynamic</option>
           </select>
           <input type="number" placeholder="direction" style={{ width: 70 }} value={form.direction} onChange={e => setForm(f => ({ ...f, direction: Number(e.target.value) }))} />
           <input type="number" placeholder="tightening" style={{ width: 70 }} value={form.tightening} onChange={e => setForm(f => ({ ...f, tightening: Number(e.target.value) }))} />
-          <input type="number" placeholder="elasticity" style={{ width: 70 }} value={form.elasticity} onChange={e => setForm(f => ({ ...f, elasticity: Number(e.target.value) }))} />
+          <input type="number" placeholder="elasticity (optional)" style={{ width: 70 }} value={form.elasticity} onChange={e => setForm(f => ({ ...f, elasticity: Number(e.target.value) }))} />
           <div>
             {yearKeys.map(y => (
               <span key={y} style={{ marginRight: 4 }}>

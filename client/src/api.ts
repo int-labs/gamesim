@@ -146,3 +146,8 @@ export const getGlobalInputById = (id: string) => api.get(`/global-inputs/${id}`
 export const createGlobalInput = (data: object) => api.post("/global-inputs", data);
 export const updateGlobalInput = (id: string, data: object) => api.patch(`/global-inputs/${id}`, data);
 export const deleteGlobalInput = (id: string) => api.delete(`/global-inputs/${id}`);
+
+export const createGlobalInputItem = (id: string, data: object) => api.post(`/global-inputs/${id}/items`, data);
+export const getGlobalInputItems = (id: string) => api.get(`/global-inputs/${id}/items`);
+export const updateGlobalInputItem = (id: string, itemId: string, data: object) => api.patch(`/global-inputs/${id}/items/${itemId}`, data);
+export const deleteGlobalInputItem = (id: string, itemId: string) => api.delete(`/global-inputs/${id}/items/${itemId}`);

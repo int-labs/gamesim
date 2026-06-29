@@ -3,12 +3,15 @@ import mongoose from "mongoose";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface MarketModelField {
-  key:         string;
-  label:       string;
-  formula?:    string;
-  type?:       string;
-  elasticity?: number;
-  level?:      "global" | "segment" | "product" | "dynamic";
+  key:          string;
+  label:        string;
+  formula?:     string;
+  type?:        string;
+  level?:       "global" | "segment" | "product" | "subproduct" | "dynamic";
+  direction:    number;
+  tightening:   number;
+  elasticity?:  number;
+  coefficients: Record<string, number>;
 }
 
 export interface MarketModelProduct {
@@ -18,13 +21,8 @@ export interface MarketModelProduct {
   globalFields:  MarketModelField[];
 }
 
-export interface MarketModelSegment {
-  segmentId: mongoose.Types.ObjectId;
-  products:  MarketModelProduct[];
-}
-
 export interface ProductField {
-  _id?:         mongoose.Types.ObjectId;
+  _id:          mongoose.Types.ObjectId;
   key:          string;
   label:        string;
   type:         string;
@@ -32,30 +30,24 @@ export interface ProductField {
   required:     boolean;
   minValue:     number | null;
   maxValue:     number | null;
-  direction:    "higher" | "lower";
+  direction:    number;
   tightening:   number;
   coefficients: Record<string, number>;
 }
 
-export interface MarketDataYearly {
-  marketSize: number;
+export interface DecisionField {
+  fieldId: mongoose.Types.ObjectId;
+  value:   number | string | null;
 }
 
-export interface MarketDataProduct {
-  productId:  mongoose.Types.ObjectId;
-  yearlyData: Record<string, MarketDataYearly>;
-}
-
-export interface MarketDataSegment {
-  segmentId: mongoose.Types.ObjectId;
-  products:  MarketDataProduct[];
+export interface DecisionProductInput {
+  productId: mongoose.Types.ObjectId;
+  fields:    DecisionField[];
 }
 
 export interface DecisionDocument {
-  teamId:    mongoose.Types.ObjectId;
-  segmentId: mongoose.Types.ObjectId;
-  productId: mongoose.Types.ObjectId;
-  inputs:    Record<string, number>;
+  teamId: mongoose.Types.ObjectId;
+  inputs: DecisionProductInput[];
 }
 
 export interface TeamValue {
@@ -88,45 +80,29 @@ export interface CalcMarketModelOutput {
   sharesNormalCDF: TeamShare[];
 }
 
-// ─── Math Utilities ──────────────────────────────────────────────────────────
+// ─── Math Utilities (unchanged) ──────────────────────────────────────────────
 
 export const erf = (x: number): number => {
-  const a1 = 0.254829592;
-  const a2 = -0.284496736;
-  const a3 = 1.421413741;
-  const a4 = -1.453152027;
-  const a5 = 1.061405429;
-  const p  = 0.3275911;
-
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
   const sign = x < 0 ? -1 : 1;
   const absX = Math.abs(x);
   const t    = 1 / (1 + p * absX);
-  const y    =
-    1 -
-    ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) *
-      t *
-      Math.exp(-absX * absX);
-
+  const y    = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-absX * absX);
   return sign * y;
 };
 
-export const mean = (arr: number[]): number =>
-  arr.reduce((a, b) => a + b, 0) / arr.length;
+export const mean = (arr: number[]): number => arr.reduce((a, b) => a + b, 0) / arr.length;
 
 export const calcStdDev = (data: number[], tightening: number): number => {
   const values = data.filter((v) => v !== null && v !== undefined);
   if (values.length === 0) return 1;
-
   const avg      = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance =
-    values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+  const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
   const stdDev   = Math.sqrt(variance);
-
   return stdDev === 0 ? 1 : stdDev * tightening;
 };
 
-export const directionOffset = (direction: number): number =>
-  (1 - direction) / 2;
+export const directionOffset = (direction: number): number => (1 - direction) / 2;
 
 export const normalCDF = (x: number, avg: number, stdDev: number): number => {
   const z = (x - avg) / (Math.sqrt(2) * stdDev);
@@ -137,16 +113,16 @@ export const DEFAULT_TIGHTENING = 3;
 
 // ─── Core Calculation ────────────────────────────────────────────────────────
 
-export function calcMarketModel(
-  input: CalcMarketModelInput
-): CalcMarketModelOutput {
+export function calcMarketModel(input: CalcMarketModelInput): CalcMarketModelOutput {
   const { marketModelProduct, productFields, decisions, year } = input;
   const yearKey = year.toString();
 
-  // ── Decisions for this product + segment ─────────────────────────────────
-  const productDecisions = decisions.filter((d) =>
-    d.productId.equals(marketModelProduct.productId)
-  );
+  const productDecisions = decisions
+    .map((d) => {
+      const productInput = d.inputs.find((inp) => inp.productId.equals(marketModelProduct.productId));
+      return productInput ? { teamId: d.teamId, productInput } : null;
+    })
+    .filter((d): d is { teamId: mongoose.Types.ObjectId; productInput: DecisionProductInput } => d !== null);
 
   if (productDecisions.length === 0) {
     return { weightedScores: [], sharesNormalCDF: [] };
@@ -154,17 +130,14 @@ export function calcMarketModel(
 
   const teamIds = productDecisions.map((d) => d.teamId);
 
-  // ── Input resolver ────────────────────────────────────────────────────────
-  const getInput = (
-    teamId:   mongoose.Types.ObjectId,
-    fieldKey: string
-  ): number => {
-    const decision = productDecisions.find((d) => d.teamId.equals(teamId));
-    const raw      = decision?.inputs?.[fieldKey] ?? 0;
-
-    // clamp against productField minValue/maxValue if defined
+  // Decision fields are keyed by fieldId (ProductField._id), not string key.
+  const getInput = (teamId: mongoose.Types.ObjectId, fieldKey: string): number => {
     const pf = productFields.find((f) => f.key === fieldKey);
-    if (!pf) return raw;
+    if (!pf) return 0;
+
+    const decision   = productDecisions.find((d) => d.teamId.equals(teamId));
+    const fieldEntry = decision?.productInput.fields.find((f) => f.fieldId.equals(pf._id));
+    const raw        = Number(fieldEntry?.value ?? 0);
 
     let clamped = raw;
     if (pf.minValue !== null) clamped = Math.max(clamped, pf.minValue);
@@ -172,117 +145,100 @@ export function calcMarketModel(
     return clamped;
   };
 
-  // ── Helper: resolve direction as numeric (higher = 1, lower = -1) ────────
-  const resolveDirection = (direction: "higher" | "lower"): number =>
-    direction === "higher" ? 1 : -1;
-
-  // ── Helper: build field contributions for one set of fields ──────────────
-  const buildContributions = (
+  // Product-level: scored from each team's decision input, using
+  // ProductField for direction/tightening/coefficients.
+  const buildProductFieldContributions = (
     mmFields: MarketModelField[]
-  ): {
-    contributions: FieldContribution[];
-    teamTotals:    Record<string, number>;
-  } => {
+  ): { contributions: FieldContribution[]; teamTotals: Record<string, number> } => {
     const contributions: FieldContribution[] = [];
-    const teamTotals:    Record<string, number> = {};
+    const teamTotals: Record<string, number> = {};
 
     for (const mmField of mmFields) {
       if (mmField.key === "projected_market_share") continue;
 
-      // look up calc config from productFields
       const pf = productFields.find((f) => f.key === mmField.key);
       if (!pf) continue;
 
       const coefficient = pf.coefficients[yearKey];
       if (coefficient === undefined || coefficient === 0) continue;
 
-      const direction  = resolveDirection(pf.direction);
       const tightening = pf.tightening > 0 ? pf.tightening : DEFAULT_TIGHTENING;
-
-      const allValues = teamIds.map((tid) => getInput(tid, mmField.key));
-      const avg       = mean(allValues);
-      const stdDev    = calcStdDev(allValues, tightening);
+      const allValues   = teamIds.map((tid) => getInput(tid, mmField.key));
+      const avg          = mean(allValues);
+      const stdDev        = calcStdDev(allValues, tightening);
 
       const teamValues: TeamValue[] = teamIds.map((teamId) => {
         const originalDecisionValue = getInput(teamId, mmField.key);
         const score =
-          (directionOffset(direction) +
-            normalCDF(originalDecisionValue, avg, stdDev) * direction) *
+          (directionOffset(pf.direction) + normalCDF(originalDecisionValue, avg, stdDev) * pf.direction) *
           coefficient;
-
         const safeScore = isNaN(score) ? 0 : score;
-        const tidStr    = teamId.toString();
-
+        const tidStr     = teamId.toString();
         teamTotals[tidStr] = (teamTotals[tidStr] ?? 0) + safeScore;
-
         return { teamId, originalDecisionValue, score: safeScore };
       });
 
-      contributions.push({
-        fieldKey:   mmField.key,
-        fieldLabel: mmField.label,
-        coefficient,
-        teamValues,
-      });
+      contributions.push({ fieldKey: mmField.key, fieldLabel: mmField.label, coefficient, teamValues });
     }
 
     return { contributions, teamTotals };
   };
 
-  // ── Score all three field types ───────────────────────────────────────────
+  // Segment/global-level: ASSUMPTION — no per-team decision exists at this
+  // scope, so each field's coefficient (from MarketModelField itself) is
+  // applied identically to every team, rather than scored via normalCDF
+  // against a distribution of team-specific values. Confirm this is right.
+  const buildEmbeddedContributions = (
+    mmFields: MarketModelField[]
+  ): { contributions: FieldContribution[]; teamTotals: Record<string, number> } => {
+    const contributions: FieldContribution[] = [];
+    const teamTotals: Record<string, number> = {};
+
+    for (const mmField of mmFields) {
+      const coefficient = mmField.coefficients?.[yearKey];
+      if (coefficient === undefined || coefficient === 0) continue;
+
+      const teamValues: TeamValue[] = teamIds.map((teamId) => {
+        const tidStr = teamId.toString();
+        teamTotals[tidStr] = (teamTotals[tidStr] ?? 0) + coefficient;
+        return { teamId, originalDecisionValue: 0, score: coefficient };
+      });
+
+      contributions.push({ fieldKey: mmField.key, fieldLabel: mmField.label, coefficient, teamValues });
+    }
+
+    return { contributions, teamTotals };
+  };
+
   const { contributions: productContributions, teamTotals: productTotals } =
-    buildContributions(marketModelProduct.fields);
-
+    buildProductFieldContributions(marketModelProduct.fields);
   const { contributions: segmentContributions, teamTotals: segmentTotals } =
-    buildContributions(marketModelProduct.segmentFields);
-
+    buildEmbeddedContributions(marketModelProduct.segmentFields);
   const { contributions: globalContributions, teamTotals: globalTotals } =
-    buildContributions(marketModelProduct.globalFields);
+    buildEmbeddedContributions(marketModelProduct.globalFields);
 
-  // ── Merge totals across all field types ───────────────────────────────────
   const weightedScoresNormalCDF: Record<string, number> = {};
   for (const tidStr of teamIds.map((t) => t.toString())) {
     weightedScoresNormalCDF[tidStr] =
-      (productTotals[tidStr] ?? 0) +
-      (segmentTotals[tidStr] ?? 0) +
-      (globalTotals[tidStr]  ?? 0);
+      (productTotals[tidStr] ?? 0) + (segmentTotals[tidStr] ?? 0) + (globalTotals[tidStr] ?? 0);
   }
 
-  // ── Normalise into sharesNormalCDF ────────────────────────────────────────
-  const totalScore = Object.values(weightedScoresNormalCDF).reduce(
-    (a, b) => a + b,
-    0
-  );
+  const totalScore = Object.values(weightedScoresNormalCDF).reduce((a, b) => a + b, 0);
 
   const sharesNormalCDF: TeamShare[] = teamIds.map((teamId) => {
     const tidStr   = teamId.toString();
-    const rawShare =
-      totalScore === 0
-        ? 0
-        : (weightedScoresNormalCDF[tidStr] ?? 0) / totalScore;
+    const rawShare = totalScore === 0 ? 0 : (weightedScoresNormalCDF[tidStr] ?? 0) / totalScore;
 
-    // projected_market_share: team's intended capture, clamped 0–100
     const pmsRaw = getInput(teamId, "projected_market_share");
     const pms    = Math.min(Math.max(pmsRaw, 0), 100) / 100;
+    const normalisedPms = teamIds.length === 0 ? 0 : pms / (1 / teamIds.length);
 
-    // normalise against each team's equal slice (1 / numberOfTeams)
-    const normalisedPms =
-      teamIds.length === 0 ? 0 : pms / (1 / teamIds.length);
-
-    const actualShare = Math.min(
-      isNaN(rawShare) ? 0 : rawShare * normalisedPms,
-      1
-    );
-
+    const actualShare = Math.min(isNaN(rawShare) ? 0 : rawShare * normalisedPms, 1);
     return { teamId, value: actualShare };
   });
 
   return {
-    weightedScores: [
-      ...productContributions,
-      ...segmentContributions,
-      ...globalContributions,
-    ],
+    weightedScores: [...productContributions, ...segmentContributions, ...globalContributions],
     sharesNormalCDF,
   };
 }

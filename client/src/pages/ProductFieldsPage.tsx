@@ -172,7 +172,7 @@ export default function ProductFieldsPage() {
           <table border={1} cellPadding={4}>
             <thead>
               <tr>
-                <th>key</th><th>label</th><th>type</th><th>order</th><th>required</th><th>Min</th><th>Max</th>
+                <th>key</th><th>label</th><th>type</th><th>order</th><th>required</th><th>Min</th><th>Max</th><th>order</th><th>direction</th><th>tightening</th><th>coefficient</th>
               </tr>
             </thead>
             <tbody>
@@ -185,6 +185,10 @@ export default function ProductFieldsPage() {
                   <td>{f.required ? "yes" : "no"}</td>
                   <td>{f.minValue}</td>
                   <td>{f.maxValue}</td>
+                  <td>{f.order}</td>
+                  <td>{f.direction}</td>
+                  <td>{f.tightening}</td>
+                  <td>{f.coefficients}</td>
                   <td>
                     <button onClick={() => handleEdit(f)}>Edit</button>{" "}
                     <button onClick={() => handleDelete(f._id)}>Delete</button>

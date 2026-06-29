@@ -170,12 +170,26 @@ const csatDriverSchema = new Schema(
     key:           { type: String, required: true },
     label:         { type: String, required: true },
     productId:     { type: Schema.Types.ObjectId, ref: "Product", default: null },
-    globalInputId: { type: Schema.Types.ObjectId, ref: "GlobalInput", default: null },
+    // Points to a specific item's _id inside some GlobalInput document's
+    // inputs[] array — NOT a top-level GlobalInput document's _id. No
+    // `ref` here since a plain populate() can't resolve a nested-array
+    // match; use the `globalInput` virtual below instead, which is
+    // configured for that lookup.
+    globalInputId: { type: Schema.Types.ObjectId, default: null },
     choiceKey:     { type: String, default: null },
     coefficients:  { type: Schema.Types.Mixed, required: true, default: {}, validate: coefficientsValidator },
   },
   { _id: false, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+// Virtual: auto-populate the parent GlobalInput document that contains
+// the matching item — matches on inputs._id, not the document's own _id.
+csatDriverSchema.virtual("globalInput", {
+  ref:          "GlobalInput",
+  localField:   "globalInputId",
+  foreignField: "inputs._id",
+  justOne:      true,
+});
 
 // Virtual: auto-populate globalInput when queried
 csatDriverSchema.virtual("globalInput", {

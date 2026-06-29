@@ -15,6 +15,7 @@ import ResultsPage from "./pages/ResultsPage";
 import BaseDataPage from "./pages/BaseDataPage";
 import ImageAssetsPage from "./pages/ImageAssetsPage";
 import ProductFieldsPage from "./pages/ProductFieldsPage";
+import GlobalInputsPage from "./pages/GlobalInputsPage";
 
 type View =
   | "simulations"
@@ -26,6 +27,7 @@ type View =
   | "products"
   | "product-fields"
   | "drivers"
+  | "global-inputs"
   | "initiatives"
   | "decisions"
   | "param-list"
@@ -44,6 +46,7 @@ const NAV: { label: string; view: View }[] = [
   { label: "Products", view: "products" },
   { label: "Product Fields", view: "product-fields" },
   { label: "Drivers", view: "drivers" },
+  { label: "Global Inputs", view: "global-inputs" },
   { label: "Initiatives", view: "initiatives" },
   { label: "Decisions", view: "decisions" },
   { label: "Param List", view: "param-list" },
@@ -74,6 +77,7 @@ export default function App() {
       case "base-data": return <BaseDataPage />;
       case "image-assets": return <ImageAssetsPage />;
       case "product-fields": return <ProductFieldsPage />;
+      case "global-inputs": return <GlobalInputsPage />;
     }
   };
 
