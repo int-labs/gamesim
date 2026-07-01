@@ -120,11 +120,17 @@ export default function RoundsPage() {
               <td>{r.timer?.durationMinutes ?? ""}</td>
               <td>{r.timer?.endDate ? new Date(r.timer.endDate).toLocaleString() : ""}</td>
               <td>
+                {r.status === "Active" && (
+                  <button onClick={() => handlePatch(r._id, "Pending")}>← Pending</button>
+                )}
                 {r.status === "Pending" && (
                   <button onClick={() => handlePatch(r._id, "Active")}>→ Active</button>
                 )}
                 {r.status === "Active" && (
                   <button onClick={() => handlePatch(r._id, "Completed")}>→ Completed</button>
+                )}
+                {r.status === "Completed" && (
+                  <button onClick={() => handlePatch(r._id, "Active")}>← Active</button>
                 )}
                 {" "}
                 <button onClick={() => handleDelete(r._id)}>Delete</button>

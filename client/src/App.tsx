@@ -16,6 +16,7 @@ import BaseDataPage from "./pages/BaseDataPage";
 import ImageAssetsPage from "./pages/ImageAssetsPage";
 import ProductFieldsPage from "./pages/ProductFieldsPage";
 import GlobalInputsPage from "./pages/GlobalInputsPage";
+import MainSimPage from "./pages/MainSimPage";
 
 type View =
   | "simulations"
@@ -34,6 +35,7 @@ type View =
   | "projections"
   | "results"
   | "base-data"
+  | "sim-page"
   | "image-assets";
 
 const NAV: { label: string; view: View }[] = [
@@ -54,6 +56,7 @@ const NAV: { label: string; view: View }[] = [
   { label: "Results", view: "results" },
   { label: "Base Data", view: "base-data" },
   { label: "Image Assets", view: "image-assets" },
+  { label: "Sim Page (Preview)", view: "sim-page" },
 ];
 
 export default function App() {
@@ -78,6 +81,7 @@ export default function App() {
       case "image-assets": return <ImageAssetsPage />;
       case "product-fields": return <ProductFieldsPage />;
       case "global-inputs": return <GlobalInputsPage />;
+      case "sim-page": return <MainSimPage />;
     }
   };
 

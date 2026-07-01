@@ -1,5 +1,10 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import Projection from "../models/projections";
+import Product from "../models/products";
+import Projections from "../models/projections";
+import { calcFinancials, ProductField, BaseVariables } from "../sim/calcFinancials";
+
 
 // GET /projections?simulationId=&teamId=&roundNumber=
 export const getProjectionsByTeam = async (req: Request, res: Response): Promise<void> => {
@@ -49,20 +54,78 @@ export const deleteProjection = async (req: Request, res: Response): Promise<voi
   }
 };
 
-// -----------------------------------------------------------------------
-// recalcProjections — DEFERRED TO CALCULATION CONVERSATION
-// -----------------------------------------------------------------------
-// This method will be implemented alongside the full calculation layer:
-//   - calcCSAT.ts
-//   - calcMarketModel.ts
-//   - calcProjections.ts
-//   - calcPnL.ts
-//   - calcCashflow.ts
-//
-// It will:
-//   1. Read the team's submitted decisions from the decisions collection
-//   2. Read globalInputs for the simulation type
-//   3. Read baseData coefficients for each product/segment
-//   4. Run each calculation in sequence (CSAT → MM → Projections → PnL → Cashflow)
-//   5. Write all results back into this projection document
-// -----------------------------------------------------------------------
+export const recalcProjections = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { simulationId, teamId, roundNumber, productId, fields } = req.body;
+
+    if (!simulationId || !teamId || roundNumber === undefined || !productId || !Array.isArray(fields)) {
+      res.status(400).json({ message: "simulationId, teamId, roundNumber, productId, and fields are required." });
+      return;
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      res.status(404).json({ message: "Product not found." });
+      return;
+    }
+
+    const productFields: ProductField[] = product.fields as unknown as ProductField[];
+
+    // Resolve the team's own projected_market_share from the in-progress
+    // draft fields, rather than from a saved Decision (none exists yet).
+    const pmsField = productFields.find((f) => f.key === "projected_market_share");
+    const pmsEntry = fields.find((f: any) => String(f.fieldId) === String(pmsField?._id));
+    const pmsRaw   = Number(pmsEntry?.value ?? 0);
+    const marketShareFraction = Math.min(Math.max(pmsRaw, 0), 100) / 100;
+
+    // One-off in-memory "decision" — never saved, just feeds calcFinancials.
+    const draftDecision = {
+      teamId: new mongoose.Types.ObjectId(teamId),
+      inputs: [{
+        productId: new mongoose.Types.ObjectId(productId),
+        fields: fields.map((f: any) => ({
+          fieldId: new mongoose.Types.ObjectId(f.fieldId),
+          value:   f.value,
+        })),
+      }],
+      globalInputs: [],
+    };
+
+    const baseVariables: BaseVariables = (product.baseVariables as BaseVariables) ?? { availableMarket: 0 };
+
+    const { results } = calcFinancials({
+      productId: new mongoose.Types.ObjectId(productId),
+      marketShares:  [{ teamId: draftDecision.teamId, value: marketShareFraction }],
+      productFields,
+      decisions:     [draftDecision],
+      globalInputs:  [], // deferred — not part of this stage
+      baseVariables,
+    });
+
+    const { customersObtained, dynamicPrice, dynamicCost, productCostBreakdown, revenue } = results[0];
+
+    // productKey: using productId as the string key — flag if a different
+    // identifier (e.g. a product "key" field) was intended instead.
+    const productKey = String(productId);
+
+    const projection = await Projections.findOneAndUpdate(
+      { simulationId, teamId, roundNumber },
+      {
+        $set: {
+          [`projections.${productKey}`]: {
+            customersObtained,
+            dynamicPrice,
+            dynamicCost,
+            revenue,
+            productCostBreakdown,
+          },
+        },
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+
+    res.status(200).json(projection);
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to recalculate projections." });
+  }
+};

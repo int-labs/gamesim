@@ -6,7 +6,7 @@ import Segment from "./segment";
 // ============================================================
 
 export interface ProductField {
-  _id?:         Types.ObjectId;
+  _id:          mongoose.Types.ObjectId;
   key:          string;
   label:        string;
   type:         string;
@@ -14,9 +14,10 @@ export interface ProductField {
   required:     boolean;
   minValue:     number | null;
   maxValue:     number | null;
-  direction:    "higher" | "lower";
+  direction:    number; // 0–1: 1 = fully price, 0 = fully cost, 0.5 = neutral split
   tightening:   number;
   coefficients: Record<string, number>;
+  options:      Record<string, number> // { "B5": 0.12, "A5": 0.16, "A4": 0.19 }
 }
 
 export interface ProductInterface extends Document {
@@ -43,9 +44,10 @@ const productFieldSchema = new Schema({
   required:     { type: Boolean, default: false },
   minValue:     { type: Number, default: null },
   maxValue:     { type: Number, default: null },
-  direction:    { type: String, enum: ["higher", "lower"], default: "higher" },
+  direction:    { type: Number, required: true, default: 1, min: 0, max: 1 },
   tightening:   { type: Number, default: 3 },
   coefficients: { type: Schema.Types.Mixed, default: {} },
+  options:      { type: Schema.Types.Mixed, default: {} }
 });
 // _id intentionally left default (true) — each field needs its own
 // ObjectId so /products/:id/fields/:fieldId can address it directly.
@@ -62,7 +64,7 @@ const productSchema = new Schema<ProductInterface>(
     productType:      { type: String, default: null },
     active:           { type: Boolean, default: true },
     baseVariables:    { type: Schema.Types.Mixed, default: null },
-    description: { type: String, default: null },
+    description:      { type: String, default: null },
     fields:           { type: [productFieldSchema], default: [] },
   },
   { timestamps: true }

@@ -10,11 +10,18 @@ import {
 
 export default function ProductFieldsPage() {
   const [simulationTypes, setSimulationTypes] = useState<any[]>([]);
-  const [simulationYears, setSimulationYears] = useState<number[]>([]);
+  const [selectedSimType, setSelectedSimType] = useState("");
+  
+  const selectedSimTypeObj = simulationTypes.find((st: any) => st._id === selectedSimType);
+  const yearKeys = selectedSimTypeObj?.yearRange
+    ? Array.from(
+        { length: selectedSimTypeObj.yearRange.end - selectedSimTypeObj.yearRange.start + 1 },
+        (_, i) => String(selectedSimTypeObj.yearRange.start + i)
+      )
+    : [];
 // when selectedSimType changes, derive years from config
 // e.g. if years run -2 to 5: [-2, -1, 0, 1, 2, 3, 4, 5]
 
-  const [selectedSimType, setSelectedSimType] = useState("");
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [fields, setFields] = useState<any[]>([]);
@@ -26,9 +33,10 @@ export default function ProductFieldsPage() {
     required:     false,
     minValue:     null as number | null,
     maxValue:     null as number | null,
-    direction:    "higher" as "higher" | "lower",
+    direction:    0.5,
     tightening:   3,
     coefficients: {} as Record<string, number>,
+    options: {} as Record<string, number>
   });
 
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
@@ -77,9 +85,10 @@ export default function ProductFieldsPage() {
       required:     false,
       minValue:     null,
       maxValue:     null,
-      direction:    "higher",
+      direction:    0.5,
       tightening:   3,
-      coefficients: {},
+      coefficients: Object.fromEntries(yearKeys.map(y => [y, 0])),
+      options: {}
     });
     setEditingFieldId(null);
   };
@@ -120,10 +129,10 @@ export default function ProductFieldsPage() {
       maxValue:     field.maxValue ?? null,
       direction:    field.direction ?? "higher",
       tightening:   field.tightening ?? 3,
-      coefficients: field.coefficients ?? {},
+      coefficients: Object.fromEntries(yearKeys.map(y => [y, field.coefficients?.[y] ?? 0])),
+      options:      field.options ?? {}
     });
   };
-
   const handleDelete = async (fieldId: string) => {
     try {
       await deleteProductField(selectedProductId, fieldId);
@@ -131,6 +140,18 @@ export default function ProductFieldsPage() {
     } catch (e: any) {
       setError(e.message);
     }
+  };
+
+  const OptionEntryRow = ({ onAdd }: { onAdd: (key: string, value: number) => void }) => {
+    const [optKey, setOptKey]         = useState("");
+    const [multiplier, setMultiplier] = useState(0);
+    return (
+      <div style={{ marginTop: 4 }}>
+        <input placeholder="option key (e.g. B5)" value={optKey} onChange={e => setOptKey(e.target.value)} />
+        <input type="number" step="0.01" placeholder="multiplier" value={multiplier} onChange={e => setMultiplier(Number(e.target.value))} style={{ width: 80 }} />
+        <button onClick={() => { if (optKey) { onAdd(optKey, multiplier); setOptKey(""); setMultiplier(0); } }}>Add Option</button>
+      </div>
+    );
   };
 
   return (
@@ -188,7 +209,11 @@ export default function ProductFieldsPage() {
                   <td>{f.order}</td>
                   <td>{f.direction}</td>
                   <td>{f.tightening}</td>
-                  <td>{f.coefficients}</td>
+                  <td>
+                    {f.coefficients && Object.keys(f.coefficients).length > 0
+                      ? Object.entries(f.coefficients).map(([year, val]) => `${year}: ${val}`).join(", ")
+                      : "—"}
+                  </td>
                   <td>
                     <button onClick={() => handleEdit(f)}>Edit</button>{" "}
                     <button onClick={() => handleDelete(f._id)}>Delete</button>
@@ -215,7 +240,6 @@ export default function ProductFieldsPage() {
               placeholder="type"
               value={form.type}
               onChange={e => setForm({ ...form, type: e.target.value })}
-              disabled={!!editingFieldId}
             />
             {["percentage", "cost", "currency", "number"].includes(form.type) && (
               <input
@@ -253,15 +277,15 @@ export default function ProductFieldsPage() {
               onChange={e => setForm({ ...form, order: Number(e.target.value) })}
             />
             {/* Direction */}
-            <select
+            <input
+              type="number"
+              placeholder="direction (0–1)"
+              min={0}
+              max={1}
+              step={0.05}
               value={form.direction}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, direction: e.target.value as "higher" | "lower" }))
-              }
-            >
-              <option value="higher">Higher is better</option>
-              <option value="lower">Lower is better</option>
-            </select>
+              onChange={e => setForm(f => ({ ...f, direction: Number(e.target.value) }))}
+            />
 
             {/* Tightening */}
             <input
@@ -274,25 +298,25 @@ export default function ProductFieldsPage() {
             />
 
             {/* Coefficients — dynamic per simulation year */}
-            {simulationYears.map((year) => (
-              <div key={year}>
-                <label>Year {year} Coefficient</label>
-                <input
-                  type="number"
-                  value={form.coefficients[year.toString()] ?? ""}
-                  onChange={(e) => {
-                    const parsed = parseFloat(e.target.value);
-                    setForm((f) => ({
-                      ...f,
-                      coefficients: {
-                        ...f.coefficients,
-                        [year.toString()]: isNaN(parsed) ? 0 : parsed,
-                      },
-                    }));
-                  }}
-                />
+            {yearKeys.length === 0 ? (
+              <p style={{ color: "orange", fontSize: 11 }}>
+                Selected simulation type has no yearRange set — coefficients can't be entered yet.
+              </p>
+            ) : (
+              <div>
+                {yearKeys.map(y => (
+                  <span key={y} style={{ marginRight: 4 }}>
+                    {y}:{" "}
+                    <input
+                      type="number"
+                      style={{ width: 60 }}
+                      value={form.coefficients?.[y] ?? 0}
+                      onChange={e => setForm(f => ({ ...f, coefficients: { ...f.coefficients, [y]: Number(e.target.value) } }))}
+                    />
+                  </span>
+                ))}
               </div>
-            ))}
+            )}
             <label>
               <input
                 type="checkbox"

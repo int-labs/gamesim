@@ -21,4 +21,4 @@ const TeamSchema = new Schema<TeamInterface>(
   { timestamps: true }
 );
 
-export default mongoose.model<TeamInterface>("Team", TeamSchema);
+export default mongoose.model<TeamInterface>("Team", TeamSchema, "teams");

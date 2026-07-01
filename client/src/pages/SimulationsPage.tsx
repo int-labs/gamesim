@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { getSimulations, createSimulation, deleteSimulation } from "../api";
+import { getSimulations, createSimulation, deleteSimulation, updateSimulation } from "../api";
 import type { Simulation } from "../types";
 
 const BLANK = {
   simulationName: "",
-  status: "Inactive",
+  status: "Active",
   simulationTypeId: "",
   startDate: "",
   endDate: "",
+  totalRounds: 1,
 };
 
 export default function SimulationsPage() {
@@ -15,6 +16,8 @@ export default function SimulationsPage() {
   const [form, setForm] = useState({ ...BLANK });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ totalRounds: 1, currRounds: 1 });
 
   const load = async () => {
     try {
@@ -25,13 +28,34 @@ export default function SimulationsPage() {
     }
   };
 
+  const handleUpdate = async (id: string) => {
+    try {
+      await updateSimulation(id, { config: { totalRounds: editForm.totalRounds, currRounds: editForm.currRounds } });
+      setEditingId(null);
+      await load(); // reuse whatever the existing fetch/reload function is named
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message);
+    }
+  };
+
+  const handleEditStart = (r: any) => {
+    setEditingId(r._id);
+    setEditForm({
+      totalRounds: r.config?.totalRounds ?? 1,
+      currRounds:  r.config?.currRounds ?? 1,
+    });
+  };
+
   useEffect(() => { load(); }, []);
 
   const handleCreate = async () => {
     setLoading(true);
     setError("");
     try {
-      await createSimulation(form);
+      await createSimulation({
+        ...form,
+        config: { totalRounds: form.totalRounds, currRounds: 1 },
+      });
       setForm({ ...BLANK });
       await load();
     } catch (e: any) {
@@ -85,6 +109,10 @@ export default function SimulationsPage() {
             <td>End Date</td>
             <td><input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></td>
           </tr>
+          <tr>
+            <td>Total Rounds</td>
+            <td><input type="number" min={1} value={form.totalRounds} onChange={e => setForm(f => ({ ...f, totalRounds: Number(e.target.value) }))} /></td>
+          </tr>
         </tbody>
       </table>
       <button onClick={handleCreate} disabled={loading}>Create</button>
@@ -93,7 +121,7 @@ export default function SimulationsPage() {
       <table border={1} cellPadding={4}>
         <thead>
           <tr>
-            <th>_id</th><th>Name</th><th>Status</th><th>SimTypeId</th><th>Start</th><th>End</th><th>Actions</th>
+            <th>_id</th><th>Name</th><th>Status</th><th>SimTypeId</th><th>Start</th><th>End</th><th>Config</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -105,7 +133,29 @@ export default function SimulationsPage() {
               <td>{r.simulationTypeId}</td>
               <td>{r.startDate ? new Date(r.startDate).toLocaleDateString() : ""}</td>
               <td>{r.endDate ? new Date(r.endDate).toLocaleDateString() : ""}</td>
-              <td><button onClick={() => handleDelete(r._id)}>Delete</button></td>
+              <td>
+                {editingId === r._id ? (
+                  <>
+                    Total: <input type="number" min={1} style={{ width: 50 }} value={editForm.totalRounds} onChange={e => setEditForm(f => ({ ...f, totalRounds: Number(e.target.value) }))} /><br />
+                    Curr: <input type="number" min={1} style={{ width: 50 }} value={editForm.currRounds} onChange={e => setEditForm(f => ({ ...f, currRounds: Number(e.target.value) }))} />
+                  </>
+                ) : (
+                  <>Total: {r.config?.totalRounds ?? "—"} / Curr: {r.config?.currRounds ?? "—"}</>
+                )}
+              </td>
+              <td>
+                {editingId === r._id ? (
+                  <>
+                    <button onClick={() => handleUpdate(r._id)}>Save</button>{" "}
+                    <button onClick={() => setEditingId(null)}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => handleEditStart(r)}>Edit</button>{" "}
+                    <button onClick={() => handleDelete(r._id)}>Delete</button>
+                  </>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

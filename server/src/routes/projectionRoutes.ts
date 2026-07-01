@@ -3,6 +3,7 @@ import {
   getProjectionsByTeam,
   getProjectionById,
   deleteProjection,
+  recalcProjections,
 } from "../controllers/projectionControllers";
 import { authenticate } from "../middleware/authentication";
 import { authorize } from "../middleware/authorization";
@@ -31,7 +32,7 @@ router.use(authenticate);
 
 router.get("/", getProjectionsByTeam);
 // router.post("/submit", submitDecision);           // team decision entry point
-// router.post("/:id/recalc", authorize([ROLES.ADMIN, ROLES.OPERATOR]), recalcProjections);
+router.post("/recalc", authenticate, recalcProjections);
 router.get("/:id", getProjectionById);
 router.delete("/:id", authorize([ROLES.ADMIN]), deleteProjection);
 

@@ -5,6 +5,10 @@ const api = axios.create({
   withCredentials: true,
 });
 
+export const setAuthToken = (token: string) => {
+  api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+};
+
 // TEMPORARY: dev-only admin token, emulates ROLES.ADMIN for testing.
 // authentication.ts does no DB lookup, so this works even with zero
 // users in the database. Remove once real login is wired in — see
@@ -25,6 +29,7 @@ export const getSimulations = () => api.get("/simulations");
 export const getSimulationById = (id: string) => api.get(`/simulations/${id}`);
 export const createSimulation = (data: object) => api.post("/simulations", data);
 export const deleteSimulation = (id: string) => api.delete(`/simulations/${id}`);
+export const updateSimulation = (id: string, data: object) => api.patch(`/simulations/${id}`, data);
 
 // ── Simulation Types ──────────────────────────────────────────
 export const getSimulationTypes = () => api.get("/simulation-types");
@@ -37,7 +42,7 @@ export const getRounds = (simulationId?: string) =>
   api.get("/rounds", { params: simulationId ? { simulationId } : {} });
 export const getRoundById = (id: string) => api.get(`/rounds/${id}`);
 export const createRound = (data: object) => api.post("/rounds", data);
-export const patchRound = (id: string, data: object) => api.patch(`/rounds/${id}`, data);
+export const patchRound = (id: string, data: object) => api.patch(`/rounds/${id}/status`, data);
 export const deleteRound = (id: string) => api.delete(`/rounds/${id}`);
 
 // ── Teams ─────────────────────────────────────────────────────
@@ -53,6 +58,7 @@ export const getUserById = (id: string) => api.get(`/users/${id}`);
 export const createUser = (data: object) => api.post("/users", data);
 export const deleteUser = (id: string) => api.delete(`/users/${id}`);
 export const regeneratePasskey = (id: string) => api.post(`/users/${id}/regenerate-passkey`);
+export const loginWithPasskey = (passkey: string) => api.post("/users/login-passkey", { passkey });
 
 // ── Segments ──────────────────────────────────────────────────
 export const getSegments = (simulationTypeId?: string) =>
@@ -151,3 +157,13 @@ export const createGlobalInputItem = (id: string, data: object) => api.post(`/gl
 export const getGlobalInputItems = (id: string) => api.get(`/global-inputs/${id}/items`);
 export const updateGlobalInputItem = (id: string, itemId: string, data: object) => api.patch(`/global-inputs/${id}/items/${itemId}`, data);
 export const deleteGlobalInputItem = (id: string, itemId: string) => api.delete(`/global-inputs/${id}/items/${itemId}`);
+
+
+// ── Projection ─────────────────────────────────────────────────
+export const recalcProjections = (data: {
+  simulationId: string;
+  teamId: string;
+  roundNumber: number;
+  productId: string;
+  fields: { fieldId: string; value: any }[];
+}) => api.post("/projections/recalc", data);

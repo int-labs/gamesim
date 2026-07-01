@@ -6,12 +6,15 @@ import {
   updateUser,
   regeneratePasskey,
   deleteUser,
+  loginWithPasskey,
 } from "../controllers/userControllers";
 import { authenticate } from "../middleware/authentication";
 import { authorize }    from "../middleware/authorization";
 import { ROLES }        from "../constants/roles";
 
 const router = Router();
+
+router.post("/login-passkey", loginWithPasskey); // place BEFORE router.use(authenticate), or on a separate unauthenticated router
 
 router.use(authenticate);
 

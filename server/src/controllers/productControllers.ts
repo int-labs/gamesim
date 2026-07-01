@@ -85,7 +85,7 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
 // POST /products/:id/fields
 export const createProductField = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { key, label, type, order, required } = req.body;
+    const { key, label, type, order, required, minValue, maxValue, direction, tightening, coefficients, options } = req.body;
 
     if (!key || !label || !type) {
       res.status(400).json({ message: "key, label, and type are required." });
@@ -94,7 +94,14 @@ export const createProductField = async (req: Request, res: Response): Promise<v
 
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      { $push: { fields: { key, label, type, order, required } } },
+      {
+        $push: {
+          fields: {
+            key, label, type, order, required,
+            minValue, maxValue, direction, tightening, coefficients, options
+          },
+        },
+      },
       { new: true, runValidators: true }
     );
 
@@ -128,16 +135,22 @@ export const getProductFields = async (req: Request, res: Response): Promise<voi
 // PATCH /products/:id/fields/:fieldId
 export const updateProductField = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { label, type, order, required } = req.body;
+    const { label, type, order, required, minValue, maxValue, direction, tightening, coefficients, options } = req.body;
 
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, "fields._id": req.params.fieldId },
       {
         $set: {
-          "fields.$.label":    label,
-          "fields.$.type":     type,
-          "fields.$.order":    order,
-          "fields.$.required": required,
+          "fields.$.label":        label,
+          "fields.$.type":         type,
+          "fields.$.order":        order,
+          "fields.$.required":     required,
+          "fields.$.minValue":     minValue,
+          "fields.$.maxValue":     maxValue,
+          "fields.$.direction":    direction,
+          "fields.$.tightening":   tightening,
+          "fields.$.coefficients": coefficients,
+          "fields.$.options":      options,
         },
       },
       { new: true, runValidators: true }

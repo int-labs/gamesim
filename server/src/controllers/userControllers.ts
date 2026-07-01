@@ -3,11 +3,60 @@ import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import User from "../models/users";
 import Team from "../models/teams";
+import jwt from "jsonwebtoken";
 
 const SALT_ROUNDS = 10;
 
+// POST /users/login-passkey
+// Body: { passkey }
+
+export const loginWithPasskey = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { passkey } = req.body;
+
+    if (!passkey) {
+      res.status(400).json({ message: "passkey is required." });
+      return;
+    }
+
+    const user = await User.findOne({ passkey, role: "team" });
+    if (!user) {
+      res.status(401).json({ message: "Invalid passkey." });
+      return;
+    }
+
+    if (!user.teamId) {
+      res.status(500).json({ message: "Team user is missing teamId." });
+      return;
+    }
+
+    const team = await Team.findById(user.teamId);
+    if (!team) {
+      res.status(500).json({ message: "Team not found for this user." });
+      return;
+    }
+
+    const token = jwt.sign(
+      { role: "team", teamId: team._id, simulationId: team.simulationId },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "12h" }
+    );
+
+    res.status(200).json({
+      token,
+      teamId: team._id,
+      simulationId: team.simulationId,
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to log in." });
+  }
+};
+
+const dynamicImport = new Function("specifier", "return import(specifier)");
+
 const generatePasskey = async (): Promise<string> => {
-  const { default: randomWords } = await import("random-words");
+  const mod = (await dynamicImport("random-words")) as any;
+  const randomWords = mod.default ?? mod;
   return randomWords.generate({ exactly: 2, join: "-" }) as string;
 };
 
