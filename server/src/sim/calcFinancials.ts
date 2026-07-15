@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { IMPACT_CONFIG } from "../constants/impacts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ export interface ProductField {
   tightening:   number;
   coefficients: Record<string, number>;
   options:      Record<string, number>;
+  unitCost:     number | null;
 }
 
 export interface GlobalInputItem {
@@ -59,7 +61,15 @@ export interface DecisionProductInput {
 // this is the minimal shape this function needs from it.
 export interface DecisionGlobalInputEntry {
   globalInputItemId: mongoose.Types.ObjectId;
-  value:             number;
+  key:               string;
+  label:             string;
+  selectedStepKey:   string | null;
+  options:           Record<string, number>;
+  impacts:           Record<string, { type: "relative" | "absolute"; value: number }>;
+  impactLevel:       string | null;
+  cost:              number;
+  energy:            number;
+  productsImpacted:  mongoose.Types.ObjectId[];
 }
 
 export interface DecisionDocument {
@@ -74,6 +84,20 @@ export interface TeamShare {
   value:  number;
 }
 
+export interface DecisionGlobalInputEntry {
+  globalInputItemId: mongoose.Types.ObjectId;
+  category:          string;
+  key:               string;
+  label:             string;
+  selectedStepKey:   string | null;
+  options:           Record<string, number>;
+  impacts:           Record<string, { type: "relative" | "absolute"; value: number }>;
+  impactLevel:       string | null;
+  cost:              number;
+  energy:            number;
+  productsImpacted:  mongoose.Types.ObjectId[];
+}
+
 export interface IncurredCostBreakdown {
   key:          string;
   label:        string;
@@ -85,15 +109,17 @@ export interface IncurredCostBreakdown {
 }
 
 export interface TeamFinancials {
-  teamId:               mongoose.Types.ObjectId;
-  customersObtained:    number;
-  dynamicPrice:         number;
-  dynamicCost:          number;
+  teamId:              mongoose.Types.ObjectId;
+  customersObtained:   number;
+  sellingPrice:        number;
+  dynamicPrice:        number;
+  productScore:        number;
+  dynamicCost:         number;
+  revenue:             number;
+  COGS:                number;
+  grossProfit:         number;
   productCostBreakdown: ProductCostBreakdown[];
-  revenue:              number;
-  COGS:                 number;
-  grossProfit:          number;
-  incurredCosts:        IncurredCostBreakdown[];
+  incurredCosts:       IncurredCostBreakdown[];
 }
 
 export interface CostBreakdownEntry {
@@ -109,7 +135,7 @@ export interface CalcFinancialsInput {
   marketShares:  TeamShare[];
   productFields: ProductField[];
   decisions:     DecisionDocument[];
-  globalInputs:  GlobalInputContainer[];
+  globalInputs:  DecisionGlobalInputEntry[]; // flat — category already embedded
   baseVariables: BaseVariables;
 }
 
@@ -149,18 +175,47 @@ const getDecisionInput = (
 ): number => {
   if (!decision) return 0;
   const productInput = decision.inputs.find((inp) => inp.productId.equals(productId));
-  const fieldEntry    = productInput?.fields.find((f) => f.fieldId.equals(productField._id));
-  return resolveFieldValue(fieldEntry?.value ?? null, productField);
+  const fieldEntry   = productInput?.fields.find((f) => f.fieldId.equals(productField._id));
+
+  // resolveFieldValue handles enum lookup and numeric clamping
+  const resolved = resolveFieldValue(fieldEntry?.value ?? null, productField);
+
+  // bell curve only applies to numeric/money/percentage/currency types —
+  // enum fields resolve to a fixed multiplier, no diminishing returns needed
+  if (productField.type === "enum") return resolved;
+
+  return resolved * calcDiminishingReturnsCostFactor(
+    resolved,
+    productField.minValue,
+    productField.maxValue
+  );
 };
 
 const getGlobalInputQuantity = (
   decision: DecisionDocument | undefined,
-  item:     GlobalInputItem
+  entry:    DecisionGlobalInputEntry
 ): number => {
   if (!decision) return 0;
-  const entry = decision.globalInputs.find((gi) => gi.globalInputItemId.equals(item._id));
-  return clamp(entry?.value ?? 0, item.minPossibleValue, item.maxPossibleValue);
+
+  const match = decision.globalInputs.find((gi) =>
+    gi.globalInputItemId.equals(entry.globalInputItemId)
+  );
+
+  // item not selected at all
+  if (!match) return 0;
+
+  const hasOptions = entry.options && Object.keys(entry.options).length > 0;
+
+  if (hasOptions) {
+    if (!match.selectedStepKey) return 0;
+    return entry.options[match.selectedStepKey] ?? 0;
+  } else {
+    // radio/checkbox — binary: selected = 1
+    return 1;
+  }
 };
+
+const INVENTORY_BASE = 1000;
 
 // ─── Core Calculation ────────────────────────────────────────────────────────
 
@@ -180,33 +235,53 @@ const calcDiminishingReturnsCostFactor = (
   return 2 - effectivenessMultiplier; // 1 (peak) → 2 (at the bounds)
 };
 
+const SELLING_PRICE_KEY = "selling_price";
+
 export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput {
   const { productId, marketShares, productFields, decisions, globalInputs, baseVariables } = input;
 
   const availableMarket = baseVariables.availableMarket ?? 0;
-  
+
+  const sellingPriceField = productFields.find((f) => f.key === SELLING_PRICE_KEY);
+  const priceFields       = productFields.filter((f) => f.type === "money" && f.direction > 0 && f.key !== SELLING_PRICE_KEY);
+  const costFields        = productFields.filter((f) => f.type === "money" && f.unitCost != null);
+
   const results: TeamFinancials[] = marketShares.map(({ teamId, value: marketShare }) => {
     const decision = decisions.find((d) => d.teamId.equals(teamId));
-    const customersObtained = marketShare * availableMarket;
-    
-    // ── Product-level cost breakdown ────────────────────────────────────────
-    // Every field with a direction set contributes to price/cost split —
-    // money: raw dollar value split by direction
-    // number: count split by direction (e.g. stickers * direction → price, * (1-direction) → cost)
-    // enum: option multiplier split by direction (e.g. B5=0.12 * direction → price)
-    const contributingFields = productFields.filter((f) => f.direction !== undefined && f.direction !== null);
 
+    const sellingPriceEntry = sellingPriceField
+      ? decision?.inputs
+          .find((inp) => inp.productId.equals(productId))
+          ?.fields.find((f) => f.fieldId.equals(sellingPriceField._id))
+      : null;
+    const sellingPrice = Number(sellingPriceEntry?.value ?? 0);
+
+    const dynamicPrice = priceFields.reduce((sum, field) => {
+      const resolved    = resolveFieldValue(
+        decision?.inputs.find(inp => inp.productId.equals(productId))
+          ?.fields.find(f => f.fieldId.equals(field._id))?.value ?? null,
+        field
+      );
+      const bellFactor  = calcDiminishingReturnsCostFactor(resolved, field.minValue, field.maxValue);
+      return sum + (resolved * bellFactor * field.direction);
+    }, 0);
+
+    const productScore = sellingPrice > 0 ? dynamicPrice / sellingPrice : 0;
+
+    // ── Cost contribution (raw value * unitCost, no bell curve) ───────────────
     const productCostBreakdown: ProductCostBreakdown[] = [];
-    let dynamicPrice = 0;
-    let dynamicCost  = 0;
+    let dynamicCost = 0;
 
-    contributingFields.forEach((field) => {
-      const value             = getDecisionInput(decision, productId, field);
-      const priceContribution = value * field.direction;
-      const costContribution  = value * (1 - field.direction);
+    costFields.forEach((field) => {
+      const raw = Number(
+        decision?.inputs.find(inp => inp.productId.equals(productId))
+          ?.fields.find(f => f.fieldId.equals(field._id))?.value ?? 0
+      );
 
-      dynamicPrice += priceContribution;
-      dynamicCost  += costContribution;
+      // cost starts at minValue (baseline), team's input adds on top
+      const effectiveValue   = (field.minValue ?? 0) + raw;
+      const costContribution = effectiveValue * (field.unitCost ?? 0);
+      dynamicCost           += costContribution;
 
       productCostBreakdown.push({
         key:   field.key,
@@ -215,38 +290,132 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       });
     });
 
-    // ── GlobalInput-level cost breakdown ────────────────────────────────────
-    const incurredCosts: IncurredCostBreakdown[] = [];
+    let customersObtained = marketShare * availableMarket * productScore;
+    
+    let inventoryAugmentation = 1;
+    let customersObtainedAugment = 1;
 
-    globalInputs.forEach((container) => {
-      container.inputs.forEach((item) => {
-        const inputQty = getGlobalInputQuantity(decision, item);
-        const leftover = inputQty - customersObtained;
+    globalInputs.forEach((entry) => {
+      const stepMultiplier = getGlobalInputQuantity(decision, entry);
+      const hasOptions     = entry.options && Object.keys(entry.options).length > 0;
+      const effectiveMultiplier = hasOptions ? stepMultiplier : 1;
 
-        let costPerUnit:  number;
-        let incurredCost: number;
+      if (effectiveMultiplier === 0) return;
 
-        if (container.category === "inventory") {
-          costPerUnit  = item.cost;
-          incurredCost = leftover * costPerUnit;
-        } else {
-          const costFactor = calcDiminishingReturnsCostFactor(inputQty, item.minPossibleValue, item.maxPossibleValue);
-          costPerUnit  = item.cost * costFactor;
-          incurredCost = inputQty * costPerUnit;
+      Object.entries(entry.impacts).forEach(([metricKey, impact]) => {
+        const config = IMPACT_CONFIG[metricKey];
+        if (!config) return;
+
+        if (config.affects === "inventoryRate") {
+          if (impact.type === "relative") {
+            inventoryAugmentation *= (1 + impact.value * effectiveMultiplier);
+          } else {
+            inventoryAugmentation += (impact.value * effectiveMultiplier);
+          }
         }
 
-        incurredCosts.push({ key: item.key, label: item.label, category: container.category, inputQty, leftover, costPerUnit, incurredCost });
+        if (config.affects === "customersObtained") {
+          if (impact.type === "relative") {
+            customersObtainedAugment *= (1 + impact.value * effectiveMultiplier);
+          } else {
+            customersObtainedAugment += (impact.value * effectiveMultiplier);
+          }
+        }
       });
     });
 
-    const totalIncurredCost = incurredCosts.reduce((sum, entry) => sum + entry.incurredCost, 0);
+    customersObtained = customersObtained * customersObtainedAugment;
+
+    const inventoryQty = productFields
+      .filter((f) => f.direction !== undefined && f.direction !== null && f.key !== SELLING_PRICE_KEY)
+      .reduce((product, field) => {
+        const value = getDecisionInput(decision, productId, field);
+        return value !== 0 ? product * Math.max(0, 1 - (value * 0.01)) : product;
+      }, INVENTORY_BASE) * inventoryAugmentation;
+
+    const leftover      = Math.max(0, inventoryQty - customersObtained);
+    const inventoryCost = leftover * dynamicCost;
+
+    // ── GlobalInput-level cost breakdown (flat iteration) ─────────────────
+    // ── GlobalInput cost breakdown (aggregated by category) ───────────────────
+    const incurredCosts: IncurredCostBreakdown[] = [];
+
+    // Inventory entry — always first
+    incurredCosts.push({
+      key:          "inventory",
+      label:        "Inventory",
+      category:     "inventory",
+      inputQty:     inventoryQty,
+      leftover,
+      costPerUnit:  dynamicCost,
+      incurredCost: inventoryCost,
+    });
+
+    // Group global inputs by category, aggregate cost within each group
+    const categoryMap: Record<string, {
+      totalCost:   number;
+      label:       string;
+      stepValues:  number[];
+    }> = {};
+
+    globalInputs.forEach((entry) => {
+      const stepMultiplier = getGlobalInputQuantity(decision, entry);
+      const hasOptions     = entry.options && Object.keys(entry.options).length > 0;
+
+      if (!categoryMap[entry.category]) {
+        categoryMap[entry.category] = { totalCost: 0, label: entry.category, stepValues: [] };
+      }
+
+      if (hasOptions) {
+        // slider — cost scales with selected step multiplier
+        categoryMap[entry.category].totalCost  += entry.cost * stepMultiplier;
+        categoryMap[entry.category].stepValues.push(stepMultiplier);
+      } else {
+        // radio/checkbox — binary selection, full cost applies, no multiplier
+        categoryMap[entry.category].totalCost  += entry.cost;
+        categoryMap[entry.category].stepValues.push(1);
+      }
+    });
+
+    // Push one entry per category
+    Object.entries(categoryMap).forEach(([category, { totalCost, label, stepValues }]) => {
+      const avgStepValue = stepValues.length > 0
+        ? stepValues.reduce((a, b) => a + b, 0) / stepValues.length
+        : 0;
+
+      incurredCosts.push({
+        key:          category,
+        label:        label,
+        category:     category,
+        inputQty:     avgStepValue,
+        leftover:     0,
+        costPerUnit:  totalCost / (stepValues.length || 1),
+        incurredCost: totalCost,
+      });
+    });
+
+    const totalIncurredCost = incurredCosts.reduce((sum, e) => sum + e.incurredCost, 0);
 
     const revenue     = customersObtained * dynamicPrice;
     const COGS        = (customersObtained * dynamicCost) + totalIncurredCost;
     const grossProfit = revenue - COGS;
 
-    return { teamId, customersObtained, dynamicPrice, dynamicCost, productCostBreakdown, revenue, COGS, grossProfit, incurredCosts };
+    return {
+      teamId,
+      customersObtained,
+      sellingPrice,
+      dynamicPrice,
+      productScore,
+      dynamicCost,
+      revenue,
+      COGS,
+      grossProfit,
+      productCostBreakdown,
+      incurredCosts,
+    };
   });
+
+  console.log(results);
 
   return { results };
 }

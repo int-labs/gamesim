@@ -12,6 +12,27 @@ const DecisionFieldSchema = new Schema(
   { _id: false, strict: false }
 );
 
+// source GlobalInputItem don't retroactively change submitted decisions.
+const decisionGlobalInputSchema = new Schema(
+  {
+    globalInputItemId: { type: Schema.Types.ObjectId, required: true },
+    category:          { type: String, required: true },  // inherited from parent container
+    key:               { type: String, required: true },
+    label:             { type: String, required: true },
+    description:       { type: String, default: null },
+    selectedStepKey:   { type: String, default: null },
+    minPossibleValue:  { type: Number, default: null },
+    maxPossibleValue:  { type: Number, default: null },
+    cost:              { type: Number, default: 0 },
+    energy:            { type: Number, default: 0 },
+    productsImpacted:  { type: [Schema.Types.ObjectId], ref: "Product", default: [] },
+    impacts:           { type: Schema.Types.Mixed, default: {} },
+    impactLevel:       { type: String, default: null },
+    options:           { type: Schema.Types.Mixed, default: {} },
+  },
+  { _id: false }
+);
+
 // ---------- Per-product inputs sub-schema
 const DecisionProductInputSchema = new Schema(
   {
@@ -38,27 +59,43 @@ const DecisionInitiativeInputSchema = new Schema(
 );
 
 // ---------- Decision document interface
+export interface IDecisionGlobalInput {
+  globalInputItemId: Types.ObjectId;
+  category:          string;        // inherited from parent container
+  key:               string;
+  label:             string;
+  description:       string | null;
+  selectedStepKey:   string | null;
+  minPossibleValue:  number | null;
+  maxPossibleValue:  number | null;
+  cost:              number;
+  energy:            number;
+  productsImpacted:  Types.ObjectId[];
+  impacts:           Record<string, { type: "relative" | "absolute"; value: number }>;
+  impactLevel:       string | null;
+  options:           Record<string, number>;
+}
+
 export interface IDecision extends Document {
   simulationId:     Types.ObjectId;
   teamId:           Types.ObjectId;
   roundNumber:      number;
-  inputs: {
-    productId:   Types.ObjectId;
-    segmentId:   Types.ObjectId;
-    productName: string;
-    fields:      Record<string, any>[];
+  inputs:           { 
+    productId: Types.ObjectId; 
+    segmentId: Types.ObjectId; 
+    productName: string; 
+    fields: { fieldId: Types.ObjectId; value: number | string | null; }[]; 
   }[];
-  initiativeInputs: {
-    name:              string;
-    details:           string | null;
-    costConsumption:   number;
-    energyConsumption: number;
+  initiativeInputs: { 
+    name: string; 
+    details: string | null; 
+    costConsumption: number; 
+    energyConsumption: number; 
   }[];
-  globalInputs:     any[]; // DEFERRED — designed after calc layer
+  globalInputs:     IDecisionGlobalInput[];
   createdAt:        Date;
-  updatedAt:         Date;
+  updatedAt:        Date;
 }
-
 // ---------- Decision schema
 const DecisionSchema = new Schema<IDecision>(
   {
@@ -67,6 +104,7 @@ const DecisionSchema = new Schema<IDecision>(
     roundNumber:      { type: Number,                                    required: true },
     inputs:           { type: [DecisionProductInputSchema],              required: true, default: [] },
     initiativeInputs: { type: [DecisionInitiativeInputSchema],           required: true, default: [] },
+    globalInputs: { type: [decisionGlobalInputSchema], required: true, default: [] }
     // DEFERRED: globalInputs schema not yet designed — will be built
     // after the calculation layer is finished. Left loose for now so
     // the field exists on the document without locking in a shape.

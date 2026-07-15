@@ -85,7 +85,7 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
 // POST /products/:id/fields
 export const createProductField = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { key, label, type, order, required, minValue, maxValue, direction, tightening, coefficients, options } = req.body;
+    const { key, label, type, order, required, minValue, maxValue, direction, tightening, coefficients, options, unitCost } = req.body;
 
     if (!key || !label || !type) {
       res.status(400).json({ message: "key, label, and type are required." });
@@ -96,11 +96,8 @@ export const createProductField = async (req: Request, res: Response): Promise<v
       req.params.id,
       {
         $push: {
-          fields: {
-            key, label, type, order, required,
-            minValue, maxValue, direction, tightening, coefficients, options
-          },
-        },
+          fields: { key, label, type, order, required, minValue, maxValue, direction, tightening, coefficients, options, unitCost: unitCost ?? null }
+        }
       },
       { new: true, runValidators: true }
     );
@@ -135,7 +132,7 @@ export const getProductFields = async (req: Request, res: Response): Promise<voi
 // PATCH /products/:id/fields/:fieldId
 export const updateProductField = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { label, type, order, required, minValue, maxValue, direction, tightening, coefficients, options } = req.body;
+    const { label, type, order, required, minValue, maxValue, direction, tightening, coefficients, options, unitCost } = req.body;
 
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, "fields._id": req.params.fieldId },
@@ -151,7 +148,8 @@ export const updateProductField = async (req: Request, res: Response): Promise<v
           "fields.$.tightening":   tightening,
           "fields.$.coefficients": coefficients,
           "fields.$.options":      options,
-        },
+          "fields.$.unitCost":     unitCost ?? null,
+        }
       },
       { new: true, runValidators: true }
     );

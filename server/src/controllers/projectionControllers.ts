@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import Projection from "../models/projections";
 import Product from "../models/products";
-import Projections from "../models/projections";
-import { calcFinancials, ProductField, BaseVariables } from "../sim/calcFinancials";
-
+import Projection from "../models/projections";
+import { calcFinancials, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
 export const getProjectionsByTeam = async (req: Request, res: Response): Promise<void> => {
@@ -56,71 +54,125 @@ export const deleteProjection = async (req: Request, res: Response): Promise<voi
 
 export const recalcProjections = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { simulationId, teamId, roundNumber, productId, fields } = req.body;
+    const {
+      simulationId,
+      simulationTypeId,
+      teamId,
+      roundNumber,
+      productId,
+      focusedProductId,
+      fields,
+      globalInputs = [],
+    } = req.body;
 
-    if (!simulationId || !teamId || roundNumber === undefined || !productId || !Array.isArray(fields)) {
-      res.status(400).json({ message: "simulationId, teamId, roundNumber, productId, and fields are required." });
+    if (!simulationId || !simulationTypeId || !teamId || roundNumber === undefined) {
+      res.status(400).json({ message: "simulationId, simulationTypeId, teamId, and roundNumber are required." });
       return;
     }
 
-    const product = await Product.findById(productId);
-    if (!product) {
-      res.status(404).json({ message: "Product not found." });
-      return;
+    // ── Resolve which products to recompute ───────────────────────────────
+    let productsToCalc: any[] = [];
+
+    if (productId) {
+      // Single-product mode
+      const product = await Product.findById(productId);
+      if (!product) {
+        res.status(404).json({ message: "Product not found." });
+        return;
+      }
+      productsToCalc = [{ product, fields }];
+    } else {
+      const allProducts = await Product.find({ simulationTypeId });
+      productsToCalc = allProducts.map(product => ({
+        product,
+        // use submitted fields if this product matches the focused one,
+        // empty array for all others (their contribution comes from a separate recalc)
+        fields: String(product._id) === String(focusedProductId ?? "")
+          ? fields
+          : [],
+      }));
     }
 
-    const productFields: ProductField[] = product.fields as unknown as ProductField[];
+    // ── Build the in-memory draft decision ────────────────────────────────
+    // Single-product mode: use the submitted fields for that product.
+    // All-products mode: no product fields submitted — each product
+    // contributes an empty fields array (global input change only).
+    const teamObjectId = new mongoose.Types.ObjectId(teamId);
 
-    // Resolve the team's own projected_market_share from the in-progress
-    // draft fields, rather than from a saved Decision (none exists yet).
-    const pmsField = productFields.find((f) => f.key === "projected_market_share");
-    const pmsEntry = fields.find((f: any) => String(f.fieldId) === String(pmsField?._id));
-    const pmsRaw   = Number(pmsEntry?.value ?? 0);
-    const marketShareFraction = Math.min(Math.max(pmsRaw, 0), 100) / 100;
+    // ── Compute projections for each product ──────────────────────────────
+    const projectionUpdates: Record<string, any> = {};
 
-    // One-off in-memory "decision" — never saved, just feeds calcFinancials.
-    const draftDecision = {
-      teamId: new mongoose.Types.ObjectId(teamId),
-      inputs: [{
-        productId: new mongoose.Types.ObjectId(productId),
-        fields: fields.map((f: any) => ({
-          fieldId: new mongoose.Types.ObjectId(f.fieldId),
-          value:   f.value,
+    for (const { product, fields: productFields } of productsToCalc) {
+      const productFieldConfigs: ProductField[] = product.fields as unknown as ProductField[];
+
+      const pmsField = productFieldConfigs.find((f) => f.key === "projected_market_share");
+      const pmsEntry = (productFields ?? []).find((f: any) => String(f.fieldId) === String(pmsField?._id));
+      const pmsRaw   = Number(pmsEntry?.value ?? 0);
+      const marketShareFraction = Math.min(Math.max(pmsRaw, 0), 100) / 100;
+
+      const draftDecision = {
+        teamId:       teamObjectId,
+        inputs:       [{
+          productId: product._id,
+          fields:    (productFields ?? []).map((f: any) => ({
+            fieldId: new mongoose.Types.ObjectId(f.fieldId),
+            value:   f.value,
+          })),
+        }],
+        globalInputs: (globalInputs as any[]).map((gi: any) => ({
+          globalInputItemId: new mongoose.Types.ObjectId(gi.globalInputItemId),
+          category:          gi.category,
+          key:               gi.key,
+          label:             gi.label,
+          selectedStepKey:   gi.selectedStepKey ?? null,
+          options:           gi.options,
+          impacts:           gi.impacts,
+          impactLevel:       gi.impactLevel,
+          cost:              gi.cost,
+          energy:            gi.energy,
+          productsImpacted:  (gi.productsImpacted ?? []).map((id: any) => new mongoose.Types.ObjectId(id)),
         })),
-      }],
-      globalInputs: [],
-    };
+      };
 
-    const baseVariables: BaseVariables = (product.baseVariables as BaseVariables) ?? { availableMarket: 0 };
+      const baseVariables: BaseVariables = (product.baseVariables as BaseVariables) ?? { availableMarket: 0 };
 
-    const { results } = calcFinancials({
-      productId: new mongoose.Types.ObjectId(productId),
-      marketShares:  [{ teamId: draftDecision.teamId, value: marketShareFraction }],
-      productFields,
-      decisions:     [draftDecision],
-      globalInputs:  [], // deferred — not part of this stage
-      baseVariables,
-    });
+      // Filter globalInputs to those that impact this specific product
+      // (productsImpacted is empty = impacts all products)
+      const relevantGlobalInputs = draftDecision.globalInputs.filter((gi: any) =>
+        gi.productsImpacted.length === 0 ||
+        gi.productsImpacted.some((pid: mongoose.Types.ObjectId) => pid.equals(product._id))
+      );
 
-    const { customersObtained, dynamicPrice, dynamicCost, productCostBreakdown, revenue } = results[0];
+      const { results } = calcFinancials({
+        productId:     product._id,
+        marketShares:  [{ teamId: teamObjectId, value: marketShareFraction }],
+        productFields: productFieldConfigs,
+        decisions:     [draftDecision],
+        globalInputs:  relevantGlobalInputs,
+        baseVariables,
+      });
 
-    // productKey: using productId as the string key — flag if a different
-    // identifier (e.g. a product "key" field) was intended instead.
-    const productKey = String(productId);
+      const { customersObtained, dynamicPrice, dynamicCost, productCostBreakdown, revenue, COGS, grossProfit, incurredCosts, sellingPrice, productScore } = results[0];
+      const productKey = String(product._id);
 
-    const projection = await Projections.findOneAndUpdate(
+      projectionUpdates[`projections.${productKey}`] = {
+        customersObtained,
+        dynamicPrice,
+        dynamicCost,
+        sellingPrice,
+        productScore,
+        revenue,
+        COGS,
+        grossProfit,
+        productCostBreakdown,
+        incurredCosts,
+      };
+    }
+
+    // ── Upsert all product projections in one operation ───────────────────
+    const projection = await Projection.findOneAndUpdate(
       { simulationId, teamId, roundNumber },
-      {
-        $set: {
-          [`projections.${productKey}`]: {
-            customersObtained,
-            dynamicPrice,
-            dynamicCost,
-            revenue,
-            productCostBreakdown,
-          },
-        },
-      },
+      { $set: projectionUpdates },
       { upsert: true, new: true, runValidators: true }
     );
 

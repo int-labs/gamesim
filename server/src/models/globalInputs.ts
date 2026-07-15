@@ -10,7 +10,6 @@ export interface GlobalInputItem {
   key:              string;
   label:            string;
   description:      string | null;
-  type:             string | null;
   minPossibleValue: number | null;
   maxPossibleValue: number | null;
   minDelta:         number | null;
@@ -20,6 +19,7 @@ export interface GlobalInputItem {
   productsImpacted: Types.ObjectId[];
   impacts:          Record<string, GlobalInputImpact>;
   impactLevel:      string | null;
+  options:          Record<string, number>;
 }
 
 export interface GlobalInputInterface extends Document {
@@ -27,6 +27,7 @@ export interface GlobalInputInterface extends Document {
   category:         string;
   key:              string;
   label:            string;
+  type:             string;          // radio | checkbox | slider — drives UI presentation
   description:      string | null;
   maxSelections:    number | null;
   inputs:           GlobalInputItem[];
@@ -55,7 +56,6 @@ const globalInputItemSchema = new Schema<GlobalInputItem>(
     key:              { type: String, required: true },
     label:            { type: String, required: true },
     description:      { type: String, default: null },
-    type:             { type: String, default: null },
     minPossibleValue: { type: Number, default: null },
     maxPossibleValue: { type: Number, default: null },
     minDelta:         { type: Number, default: null },
@@ -65,6 +65,7 @@ const globalInputItemSchema = new Schema<GlobalInputItem>(
     productsImpacted: { type: [Schema.Types.ObjectId], ref: "Product", default: [] },
     impacts:          { type: Schema.Types.Mixed, default: {}, validate: impactsValidator },
     impactLevel:      { type: String, default: null },
+    options:          { type: Schema.Types.Mixed, default: {} },
   }
 );
 
@@ -75,6 +76,7 @@ const globalInputSchema = new Schema<GlobalInputInterface>(
     key:              { type: String, required: true },
     label:            { type: String, required: true },
     description:      { type: String, default: null },
+    type:             { type: String, required: true, default: "checkbox" },
     maxSelections:    { type: Number, default: null },
     inputs: {
       type: [globalInputItemSchema],

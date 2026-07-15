@@ -14,10 +14,11 @@ export interface ProductField {
   required:     boolean;
   minValue:     number | null;
   maxValue:     number | null;
-  direction:    number; // 0–1: 1 = fully price, 0 = fully cost, 0.5 = neutral split
+  direction:    number;
   tightening:   number;
   coefficients: Record<string, number>;
-  options:      Record<string, number> // { "B5": 0.12, "A5": 0.16, "A4": 0.19 }
+  options:      Record<string, number>;
+  unitCost:     number | null; // money type only — basis for cost calculation
 }
 
 export interface ProductInterface extends Document {
@@ -47,7 +48,8 @@ const productFieldSchema = new Schema({
   direction:    { type: Number, required: true, default: 1, min: 0, max: 1 },
   tightening:   { type: Number, default: 3 },
   coefficients: { type: Schema.Types.Mixed, default: {} },
-  options:      { type: Schema.Types.Mixed, default: {} }
+  options:      { type: Schema.Types.Mixed, default: {} },
+  unitCost:     { type: Number, default: null }, // money type only
 });
 // _id intentionally left default (true) — each field needs its own
 // ObjectId so /products/:id/fields/:fieldId can address it directly.

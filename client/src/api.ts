@@ -161,9 +161,12 @@ export const deleteGlobalInputItem = (id: string, itemId: string) => api.delete(
 
 // ── Projection ─────────────────────────────────────────────────
 export const recalcProjections = (data: {
-  simulationId: string;
-  teamId: string;
-  roundNumber: number;
-  productId: string;
-  fields: { fieldId: string; value: any }[];
+  simulationId:      string;
+  simulationTypeId:  string;
+  teamId:            string;
+  roundNumber:       number;
+  productId?:        string;
+  focusedProductId?: string;
+  fields?:           { fieldId: string; value: any }[];
+  globalInputs:      any[];
 }) => api.post("/projections/recalc", data);

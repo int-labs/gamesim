@@ -4,17 +4,14 @@ import GlobalInput from "../models/globalInputs";
 // POST /global-inputs
 export const createGlobalInput = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { simulationTypeId, category, key, label, description, maxSelections } = req.body;
+    const { simulationTypeId, category, key, label, description, type, maxSelections } = req.body;
 
-    if (!simulationTypeId || !category || !key || !label) {
-      res.status(400).json({ message: "simulationTypeId, category, key, and label are required." });
+    if (!simulationTypeId || !category || !key || !label || !type) {
+      res.status(400).json({ message: "simulationTypeId, category, key, label, and type are required." });
       return;
     }
 
-    const globalInput = await GlobalInput.create({
-      simulationTypeId, category, key, label, description, maxSelections,
-    });
-
+    const globalInput = await GlobalInput.create({ simulationTypeId, category, key, label, description, type, maxSelections });
     res.status(201).json(globalInput);
   } catch (err: any) {
     if (err.code === 11000) {
@@ -62,11 +59,11 @@ export const getGlobalInputById = async (req: Request, res: Response): Promise<v
 // PATCH /global-inputs/:id  (container-level fields only — category/key/label/description/maxSelections)
 export const updateGlobalInput = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { category, label, description, maxSelections } = req.body;
-
+    // updateGlobalInput
+    const { category, label, description, type, maxSelections } = req.body;
     const globalInput = await GlobalInput.findByIdAndUpdate(
       req.params.id,
-      { category, label, description, maxSelections },
+      { category, label, description, type, maxSelections },
       { new: true, runValidators: true }
     );
     if (!globalInput) {
@@ -98,7 +95,11 @@ export const deleteGlobalInput = async (req: Request, res: Response): Promise<vo
 // POST /global-inputs/:id/items
 export const createGlobalInputItem = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { key, label, description, type, minPossibleValue, maxPossibleValue, minDelta, maxDelta, cost, energy, productsImpacted, impacts, impactLevel } = req.body;
+    const {
+      key, label, description,
+      minPossibleValue, maxPossibleValue, minDelta, maxDelta,
+      cost, energy, productsImpacted, impacts, impactLevel, options
+    } = req.body;
 
     if (!key || !label) {
       res.status(400).json({ message: "key and label are required." });
@@ -107,7 +108,16 @@ export const createGlobalInputItem = async (req: Request, res: Response): Promis
 
     const globalInput = await GlobalInput.findByIdAndUpdate(
       req.params.id,
-      { $push: { inputs: { key, label, description, type, minPossibleValue, maxPossibleValue, minDelta, maxDelta, cost, energy, productsImpacted, impacts, impactLevel } } },
+      {
+        $push: {
+          inputs: {
+            key, label, description,
+            minPossibleValue, maxPossibleValue, minDelta, maxDelta,
+            cost, energy, productsImpacted, impacts, impactLevel,
+            options: options ?? {},
+          }
+        }
+      },
       { new: true, runValidators: true }
     );
 
@@ -139,24 +149,28 @@ export const getGlobalInputItems = async (req: Request, res: Response): Promise<
 // PATCH /global-inputs/:id/items/:itemId
 export const updateGlobalInputItem = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { label, description, type, minPossibleValue, maxPossibleValue, minDelta, maxDelta, cost, energy, productsImpacted, impacts, impactLevel } = req.body;
+    const {
+      label, description,
+      minPossibleValue, maxPossibleValue, minDelta, maxDelta,
+      cost, energy, productsImpacted, impacts, impactLevel, options
+    } = req.body;
 
     const globalInput = await GlobalInput.findOneAndUpdate(
       { _id: req.params.id, "inputs._id": req.params.itemId },
       {
         $set: {
-          "inputs.$.label": label,
-          "inputs.$.description": description,
-          "inputs.$.type": type,
+          "inputs.$.label":            label,
+          "inputs.$.description":      description,
           "inputs.$.minPossibleValue": minPossibleValue,
           "inputs.$.maxPossibleValue": maxPossibleValue,
-          "inputs.$.minDelta": minDelta,
-          "inputs.$.maxDelta": maxDelta,
-          "inputs.$.cost": cost,
-          "inputs.$.energy": energy,
+          "inputs.$.minDelta":         minDelta,
+          "inputs.$.maxDelta":         maxDelta,
+          "inputs.$.cost":             cost,
+          "inputs.$.energy":           energy,
           "inputs.$.productsImpacted": productsImpacted,
-          "inputs.$.impacts": impacts,
-          "inputs.$.impactLevel": impactLevel,
+          "inputs.$.impacts":          impacts,
+          "inputs.$.impactLevel":      impactLevel,
+          "inputs.$.options":          options ?? {},
         },
       },
       { new: true, runValidators: true }

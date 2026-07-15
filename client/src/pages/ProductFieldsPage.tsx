@@ -36,7 +36,8 @@ export default function ProductFieldsPage() {
     direction:    0.5,
     tightening:   3,
     coefficients: {} as Record<string, number>,
-    options: {} as Record<string, number>
+    options: {} as Record<string, number>,
+    unitCost: null as number | null,
   });
 
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
@@ -88,7 +89,8 @@ export default function ProductFieldsPage() {
       direction:    0.5,
       tightening:   3,
       coefficients: Object.fromEntries(yearKeys.map(y => [y, 0])),
-      options: {}
+      options: {},
+      unitCost: null as number | null,
     });
     setEditingFieldId(null);
   };
@@ -106,6 +108,8 @@ export default function ProductFieldsPage() {
           direction:    form.direction,
           tightening:   form.tightening,
           coefficients: form.coefficients,
+          options: form.options,
+          unitCost: form.unitCost,
         });
       } else {
         await createProductField(selectedProductId, form);
@@ -130,7 +134,8 @@ export default function ProductFieldsPage() {
       direction:    field.direction ?? "higher",
       tightening:   field.tightening ?? 3,
       coefficients: Object.fromEntries(yearKeys.map(y => [y, field.coefficients?.[y] ?? 0])),
-      options:      field.options ?? {}
+      options:      field.options ?? {},
+      unitCost: field.unitCost ?? null,
     });
   };
   const handleDelete = async (fieldId: string) => {
@@ -193,7 +198,7 @@ export default function ProductFieldsPage() {
           <table border={1} cellPadding={4}>
             <thead>
               <tr>
-                <th>key</th><th>label</th><th>type</th><th>order</th><th>required</th><th>Min</th><th>Max</th><th>order</th><th>direction</th><th>tightening</th><th>coefficient</th>
+                <th>key</th><th>label</th><th>type</th><th>order</th><th>required</th><th>Min</th><th>Max</th><th>Unit Cost</th><th>order</th><th>direction</th><th>tightening</th><th>coefficient</th>
               </tr>
             </thead>
             <tbody>
@@ -206,6 +211,7 @@ export default function ProductFieldsPage() {
                   <td>{f.required ? "yes" : "no"}</td>
                   <td>{f.minValue}</td>
                   <td>{f.maxValue}</td>
+                  <td>{f.unitCost}</td>
                   <td>{f.order}</td>
                   <td>{f.direction}</td>
                   <td>{f.tightening}</td>
@@ -222,7 +228,6 @@ export default function ProductFieldsPage() {
               ))}
             </tbody>
           </table>
-
           <h4>{editingFieldId ? "Edit Field" : "Add Field"}</h4>
           <div>
             <input
@@ -241,7 +246,7 @@ export default function ProductFieldsPage() {
               value={form.type}
               onChange={e => setForm({ ...form, type: e.target.value })}
             />
-            {["percentage", "cost", "currency", "number"].includes(form.type) && (
+            {["percentage", "cost", "money", "number"].includes(form.type) && (
               <input
                 type="number"
                 placeholder="No minimum"
@@ -255,8 +260,7 @@ export default function ProductFieldsPage() {
                 }}
               />
             )}
-
-            {["percentage", "cost", "currency", "number"].includes(form.type) && (
+            {["percentage", "cost", "money", "number"].includes(form.type) && (
               <input
                 type="number"
                 placeholder="No maximum"
@@ -270,13 +274,26 @@ export default function ProductFieldsPage() {
                 }}
               />
             )}
+            {form.type === "money" && (
+              <input
+                type="number"
+                placeholder="unit cost (optional)"
+                value={form.unitCost ?? ""}
+                onChange={e => {
+                  const parsed = parseFloat(e.target.value);
+                  setForm(f => ({
+                    ...f,
+                    unitCost: e.target.value === "" || isNaN(parsed) ? null : parsed,
+                  }));
+                }}
+              />
+            )}
             <input
               type="number"
               placeholder="order"
               value={form.order}
               onChange={e => setForm({ ...form, order: Number(e.target.value) })}
             />
-            {/* Direction */}
             <input
               type="number"
               placeholder="direction (0–1)"
@@ -286,8 +303,6 @@ export default function ProductFieldsPage() {
               value={form.direction}
               onChange={e => setForm(f => ({ ...f, direction: Number(e.target.value) }))}
             />
-
-            {/* Tightening */}
             <input
               type="number"
               placeholder="Tightening (default: 3)"
@@ -317,6 +332,42 @@ export default function ProductFieldsPage() {
                 ))}
               </div>
             )}
+
+            {/* Options — only for enum type fields */}
+            {form.type === "enum" && (
+              <div style={{ marginTop: 8 }}>
+                <strong style={{ fontSize: 11 }}>Options</strong>
+                {Object.keys(form.options ?? {}).length === 0 && (
+                  <p style={{ color: "#888", fontSize: 11 }}>No options added yet.</p>
+                )}
+                <table border={1} cellPadding={2} style={{ fontSize: 11, marginBottom: 4 }}>
+                  <thead>
+                    <tr><th>key</th><th>multiplier</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(form.options ?? {}).map(([optKey, multiplier]) => (
+                      <tr key={optKey}>
+                        <td>{optKey}</td>
+                        <td>{multiplier}</td>
+                        <td>
+                          <button onClick={() => setForm(f => {
+                            const next = { ...f.options };
+                            delete next[optKey];
+                            return { ...f, options: next };
+                          })}>Remove</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <OptionEntryRow
+                  onAdd={(optKey, multiplier) =>
+                    setForm(f => ({ ...f, options: { ...f.options, [optKey]: multiplier } }))
+                  }
+                />
+              </div>
+            )}
+
             <label>
               <input
                 type="checkbox"
@@ -327,6 +378,7 @@ export default function ProductFieldsPage() {
             </label>
             <button onClick={handleSubmit}>{editingFieldId ? "Update" : "Add"} Field</button>
             {editingFieldId && <button onClick={resetForm}>Cancel</button>}
+
           </div>
         </>
       )}

@@ -39,6 +39,7 @@ export interface ProductField {
   tightening:   number;
   coefficients: Record<string, number>;
   options:      Record<string, number>;
+  unitCost:     number | null;
 }
 
 export interface MarketDataYearly {
@@ -186,6 +187,22 @@ export function calcMarketModel(
   }
 
   const teamIds = productDecisions.map((d) => d.teamId);
+  
+  const calcDiminishingReturnsCostFactor = (
+    quantity: number,
+    min:      number | null,
+    max:      number | null
+  ): number => {
+    if (min === null || max === null || max <= min) return 1;
+
+    const meanMode = (min + max) / 2;
+    const stdDev   = (max - min) / 4;
+
+    const z                       = (quantity - meanMode) / stdDev;
+    const effectivenessMultiplier = Math.exp(-(z * z) / 2); // 1 at the peak, →0 at the extremes
+
+    return 2 - effectivenessMultiplier; // 1 (peak) → 2 (at the bounds)
+  };
 
   // ── Input resolver ────────────────────────────────────────────────────────
   const getInput = (teamId: mongoose.Types.ObjectId, fieldKey: string): number => {
@@ -194,7 +211,16 @@ export function calcMarketModel(
 
     const decision   = productDecisions.find((d) => d.teamId.equals(teamId));
     const fieldEntry = decision?.productInput.fields.find((f) => f.fieldId.equals(pf._id));
-    return resolveFieldValue(fieldEntry?.value ?? null, pf);
+
+    const resolved = resolveFieldValue(fieldEntry?.value ?? null, pf);
+
+    if (pf.type === "enum") return resolved;
+
+    return resolved * calcDiminishingReturnsCostFactor(
+      resolved,
+      pf.minValue,
+      pf.maxValue
+    );
   };
 
   // ── Helper: build field contributions for one set of fields ──────────────
