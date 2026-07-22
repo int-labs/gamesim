@@ -158,13 +158,18 @@ const resolveFieldValue = (
   field: ProductField
 ): number => {
   if (field.type === "enum") {
-    // raw is an option key string — look up its multiplier
     const key = String(raw ?? "");
     return field.options?.[key] ?? 0;
   }
-  // number/money/percentage/currency — clamp the numeric value
+
   const numeric = Number(raw ?? 0);
-  return clamp(numeric, field.minValue, field.maxValue);
+  const clamped = clamp(numeric, field.minValue, field.maxValue);
+
+  if (field.type === "percentage") {
+    return clamped / 100;
+  }
+
+  return clamped;
 };
 
 // ── Updated getDecisionInput to use resolveFieldValue ───────────────────────
@@ -215,7 +220,7 @@ const getGlobalInputQuantity = (
   }
 };
 
-const INVENTORY_BASE = 1000;
+const INVENTORY_BASE = 10000;
 
 // ─── Core Calculation ────────────────────────────────────────────────────────
 
@@ -290,7 +295,8 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       });
     });
 
-    let customersObtained = marketShare * availableMarket * productScore;
+    let potentialObtained = marketShare * availableMarket * productScore;
+    let customersObtained = potentialObtained > availableMarket ? availableMarket : potentialObtained;
     
     let inventoryAugmentation = 1;
     let customersObtainedAugment = 1;
@@ -316,7 +322,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
 
         if (config.affects === "customersObtained") {
           if (impact.type === "relative") {
-            customersObtainedAugment *= (1 + impact.value * effectiveMultiplier);
+            customersObtainedAugment *= (impact.value * effectiveMultiplier);
           } else {
             customersObtainedAugment += (impact.value * effectiveMultiplier);
           }
@@ -330,10 +336,10 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       .filter((f) => f.direction !== undefined && f.direction !== null && f.key !== SELLING_PRICE_KEY)
       .reduce((product, field) => {
         const value = getDecisionInput(decision, productId, field);
-        return value !== 0 ? product * Math.max(0, 1 - (value * 0.01)) : product;
+        return value !== 0 ? product * Math.max(0, 1 - (value * 0.01)) : Math.round(product);
       }, INVENTORY_BASE) * inventoryAugmentation;
 
-    const leftover      = Math.max(0, inventoryQty - customersObtained);
+    const leftover      = Math.round(Math.max(0, inventoryQty - customersObtained));
     const inventoryCost = leftover * dynamicCost;
 
     // ── GlobalInput-level cost breakdown (flat iteration) ─────────────────
@@ -345,7 +351,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       key:          "inventory",
       label:        "Inventory",
       category:     "inventory",
-      inputQty:     inventoryQty,
+      inputQty:     Math.round(inventoryQty),
       leftover,
       costPerUnit:  dynamicCost,
       incurredCost: inventoryCost,
@@ -396,9 +402,11 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
 
     const totalIncurredCost = incurredCosts.reduce((sum, e) => sum + e.incurredCost, 0);
 
-    const revenue     = customersObtained * dynamicPrice;
-    const COGS        = (customersObtained * dynamicCost) + totalIncurredCost;
-    const grossProfit = revenue - COGS;
+    const revenue     = customersObtained > inventoryQty ? inventoryQty * sellingPrice : customersObtained * sellingPrice;
+    const COGS        = dynamicCost * inventoryQty;
+    const grossProfit = revenue - COGS - totalIncurredCost;
+
+    console.log(COGS);
 
     return {
       teamId,
@@ -414,8 +422,6 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       incurredCosts,
     };
   });
-
-  console.log(results);
 
   return { results };
 }

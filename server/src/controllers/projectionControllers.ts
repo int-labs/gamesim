@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Product from "../models/products";
 import Projection from "../models/projections";
+import BaseData from "../models/baseData";
 import { calcFinancials, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
@@ -70,6 +71,25 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    const baseData = await BaseData.findOne({ simulationTypeId });
+    if (!baseData) {
+      res.status(404).json({ message: "Base data not found for this simulation type." });
+      return;
+    }
+
+    const yearKey = String(roundNumber);
+
+    // helper to get availableMarket for a specific product/segment from baseData
+    const getAvailableMarket = (segmentId: string, productId: string): number => {
+      const segment = baseData.marketData.segments.find((s: any) =>
+        String(s.segmentId) === segmentId
+      );
+      const product = segment?.products.find((p: any) =>
+        String(p.productId) === productId
+      );
+      return product?.yearlyData?.[yearKey]?.marketSize ?? 0;
+    };
+
     // ── Resolve which products to recompute ───────────────────────────────
     let productsToCalc: any[] = [];
 
@@ -105,10 +125,15 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
     for (const { product, fields: productFields } of productsToCalc) {
       const productFieldConfigs: ProductField[] = product.fields as unknown as ProductField[];
 
-      const pmsField = productFieldConfigs.find((f) => f.key === "projected_market_share");
-      const pmsEntry = (productFields ?? []).find((f: any) => String(f.fieldId) === String(pmsField?._id));
-      const pmsRaw   = Number(pmsEntry?.value ?? 0);
-      const marketShareFraction = Math.min(Math.max(pmsRaw, 0), 100) / 100;
+      // pms comes from the input entry, not from productFields
+      const pmsFieldConfig = productFieldConfigs.find((f: any) => f.key === "projected_market_share");
+      const availableMarket = getAvailableMarket(String(product.segmentId), String(product._id));
+      const pmsEntry = (productFields ?? []).find((f: any) =>
+        String(f.fieldId) === String(pmsFieldConfig?._id)
+      );
+
+      const pmsRaw          = Number(pmsEntry?.value ?? 20); // default 20%
+      const marketShareFraction = Math.min(Math.max(pmsRaw, 0), 1); 
 
       const draftDecision = {
         teamId:       teamObjectId,
@@ -134,8 +159,10 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
         })),
       };
 
-      const baseVariables: BaseVariables = (product.baseVariables as BaseVariables) ?? { availableMarket: 0 };
-
+      const baseVariables: BaseVariables = {
+        ...(product.baseVariables as BaseVariables ?? {}),
+        availableMarket, // override with year-specific value from baseData
+      };
       // Filter globalInputs to those that impact this specific product
       // (productsImpacted is empty = impacts all products)
       const relevantGlobalInputs = draftDecision.globalInputs.filter((gi: any) =>

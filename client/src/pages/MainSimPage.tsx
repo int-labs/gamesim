@@ -14,6 +14,7 @@ export default function TeamDecisionPage() {
 
     // Add alongside fieldValues state — tracks field values per product
     const [allProductFieldValues, setAllProductFieldValues] = useState<Record<string, Record<string, string>>>({});
+    // keyed by productId → pms value (0–1)
     // keyed by productId → { fieldId: value }
 
     const [globalInputs, setGlobalInputs] = useState<any[]>([]);
@@ -88,19 +89,18 @@ export default function TeamDecisionPage() {
         return selectedProductIds.map((productId) => {
             const product = products.find((p: any) => String(p._id) === productId);
             const values  = allProductFieldValues[productId] ?? {};
-            const fields  = Object.entries(values).map(([fieldId, value]) => ({ fieldId, value }));
             return {
             productId,
             segmentId:   product?.segmentId,
             productName: product?.productName,
-            fields,
+            fields:      Object.entries(values).map(([fieldId, value]) => ({ fieldId, value })),
             };
         });
     };
 
     const triggerRecalc = (
         values:             Record<string, string>,
-        currentGlobalItems: Record<string, string[]>
+        currentGlobalItems: Record<string, string[]>,
     ) => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(async () => {
@@ -113,6 +113,7 @@ export default function TeamDecisionPage() {
                     teamId:           teamId!,
                     roundNumber:      activeRound.roundNumber,
                     productId:        selectedProductId,
+                    focusedProductId: selectedProductId,
                     fields:           Object.entries(values).map(([fieldId, value]) => ({ fieldId, value })),
                     globalInputs:     buildGlobalInputsPayload(currentGlobalItems),
                 });
@@ -124,7 +125,7 @@ export default function TeamDecisionPage() {
                 setPreviewLoading(false);
             }
         }, 500);
-    };
+        };
 
     const globalDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -160,13 +161,12 @@ export default function TeamDecisionPage() {
 
     const handleFieldChange = (fieldId: string, value: string) => {
         const next = { ...fieldValues, [fieldId]: value };
-        const snapshotGlobalItems = { ...selectedGlobalItems }; // capture synchronously
         setFieldValues(next);
         setAllProductFieldValues(prev => ({
             ...prev,
             [selectedProductId]: next,
         }));
-        triggerRecalc(next, snapshotGlobalItems);
+        triggerRecalc(next, { ...selectedGlobalItems });
     };
 
     const handleLogin = async () => {
