@@ -6,6 +6,7 @@ import {
   updateRoundStatus,
   deleteRound,
 } from "../controllers/roundControllers";
+import { finalizeRound } from "../controllers/roundFinalizationControllers";
 import { authenticate } from "../middleware/authentication";
 import { authorize } from "../middleware/authorization";
 import { ROLES } from "../constants/roles";
@@ -18,11 +19,13 @@ router.use(authenticate);
 // POST   /rounds                 → create a new round (admin/operator)
 // GET    /rounds/:id             → get single round
 // PATCH  /rounds/:id/status      → advance/update round status (admin/operator)
+// POST   /rounds/:roundId/finalize → run the engine + persist results (admin/operator)
 // DELETE /rounds/:id             → delete round (admin)
 router.get("/", getRoundsBySimulation);
 router.post("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), createRound);
 router.get("/:id", getRoundById);
 router.patch("/:id/status", authorize([ROLES.ADMIN, ROLES.OPERATOR]), updateRoundStatus);
+router.post("/:roundId/finalize", authorize([ROLES.ADMIN, ROLES.OPERATOR]), finalizeRound);
 router.delete("/:id", authorize([ROLES.ADMIN]), deleteRound);
 
 export default router;
