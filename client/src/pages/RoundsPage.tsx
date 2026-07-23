@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getRounds, createRound, patchRound, deleteRound } from "../api";
+import { getRounds, createRound, patchRound, finalizeRound, deleteRound } from "../api";
 import type { Round } from "../types";
 
 const BLANK = { simulationId: "", roundNumber: 0, status: "Pending", durationMinutes: "" };
@@ -50,6 +50,24 @@ export default function RoundsPage() {
       const payload: any = { status };
       if (durationMinutes) payload.timer = { durationMinutes: Number(durationMinutes) };
       await patchRound(id, payload);
+      await load();
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message);
+    }
+  };
+
+  // Runs the finlit engine for every team's submitted decision and persists
+  // results — the only correct way to complete a round. (The raw "→
+  // Completed" status patch below does NOT run the engine or lock
+  // decisions; it's left for Pending/Active toggling, not for ending a
+  // round that actually has decisions to score.)
+  const handleFinalize = async (id: string) => {
+    if (!confirm("Finalize this round? This runs the engine for every team and cannot be undone.")) return;
+    setError("");
+    try {
+      const res = await finalizeRound(id);
+      const count = res.data?.results?.length ?? 0;
+      alert(res.data?.message ? `${res.data.message} (${count} team result(s))` : `Finalized: ${count} team result(s).`);
       await load();
     } catch (e: any) {
       setError(e.response?.data?.message ?? e.message);
@@ -127,7 +145,7 @@ export default function RoundsPage() {
                   <button onClick={() => handlePatch(r._id, "Active")}>→ Active</button>
                 )}
                 {r.status === "Active" && (
-                  <button onClick={() => handlePatch(r._id, "Completed")}>→ Completed</button>
+                  <button onClick={() => handleFinalize(r._id)}>Finalize → Completed</button>
                 )}
                 {r.status === "Completed" && (
                   <button onClick={() => handlePatch(r._id, "Active")}>← Active</button>

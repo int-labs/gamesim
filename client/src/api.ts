@@ -43,6 +43,7 @@ export const getRounds = (simulationId?: string) =>
 export const getRoundById = (id: string) => api.get(`/rounds/${id}`);
 export const createRound = (data: object) => api.post("/rounds", data);
 export const patchRound = (id: string, data: object) => api.patch(`/rounds/${id}/status`, data);
+export const finalizeRound = (id: string) => api.post(`/rounds/${id}/finalize`);
 export const deleteRound = (id: string) => api.delete(`/rounds/${id}`);
 
 // ── Teams ─────────────────────────────────────────────────────
