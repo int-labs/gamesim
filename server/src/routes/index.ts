@@ -18,6 +18,7 @@ import paramRoutes          from "./paramRoutes";
 import teamRoutes           from "./teamRoutes";
 import segmentRoutes        from "./segmentRoutes";
 import globalInputRoutes    from "./globalInputRoutes";
+import playerRoutes         from "./playerRoutes";
 
 const router = Router();
 
@@ -39,6 +40,7 @@ router.use("/global-inputs", globalInputRoutes);
 // router.use("/upload", uploadRoutes);
 router.use("/image-assets", imageAssetsRoutes);
 router.use("/initiatives", initiativeRoutes);
+router.use("/player", playerRoutes);
 
 router.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
