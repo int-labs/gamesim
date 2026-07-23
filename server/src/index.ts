@@ -1,3 +1,13 @@
+// Node 21+ removed `Buffer.SlowBuffer`, which the unmaintained
+// `buffer-equal-constant-time` dependency of `jsonwebtoken` (via `jwa`/`jws`)
+// reads unconditionally at module-load time — crashing on the first
+// `require("jsonwebtoken")` anywhere in the process (auth middleware, socket
+// auth). Alias it before anything below transitively requires jsonwebtoken.
+const bufferModule = require("buffer");
+if (!bufferModule.SlowBuffer) {
+  bufferModule.SlowBuffer = bufferModule.Buffer;
+}
+
 import cookieParser from "cookie-parser";
 import cors from "cors"; // Import CORS middleware
 import dotenv from "dotenv";
