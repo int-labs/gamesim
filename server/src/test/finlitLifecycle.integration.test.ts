@@ -61,7 +61,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await mongoose.disconnect();
-  await mongo.stop();
+  if (mongo) await mongo.stop();
 });
 
 describe("finlit player lifecycle", () => {
@@ -210,5 +210,69 @@ describe("finlit player lifecycle", () => {
     expect(bootAfter.body.round.status).toBe("Completed");
     expect(bootAfter.body.permissions.canEditDecision).toBe(false);
     expect(bootAfter.body.permissions.canViewResult).toBe(true);
+  }, 30000);
+
+  it("rejects edits on Pending rounds and preserves prior results when the next round activates", async () => {
+    const simulation = await Simulation.create({
+      simulationName: "FinLit Pending/Next Round",
+      status: "Active",
+      simulationTypeId: new mongoose.Types.ObjectId(),
+      config: { totalRounds: 3, currRounds: 1 },
+    });
+    const team = await Team.create({ simulationId: simulation._id, teamName: "Solo" });
+    const user = await User.create({ password: "x", role: "team", teamId: team._id, simulationId: simulation._id, passkey: "pk-solo" });
+    const operator = await User.create({ email: "op2@test.com", password: "x", role: "operator" });
+
+    const pending = await Round.create({ simulationId: simulation._id, roundNumber: 1, status: "Pending" });
+    const token = signTeamToken(String(user._id), String(team._id));
+    const tokenOp = signOperatorToken(String(operator._id));
+
+    const bootPending = await request(app).get("/api/player/bootstrap").set("Authorization", `Bearer ${token}`);
+    expect(bootPending.status).toBe(200);
+    expect(bootPending.body.round.status).toBe("Pending");
+    expect(bootPending.body.permissions.canEditDecision).toBe(false);
+    expect(bootPending.body.permissions.canSubmitDecision).toBe(false);
+
+    const saveWhilePending = await request(app)
+      .put("/api/player/rounds/current/decision")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ version: 0, configVersion: "notebook-v3-2026-07", payload: makePayload("line-1") });
+    expect(saveWhilePending.status).toBe(409);
+
+    await Round.findByIdAndUpdate(pending._id, { status: "Active" });
+
+    const saveOk = await request(app)
+      .put("/api/player/rounds/current/decision")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ version: 0, configVersion: "notebook-v3-2026-07", payload: makePayload("line-1") });
+    expect(saveOk.status).toBe(201);
+    await request(app)
+      .post("/api/player/rounds/current/decision/submit")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ version: 1 });
+
+    // Pre-create next round as Pending so finalize can activate it.
+    await Round.create({ simulationId: simulation._id, roundNumber: 2, status: "Pending" });
+
+    const finalize = await request(app)
+      .post(`/api/rounds/${pending._id}/finalize`)
+      .set("Authorization", `Bearer ${tokenOp}`);
+    expect(finalize.status).toBe(200);
+
+    const bootNext = await request(app).get("/api/player/bootstrap").set("Authorization", `Bearer ${token}`);
+    expect(bootNext.body.round.number).toBe(2);
+    expect(bootNext.body.round.status).toBe("Active");
+    // Current round has no result yet…
+    const currentMissing = await request(app).get("/api/player/results/current").set("Authorization", `Bearer ${token}`);
+    expect(currentMissing.status).toBe(404);
+    // …but the finalized round-1 result remains fetchable by roundNumber.
+    const byRound = await request(app).get("/api/player/results/1").set("Authorization", `Bearer ${token}`);
+    expect(byRound.status).toBe(200);
+    expect(byRound.body.roundNumber).toBe(1);
+    expect(typeof byRound.body.payload.revenue).toBe("number");
+
+    const all = await request(app).get("/api/player/results").set("Authorization", `Bearer ${token}`);
+    expect(all.status).toBe(200);
+    expect(all.body.results.some((r: { roundNumber: number }) => r.roundNumber === 1)).toBe(true);
   }, 30000);
 });

@@ -1,70 +1,71 @@
+# Gamesim
 
-# Int Labs
+Monorepo for the Int Labs simulation platform:
 
-Welcome to the **Int Labs** backend server! This is a banking simulation API designed for tracking and analyzing financial decisions in various banking products like deposits and credit cards. The backend is built using **Node.js** with **MongoDB** for data storage.
+```
+gamesim/
+  client/     Notebook pixel player (Vite) — primary frontend served by the server
+  admin/      Operator console (former client) — deploy separately
+  server/     Express + Socket.IO API
+  shared/
+    finlit-engine/   Pure FinLit phase engine (shared by player preview + server finalize)
+    api-contract/    Player HTTP + socket DTO contracts
+```
 
-## Table of Contents
+## Prerequisites
 
-- [Getting Started](#getting-started)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [API Endpoints](#api-endpoints)
-- [Folder Structure](#folder-structure)
-- [License](#license)
+- Node.js 18+
+- MongoDB (local or Atlas)
 
-## Getting Started
+## Install
 
-Follow the steps below to get this backend running locally.
+```bash
+npm run install:all
+```
 
-### Prerequisites
+Or manually:
 
-Make sure you have the following software installed on your machine:
+```bash
+npm install
+cd shared/finlit-engine && npm install && npm run build
+cd ../api-contract && npm install && npm run build
+cd ../../server && npm install
+cd ../client && npm install
+cd ../admin && npm install
+```
 
-- **Node.js** (v14 or higher)
-- **MongoDB** (locally or MongoDB Atlas account for cloud storage)
-- **Git** (for cloning the repository)
+## Environment
 
-### Installation
+Copy [`.env.example`](./.env.example). Important vars:
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/int-labs/stratagem.git
-   cd stratagem
-   ```
+| Var | Where | Purpose |
+|---|---|---|
+| `VITE_GAMESIM_API_URL` | `client/` | Player → API base (include `/api`) |
+| `CLIENT_ORIGIN` / `PLAYER_ORIGIN` / `ADMIN_ORIGIN` / `ALLOWED_ORIGINS` | `server/` | Shared CORS + Socket.IO allowlist |
+| `MONGO_URI` / `JWT_SECRET` / `PORT` | `server/` | Runtime |
 
-2. Install Dependencies:
-   ```bash
-   npm install
-   ```
+## Scripts (root)
 
-3. Set up environment variables:
-   Create a `.env` file in the root directory and add the necessary configuration values. You can refer to `.env.example` if available.
-   ```plaintext
-   MONGO_URI=your-mongodb-connection-string
-   PORT=5000
-   ```
+| Script | What it runs |
+|---|---|
+| `npm run dev` | server + player |
+| `npm run dev:server` | API only |
+| `npm run dev:player` | Notebook player (port 5173) |
+| `npm run dev:admin` | Operator admin (port 3001) |
+| `npm run build` | shared + server + player |
+| `npm run build:server` / `build:player` / `build:admin` | per-app |
+| `npm test` | server Jest suite (lifecycle, parity, origins) |
 
-4. Run the project:
-   ```bash
-   npm start
-   ```
+## Docker
 
-## API Endpoints
+- `Dockerfile` — player + server (player static assets copied to `server/public`)
+- `Dockerfile.admin` — admin UI only (nginx)
+- `Dockerfile.preview` — Render preview (player + server + Atlas tooling)
 
-- **GET /** - Check if the server is up and running.
-- **POST /decision** - Submit a decision log for a team.
-- **GET /decisions** - Retrieve all decision logs.
-- **POST /finalize-decision** - Submit a finalized decision.
-- **GET /dashboard** - Get real-time metrics of the banking simulation.
+## Player ↔ server contract
 
-## Folder Structure
-
-- **controllers/**: Handles logic for interacting with models and responding to HTTP requests.
-- **models/**: Defines the schema for the MongoDB collections.
-- **modules/**: Contains business logic for specific features, like deposits and credit cards.
-- **routes/**: Contains the routes for each API endpoint.
-- **utils/**: Utility functions for error handling, logging, validation, etc.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE). You are free to use, modify, and distribute this project, provided that proper attribution is given.
+Player authenticates with a team passkey, bootstraps via `GET /api/player/bootstrap`,
+saves/submits decisions on the Active round, and listens for Socket.IO events
+(`round.*`, `decision.submitted`, `result.published`). On `result.published`,
+the player fetches `/api/player/results/:roundNumber` (not `/results/current`)
+so a newly activated next round cannot hide the finalized result.

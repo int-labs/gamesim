@@ -1,6 +1,7 @@
 # =============================================================================
-# DOCKERFILE FOR SINGLE SERVICE (Frontend + Backend)
+# DOCKERFILE FOR SINGLE SERVICE (Player frontend + Backend)
 # File: Dockerfile
+# Admin is built/deployed separately (see Dockerfile.admin).
 # =============================================================================
 FROM node:18-alpine
 
@@ -10,32 +11,39 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # =============================================================================
-# BUILD FRONTEND
+# BUILD SHARED PACKAGES
 # =============================================================================
-# Copy and install client dependencies
+COPY shared/finlit-engine/package*.json ./shared/finlit-engine/
+COPY shared/api-contract/package*.json ./shared/api-contract/
+RUN cd shared/finlit-engine && npm install && \
+    cd ../api-contract && npm install
+
+COPY shared/ ./shared/
+RUN cd shared/finlit-engine && npm run build && \
+    cd ../api-contract && npm run build
+
+# =============================================================================
+# BUILD PLAYER (primary frontend served by the server)
+# =============================================================================
 COPY client/package*.json ./client/
 RUN cd client && npm ci
 
-# Copy client source and build
 COPY client/ ./client/
+# Shared sources are also resolved via Vite aliases during player build
 RUN cd client && npm run build
 
 # =============================================================================
-# BUILD BACKEND  
+# BUILD BACKEND
 # =============================================================================
-# Copy and install server dependencies
 COPY server/package*.json ./server/
 RUN cd server && npm ci
 
-# Copy server source code
 COPY server/ ./server/
-
-# Build TypeScript server
 RUN cd server && npm run build
 
-# Move frontend build to server public folder
+# Move player build to server public folder (Vite outDir = dist)
 RUN mkdir -p server/public && \
-    cp -r client/build/* server/public/ && \
+    cp -r client/dist/* server/public/ && \
     chmod -R 755 server/public
 
 # =============================================================================

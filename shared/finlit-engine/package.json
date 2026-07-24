@@ -1,0 +1,36 @@
+{
+  "name": "@gamesim/finlit-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pure FinLit phase engine shared by the player client and gamesim server",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "require": "./dist/config/index.js",
+      "default": "./dist/config/index.js"
+    },
+    "./engineMeta": {
+      "types": "./dist/engineMeta.d.ts",
+      "require": "./dist/engineMeta.js",
+      "default": "./dist/engineMeta.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

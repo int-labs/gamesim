@@ -17,6 +17,7 @@ import { createServer } from "http";
 import path from "path";
 import connectToDatabase from "./db/db";
 import routes from "./routes";
+import { parseAllowedOrigins } from "./utils/allowedOrigins";
 import { initSocket } from "./utils/socket";
 
 dotenv.config();
@@ -26,33 +27,14 @@ const PORT = process.env.PORT || 5000; // Will be 3000 in docker-compose
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "https://app.int-labs.com"; // Default to the deployed client URL
 const isProdLike = process.env.NODE_ENV !== "development";
 
-// Build dynamic allowed origins list: envs or dev defaults
-const rawAllowed = [
-  process.env.CLIENT_ORIGIN,
-  process.env.ALLOWED_ORIGINS, // comma-separated optional
-  process.env.RENDER_EXTERNAL_URL, // Render-provided in some setups
-]
-  .filter(Boolean)
-  .join(",");
-
-const allowedOrigins = new Set(
-  rawAllowed
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-);
-
-// Always allow common local dev origins
-[
-  "http://localhost:3000",
-  "http://localhost:3005",
-  "http://localhost:5173",
-].forEach((o) => allowedOrigins.add(o));
+// Shared allowlist for HTTP CORS and Socket.IO — player (VITE) + admin origins.
+const allowedOriginsList = parseAllowedOrigins(process.env);
+const allowedOrigins = new Set(allowedOriginsList);
 
 // Connect to MongoDB
 connectToDatabase();
 
-console.log("Using CORS origin:", CLIENT_ORIGIN);
+console.log("Using CORS origins:", allowedOriginsList.join(", ") || CLIENT_ORIGIN);
 
 // Middleware
 const corsConfig: cors.CorsOptions = {
@@ -85,17 +67,20 @@ app.get("/", (_req: Request, res: Response) => {
 
 app.use("/api", routes);
 
-// In Docker/production, serve the React build from ../public (copied in Dockerfile)
-// On Render Native environments, it remains in ../../client/build
+// In Docker/production, serve the React player build from ../public (copied in Dockerfile)
+// On Render Native environments, it remains in ../../client/dist (Vite) or ../../client/build (legacy)
 if (isProdLike || process.env.SERVE_CLIENT === "true") {
   const dockerPublicDir = path.join(__dirname, "../public");
-  const nativePublicDir = path.join(__dirname, "../../client/build");
+  const nativeDistDir = path.join(__dirname, "../../client/dist");
+  const nativeBuildDir = path.join(__dirname, "../../client/build");
 
   let publicDir = null;
   if (fs.existsSync(path.join(dockerPublicDir, "index.html")))
     publicDir = dockerPublicDir;
-  else if (fs.existsSync(path.join(nativePublicDir, "index.html")))
-    publicDir = nativePublicDir;
+  else if (fs.existsSync(path.join(nativeDistDir, "index.html")))
+    publicDir = nativeDistDir;
+  else if (fs.existsSync(path.join(nativeBuildDir, "index.html")))
+    publicDir = nativeBuildDir;
 
   if (publicDir) {
     app.use(express.static(publicDir));
@@ -123,7 +108,7 @@ if (isProdLike || process.env.SERVE_CLIENT === "true") {
 }
 
 const srv = createServer(app);
-const io = initSocket(srv, CLIENT_ORIGIN);
+const io = initSocket(srv, allowedOriginsList);
 
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);

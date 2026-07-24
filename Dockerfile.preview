@@ -1,6 +1,7 @@
 # =============================================================================
-# DOCKERFILE FOR RENDER.COM PREVIEW ENVIRONMENT (Frontend + Backend + MongoDB Atlas)
+# DOCKERFILE FOR RENDER.COM PREVIEW ENVIRONMENT (Player + Backend + MongoDB Atlas)
 # File: Dockerfile.preview
+# Admin is not bundled here — deploy via Dockerfile.admin separately.
 # =============================================================================
 FROM node:18-bullseye
 
@@ -17,47 +18,48 @@ RUN apt-get update && \
 # Install MongoDB client tools using the official MongoDB installation script
 RUN wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | apt-key add - \
     && echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/debian bullseye/mongodb-org/6.0 main" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list \
-    && apt-get update \
-    && apt-get install -y mongodb-mongosh \
+    && apt-get update && \
+    apt-get install -y mongodb-mongosh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Remove local MongoDB data directory - we'll use Atlas instead
-# RUN mkdir -p /data/db && chmod 755 /data/db
-
-# Create directory for MongoDB Atlas operations
-RUN mkdir -p /app/mongodb-scripts
 
 WORKDIR /app
 
 # =============================================================================
-# BUILD FRONTEND
+# BUILD SHARED PACKAGES
 # =============================================================================
-# Copy and install client dependencies first (better caching)
+COPY shared/finlit-engine/package*.json ./shared/finlit-engine/
+COPY shared/api-contract/package*.json ./shared/api-contract/
+RUN cd shared/finlit-engine && npm install && \
+    cd ../api-contract && npm install
+
+COPY shared/ ./shared/
+RUN cd shared/finlit-engine && npm run build && \
+    cd ../api-contract && npm run build
+
+# =============================================================================
+# BUILD PLAYER FRONTEND
+# =============================================================================
 COPY client/package*.json ./client/
 RUN cd client && npm ci && npm cache clean --force
 
-# Copy client source and build
 COPY client/ ./client/
 RUN cd client && npm run build
 
 # =============================================================================
-# BUILD BACKEND  
+# BUILD BACKEND
 # =============================================================================
-# Copy and install server dependencies
 COPY server/package*.json ./server/
 RUN cd server && npm ci --only=production && \
     npm install ts-node typescript @types/node && \
     npm cache clean --force
-# Copy server source code
-COPY server/ ./server/
 
-# Build TypeScript server (if needed)
+COPY server/ ./server/
 RUN cd server && npm run build 2>/dev/null || echo "No build script found, skipping..."
 
-# Move frontend build to server public folder
+# Move player build to server public folder (Vite outDir = dist)
 RUN mkdir -p server/public && \
-    cp -r client/build/* server/public/ 2>/dev/null || echo "No client build found" && \
+    (cp -r client/dist/* server/public/ 2>/dev/null || cp -r client/build/* server/public/ 2>/dev/null || echo "No client build found") && \
     chmod -R 755 server/public
 
 # =============================================================================
@@ -65,25 +67,19 @@ RUN mkdir -p server/public && \
 # =============================================================================
 WORKDIR /app/server
 
-# Copy startup script and seed data
 COPY start.sh /app/start.sh
 COPY server/scripts/seed-data/ /app/server/scripts/seed-data/
 
-# Create non-root user, home dir, and set permissions
 RUN groupadd -r nodejs && useradd -m -r -g nodejs nodejs \
     && mkdir -p /home/nodejs \
     && chown -R nodejs:nodejs /home/nodejs /app \
     && chmod +x /app/start.sh
 
-# Switch to non-root user
 USER nodejs
 
-# Expose the port that Render assigns
 EXPOSE ${PORT:-3000}
 
-# Health check optimized for Render (MongoDB Atlas)
 HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:${PORT:-3000}/api/health 2>/dev/null || exit 1
 
-# Use the startup script
 CMD ["/app/start.sh"]

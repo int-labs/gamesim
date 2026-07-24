@@ -1,11 +1,9 @@
-// Parity test: the ported engine must reproduce notebook-pixel-sim origin/V3's
-// real simulatePhase() output byte-for-byte (within float tolerance), for the
-// same inputs. Fixtures were captured by running the actual V3 engine (see
-// fixtures/notebookV3.json header comment in git history / PR description),
-// not derived from this copy — so a regression here means the port drifted
-// from Notebook V3, not that the fixture and copy were generated together.
-import { simulatePhase } from './simulate';
-import type { FinlitLine, FinlitDecisions } from './types';
+// Parity test: the shared @gamesim/finlit-engine must reproduce notebook-pixel-sim
+// origin/V3's real simulatePhase() output byte-for-byte (within float tolerance),
+// for the same inputs. Fixtures were captured by running the actual V3 engine
+// (see fixtures/notebookV3.json), not derived from this copy.
+import { simulatePhase } from '@gamesim/finlit-engine';
+import type { FinlitLine, FinlitDecisions } from '@gamesim/finlit-engine';
 import fixtures from './fixtures/notebookV3.json';
 
 const EPS = 1e-9;

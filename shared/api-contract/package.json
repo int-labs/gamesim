@@ -1,0 +1,29 @@
+{
+  "name": "@gamesim/api-contract",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared player API and socket event contracts for gamesim client + server",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@gamesim/finlit-engine": "file:../finlit-engine"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

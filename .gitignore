@@ -74,6 +74,9 @@ Thumbs.db
 client/cypress/videos/
 client/cypress/screenshots/
 client/cypress/downloads/
+admin/cypress/videos/
+admin/cypress/screenshots/
+admin/cypress/downloads/
 
 # Dependency directories
 jspm_packages/
@@ -89,3 +92,7 @@ bower_components/
 
 # Claude Code runtime cache (worktrees, settings, launch configs, sessions)
 .claude/
+
+server/.mongo-tmp/
+shared/**/node_modules/
+shared/**/dist/

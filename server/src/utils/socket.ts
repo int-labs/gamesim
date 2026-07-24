@@ -16,11 +16,12 @@ interface SocketUser {
 // which is the source of truth for round/decision/result routing.
 const userSessions = new Map<string, Set<string>>();
 
-export const initSocket = (srv: any, origin: string) => {
+export const initSocket = (srv: any, origin: string | string[]) => {
   io = new Server(srv, {
     cors: {
       origin,
       methods: ["GET", "POST"],
+      credentials: true,
     },
   });
 
