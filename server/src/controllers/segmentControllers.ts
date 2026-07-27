@@ -99,6 +99,19 @@ export const deactivateSegment = async (req: Request, res: Response): Promise<vo
   }
 };
 
+export const deleteSegment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const simulation = await Segment.findByIdAndDelete(req.params.id);
+    if (!simulation) {
+      res.status(404).json({ message: "Segment not found." });
+      return;
+    }
+    res.status(200).json({ message: "Segment deleted." });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to delete segment." });
+  }
+};
+
 // PATCH /segments/:id/activate
 export const activateSegment = async (req: Request, res: Response): Promise<void> => {
   try {

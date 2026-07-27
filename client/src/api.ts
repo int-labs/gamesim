@@ -13,7 +13,7 @@ export const setAuthToken = (token: string) => {
 // authentication.ts does no DB lookup, so this works even with zero
 // users in the database. Remove once real login is wired in — see
 // the matching TODO(auth) comments on the locked-down routers.
-const DEV_ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODIwOTg4MjEsImV4cCI6MTc4NDY5MDgyMX0.otmIbMwqH-P7CIhblxw8zgKVq_itqLxJTRGGdTC2E9E";
+const DEV_ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODQ2OTYxMzYsImV4cCI6MTc4NzI4ODEzNn0.180JKpUCHYY65dGSSb9CQXf0XlJMX4d5Uf31asaYvTo";
 
 api.defaults.headers.common["Authorization"] = `Bearer ${DEV_ADMIN_TOKEN}`;
 
@@ -44,6 +44,12 @@ export const getRoundById = (id: string) => api.get(`/rounds/${id}`);
 export const createRound = (data: object) => api.post("/rounds", data);
 export const patchRound = (id: string, data: object) => api.patch(`/rounds/${id}/status`, data);
 export const deleteRound = (id: string) => api.delete(`/rounds/${id}`);
+export const calculateRound = (roundId: string) => api.post(`/rounds/${roundId}/calculate`);
+export const deleteDecisionsByRound = (simulationId: string, roundNumber: number) =>
+  api.delete("/decisions", { params: { simulationId, roundNumber } });
+
+export const deleteResultsByRound = (simulationId: string, roundNumber: number) =>
+  api.delete("/results", { params: { simulationId, roundNumber } });
 
 // ── Teams ─────────────────────────────────────────────────────
 export const getTeams = (simulationId?: string) =>
@@ -68,6 +74,7 @@ export const createSegment = (data: object) => api.post("/segments", data);
 export const deleteSegment = (id: string) => api.delete(`/segments/${id}`);
 export const activateSegment = (id: string) => api.patch(`/segments/${id}/activate`);
 export const deactivateSegment = (id: string) => api.patch(`/segments/${id}/deactivate`);
+export const updateSegment = (id: string, data: object) => api.patch(`/segments/${id}`, data);
 
 // ── Products ──────────────────────────────────────────────────
 export const getProducts = (simulationTypeId?: string, segmentId?: string) =>

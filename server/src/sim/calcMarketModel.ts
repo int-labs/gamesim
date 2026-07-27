@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { erf, mean, calcStdDev, directionOffset, normalCDF, DEFAULT_TIGHTENING } from "../utils/calcMathUtilities";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -101,53 +102,6 @@ export interface CalcMarketModelOutput {
   sharesNormalCDF: TeamShare[];
 }
 
-// ─── Math Utilities ──────────────────────────────────────────────────────────
-
-export const erf = (x: number): number => {
-  const a1 = 0.254829592;
-  const a2 = -0.284496736;
-  const a3 = 1.421413741;
-  const a4 = -1.453152027;
-  const a5 = 1.061405429;
-  const p  = 0.3275911;
-
-  const sign = x < 0 ? -1 : 1;
-  const absX = Math.abs(x);
-  const t    = 1 / (1 + p * absX);
-  const y    =
-    1 -
-    ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) *
-      t *
-      Math.exp(-absX * absX);
-
-  return sign * y;
-};
-
-export const mean = (arr: number[]): number =>
-  arr.reduce((a, b) => a + b, 0) / arr.length;
-
-export const calcStdDev = (data: number[], tightening: number): number => {
-  const values = data.filter((v) => v !== null && v !== undefined);
-  if (values.length === 0) return 1;
-
-  const avg      = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance =
-    values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
-  const stdDev   = Math.sqrt(variance);
-
-  return stdDev === 0 ? 1 : stdDev * tightening;
-};
-
-export const directionOffset = (direction: number): number =>
-  (1 - direction) / 2;
-
-export const normalCDF = (x: number, avg: number, stdDev: number): number => {
-  const z = (x - avg) / (Math.sqrt(2) * stdDev);
-  return 0.5 * (1 + erf(z));
-};
-
-export const DEFAULT_TIGHTENING = 3;
-
 // ── Resolve the effective numeric value for any field type ──────────────────
 // Mirrors the same logic in calcFinancials — enum fields resolve via
 // their options map; everything else clamps the raw numeric value.
@@ -167,6 +121,7 @@ const resolveFieldValue = (
 };
 
 // ─── Core Calculation ────────────────────────────────────────────────────────
+const SELLING_PRICE_KEY = "selling_price";
 
 export function calcMarketModel(
   input: CalcMarketModelInput
@@ -211,7 +166,7 @@ export function calcMarketModel(
 
     const decision   = productDecisions.find((d) => d.teamId.equals(teamId));
     const fieldEntry = decision?.productInput.fields.find((f) => f.fieldId.equals(pf._id));
-
+  
     const resolved = resolveFieldValue(fieldEntry?.value ?? null, pf);
 
     if (pf.type === "enum") return resolved;
@@ -234,7 +189,7 @@ export function calcMarketModel(
     const teamTotals:    Record<string, number> = {};
 
     for (const mmField of mmFields) {
-      if (mmField.key === "projected_market_share") continue;
+      if (mmField.key === "projected_market_share" || mmField.key === SELLING_PRICE_KEY) continue;
 
       // look up calc config from productFields
       const pf = productFields.find((f) => f.key === mmField.key);
@@ -327,7 +282,7 @@ export function calcMarketModel(
 
     // projected_market_share: team's intended capture, clamped 0–100
     const pmsRaw = getInput(teamId, "projected_market_share");
-    const pms    = Math.min(Math.max(pmsRaw, 0), 100) / 100;
+    const pms    = Math.min(Math.max(pmsRaw, 0), 100);
 
     // normalise against each team's equal slice (1 / numberOfTeams)
     const normalisedPms =

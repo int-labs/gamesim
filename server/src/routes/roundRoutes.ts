@@ -5,10 +5,13 @@ import {
   createRound,
   updateRoundStatus,
   deleteRound,
+  deleteResultsByRound,
 } from "../controllers/roundControllers";
 import { authenticate } from "../middleware/authentication";
 import { authorize } from "../middleware/authorization";
 import { ROLES } from "../constants/roles";
+import { calculateRound } from "../controllers/roundControllers";
+
 
 const router = Router();
 
@@ -19,7 +22,9 @@ router.use(authenticate);
 // GET    /rounds/:id             → get single round
 // PATCH  /rounds/:id/status      → advance/update round status (admin/operator)
 // DELETE /rounds/:id             → delete round (admin)
+router.delete("/", authenticate, authorize([ROLES.ADMIN]), deleteResultsByRound);
 router.get("/", getRoundsBySimulation);
+router.post("/:id/calculate", authenticate, authorize([ROLES.ADMIN, ROLES.OPERATOR]), calculateRound);
 router.post("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), createRound);
 router.get("/:id", getRoundById);
 router.patch("/:id/status", authorize([ROLES.ADMIN, ROLES.OPERATOR]), updateRoundStatus);

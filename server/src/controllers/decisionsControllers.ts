@@ -30,6 +30,21 @@ export const createDecision = async (req: Request, res: Response): Promise<void>
   }
 };
 
+// DELETE /decisions?simulationId=&roundNumber=
+export const deleteDecisionsByRound = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { simulationId, roundNumber } = req.query;
+    if (!simulationId || roundNumber === undefined) {
+      res.status(400).json({ message: "simulationId and roundNumber are required." });
+      return;
+    }
+    await Decision.deleteMany({ simulationId, roundNumber: Number(roundNumber) });
+    res.status(200).json({ message: "Decisions deleted." });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to delete decisions." });
+  }
+};
+
 // GET /decisions?simulationId=&teamId=&roundNumber=
 export const getDecisions = async (req: Request, res: Response): Promise<void> => {
   try {

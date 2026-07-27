@@ -6,6 +6,7 @@ import {
   updateSegment,
   deactivateSegment,
   activateSegment,
+  deleteSegment,
 } from "../controllers/segmentControllers";
 import { authenticate } from "../middleware/authentication";
 import { authorize }    from "../middleware/authorization";
@@ -18,6 +19,7 @@ router.use(authenticate);
 router.post("/", authorize([ROLES.ADMIN]), createSegment);
 router.get("/", getSegments);
 router.get("/:id", getSegmentById);
+router.delete("/:id", deleteSegment);
 router.patch("/:id", authorize([ROLES.ADMIN]), updateSegment);
 router.patch("/:id/deactivate", authorize([ROLES.ADMIN]), deactivateSegment);
 router.patch("/:id/activate", authorize([ROLES.ADMIN]), activateSegment);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getRounds, createRound, patchRound, deleteRound } from "../api";
+import { getRounds, createRound, patchRound, deleteRound, calculateRound, deleteDecisionsByRound, deleteResultsByRound } from "../api";
 import type { Round } from "../types";
 
 const BLANK = { simulationId: "", roundNumber: 0, status: "Pending", durationMinutes: "" };
@@ -44,12 +44,35 @@ export default function RoundsPage() {
     }
   };
 
+  const handleReset = async (round: any) => {
+    if (!confirm(`Reset round ${round.roundNumber}? This will delete all decisions and results for this round.`)) return;
+    try {
+      await Promise.all([
+        deleteDecisionsByRound(round.simulationId, round.roundNumber),
+        deleteResultsByRound(round.simulationId, round.roundNumber),
+      ]);
+      await load();
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message);
+    }
+  };
+
   const handlePatch = async (id: string, status: string, durationMinutes?: string) => {
     setError("");
     try {
       const payload: any = { status };
       if (durationMinutes) payload.timer = { durationMinutes: Number(durationMinutes) };
       await patchRound(id, payload);
+      await load();
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message);
+    }
+  };
+
+  const handleCalculate = async (roundId: string) => {
+    if (!confirm("Run round calculation? This will compute market shares and financials for all teams.")) return;
+    try {
+      await calculateRound(roundId);
       await load();
     } catch (e: any) {
       setError(e.response?.data?.message ?? e.message);
@@ -121,7 +144,7 @@ export default function RoundsPage() {
               <td>{r.timer?.endDate ? new Date(r.timer.endDate).toLocaleString() : ""}</td>
               <td>
                 {r.status === "Active" && (
-                  <button onClick={() => handlePatch(r._id, "Pending")}>← Pending</button>
+                  <button onClick={() => handleCalculate(r._id)}>⚡ Calculate</button>
                 )}
                 {r.status === "Pending" && (
                   <button onClick={() => handlePatch(r._id, "Active")}>→ Active</button>
@@ -131,6 +154,9 @@ export default function RoundsPage() {
                 )}
                 {r.status === "Completed" && (
                   <button onClick={() => handlePatch(r._id, "Active")}>← Active</button>
+                )}
+                {(r.status === "Active" || r.status === "Completed") && (
+                  <button onClick={() => handleReset(r)} style={{ marginLeft: 4, color: "red" }}>↺ Reset</button>
                 )}
                 {" "}
                 <button onClick={() => handleDelete(r._id)}>Delete</button>
