@@ -1,0 +1,56 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Secrets / env
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+*.pem
+*.key
+
+# Build / cache
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+.vercel/
+.tsbuildinfo
+*.tsbuildinfo
+# tsc -b emits these from vite.config.ts — they should not be committed
+vite.config.js
+vite.config.d.ts
+
+# Claude Code per-user settings (keep launch.json checked in)
+.claude/settings.local.json
+.claude/worktrees/
+
+# Asset archives (sources / backups should live elsewhere, not in git)
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.vercel
+.env*

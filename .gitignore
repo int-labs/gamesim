@@ -96,7 +96,3 @@ bower_components/
 server/.mongo-tmp/
 shared/**/node_modules/
 shared/**/dist/
-
-# notebook-pixel-sim is its own git repo (separate GitHub remote), kept
-# co-located here for convenience — not tracked by the gamesim repo.
-/notebook-pixel-sim/
