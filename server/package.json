@@ -17,8 +17,12 @@
     "mall-management:base-data-constants": "ts-node scripts/mallManagement/migrateConstants.ts"
   },
   "dependencies": {
+    "@gamesim/api-contract": "file:../shared/api-contract",
+    "@gamesim/finlit-engine": "file:../shared/finlit-engine",
+    "@supabase/supabase-js": "^2.110.8",
     "axios": "1.14.0",
     "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.3",
     "cloudinary": "^2.7.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -36,9 +40,7 @@
     "ws": "^8.21.0",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0",
-    "zod": "^3.24.3",
-    "@gamesim/finlit-engine": "file:../shared/finlit-engine",
-    "@gamesim/api-contract": "file:../shared/api-contract"
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.26.0",
