@@ -48,7 +48,7 @@ export default function DriversPage() {
     }
   };
 
-  const YearsTable = ({ years }: { years?: Record<string, any> | null }) => {
+  const YearsTable = ({ years }: { years: Record<string, any> | null }) => {
     if (!years) return <span style={{ color: "#888" }}>—</span>;
 
     const yearKeys = Object.keys(years);
