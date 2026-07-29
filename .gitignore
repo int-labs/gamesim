@@ -74,9 +74,6 @@ Thumbs.db
 client/cypress/videos/
 client/cypress/screenshots/
 client/cypress/downloads/
-admin/cypress/videos/
-admin/cypress/screenshots/
-admin/cypress/downloads/
 
 # Dependency directories
 jspm_packages/

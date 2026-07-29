@@ -4,9 +4,10 @@ Monorepo for the Int Labs simulation platform:
 
 ```
 gamesim/
-  client/     Notebook pixel player (Vite) — primary frontend served by the server
-  admin/      Operator console (former client) — deploy separately
-  server/     Express + Socket.IO API
+  client/              Operator console (Vite) — same folder as on main, deployed separately
+  notebook-pixel-sim/  Notebook pixel player — the integrated build of the standalone
+                       project; primary frontend served by the server
+  server/              Express + Socket.IO API
   shared/
     finlit-engine/   Pure FinLit phase engine (shared by player preview + server finalize)
     api-contract/    Player HTTP + socket DTO contracts
@@ -30,8 +31,8 @@ npm install
 cd shared/finlit-engine && npm install && npm run build
 cd ../api-contract && npm install && npm run build
 cd ../../server && npm install
+cd ../notebook-pixel-sim && npm install
 cd ../client && npm install
-cd ../admin && npm install
 ```
 
 ## Environment
@@ -40,7 +41,7 @@ Copy [`.env.example`](./.env.example). Important vars:
 
 | Var | Where | Purpose |
 |---|---|---|
-| `VITE_GAMESIM_API_URL` | `client/` | Player → API base (include `/api`) |
+| `VITE_GAMESIM_API_URL` | `notebook-pixel-sim/` | Player → API base (include `/api`) |
 | `CLIENT_ORIGIN` / `PLAYER_ORIGIN` / `ADMIN_ORIGIN` / `ALLOWED_ORIGINS` | `server/` | Shared CORS + Socket.IO allowlist |
 | `MONGO_URI` / `JWT_SECRET` / `PORT` | `server/` | Runtime |
 
@@ -58,8 +59,8 @@ Copy [`.env.example`](./.env.example). Important vars:
 
 ## Docker
 
-- `Dockerfile` — player + server (player static assets copied to `server/public`)
-- `Dockerfile.admin` — admin UI only (nginx)
+- `Dockerfile` — player (`notebook-pixel-sim/`) + server (player static assets copied to `server/public`)
+- `Dockerfile.admin` — operator console (`client/`) only, served by nginx
 - `Dockerfile.preview` — Render preview (player + server + Atlas tooling)
 
 ## Player ↔ server contract

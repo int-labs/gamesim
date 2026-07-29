@@ -1,9 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as gamesim from './client';
 import { connectGamesimSocket, disconnectGamesimSocket, onGamesimEvent } from './socket';
 import { hydrateDraftFromGamesim } from './sync';
 import { useGame } from '@/state/store';
-import type { BootstrapResponse, TeamRoundResultDto } from './types';
+import type { BootstrapResponse, ResultPublishedPayload, TeamRoundResultDto } from '@gamesim/api-contract';
 import { PasskeyLoginScreen } from './PasskeyLoginScreen';
 
 type Status = 'checking' | 'login' | 'loading' | 'no-simulation' | 'ready' | 'error';
@@ -12,10 +12,12 @@ interface GamesimSessionValue {
   status: Status;
   bootstrap: BootstrapResponse | null;
   error: string | null;
-  /** The current round's finalized result, once an operator has published it —
-   *  null until then, or if the current round hasn't been finalized yet.
-   *  Refreshed automatically on the `result.published` socket event. */
+  /** Finalized results keyed by round number — survives next-round activation. */
+  resultsByRound: Record<number, TeamRoundResultDto>;
+  /** Highest-numbered finalized result currently held in UI state. */
   latestResult: TeamRoundResultDto | null;
+  /** True when the current round is Active and the team may edit/submit. */
+  canPlay: boolean;
   refetchBootstrap: () => void;
   logout: () => void;
 }
@@ -38,31 +40,50 @@ export function useGamesimSession(): GamesimSessionValue {
 export function GamesimProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('checking');
   const [bootstrap, setBootstrap] = useState<BootstrapResponse | null>(null);
-  const [latestResult, setLatestResult] = useState<TeamRoundResultDto | null>(null);
+  const [resultsByRound, setResultsByRound] = useState<Record<number, TeamRoundResultDto>>({});
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   const refetchBootstrap = useCallback(() => setReloadToken((n) => n + 1), []);
 
-  const refetchResult = useCallback(async () => {
+  const mergeResult = useCallback((result: TeamRoundResultDto) => {
+    setResultsByRound((prev) => {
+      if (prev[result.roundNumber]?.id === result.id) return prev;
+      return { ...prev, [result.roundNumber]: result };
+    });
+  }, []);
+
+  const loadAllResults = useCallback(async () => {
     try {
-      const result = await gamesim.getCurrentResult();
-      setLatestResult(result);
+      const { results } = await gamesim.getResults();
+      setResultsByRound((prev) => {
+        const next = { ...prev };
+        for (const r of results) next[r.roundNumber] = r;
+        return next;
+      });
     } catch (err) {
-      // 404 just means the current round hasn't been finalized yet — not an error state.
-      if (!(err instanceof gamesim.GamesimApiError && err.status === 404)) {
-        console.warn('[gamesim] failed to load current result', err);
-      }
-      setLatestResult(null);
+      console.warn('[gamesim] failed to load results list', err);
     }
   }, []);
 
+  const fetchResultForRound = useCallback(async (roundNumber: number) => {
+    try {
+      const result = await gamesim.getResultByRoundNumber(roundNumber);
+      mergeResult(result);
+      return result;
+    } catch (err) {
+      if (!(err instanceof gamesim.GamesimApiError && err.status === 404)) {
+        console.warn(`[gamesim] failed to load result for round ${roundNumber}`, err);
+      }
+      return null;
+    }
+  }, [mergeResult]);
+
   const logout = useCallback(() => {
-    void gamesim.logoutFromGamesim();
     gamesim.clearGamesimToken();
     disconnectGamesimSocket();
     setBootstrap(null);
-    setLatestResult(null);
+    setResultsByRound({});
     setStatus('login');
   }, []);
 
@@ -79,12 +100,11 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
         const data = await gamesim.getBootstrap();
         if (cancelled) return;
         setBootstrap(data);
-        // A successful bootstrap always carries a simulation (resolvePlayerContext
-        // 404s otherwise, caught below) — `round` may still be null pre-launch.
         setStatus('ready');
         connectGamesimSocket();
-        if (data.permissions.canViewResult) void refetchResult();
-        else setLatestResult(null);
+        // Always hydrate the full results list so a previously finalized round
+        // remains visible after the next round becomes Active.
+        await loadAllResults();
       } catch (err) {
         if (cancelled) return;
         if (err instanceof gamesim.GamesimApiError) {
@@ -108,7 +128,7 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [reloadToken, refetchResult]);
+  }, [reloadToken, loadAllResults]);
 
   // Hydrate the saved draft once per round — not on every reload/socket
   // refetch, which would otherwise clobber in-progress local edits with
@@ -118,9 +138,10 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const roundId = bootstrap?.round?.id ?? null;
     if (status !== 'ready' || !roundId || hydratedRoundRef.current === roundId) return;
+    if (!bootstrap?.permissions.canEditDecision) return;
     hydratedRoundRef.current = roundId;
     void hydrateDraftFromGamesim(useGame.getState().apply);
-  }, [status, bootstrap?.round?.id]);
+  }, [status, bootstrap?.round?.id, bootstrap?.permissions.canEditDecision]);
 
   useEffect(() => {
     if (status !== 'ready') return undefined;
@@ -128,17 +149,44 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
       onGamesimEvent('round.started', () => refetchBootstrap()),
       onGamesimEvent('round.completed', () => refetchBootstrap()),
       onGamesimEvent('decision.submitted', () => refetchBootstrap()),
-      // A published result doesn't change round/permissions in a way
-      // refetchBootstrap alone would surface promptly — fetch it directly.
-      onGamesimEvent('result.published', () => {
+      // Fetch the finalized result by the roundNumber in the event — never
+      // /results/current, which would point at the next Active round once
+      // finalization auto-activates it and would appear to "lose" the result.
+      onGamesimEvent('result.published', (raw) => {
+        const payload = raw as ResultPublishedPayload;
         refetchBootstrap();
-        void refetchResult();
+        if (typeof payload?.roundNumber === 'number') {
+          void fetchResultForRound(payload.roundNumber);
+        } else {
+          void loadAllResults();
+        }
       }),
     ];
     return () => unsubscribers.forEach((off) => off());
-  }, [status, refetchBootstrap, refetchResult]);
+  }, [status, refetchBootstrap, fetchResultForRound, loadAllResults]);
 
-  const value: GamesimSessionValue = { status, bootstrap, latestResult, error, refetchBootstrap, logout };
+  const latestResult = useMemo(() => {
+    const rounds = Object.keys(resultsByRound).map(Number);
+    if (rounds.length === 0) return null;
+    const maxRound = Math.max(...rounds);
+    return resultsByRound[maxRound] ?? null;
+  }, [resultsByRound]);
+
+  const canPlay = !!bootstrap
+    && bootstrap.round?.status === 'Active'
+    && bootstrap.permissions.canEditDecision
+    && bootstrap.permissions.canSubmitDecision;
+
+  const value: GamesimSessionValue = {
+    status,
+    bootstrap,
+    latestResult,
+    resultsByRound,
+    canPlay,
+    error,
+    refetchBootstrap,
+    logout,
+  };
 
   if (status === 'checking' || status === 'loading') {
     return <FullScreenMessage title="Loading your team's simulation..." />;
@@ -151,6 +199,26 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   }
   if (status === 'error') {
     return <FullScreenMessage title="Couldn't reach the simulation server" subtitle={error ?? undefined} retry={refetchBootstrap} />;
+  }
+
+  // No round yet, or the only round is still Pending — block gameplay until
+  // an operator activates a round. Completed/submitted states still render the
+  // app so local results + finalized payloads remain visible; PhaseSequenceModal
+  // enforces canPlay for confirm/submit separately.
+  if (!bootstrap?.round || bootstrap.round.status === 'Pending') {
+    return (
+      <GamesimContext.Provider value={value}>
+        <FullScreenMessage
+          title="Waiting for round"
+          subtitle={
+            !bootstrap?.round
+              ? 'Ask your facilitator to open a round for your team.'
+              : `Round ${bootstrap.round.number} is pending. Waiting for the facilitator to activate it.`
+          }
+          retry={refetchBootstrap}
+        />
+      </GamesimContext.Provider>
+    );
   }
 
   return <GamesimContext.Provider value={value}>{children}</GamesimContext.Provider>;

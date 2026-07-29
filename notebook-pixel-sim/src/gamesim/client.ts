@@ -7,7 +7,7 @@ import type {
   PreviewResponse,
   TeamRoundDecisionDto,
   TeamRoundResultDto,
-} from './types';
+} from '@gamesim/api-contract';
 
 const TOKEN_KEY = 'gamesim:accessToken';
 
@@ -36,61 +36,16 @@ export class GamesimApiError extends Error {
   }
 }
 
-// The access token is short-lived (15m server-side). `/auth/login/passkey`
-// and `/auth/refresh` both set an httpOnly refresh-token cookie — `request`
-// sends credentials so that cookie round-trips, and transparently refreshes
-// once on a 401/403 before giving up. Without this, a session that outlives
-// the access token (an easy thing for a 90-day/3-phase run to do) silently
-// drops every decision sync from that point on: sync.ts only console.warns
-// on failure, it never surfaces to the player.
-let refreshInFlight: Promise<boolean> | null = null;
-
-async function refreshAccessToken(): Promise<boolean> {
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
-      try {
-        const res = await fetch(`${getGamesimBaseUrl()}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        if (!res.ok) return false;
-        const body = (await res.json()) as { accessToken?: string };
-        if (!body.accessToken) return false;
-        setGamesimToken(body.accessToken);
-        return true;
-      } catch {
-        return false;
-      } finally {
-        refreshInFlight = null;
-      }
-    })();
-  }
-  return refreshInFlight;
-}
-
-async function doFetch(path: string, init: RequestInit | undefined, token: string | null): Promise<Response> {
-  return fetch(`${getGamesimBaseUrl()}${path}`, {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getGamesimToken();
+  const res = await fetch(`${getGamesimBaseUrl()}${path}`, {
     ...init,
-    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let token = getGamesimToken();
-  let res = await doFetch(path, init, token);
-
-  if ((res.status === 401 || res.status === 403) && token) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      token = getGamesimToken();
-      res = await doFetch(path, init, token);
-    }
-  }
 
   const text = await res.text();
   const body = text ? JSON.parse(text) : undefined;
@@ -103,17 +58,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function loginWithPasskey(passkey: string): Promise<{ accessToken: string }> {
   return request('/auth/login/passkey', { method: 'POST', body: JSON.stringify({ passkey }) });
-}
-
-/** Best-effort — revokes the refresh-token cookie server-side. Local token
- *  clearing (clearGamesimToken) is what actually ends the session client-side
- *  and must happen regardless of whether this call succeeds. */
-export async function logoutFromGamesim(): Promise<void> {
-  try {
-    await request('/auth/logout', { method: 'POST' });
-  } catch {
-    // already logging out locally either way
-  }
 }
 
 export function getBootstrap(): Promise<BootstrapResponse> {
@@ -150,3 +94,15 @@ export function getResults(): Promise<{ results: TeamRoundResultDto[] }> {
 export function getCurrentResult(): Promise<TeamRoundResultDto> {
   return request('/player/results/current');
 }
+
+export function getResultByRoundNumber(roundNumber: number): Promise<TeamRoundResultDto> {
+  return request(`/player/results/${roundNumber}`);
+}
+
+export type {
+  BootstrapResponse,
+  FinlitDecisionPayload,
+  PreviewResponse,
+  TeamRoundDecisionDto,
+  TeamRoundResultDto,
+};

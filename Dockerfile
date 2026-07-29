@@ -25,12 +25,12 @@ RUN cd shared/finlit-engine && npm run build && \
 # =============================================================================
 # BUILD PLAYER (primary frontend served by the server)
 # =============================================================================
-COPY client/package*.json ./client/
-RUN cd client && npm ci
+COPY notebook-pixel-sim/package*.json ./notebook-pixel-sim/
+RUN cd notebook-pixel-sim && npm ci
 
-COPY client/ ./client/
+COPY notebook-pixel-sim/ ./notebook-pixel-sim/
 # Shared sources are also resolved via Vite aliases during player build
-RUN cd client && npm run build
+RUN cd notebook-pixel-sim && npm run build
 
 # =============================================================================
 # BUILD BACKEND
@@ -43,7 +43,7 @@ RUN cd server && npm run build
 
 # Move player build to server public folder (Vite outDir = dist)
 RUN mkdir -p server/public && \
-    cp -r client/dist/* server/public/ && \
+    cp -r notebook-pixel-sim/dist/* server/public/ && \
     chmod -R 755 server/public
 
 # =============================================================================

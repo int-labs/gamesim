@@ -4,12 +4,9 @@
 // server/src/utils/socket.ts for the room/auth contract this mirrors.
 import { io, type Socket } from 'socket.io-client';
 import { getGamesimBaseUrl, getGamesimToken } from './client';
+import type { GamesimSocketEvent } from '@gamesim/api-contract';
 
-export type GamesimSocketEvent =
-  | 'round.started'
-  | 'round.completed'
-  | 'decision.submitted'
-  | 'result.published';
+export type { GamesimSocketEvent };
 
 let socket: Socket | null = null;
 

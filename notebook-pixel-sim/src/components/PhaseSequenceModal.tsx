@@ -26,7 +26,8 @@ import { CostTiles, type CostTile } from '@/components/primitives/CostTiles';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import clsx from 'clsx';
-import { fetchCanonicalPreview, saveDraftAndSubmit } from '@/gamesim/sync';
+import { fetchCanonicalPreview, GamesimSyncError, saveDraftAndSubmit } from '@/gamesim/sync';
+import { useGamesimSession } from '@/gamesim/GamesimProvider';
 import type { FinlitPhaseResult } from '@/engine/finlit/types';
 
 const PHASE_END = { 1: 30, 2: 60, 3: 90 } as const;
@@ -67,8 +68,11 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   const pendingEventId = useGame((s) => s.meta.pendingEventId);
   const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
   const setScreen = useGame((s) => s.setScreen);
+  const { canPlay, bootstrap } = useGamesimSession();
 
   const [step, setStep] = useState<Step>('preview');
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const phaseAtOpenRef = useRef<Phase>(phase);
   const cashAtOpenRef = useRef<number>(cash);
 
@@ -82,23 +86,35 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
   /** Preview "Confirm" → run scenarios first (if any), else simulate. */
   const onConfirm = () => {
+    if (!canPlay) {
+      const status = bootstrap?.round?.status ?? 'unknown';
+      setSyncError(
+        status !== 'Active'
+          ? `Round is ${status}. Wait for the facilitator to activate it before confirming.`
+          : 'Decisions are locked for this round. You cannot confirm until editing is allowed again.',
+      );
+      return;
+    }
+    setSyncError(null);
     if (pendingScenarios.length > 0) setStep('scenario');
-    else tick();
+    else void tick();
   };
 
   const onScenarioPick = (opt: 'A' | 'B' | 'C' | 'D') => {
     const sc = pendingScenarios[0];
-    if (!sc) { tick(); return; }
+    if (!sc) { void tick(); return; }
     apply((s) => resolveFinlitScenario(s, sc.id, opt));
     // Was that the last unresolved scenario? If so, simulate; else the head
     // re-renders as the next one.
     const stillPending = allPhaseScenarios.some((x) => x.id !== sc.id && !resolvedScenarios.includes(x.id));
-    if (!stillPending) tick();
+    if (!stillPending) void tick();
   };
   // Reset to preview when the modal re-opens for a new phase confirm cycle.
   useEffect(() => {
     if (open) {
       setStep('preview');
+      setSyncError(null);
+      setSyncing(false);
       phaseAtOpenRef.current = phase;
       cashAtOpenRef.current = cash;
       apply((s) => { s.meta.sequenceActive = true; });
@@ -150,14 +166,30 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
    *  The 1.6s delay is pure showtime — the day counter races, coins rain,
    *  the machine rumbles — then the engine applies in one go. */
   const simFromDayRef = useRef(1);
-  const tick = () => {
+  const tick = async () => {
+    if (!canPlay) {
+      setSyncError('Cannot sync decision: round is not accepting edits.');
+      setStep('preview');
+      return;
+    }
     playSfx('confirm');
     simFromDayRef.current = useGame.getState().meta.day;
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      // Must succeed before local phase advance — silent failure left operators
+      // unable to finalize while the player thought they were done.
+      await saveDraftAndSubmit(useGame.getState() as any);
+    } catch (err) {
+      setSyncing(false);
+      setStep('preview');
+      setSyncError(err instanceof GamesimSyncError || err instanceof Error
+        ? err.message
+        : 'Failed to sync decision. Check your connection and retry.');
+      return;
+    }
+    setSyncing(false);
     setStep('simulating');
-    // Best-effort, non-blocking: persist + submit this phase's decision to
-    // gamesim so an operator can finalize the round later. The local engine
-    // below remains the source of truth for what the player sees right now.
-    void saveDraftAndSubmit(useGame.getState() as any);
     setTimeout(() => {
       // V3: the whole phase resolves at once on the FinLit engine.
       apply((s) => advanceFinlitPhase(s));
@@ -354,11 +386,35 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-1">
-              <PixelButton variant="ghost" onClick={() => { playSfx('click-soft'); onClose(); }}>Cancel</PixelButton>
-              <PixelButton variant="primary" size="lg" onClick={onConfirm}>
-                {pendingScenarios.length > 0 ? `Confirm · ${pendingScenarios.length} decision${pendingScenarios.length === 1 ? '' : 's'} ahead` : `Confirm · Simulate Phase ${phase}`}
-              </PixelButton>
+            <div className="flex flex-col gap-2 pt-1">
+              {syncError && (
+                <div className="panel-muted px-3 py-2 text-[16px] text-red-700 border border-red-300 bg-red-50">
+                  {syncError}
+                </div>
+              )}
+              {!canPlay && !syncError && (
+                <div className="panel-muted px-3 py-2 text-[16px] text-text-2">
+                  Round is not accepting decisions right now
+                  {bootstrap?.round ? ` (status: ${bootstrap.round.status})` : ''}.
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <PixelButton variant="ghost" onClick={() => { playSfx('click-soft'); onClose(); }}>Cancel</PixelButton>
+                <PixelButton
+                  variant="primary"
+                  size="lg"
+                  disabled={!canPlay || syncing}
+                  onClick={onConfirm}
+                >
+                  {syncing
+                    ? 'Syncing decision…'
+                    : syncError
+                      ? 'Retry sync & confirm'
+                      : pendingScenarios.length > 0
+                        ? `Confirm · ${pendingScenarios.length} decision${pendingScenarios.length === 1 ? '' : 's'} ahead`
+                        : `Confirm · Simulate Phase ${phase}`}
+                </PixelButton>
+              </div>
             </div>
           </div>
         )}

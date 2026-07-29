@@ -5,10 +5,17 @@
 // matches what the local engine would compute for the same state.
 import type { GameState } from '@/state/store';
 import { toFinlitLines, toFinlitDecisions, fromFinlitLine, fromFinlitDecisions, type LineInput } from '@/engine/finlit/adapter';
-import type { FinlitDecisionPayload } from './types';
+import type { FinlitDecisionPayload } from '@gamesim/api-contract';
+import { FINLIT_CONFIG_VERSION } from '@gamesim/finlit-engine';
 import * as gamesim from './client';
 
-const FINLIT_CONFIG_VERSION = 'notebook-v3-2026-07';
+export class GamesimSyncError extends Error {
+  cause?: unknown;
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.cause = cause;
+  }
+}
 
 function lineInput(l: GameState['portfolio']['productLines'][number]): LineInput {
   return {
@@ -53,15 +60,11 @@ export async function fetchCanonicalPreview(s: GameState) {
 }
 
 /**
- * Best-effort save-then-submit of the current phase's decision to gamesim,
- * called right when the player confirms a phase. Fire-and-forget from the
- * caller's perspective — gameplay never blocks on this, since the local
- * engine (unchanged) remains the source of truth for what the player sees.
- * A version conflict or network failure is logged, not surfaced as a
- * blocking error — the operator-side finalize is what actually matters for
- * this to have worked, and that happens later, out of band.
+ * Save-then-submit the current phase's decision to gamesim. Throws
+ * GamesimSyncError on failure so the UI can surface the error and offer retry —
+ * callers must not treat the phase as synced until this resolves successfully.
  */
-export async function saveDraftAndSubmit(s: GameState): Promise<void> {
+export async function saveDraftAndSubmit(s: GameState): Promise<gamesim.TeamRoundDecisionDto> {
   try {
     const { decision: existing } = await gamesim.getCurrentDecision();
     const payload = buildFinlitPayload(s);
@@ -70,9 +73,15 @@ export async function saveDraftAndSubmit(s: GameState): Promise<void> {
       configVersion: FINLIT_CONFIG_VERSION,
       payload,
     });
-    await gamesim.submitCurrentDecision({ version: saved.version });
+    return await gamesim.submitCurrentDecision({ version: saved.version });
   } catch (err) {
-    console.warn('[gamesim] failed to sync decision for this phase', err);
+    const message =
+      err instanceof gamesim.GamesimApiError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : 'Failed to sync decision with the simulation server.';
+    throw new GamesimSyncError(message, err);
   }
 }
 

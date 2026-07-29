@@ -1,5 +1,0 @@
-Drop the 3 consistently-framed gate sprites here:
-  amelia_neutral_v01.png   (calm, arms down, gentle smile)
-  amelia_happy_v01.png     (arms down, big open smile)
-  amelia_excited_v01.png   (hands up, cheering)
-Then tell Claude 'done' and it'll wire them into AcademyMascotStage.

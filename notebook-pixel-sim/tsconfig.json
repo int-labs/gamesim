@@ -17,9 +17,12 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@gamesim/finlit-engine": ["../shared/finlit-engine/src/index.ts"],
+      "@gamesim/finlit-engine/*": ["../shared/finlit-engine/src/*"],
+      "@gamesim/api-contract": ["../shared/api-contract/src/index.ts"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "../shared/api-contract/src", "../shared/finlit-engine/src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

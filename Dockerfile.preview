@@ -40,11 +40,11 @@ RUN cd shared/finlit-engine && npm run build && \
 # =============================================================================
 # BUILD PLAYER FRONTEND
 # =============================================================================
-COPY client/package*.json ./client/
-RUN cd client && npm ci && npm cache clean --force
+COPY notebook-pixel-sim/package*.json ./notebook-pixel-sim/
+RUN cd notebook-pixel-sim && npm ci && npm cache clean --force
 
-COPY client/ ./client/
-RUN cd client && npm run build
+COPY notebook-pixel-sim/ ./notebook-pixel-sim/
+RUN cd notebook-pixel-sim && npm run build
 
 # =============================================================================
 # BUILD BACKEND
@@ -59,7 +59,7 @@ RUN cd server && npm run build 2>/dev/null || echo "No build script found, skipp
 
 # Move player build to server public folder (Vite outDir = dist)
 RUN mkdir -p server/public && \
-    (cp -r client/dist/* server/public/ 2>/dev/null || cp -r client/build/* server/public/ 2>/dev/null || echo "No client build found") && \
+    (cp -r notebook-pixel-sim/dist/* server/public/ 2>/dev/null || cp -r notebook-pixel-sim/build/* server/public/ 2>/dev/null || echo "No player build found") && \
     chmod -R 755 server/public
 
 # =============================================================================
