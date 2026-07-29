@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
-import { getSegments, createSegment, deleteSegment, activateSegment, deactivateSegment } from "../api";
+import { getSegments, createSegment, updateSegment, deleteSegment, activateSegment, deactivateSegment } from "../api";
 import type { Segment } from "../types";
 
 const BLANK = { simulationTypeId: "", name: "", description: "", key: "", icon: "", order: 0 };
 
 export default function SegmentsPage() {
-  const [rows, setRows] = useState<Segment[]>([]);
-  const [form, setForm] = useState({ ...BLANK });
+  const [rows, setRows]               = useState<Segment[]>([]);
+  const [form, setForm]               = useState({ ...BLANK });
   const [filterSimType, setFilterSimType] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [error, setError]             = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [editingId, setEditingId]     = useState<string | null>(null);
+  const [editForm, setEditForm]       = useState({ name: "", description: "", key: "", icon: "", order: 0 });
 
   const load = async () => {
     try {
@@ -33,6 +35,27 @@ export default function SegmentsPage() {
       setError(e.response?.data?.message ?? e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditStart = (r: any) => {
+    setEditingId(r._id);
+    setEditForm({
+      name:        r.name        ?? "",
+      description: r.description ?? "",
+      key:         r.key         ?? "",
+      icon:        r.icon        ?? "",
+      order:       r.order       ?? 0,
+    });
+  };
+
+  const handleUpdate = async (id: string) => {
+    try {
+      await updateSegment(id, { ...editForm, order: Number(editForm.order) });
+      setEditingId(null);
+      await load();
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message);
     }
   };
 
@@ -79,23 +102,55 @@ export default function SegmentsPage() {
       <h3>All Segments</h3>
       <table border={1} cellPadding={4}>
         <thead>
-          <tr><th>_id</th><th>SimTypeId</th><th>Name</th><th>Key</th><th>Active</th><th>Order</th><th>Actions</th></tr>
+          <tr><th>_id</th><th>SimTypeId</th><th>Name</th><th>Key</th><th>Icon</th><th>Description</th><th>Active</th><th>Order</th><th>Actions</th></tr>
         </thead>
         <tbody>
           {rows.map(r => (
             <tr key={r._id}>
               <td>{r._id}</td>
               <td>{r.simulationTypeId}</td>
-              <td>{r.name}</td>
-              <td>{r.key}</td>
-              <td>{r.active ? "✓" : "✗"}</td>
-              <td>{r.order}</td>
               <td>
-                {r.active
-                  ? <button onClick={() => handleDeactivate(r._id)}>Deactivate</button>
-                  : <button onClick={() => handleActivate(r._id)}>Activate</button>}
-                {" "}
-                <button onClick={() => handleDelete(r._id)}>Delete</button>
+                {editingId === r._id
+                  ? <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                  : r.name}
+              </td>
+              <td>
+                {editingId === r._id
+                  ? <input value={editForm.key} onChange={e => setEditForm(f => ({ ...f, key: e.target.value }))} />
+                  : r.key}
+              </td>
+              <td>
+                {editingId === r._id
+                  ? <input value={editForm.icon} onChange={e => setEditForm(f => ({ ...f, icon: e.target.value }))} />
+                  : r.icon}
+              </td>
+              <td>
+                {editingId === r._id
+                  ? <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
+                  : r.description}
+              </td>
+              <td>{r.active ? "✓" : "✗"}</td>
+              <td>
+                {editingId === r._id
+                  ? <input type="number" style={{ width: 50 }} value={editForm.order} onChange={e => setEditForm(f => ({ ...f, order: Number(e.target.value) }))} />
+                  : r.order}
+              </td>
+              <td>
+                {editingId === r._id ? (
+                  <>
+                    <button onClick={() => handleUpdate(r._id)}>Save</button>{" "}
+                    <button onClick={() => setEditingId(null)}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => handleEditStart(r)}>Edit</button>{" "}
+                    {r.active
+                      ? <button onClick={() => handleDeactivate(r._id)}>Deactivate</button>
+                      : <button onClick={() => handleActivate(r._id)}>Activate</button>}
+                    {" "}
+                    <button onClick={() => handleDelete(r._id)}>Delete</button>
+                  </>
+                )}
               </td>
             </tr>
           ))}

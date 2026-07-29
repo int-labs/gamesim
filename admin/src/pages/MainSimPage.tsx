@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { loginWithPasskey, getRounds, getSimulationById, getProducts, setAuthToken, getProductFields, recalcProjections, getGlobalInputs, createDecision } from "../api";
+import { loginWithPasskey, getRounds, getSimulationById, getProducts, setAuthToken, getProductFields, recalcProjections, getGlobalInputs, createDecision, getSegments } from "../api";
 
 // ...inside handleLogin, after resolving the active round:
 
@@ -16,6 +16,9 @@ export default function TeamDecisionPage() {
     const [allProductFieldValues, setAllProductFieldValues] = useState<Record<string, Record<string, string>>>({});
     // keyed by productId → pms value (0–1)
     // keyed by productId → { fieldId: value }
+
+    const [segments, setSegments]               = useState<any[]>([]);
+    const [selectedSegmentId, setSelectedSegmentId] = useState("");
 
     const [globalInputs, setGlobalInputs] = useState<any[]>([]);
     const [selectedGlobalItems, setSelectedGlobalItems] = useState<Record<string, string[]>>({});
@@ -58,7 +61,23 @@ export default function TeamDecisionPage() {
             .catch((e: any) => setPreviewError(e.message));
     }, [selectedProductId]);
 
-    const buildGlobalInputsPayload = (currentGlobalItems: Record<string, string[]>) => {
+    useEffect(() => {
+        if (!selectedSegmentId || !simulationTypeId) {
+            setProducts([]);
+            setSelectedProductIds([]);
+            setSelectedProductId("");
+            return;
+        }
+        getProducts(simulationTypeId, selectedSegmentId)
+            .then(res => setProducts(res.data?.data ?? res.data))
+            .catch((e: any) => setError(e.message));
+    }, [selectedSegmentId]);
+
+    const buildGlobalInputsPayload = (
+        currentGlobalItems:  Record<string, string[]>,
+        currentSliderSteps?: Record<string, string>
+    ) => {
+        const stepsToUse = currentSliderSteps ?? selectedSliderSteps;
         const entries: any[] = [];
         globalInputs.forEach((container: any) => {
             const selectedIds = currentGlobalItems[container._id] ?? [];
@@ -70,8 +89,8 @@ export default function TeamDecisionPage() {
                 category:          container.category,
                 key:               item.key,
                 label:             item.label,
-                selectedStepKey:   container.type === "slider"
-                    ? (selectedSliderSteps[String(item._id)] ?? null)
+                selectedStepKey: container.type === "slider"
+                    ? (stepsToUse[String(item._id)] ?? null)
                     : item.key,
                 options:           item.options,
                 impacts:           item.impacts,
@@ -90,10 +109,10 @@ export default function TeamDecisionPage() {
             const product = products.find((p: any) => String(p._id) === productId);
             const values  = allProductFieldValues[productId] ?? {};
             return {
-            productId,
-            segmentId:   product?.segmentId,
-            productName: product?.productName,
-            fields:      Object.entries(values).map(([fieldId, value]) => ({ fieldId, value })),
+                productId,
+                segmentId:   selectedSegmentId, // from selected segment, not product object
+                productName: product?.productName,
+                fields:      Object.entries(values).map(([fieldId, value]) => ({ fieldId, value })),
             };
         });
     };
@@ -131,8 +150,11 @@ export default function TeamDecisionPage() {
 
     const triggerGlobalRecalc = (
         currentGlobalItems: Record<string, string[]>,
-        currentFieldValues: Record<string, string>
+        currentFieldValues: Record<string, string>,
+        currentSliderSteps?: Record<string, string>
     ) => {
+        const stepsToUse = currentSliderSteps ?? selectedSliderSteps;
+
         if (globalDebounceRef.current) clearTimeout(globalDebounceRef.current);
         globalDebounceRef.current = setTimeout(async () => {
             setPreviewLoading(true);
@@ -145,7 +167,7 @@ export default function TeamDecisionPage() {
                     roundNumber:      activeRound.roundNumber,
                     focusedProductId: selectedProductId || undefined, // which product has active field inputs
                     fields:           Object.entries(currentFieldValues).map(([fieldId, value]) => ({ fieldId, value })),
-                    globalInputs:     buildGlobalInputsPayload(currentGlobalItems),
+                    globalInputs: buildGlobalInputsPayload(currentGlobalItems, stepsToUse),
                 });
                 const projection = res.data?.data ?? res.data;
                 if (selectedProductId) {
@@ -194,8 +216,12 @@ export default function TeamDecisionPage() {
             setRoundStatus("active");
 
             const simRes = await getSimulationById(simId);
-            const sim = simRes.data?.data ?? simRes.data;
+            const sim    = simRes.data?.data ?? simRes.data;
             setSimulationTypeId(sim.simulationTypeId);
+
+            const segmentsRes = await getSegments(sim.simulationTypeId);
+            setSegments(segmentsRes.data?.data ?? segmentsRes.data);
+            // products no longer fetched here — deferred until segment is selected
 
             const globalInputsRes = await getGlobalInputs(sim.simulationTypeId);
             setGlobalInputs(globalInputsRes.data?.data ?? globalInputsRes.data);
@@ -251,16 +277,28 @@ export default function TeamDecisionPage() {
         type:          string,
         stepKey?:      string
     ) => {
-        const itemId = String(item._id);
-        const effectiveMax        = type === "slider" ? 1 : maxSelections;
-        const snapshotFieldValues = { ...fieldValues }; // capture synchronously
+        const itemId          = String(item._id);
+        const effectiveMax    = type === "slider" ? 1 : maxSelections;
+        const snapshotFieldValues = { ...fieldValues };
+
+        // snapshot slider steps with new stepKey already merged in
+        const snapshotSliderSteps = type === "slider" && stepKey
+            ? { ...selectedSliderSteps, [itemId]: stepKey }
+            : { ...selectedSliderSteps };
+
+        // update slider steps state immediately
+        if (type === "slider" && stepKey) {
+            setSelectedSliderSteps(snapshotSliderSteps);
+        }
 
         setSelectedGlobalItems(prev => {
             const current = prev[containerId] ?? [];
             let next: string[];
 
             if (type === "radio" || type === "slider") {
-                next = [itemId]; // both always cap at 1
+                next = current.includes(itemId) && !stepKey
+                ? current.filter(id => id !== itemId) // deactivate if no stepKey
+                : [itemId];
             } else if (current.includes(itemId)) {
                 next = current.filter(id => id !== itemId);
             } else if (effectiveMax !== null && current.length >= effectiveMax) {
@@ -270,13 +308,9 @@ export default function TeamDecisionPage() {
             }
 
             const nextGlobalItems = { ...prev, [containerId]: next };
-            triggerGlobalRecalc(nextGlobalItems, snapshotFieldValues);
+            triggerGlobalRecalc(nextGlobalItems, snapshotFieldValues, snapshotSliderSteps);
             return nextGlobalItems;
         });
-
-        if (type === "slider" && stepKey) {
-            setSelectedSliderSteps(prev => ({ ...prev, [itemId]: stepKey }));
-        }
     };
 
     const GlobalInputSelector = ({
@@ -349,26 +383,42 @@ export default function TeamDecisionPage() {
             {type === "slider" && (
                 <div style={{ marginTop: 4 }}>
                     {inputs.map((item: any) => {
-                    const steps    = Object.entries(item.options ?? {}) as [string, number][];
-                    // sort by numeric value ascending — low to high
+                    const steps       = Object.entries(item.options ?? {}) as [string, number][];
                     const sortedSteps = steps.sort(([, a], [, b]) => a - b);
                     const stepKeys    = sortedSteps.map(([k]) => k);
+                    const isActivated = selectedItems.includes(String(item._id));
+                    const lowestStepKey = sortedSteps[0]?.[0] ?? null;
 
                     return (
                         <div key={item._id} style={{ marginBottom: 8 }}>
-                        <div>{item.label}</div>
+                        <label>
+                            <input
+                            type="checkbox"
+                            disabled={disabled}
+                            checked={isActivated}
+                            onChange={() => {
+                                if (!isActivated && lowestStepKey) {
+                                // seed to lowest step on first activation
+                                onToggle(item, lowestStepKey);
+                                } else {
+                                onToggle(item);
+                                }
+                            }}
+                            />{" "}
+                            {item.label}
+                        </label>
                         {item.description && (
                             <div style={{ fontSize: 11, color: "#888" }}>{item.description}</div>
                         )}
-                        {sortedSteps.length > 0 ? (
+                        {isActivated && sortedSteps.length > 0 && (
                             <div>
                             <input
                                 type="range"
-                                disabled={submitted}
+                                disabled={disabled}
                                 min={0}
                                 max={sortedSteps.length - 1}
                                 step={1}
-                                value={Math.max(0, stepKeys.indexOf(selectedSliderSteps?.[String(item._id)] ?? ""))}
+                                value={Math.max(0, stepKeys.indexOf(selectedSliderSteps?.[String(item._id)] ?? lowestStepKey ?? ""))}
                                 onChange={e => {
                                 const idx     = Number(e.target.value);
                                 const stepKey = stepKeys[idx];
@@ -377,22 +427,20 @@ export default function TeamDecisionPage() {
                             />
                             <div style={{ fontSize: 11, display: "flex", justifyContent: "space-between", marginTop: 2 }}>
                                 {sortedSteps.map(([k, v], i) => {
-                                    const effectiveCost = (item.cost ?? 0) * v;
-                                    const isSelected    = stepKeys.indexOf(selectedSliderSteps?.[String(item._id)] ?? "") === i;
-                                    return (
-                                    <span
-                                        key={k}
-                                        style={{ fontWeight: isSelected ? "bold" : "normal", textAlign: "center" }}
-                                    >
-                                        <div>{k}</div>
-                                        <div style={{ color: "#888" }}>×{v}</div>
-                                        <div>💰 {effectiveCost.toLocaleString()}</div>
+                                const effectiveCost = (item.cost ?? 0) * v;
+                                const isSelected    = stepKeys.indexOf(selectedSliderSteps?.[String(item._id)] ?? lowestStepKey ?? "") === i;
+                                return (
+                                    <span key={k} style={{ fontWeight: isSelected ? "bold" : "normal", textAlign: "center" }}>
+                                    <div>{k}</div>
+                                    <div style={{ color: "#888" }}>×{v}</div>
+                                    <div>💰 {effectiveCost.toLocaleString()}</div>
                                     </span>
-                                    );
+                                );
                                 })}
-                                </div>
                             </div>
-                        ) : (
+                            </div>
+                        )}
+                        {isActivated && sortedSteps.length === 0 && (
                             <p style={{ color: "orange", fontSize: 11 }}>No steps configured yet.</p>
                         )}
                         </div>
@@ -444,35 +492,58 @@ export default function TeamDecisionPage() {
                 </button>
             )}
 
+            <div style={{ marginBottom: 12 }}>
+                <label>
+                    Segment:{" "}
+                    <select
+                    value={selectedSegmentId}
+                    onChange={e => {
+                        setSelectedSegmentId(e.target.value);
+                        setSelectedProductIds([]);
+                        setSelectedProductId("");
+                        setFieldValues({});
+                        setPreview(null);
+                    }}
+                    disabled={submitted}
+                    >
+                    <option value="">-- select a segment --</option>
+                    {segments.map((s: any) => (
+                        <option key={s._id} value={s._id}>{s.name ?? s._id}</option>
+                    ))}
+                    </select>
+                </label>
+            </div>
+
             <div style={{ marginBottom: 16 }}>
-                <h3>Products</h3>
-                {products.map((p: any) => (
+            <h3>Products</h3>
+                {!selectedSegmentId && (
+                    <p style={{ color: "#888", fontSize: 11 }}>Select a segment first.</p>
+                )}
+                {selectedSegmentId && products.map((p: any) => (
                     <label key={p._id} style={{ display: "block", marginBottom: 4, opacity: submitted ? 0.6 : 1 }}>
-                        <input
-                            type="checkbox"
-                            disabled={submitted}
-                            checked={selectedProductIds.includes(String(p._id))}
-                            onChange={() => {
-                            const pid  = String(p._id);
-                            const next = selectedProductIds.includes(pid)
-                                ? selectedProductIds.filter(id => id !== pid)
-                                : [...selectedProductIds, pid];
-                            setSelectedProductIds(next);
-                            // focus the product that was just checked, unfocus if unchecked
-                            setSelectedProductId(next.includes(pid) ? pid : (next[next.length - 1] ?? ""));
-                            }}
-                        />{" "}
-                        <span
-                            style={{ fontWeight: selectedProductId === String(p._id) ? "bold" : "normal", cursor: "pointer" }}
-                            onClick={() => {
-                            // clicking the label text switches focus without toggling selection
-                            if (selectedProductIds.includes(String(p._id))) {
-                                setSelectedProductId(String(p._id));
-                            }
-                            }}
-                        >
-                            {p.productName}
-                        </span>
+                    <input
+                        type="checkbox"
+                        disabled={submitted}
+                        checked={selectedProductIds.includes(String(p._id))}
+                        onChange={() => {
+                        const pid  = String(p._id);
+                        const next = selectedProductIds.includes(pid)
+                            ? selectedProductIds.filter(id => id !== pid)
+                            : [...selectedProductIds, pid];
+                        setSelectedProductIds(next);
+                        setSelectedProductId(next.includes(pid) ? pid : (next[next.length - 1] ?? ""));
+                        }}
+                    />{" "}
+                    <span
+                        style={{ fontWeight: selectedProductId === String(p._id) ? "bold" : "normal", cursor: "pointer" }}
+                        onClick={() => {
+                        if (selectedProductIds.includes(String(p._id))) {
+                            setSelectedProductId(String(p._id));
+                        }
+                        }}
+                    >
+                        {p.productName}
+                    </span>
                     </label>
                 ))}
             </div>

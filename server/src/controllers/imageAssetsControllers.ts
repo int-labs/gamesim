@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import ImageAsset from "../models/imageAssets";
+import ImageAsset from "../models/ImageAssets";
 import { uploadImage, deleteImage } from "../constants/supabase";
 
 // POST /image-assets

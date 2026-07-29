@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import Segment from "../models/segment";
-import Product from "../models/products";
+import Segment from "../models/Segment";
+import Product from "../models/Products";
 
 // POST /segments
 export const createSegment = async (req: Request, res: Response): Promise<void> => {
@@ -96,6 +96,19 @@ export const deactivateSegment = async (req: Request, res: Response): Promise<vo
     res.status(200).json({ message: "Segment and associated products deactivated.", segment });
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to deactivate segment." });
+  }
+};
+
+export const deleteSegment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const simulation = await Segment.findByIdAndDelete(req.params.id);
+    if (!simulation) {
+      res.status(404).json({ message: "Segment not found." });
+      return;
+    }
+    res.status(200).json({ message: "Segment deleted." });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to delete segment." });
   }
 };
 

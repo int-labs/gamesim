@@ -1,5 +1,5 @@
 // import express, { RequestHandler } from "express";
-// import ImageAsset from "../models/imageAssets";
+// import ImageAsset from "../models/ImageAssets";
 
 // const router = express.Router();
 

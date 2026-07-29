@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import BaseData from "../models/baseData";
+import BaseData from "../models/BaseData";
 
 // GET /base-data?simulationTypeId=
 export const getBaseDataBySimulationType = async (req: Request, res: Response): Promise<void> => {

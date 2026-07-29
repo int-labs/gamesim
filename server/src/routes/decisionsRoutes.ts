@@ -8,6 +8,7 @@ import {
 import { authenticate } from "../middleware/authentication";
 import { authorize }    from "../middleware/authorization";
 import { ROLES } from "../constants/roles";
+import { deleteDecisionsByRound } from "../controllers/decisionsControllers";
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.use(authenticate);
 // DELETE /decisions/:id
 //          → hard delete a decision (admin only)
 //            use sparingly — decisions are meant to be immutable after submission
-
+router.delete("/", authenticate, authorize([ROLES.ADMIN]), deleteDecisionsByRound);
 router.get("/", getDecisions);
 router.post("/", createDecision);
 router.get("/:id", getDecisionById);

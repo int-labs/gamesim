@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 import { IMPACT_CONFIG } from "../constants/impacts";
+import { calcBellCurveScore } from "../utils/calcBellCurveScore";
+import { calcReverseDiminishingReturns } from "../utils/calcReverseDiminishingReturns";
+import { calcDiminishingReturnsCostFactor } from "../utils/calcDiminishingReturnsCostFactor";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -114,6 +117,7 @@ export interface TeamFinancials {
   sellingPrice:        number;
   dynamicPrice:        number;
   productScore:        number;
+  csatScore:           number; // raw bell curve score before marketing augmentation
   dynamicCost:         number;
   revenue:             number;
   COGS:                number;
@@ -220,24 +224,36 @@ const getGlobalInputQuantity = (
   }
 };
 
-const INVENTORY_BASE = 10000;
+const INVENTORY_BASE = 1000;
 
 // ─── Core Calculation ────────────────────────────────────────────────────────
 
-const calcDiminishingReturnsCostFactor = (
-  quantity: number,
-  min:      number | null,
-  max:      number | null
+export const calcPricingScore = (
+  sellingPrice: number,
+  dynamicPrice: number,
+  min:          number | null,
+  max:          number | null,
 ): number => {
-  if (min === null || max === null || max <= min) return 1;
+  if (dynamicPrice <= 0) return 0;
 
-  const meanMode = (min + max) / 2;
-  const stdDev   = (max - min) / 4;
+  if (sellingPrice <= dynamicPrice) {
+    // underselling side — bell curve skewed toward min
+    // raw score: 1 at min, falls toward 0 as sellingPrice approaches dynamicPrice
+    const rawScore = calcBellCurveScore(sellingPrice, min, dynamicPrice, min ?? 0);
 
-  const z                       = (quantity - meanMode) / stdDev;
-  const effectivenessMultiplier = Math.exp(-(z * z) / 2); // 1 at the peak, →0 at the extremes
+    // normalize so junction (sellingPrice === dynamicPrice) lands at ~0.5
+    // scale: 0 → 0.5, 1 → 1 (min stays at peak, junction meets at 0.5)
+    return 0.5 + (rawScore * 0.5);
+  }
 
-  return 2 - effectivenessMultiplier; // 1 (peak) → 2 (at the bounds)
+  // overpricing side — reverse diminishing returns from dynamicPrice outward
+  // raw score: 1 at dynamicPrice, decays toward 0 as sellingPrice increases
+  const rawScore = calcReverseDiminishingReturns(sellingPrice, dynamicPrice, max);
+
+  // normalize so junction (sellingPrice === dynamicPrice) lands at ~0.5
+  // scale: 1 → 0.5, 0 → 0 (junction meets at 0.5, extreme overpricing → 0)
+  // console.log(rawScore);
+  return rawScore * 0.5;
 };
 
 const SELLING_PRICE_KEY = "selling_price";
@@ -271,8 +287,6 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       return sum + (resolved * bellFactor * field.direction);
     }, 0);
 
-    const productScore = sellingPrice > 0 ? dynamicPrice / sellingPrice : 0;
-
     // ── Cost contribution (raw value * unitCost, no bell curve) ───────────────
     const productCostBreakdown: ProductCostBreakdown[] = [];
     let dynamicCost = 0;
@@ -295,31 +309,31 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       });
     });
 
-    let potentialObtained = marketShare * availableMarket * productScore;
-    let customersObtained = potentialObtained > availableMarket ? availableMarket : potentialObtained;
-    
     let inventoryAugmentation = 1;
-    let customersObtainedAugment = 1;
-
+    let customersObtainedAugment = 0.3;
+    let dynamicPriceAugment      = 0.55; // quality augmentation from inventory-affecting global inputs
+    
     globalInputs.forEach((entry) => {
       const stepMultiplier = getGlobalInputQuantity(decision, entry);
       const hasOptions     = entry.options && Object.keys(entry.options).length > 0;
       const effectiveMultiplier = hasOptions ? stepMultiplier : 1;
-
+      
       if (effectiveMultiplier === 0) return;
-
+      
       Object.entries(entry.impacts).forEach(([metricKey, impact]) => {
         const config = IMPACT_CONFIG[metricKey];
         if (!config) return;
-
+        
         if (config.affects === "inventoryRate") {
           if (impact.type === "relative") {
             inventoryAugmentation *= (1 + impact.value * effectiveMultiplier);
+            dynamicPriceAugment   *= (1 + impact.value * effectiveMultiplier);
           } else {
             inventoryAugmentation += (impact.value * effectiveMultiplier);
+            dynamicPriceAugment   += (impact.value * effectiveMultiplier);
           }
         }
-
+        
         if (config.affects === "customersObtained") {
           if (impact.type === "relative") {
             customersObtainedAugment *= (impact.value * effectiveMultiplier);
@@ -327,11 +341,10 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
             customersObtainedAugment += (impact.value * effectiveMultiplier);
           }
         }
+        // console.log(effectiveMultiplier);
       });
     });
-
-    customersObtained = customersObtained * customersObtainedAugment;
-
+    
     const inventoryQty = productFields
       .filter((f) => f.direction !== undefined && f.direction !== null && f.key !== SELLING_PRICE_KEY)
       .reduce((product, field) => {
@@ -339,10 +352,34 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
         return value !== 0 ? product * Math.max(0, 1 - (value * 0.01)) : Math.round(product);
       }, INVENTORY_BASE) * inventoryAugmentation;
 
-    const leftover      = Math.round(Math.max(0, inventoryQty - customersObtained));
-    const inventoryCost = leftover * dynamicCost;
+    const augmentedDynamicPrice = dynamicPrice * dynamicPriceAugment;
 
-    // ── GlobalInput-level cost breakdown (flat iteration) ─────────────────
+    const csatScore = sellingPrice > 0
+    ? calcBellCurveScore(
+        sellingPrice,
+        sellingPriceField?.minValue ?? null,
+        sellingPriceField?.maxValue ?? null,
+        dynamicPrice
+      )
+    : 0;
+    
+    const productScore = sellingPrice > 0
+    ? calcPricingScore(
+      sellingPrice,
+      augmentedDynamicPrice, // shifted center point
+      sellingPriceField?.minValue ?? null,
+      sellingPriceField?.maxValue ?? null,
+    )
+    : 0;
+    
+    let potentialObtained = marketShare * availableMarket * productScore;
+    let customersObtained = potentialObtained > availableMarket ? availableMarket : potentialObtained;
+    
+    customersObtained = customersObtained * customersObtainedAugment;
+    
+    const leftover      = Math.round(Math.max(0, inventoryQty - customersObtained));
+    const inventoryCost = inventoryQty * dynamicCost;
+      
     // ── GlobalInput cost breakdown (aggregated by category) ───────────────────
     const incurredCosts: IncurredCostBreakdown[] = [];
 
@@ -403,10 +440,10 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     const totalIncurredCost = incurredCosts.reduce((sum, e) => sum + e.incurredCost, 0);
 
     const revenue     = customersObtained > inventoryQty ? inventoryQty * sellingPrice : customersObtained * sellingPrice;
-    const COGS        = dynamicCost * inventoryQty;
-    const grossProfit = revenue - COGS - totalIncurredCost;
+    const COGS        = totalIncurredCost;
+    const grossProfit = revenue - COGS;
 
-    console.log(COGS);
+    // console.log(COGS);
 
     return {
       teamId,
@@ -414,6 +451,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       sellingPrice,
       dynamicPrice,
       productScore,
+      csatScore,
       dynamicCost,
       revenue,
       COGS,
