@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LogOut } from 'lucide-react';
-import { lockAccess } from '@/access/passkey';
+import { useGamesimSession } from '@/gamesim/GamesimProvider';
 import { PixelButton } from '@/components/primitives';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { NavIcon } from '@/components/icons/NavIcon';
@@ -22,6 +22,10 @@ import { playSfx } from '@/audio/audioManager';
  */
 export function AccessMenu({ inline = false }: { inline?: boolean }) {
   const [confirm, setConfirm] = useState(false);
+  // Log out through the session provider: it clears the stored gamesim session
+  // AND drops the loaded simulation context, so the next login can't inherit
+  // the previous team's round/products.
+  const { logout } = useGamesimSession();
 
   const confirmCard = (
     <div className="pixel-frame w-[240px] bg-cream-50 p-2.5 shadow-pixel-2">
@@ -37,7 +41,7 @@ export function AccessMenu({ inline = false }: { inline?: boolean }) {
           size="sm"
           onClick={() => {
             playSfx('click');
-            lockAccess();
+            logout();
           }}
         >
           Log out

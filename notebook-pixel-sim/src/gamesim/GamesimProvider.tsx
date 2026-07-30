@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import * as gamesim from './client';
-import { PasskeyLoginScreen } from './PasskeyLoginScreen';
+import { PassKeyScreen } from '@/components/passkey/PassKeyScreen';
 import {
   fetchOfficialFinancials,
   fetchOfficialResults,
@@ -246,7 +246,10 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     return <FullScreenMessage title="Loading your team's simulation..." />;
   }
   if (status === 'login') {
-    return <PasskeyLoginScreen onSuccess={refetchBootstrap} />;
+    // The V3 Academy gate IS the login: PassKeyPanel calls verifyPassKey
+    // (src/access/passkey.ts), which signs in against the gamesim API and
+    // stores the session, then hands off here to load the simulation context.
+    return <PassKeyScreen onEnter={refetchBootstrap} />;
   }
   if (status === 'no-simulation') {
     return (

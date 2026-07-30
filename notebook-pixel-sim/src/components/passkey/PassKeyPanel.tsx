@@ -80,8 +80,14 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
     }
 
     setStatus('error');
-    setError(res.reason === 'empty' ? PASSKEY.errors.empty : PASSKEY.errors.invalid);
-    playSfx(res.reason === 'empty' ? 'warning' : 'fail');
+    setError(
+      res.reason === 'empty'
+        ? PASSKEY.errors.empty
+        : res.reason === 'offline'
+          ? PASSKEY.errors.offline
+          : PASSKEY.errors.invalid,
+    );
+    playSfx(res.reason === 'invalid' ? 'fail' : 'warning');
     controls.start({ x: [0, -8, 8, -6, 6, -3, 0], transition: { duration: 0.42 } });
     inputRef.current?.focus();
   };

@@ -1,26 +1,18 @@
 import { useSyncExternalStore } from 'react';
+import { clearGamesimSession, getStoredSession, loginWithPasskey, setGamesimSession } from '@/gamesim/client';
 
-// Pass Key access gate — FRONTEND-ONLY.
+// Pass Key access gate.
 //
-// This module is the single seam between the gate UI and the question
-// "is this key valid?". The gate is currently OPEN: `verifyPassKey` accepts
-// ANY submission (see below), so the entry screen is purely decorative — the
-// video, mascot and "enter the academy" wipe all still play, but nothing is
-// gated. To re-enable checking, restore the two commented lines in
-// `verifyPassKey`; the keys list + normalizer are kept ready for that.
+// This module is the single seam between the gate UI and the question "is this
+// key valid?", exactly as V3 left it — only the BODY of `verifyPassKey` changed:
+// the gate used to be open (any text unlocked it) and now it is a real team
+// login against the gamesim API (POST /users/login-passkey). The signature and
+// every caller are untouched.
 //
-// To add real enforcement later, swap ONLY the body of `verifyPassKey`
-// (e.g. `await fetch('/api/verify-passkey', …)`) — the signature and the UI
-// stay exactly the same.
+// "Unlocked" therefore means "we hold a gamesim team session", not "a flag is
+// set on this device" — the flag is kept only so devSkip keeps working.
 
 const UNLOCK_KEY = 'intlabs:academy:unlocked';
-
-// Demo keys — case-insensitive; spaces and dashes are ignored. Currently
-// UNUSED (gate is open); kept so restoring key-checking is a one-line change.
-const VALID_KEYS = ['INTLABS', 'FUTURECEO', 'ACADEMY2025'];
-
-const normalize = (raw: string): string =>
-  raw.trim().toUpperCase().replace(/[\s-]+/g, '');
 
 /** Dev escape hatch: run with `VITE_SKIP_PASSKEY=1` to bypass the gate. */
 export const devSkip = (): boolean => {
@@ -31,11 +23,11 @@ export const devSkip = (): boolean => {
   }
 };
 
-/** Has this device already unlocked the Academy? */
+/** Is a gamesim team session held on this device? */
 export const isUnlocked = (): boolean => {
   if (devSkip()) return true;
   try {
-    return window.localStorage.getItem(UNLOCK_KEY) === '1';
+    return getStoredSession() !== null;
   } catch {
     return false;
   }
@@ -50,33 +42,43 @@ export const setUnlocked = (): void => {
   }
 };
 
-/** Re-lock this device (handy for testing the gate flow). */
+/** Drop the session (log out) — the gate comes back on the next render. */
 export const clearUnlock = (): void => {
   try {
     window.localStorage.removeItem(UNLOCK_KEY);
+    clearGamesimSession();
   } catch {
     /* ignore */
   }
 };
 
-export type VerifyResult = { ok: true } | { ok: false; reason: 'empty' | 'invalid' };
+export type VerifyResult = { ok: true } | { ok: false; reason: 'empty' | 'invalid' | 'offline' };
 
 /**
- * Verify a pass key. Intentionally async so a real network round-trip can
- * drop in later without touching callers. Returns a structured result so the
- * UI can distinguish an EMPTY submission from an INVALID key.
+ * Verify a pass key against the gamesim API and, on success, store the team
+ * session (token + teamId + simulationId) so every later call is authenticated.
  *
- * GATE OPEN: every submission unlocks — any text, or even an empty field.
- * To re-enable key checking, restore the two commented lines below.
+ * The passkey is sent as the player typed it, minus surrounding whitespace —
+ * server passkeys are generated as lowercase `word-word`, so the display
+ * normalizer (uppercase, dashes stripped) must NOT be applied to the wire value.
+ *
+ * Reasons: 'empty' (nothing typed), 'invalid' (server rejected the key),
+ * 'offline' (couldn't reach the server — a retry may well work).
  */
-export async function verifyPassKey(_raw: string): Promise<VerifyResult> {
-  // const key = normalize(_raw);
-  // if (!key) return { ok: false, reason: 'empty' };
-  // Small artificial delay so the "Checking…" state is actually visible
-  // (and so it mirrors the latency a real request would have).
-  await new Promise((resolve) => setTimeout(resolve, 320));
-  // return VALID_KEYS.includes(key) ? { ok: true } : { ok: false, reason: 'invalid' };
-  return { ok: true };
+export async function verifyPassKey(raw: string): Promise<VerifyResult> {
+  const passkey = raw.trim();
+  if (!passkey) return { ok: false, reason: 'empty' };
+
+  try {
+    const session = await loginWithPasskey(passkey);
+    setGamesimSession(session);
+    return { ok: true };
+  } catch (err) {
+    const status = (err as { status?: number })?.status;
+    if (status === 400 || status === 401 || status === 404) return { ok: false, reason: 'invalid' };
+    console.warn('[gamesim] passkey login failed', err);
+    return { ok: false, reason: 'offline' };
+  }
 }
 
 // ── Reactive unlock state ───────────────────────────────────────────────

@@ -48,6 +48,7 @@ export const PASSKEY = {
   errors: {
     empty: 'Please enter your pass key to continue.',
     invalid: "Hmm, that key doesn't fit. Double-check with your facilitator.",
+    offline: "Couldn't reach the simulation server. Check your connection and try again.",
   },
   noKeyPrompt: "Don't have a pass key?",
   learnMoreCta: 'Learn more',

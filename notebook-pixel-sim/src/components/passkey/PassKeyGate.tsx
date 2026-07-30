@@ -1,4 +1,5 @@
 import { useUnlocked, unlockAccess } from '@/access/passkey';
+import { useGamesimSession } from '@/gamesim/GamesimProvider';
 import { PassKeyScreen } from './PassKeyScreen';
 
 /**
@@ -10,9 +11,23 @@ import { PassKeyScreen } from './PassKeyScreen';
  * left untouched. Unlock state lives in a reactive store (access/passkey.ts),
  * so a global "Log out" control elsewhere can re-lock and bring the gate back
  * instantly — no reload.
+ *
+ * In the gamesim build this is the INNER gate: GamesimProvider already shows the
+ * same screen when there is no session, so by the time children mount the app is
+ * normally unlocked. It still matters after an in-app logout — hence the
+ * bootstrap refetch on re-entry, so the reloaded team's context replaces the
+ * previous one instead of lingering.
  */
 export function PassKeyGate({ children }: { children: React.ReactNode }) {
   const unlocked = useUnlocked();
+  const { refetchBootstrap } = useGamesimSession();
   if (unlocked) return <>{children}</>;
-  return <PassKeyScreen onEnter={unlockAccess} />;
+  return (
+    <PassKeyScreen
+      onEnter={() => {
+        unlockAccess();
+        refetchBootstrap();
+      }}
+    />
+  );
 }

@@ -73,6 +73,23 @@ calculate step is affected.
   (simulation, team, round), so there is nothing to hydrate a half-finished
   decision from; local state is the draft.
 
+## Running it locally
+
+```bash
+npm run dev:server        # from the repo root — API on :5000
+npm run dev:player        # from the repo root — player on :5173
+```
+
+Open **http://localhost:5173**, not `http://127.0.0.1:5173`: the server's CORS
+allowlist includes `localhost:5173` but not the numeric host. Deployed, the
+player's origin has to be in `CLIENT_ORIGIN` or `ALLOWED_ORIGINS`.
+
+Login is the V3 Academy gate itself — `PassKeyPanel` → `verifyPassKey()`
+(`src/access/passkey.ts`), whose body now signs in against the API and stores the
+session. There is no second, plainer login screen; `GamesimProvider` renders the
+same gate when no session is held, and `AccessMenu`'s log-out goes through the
+provider so the next login can't inherit the previous team's context.
+
 ## Glue mapping (`src/gamesim/mapping.ts`)
 
 `toDecisionInputs()` turns game state into `inputs[].fields[{fieldId, value}]`.
