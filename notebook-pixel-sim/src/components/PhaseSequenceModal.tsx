@@ -26,9 +26,13 @@ import { CostTiles, type CostTile } from '@/components/primitives/CostTiles';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import clsx from 'clsx';
-import { fetchCanonicalPreview, GamesimSyncError, saveDraftAndSubmit } from '@/gamesim/sync';
+import {
+  fetchServerProjection,
+  GamesimSyncError,
+  submitRoundDecision,
+  type ServerProjectionResult,
+} from '@/gamesim/sync';
 import { useGamesimSession } from '@/gamesim/GamesimProvider';
-import type { FinlitPhaseResult } from '@/engine/finlit/types';
 
 const PHASE_END = { 1: 30, 2: 60, 3: 90 } as const;
 
@@ -68,7 +72,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   const pendingEventId = useGame((s) => s.meta.pendingEventId);
   const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
   const setScreen = useGame((s) => s.setScreen);
-  const { canPlay, bootstrap } = useGamesimSession();
+  const { canPlay, bootstrap, roundContext, submittedDecision, refreshOfficial } = useGamesimSession();
 
   const [step, setStep] = useState<Step>('preview');
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -135,25 +139,34 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, phase]);
 
-  // Canonical preview from gamesim — same inputs, computed server-side.
-  // Progressive enhancement only: the local result renders immediately, and
-  // this replaces it once (if) the server responds, so a slow/unreachable
-  // gamesim never blocks the preview step.
-  const [canonicalFinlitPreview, setCanonicalFinlitPreview] = useState<FinlitPhaseResult | null>(null);
+  // Server projection for the same decision — a DIFFERENT model (the gamesim
+  // backend's calcFinancials), so it does not replace the local estimate; both
+  // are shown, clearly labelled. The local one renders immediately so a slow or
+  // unreachable server never blocks the preview step.
+  const [serverProjection, setServerProjection] = useState<ServerProjectionResult | null>(null);
   useEffect(() => {
-    setCanonicalFinlitPreview(null);
-    if (!open) return;
+    setServerProjection(null);
+    if (!open || !roundContext) return;
     let cancelled = false;
-    fetchCanonicalPreview(useGame.getState() as any).then((res) => {
-      if (!cancelled && res) setCanonicalFinlitPreview(res.result);
+    fetchServerProjection(roundContext, {
+      state: useGame.getState() as any,
+      products: bootstrap?.products ?? [],
+    }).then((res) => {
+      if (!cancelled) setServerProjection(res);
     });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, phase]);
+  }, [open, phase, roundContext, bootstrap?.products]);
 
-  const finlitPreview = canonicalFinlitPreview ?? localFinlitPreview;
+  const serverRevenue = serverProjection?.byProduct.reduce((a, p) => a + (p.revenue ?? 0), 0) ?? null;
+  const serverGrossProfit =
+    serverProjection?.byProduct.reduce((a, p) => a + (p.grossProfit ?? 0), 0) ?? null;
+  const serverCustomers =
+    serverProjection?.byProduct.reduce((a, p) => a + (p.customersObtained ?? 0), 0) ?? null;
+
+  const finlitPreview = localFinlitPreview;
   const intDemand = Math.round((finlitPreview?.demandTotal ?? 0) / 30); // per day
   const expectedSold = Math.round(finlitPreview?.soldTotal ?? 0);
   const expectedRevenue = Math.round(finlitPreview?.revenue ?? 0);
@@ -167,8 +180,8 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
    *  the machine rumbles — then the engine applies in one go. */
   const simFromDayRef = useRef(1);
   const tick = async () => {
-    if (!canPlay) {
-      setSyncError('Cannot sync decision: round is not accepting edits.');
+    if (!canPlay || !roundContext) {
+      setSyncError('Cannot submit: this round is not accepting decisions.');
       setStep('preview');
       return;
     }
@@ -177,15 +190,20 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     setSyncing(true);
     setSyncError(null);
     try {
-      // Must succeed before local phase advance — silent failure left operators
-      // unable to finalize while the player thought they were done.
-      await saveDraftAndSubmit(useGame.getState() as any);
+      // Must succeed before the local phase advances — a silent failure would
+      // leave the team out of the round's scoring while the player believed the
+      // decision was in. POST /decisions is one-shot per round: no re-submit.
+      await submitRoundDecision(roundContext, {
+        state: useGame.getState() as any,
+        products: bootstrap?.products ?? [],
+      });
+      void refreshOfficial();
     } catch (err) {
       setSyncing(false);
       setStep('preview');
       setSyncError(err instanceof GamesimSyncError || err instanceof Error
         ? err.message
-        : 'Failed to sync decision. Check your connection and retry.');
+        : 'Failed to submit the decision. Check your connection and retry.');
       return;
     }
     setSyncing(false);
@@ -370,7 +388,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
             </div>
 
             <div className="panel-muted px-3.5 py-3">
-              <div className="panel-title text-text mb-2">Estimated phase impact</div>
+              <div className="panel-title text-text mb-2">Estimated phase impact (your studio's own model)</div>
               <CostTiles
                 tiles={[
                   { label: `Sold / ${daysLeft}d`, value: `~${fmtInt(expectedSold)}`, tone: 'neutral', icon: 'stock' },
@@ -386,7 +404,33 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
               />
             </div>
 
+            {serverProjection && (
+              <div className="panel-muted px-3.5 py-3">
+                <div className="panel-title text-text mb-2">
+                  Official projection · from the simulation server
+                </div>
+                <CostTiles
+                  tiles={[
+                    { label: 'Revenue', value: fmt$(Math.round(serverRevenue ?? 0)), tone: 'gain', icon: 'cash' },
+                    { label: 'Gross profit', value: fmt$(Math.round(serverGrossProfit ?? 0)), tone: (serverGrossProfit ?? 0) >= 0 ? 'gain' : 'danger', icon: 'profit' },
+                    { label: 'Customers', value: fmtInt(Math.round(serverCustomers ?? 0)), tone: 'neutral', icon: 'demand' },
+                  ] satisfies CostTile[]}
+                />
+                <p className="text-text-2 text-[15px] mt-2">
+                  These are the numbers your facilitator scores. They come from a different model
+                  than the studio estimate above, so the two will not match — final market share
+                  also depends on what every other team submits.
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2 pt-1">
+              {submittedDecision && (
+                <div className="panel-muted px-3 py-2 text-[16px] text-text-2">
+                  Round {bootstrap?.round?.roundNumber} has already been submitted — decisions are
+                  final once sent.
+                </div>
+              )}
               {syncError && (
                 <div className="panel-muted px-3 py-2 text-[16px] text-red-700 border border-red-300 bg-red-50">
                   {syncError}

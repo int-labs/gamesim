@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import * as gamesim from './client';
 
-/** Minimal passkey login against gamesim's POST /auth/login/passkey — the
- *  team-role login path (no email/password). Deliberately plain, unstyled
- *  markup: this is the integration seam, not the pixel-art visual layer. */
+/** Minimal passkey login against gamesim's POST /users/login-passkey — the
+ *  team-role login path (no email/password). The response carries the team and
+ *  simulation ids as well as the token; all three are stored, because every
+ *  later call on main passes them explicitly as query params.
+ *  Deliberately plain, unstyled markup: this is the integration seam, not the
+ *  pixel-art visual layer. */
 export function PasskeyLoginScreen({ onSuccess }: { onSuccess: () => void }) {
   const [passkey, setPasskey] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -15,8 +18,8 @@ export function PasskeyLoginScreen({ onSuccess }: { onSuccess: () => void }) {
     setSubmitting(true);
     setError(null);
     try {
-      const { accessToken } = await gamesim.loginWithPasskey(passkey.trim());
-      gamesim.setGamesimToken(accessToken);
+      const { token, teamId, simulationId } = await gamesim.loginWithPasskey(passkey.trim());
+      gamesim.setGamesimSession({ token, teamId, simulationId });
       onSuccess();
     } catch (err) {
       setError(err instanceof gamesim.GamesimApiError ? err.message : 'Login failed.');

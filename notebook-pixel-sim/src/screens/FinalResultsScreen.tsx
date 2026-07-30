@@ -37,7 +37,8 @@ export function FinalResultsScreen() {
   // Server-finalized result (if an operator has run it) — additive, shown
   // alongside the local celebration screen without changing its own score/
   // animation, which stay driven by the local engine as before.
-  const { latestResult } = useGamesimSession();
+  const { latestResults, latestFinancials, bootstrap } = useGamesimSession();
+  const teamId = bootstrap?.teamId ?? null;
 
   const ledger = state.ledger;
   const sum = (k: string) => ledger.filter((e) => e.kind === k).reduce((a, b) => a + b.amount, 0);
@@ -264,9 +265,11 @@ export function FinalResultsScreen() {
               </PixelPanel>
             </motion.div>
 
-            {/* Official operator-finalized result, if one exists yet — a
-                separate, clearly-labeled source from the local score above. */}
-            {latestResult && (
+            {/* Official numbers from the simulation server — market share and
+                score from calcMarketModel (GET /results), financials from
+                calcFinancials (GET /projections). A different model from the
+                local score above, and the only one that counts. */}
+            {(latestResults || latestFinancials) && (
               <motion.div
                 initial={reduced ? false : { opacity: 0, x: 22 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -274,29 +277,78 @@ export function FinalResultsScreen() {
               >
                 <PixelPanel title="Official Result">
                   <div className="flex items-center gap-2 mb-2">
-                    <PixelBadge tone="info">From operator</PixelBadge>
+                    <PixelBadge tone="info">From the simulation server</PixelBadge>
                     <span className="text-[11px] font-body text-ink-700">
-                      Finalized {new Date(latestResult.finalizedAt).toLocaleString()}
+                      Round {latestResults?.roundNumber ?? latestFinancials?.roundNumber}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[12px] font-body">
                     <div>
                       <div className="font-hud text-[9px] uppercase text-ink-700">Revenue</div>
-                      <div className="font-hud text-[16px]">{fmt$(latestResult.payload.revenue)}</div>
+                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.revenue ?? 0)}</div>
                     </div>
                     <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Net Profit</div>
-                      <div className="font-hud text-[16px]">{fmt$(latestResult.payload.netProfit)}</div>
+                      <div className="font-hud text-[9px] uppercase text-ink-700">Gross Profit</div>
+                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.grossProfit ?? 0)}</div>
+                    </div>
+                    <div>
+                      <div className="font-hud text-[9px] uppercase text-ink-700">COGS</div>
+                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.cogs ?? 0)}</div>
+                    </div>
+                    <div>
+                      <div className="font-hud text-[9px] uppercase text-ink-700">Customers</div>
+                      <div className="font-hud text-[16px]">{Math.round(latestFinancials?.customersObtained ?? 0)}</div>
                     </div>
                     <div>
                       <div className="font-hud text-[9px] uppercase text-ink-700">Market Share</div>
-                      <div className="font-hud text-[16px]">{(latestResult.payload.marketShare * 100).toFixed(1)}%</div>
+                      <div className="font-hud text-[16px]">
+                        {latestResults
+                          ? `${(latestResults.averageMarketShare * 100).toFixed(1)}%`
+                          : 'Pending'}
+                      </div>
                     </div>
                     <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Stockout Days</div>
-                      <div className="font-hud text-[16px]">{latestResult.payload.stockoutDays}</div>
+                      <div className="font-hud text-[9px] uppercase text-ink-700">Rank</div>
+                      <div className="font-hud text-[16px]">
+                        {latestResults && teamId
+                          ? `#${
+                              latestResults.leaderboard.findIndex((t) => t.teamId === teamId) + 1
+                            } / ${latestResults.leaderboard.length}`
+                          : 'Pending'}
+                      </div>
                     </div>
                   </div>
+
+                  {latestResults && (
+                    <div className="mt-3">
+                      <div className="font-hud text-[9px] uppercase text-ink-700 mb-1">Leaderboard</div>
+                      <div className="text-[12px] font-body">
+                        {latestResults.leaderboard.map((t, i) => (
+                          <div
+                            key={t.teamId}
+                            className="flex items-center gap-2 py-0.5 border-b border-ink-700/15"
+                          >
+                            <PixelBadge tone={t.teamId === teamId ? 'info' : 'neutral'}>
+                              #{i + 1}
+                            </PixelBadge>
+                            <div className="flex-1">
+                              {t.teamId === teamId ? 'Your team' : `Team ${t.teamId.slice(-6)}`}
+                            </div>
+                            <div className="font-hud text-[11px]">
+                              {(t.averageMarketShare * 100).toFixed(1)}%
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!latestResults && (
+                    <p className="text-[11px] font-body text-ink-700 mt-2">
+                      Market share and ranking appear once your facilitator has run this round's
+                      calculation for every team.
+                    </p>
+                  )}
                 </PixelPanel>
               </motion.div>
             )}

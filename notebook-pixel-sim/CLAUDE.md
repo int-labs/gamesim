@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A 90-day pixel-art entrepreneurship simulation (notebook business). The player runs a portfolio of notebook product lines across three 30-day phases, making decisions about product design, pricing, target segments, channels, inventory, and upgrades. Days 30/60/90 trigger evaluations with charts and an insight-check question; day 90 ends the run with a scored result.
 
+It runs as the **player client of the gamesim backend** (`../server`), which is treated as final: the integration adds no server files, no shared package, and no new routes. `src/gamesim/` is the only seam — login, decision submission, and the official numbers. The local FinLit engine stays authoritative for gameplay feel but **not** for scoring; market share/score come from the server's `calcMarketModel` and financials from `calcFinancials`. See `docs/gamesim-integration.md` (endpoint table, the proposed field mapping still awaiting confirmation, and what `main` does *not* have — notably no round-calculate route and no socket events).
+
 ## Commands
 
 ```bash

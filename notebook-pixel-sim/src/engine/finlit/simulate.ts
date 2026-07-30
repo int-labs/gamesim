@@ -1,1 +1,1 @@
-export { simulatePhase } from '@gamesim/finlit-engine';
+export { simulatePhase } from './core';

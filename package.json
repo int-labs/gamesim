@@ -14,10 +14,12 @@
     "test:client": "cd client && npm run test:e2e",
     "test:ci": "npm run test:server && npm run test:client:ci",
     "test:client:ci": "cd client && npm run test:e2e:ci",
-    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install && cd ../notebook-pixel-sim && npm install",
     "start:ci": "concurrently \"npm run start:server:ci\" \"npm run start:client:ci\"",
     "start:server:ci": "cd server && PORT=5001 npm run dev",
-    "start:client:ci": "cd client && npm start"
+    "start:client:ci": "cd client && npm start",
+    "dev:player": "cd notebook-pixel-sim && npm run dev",
+    "build:player": "cd notebook-pixel-sim && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

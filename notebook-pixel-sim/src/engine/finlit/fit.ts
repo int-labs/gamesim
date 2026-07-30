@@ -1,1 +1,1 @@
-export { attributeScores, vocFit } from '@gamesim/finlit-engine';
+export { attributeScores, vocFit } from './core';

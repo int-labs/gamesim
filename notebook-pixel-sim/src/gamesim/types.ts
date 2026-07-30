@@ -1,19 +1,233 @@
-export type {
-  BootstrapUser,
-  BootstrapTeam,
-  BootstrapSimulation,
-  BootstrapRound,
-  BootstrapPermissions,
-  BootstrapResponse,
-  DecisionStatus,
-  FinlitDecisionPayload,
-  TeamRoundDecisionDto,
-  PreviewResponse,
-  TeamRoundResultDto,
-  VersionConflictBody,
-  GamesimSocketEvent,
-  ResultPublishedPayload,
-  RoundStartedPayload,
-  RoundCompletedPayload,
-  DecisionSubmittedPayload,
-} from '@gamesim/api-contract';
+// DTOs for the gamesim backend (`server/` on main), transcribed from its
+// Mongoose models. Deliberately local to the player: the server has no shared
+// contract package and must not gain one, so this file is the single place
+// where the wire shapes are written down. Keep it in sync BY READING the
+// server models — never by changing them.
+//
+//   Decision   → server/src/models/decisions.ts
+//   Projection → server/src/models/projections.ts
+//   Results    → server/src/models/results.ts
+//   Product    → server/src/models/products.ts
+
+/** Mongo ObjectId as it arrives over JSON. */
+export type Id = string;
+
+// ── Auth ────────────────────────────────────────────────────────────────
+/** POST /users/login-passkey */
+export interface PasskeyLoginResponse {
+  token: string;
+  teamId: Id;
+  simulationId: Id;
+}
+
+// ── Simulation / rounds ─────────────────────────────────────────────────
+export type SimulationStatus = 'Active' | 'Inactive' | 'Completed';
+export type RoundStatus = 'Pending' | 'Active' | 'Completed';
+
+export interface SimulationDto {
+  _id: Id;
+  simulationName: string;
+  status: SimulationStatus;
+  simulationTypeId: Id;
+  config?: { totalRounds?: number; currRounds?: number } & Record<string, unknown>;
+}
+
+export interface RoundDto {
+  _id: Id;
+  simulationId: Id;
+  roundNumber: number;
+  status: RoundStatus;
+  timer?: { startDate?: string; durationMinutes?: number; endDate?: string };
+}
+
+// ── Product configuration (the decision form's schema) ──────────────────
+/** One configurable input on a product. `coefficients` + `direction` +
+ *  `tightening` are what make a field count in the competitive model — a field
+ *  with no coefficients is SKIPPED by the server's calcMarketModel. */
+export interface ProductFieldDto {
+  _id: Id;
+  key: string;
+  label: string;
+  type: string; // 'number' | 'money' | 'enum' | …
+  order: number;
+  required: boolean;
+  minValue: number | null;
+  maxValue: number | null;
+  direction: number; // 0 = lower is better, 1 = higher is better
+  tightening: number;
+  coefficients: Record<string, number>;
+  options: Record<string, number>;
+  unitCost: number | null;
+}
+
+export interface ProductDto {
+  _id: Id;
+  simulationTypeId: Id;
+  segmentId: Id;
+  productName: string;
+  productType: string | null;
+  active: boolean;
+  baseVariables: Record<string, number> | null;
+  fields: ProductFieldDto[];
+  description: string | null;
+}
+
+// ── Global inputs (company-wide levers) ─────────────────────────────────
+export interface GlobalInputImpactDto {
+  type: 'relative' | 'absolute';
+  value: number;
+}
+
+export interface GlobalInputItemDto {
+  _id: Id;
+  key: string;
+  label: string;
+  description: string | null;
+  minPossibleValue: number | null;
+  maxPossibleValue: number | null;
+  cost: number;
+  energy: number;
+  productsImpacted: Id[];
+  impacts: Record<string, GlobalInputImpactDto>;
+  impactLevel: string | null;
+  options: Record<string, number>;
+}
+
+export interface GlobalInputDto {
+  _id: Id;
+  simulationTypeId: Id;
+  category: string;
+  key: string;
+  label: string;
+  type: string;
+  description: string | null;
+  maxSelections: number | null;
+  inputs: GlobalInputItemDto[];
+}
+
+/** A chosen global input, in the snapshot shape POST /decisions and
+ *  POST /projections/recalc both expect (the server stores a copy, not a ref). */
+export interface DecisionGlobalInputDto {
+  globalInputItemId: Id;
+  category: string;
+  key: string;
+  label: string;
+  description?: string | null;
+  selectedStepKey?: string | null;
+  cost?: number;
+  energy?: number;
+  productsImpacted?: Id[];
+  impacts?: Record<string, GlobalInputImpactDto>;
+  impactLevel?: string | null;
+  options?: Record<string, number>;
+}
+
+// ── Base data (market size per round) ───────────────────────────────────
+export interface BaseDataDto {
+  _id: Id;
+  simulationTypeId: Id;
+  marketData: {
+    segments: Array<{
+      segmentId: Id;
+      products: Array<{
+        productId: Id;
+        yearlyData?: Record<string, { marketSize?: number } & Record<string, unknown>>;
+      }>;
+    }>;
+  };
+}
+
+// ── Decisions ───────────────────────────────────────────────────────────
+export interface DecisionFieldEntry {
+  fieldId: Id;
+  value: number | string | null;
+}
+
+/** One product's worth of decision input. segmentId + productName are
+ *  REQUIRED by the server schema, so they travel with every entry. */
+export interface DecisionProductInput {
+  productId: Id;
+  segmentId: Id;
+  productName: string;
+  fields: DecisionFieldEntry[];
+}
+
+export interface CreateDecisionBody {
+  simulationId: Id;
+  teamId: Id;
+  roundNumber: number;
+  inputs: DecisionProductInput[];
+  initiativeInputs?: Array<{
+    name: string;
+    details?: string | null;
+    costConsumption: number;
+    energyConsumption: number;
+  }>;
+  globalInputs?: DecisionGlobalInputDto[];
+}
+
+export interface DecisionDto extends CreateDecisionBody {
+  _id: Id;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Projections (own financials — authoritative for money) ──────────────
+/** Per-product metrics the server writes under `projections[productId]`. */
+export interface ProductProjectionDto {
+  customersObtained?: number;
+  dynamicPrice?: number;
+  dynamicCost?: number;
+  sellingPrice?: number;
+  productScore?: number;
+  revenue?: number;
+  COGS?: number;
+  grossProfit?: number;
+  productCostBreakdown?: Record<string, number>;
+  incurredCosts?: Record<string, number> | number;
+  /** Only written by the operator's round calculation, not by /projections/recalc. */
+  marketShare?: number;
+}
+
+export interface ProjectionDto {
+  _id: Id;
+  simulationId: Id;
+  teamId: Id;
+  roundNumber: number;
+  bizperf: Record<string, number> | null;
+  pnl: Record<string, number> | null;
+  balanceSheet: Record<string, number> | null;
+  cashflow: Record<string, number> | null;
+  projections: Record<string, ProductProjectionDto>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecalcProjectionsBody {
+  simulationId: Id;
+  simulationTypeId: Id;
+  teamId: Id;
+  roundNumber: number;
+  /** Single-product mode — recompute just this product from `fields`. */
+  productId?: Id;
+  /** All-products mode — `fields` belong to this product; the others
+   *  contribute nothing on this call. */
+  focusedProductId?: Id;
+  fields: DecisionFieldEntry[];
+  globalInputs?: DecisionGlobalInputDto[];
+}
+
+// ── Results (cross-team competition — authoritative for share/rank) ─────
+export interface ResultDto {
+  _id: Id;
+  simulationId: Id;
+  roundNumber: number;
+  productId: Id;
+  segmentId: Id;
+  /** teamId → weighted score from calcMarketModel. */
+  weightedScores: Record<string, number>;
+  /** teamId → market share (fraction) from calcMarketModel. */
+  marketShares: Record<string, number>;
+  createdAt: string;
+  updatedAt: string;
+}

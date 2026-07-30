@@ -1,29 +1,64 @@
-// Typed HTTP client for the gamesim backend's player API. Plain fetch (no
-// axios dependency here) — this module is the only place that knows the
-// gamesim base URL, token storage key, and response shapes.
+// Typed HTTP client for the gamesim backend (`server/` on main). Plain fetch —
+// this module is the only place that knows the gamesim base URL, the stored
+// session keys, and which routes exist.
+//
+// Every route below already exists on main and is callable with a team token.
+// There is deliberately NO /player/* namespace: that belonged to a different
+// (abandoned) server branch. Everything the player needs is assembled here from
+// the generic routes main already ships.
 import type {
-  BootstrapResponse,
-  FinlitDecisionPayload,
-  PreviewResponse,
-  TeamRoundDecisionDto,
-  TeamRoundResultDto,
-} from '@gamesim/api-contract';
+  BaseDataDto,
+  CreateDecisionBody,
+  DecisionDto,
+  GlobalInputDto,
+  Id,
+  PasskeyLoginResponse,
+  ProductDto,
+  ProjectionDto,
+  RecalcProjectionsBody,
+  ResultDto,
+  RoundDto,
+  SimulationDto,
+} from './types';
 
 const TOKEN_KEY = 'gamesim:accessToken';
+const TEAM_KEY = 'gamesim:teamId';
+const SIM_KEY = 'gamesim:simulationId';
 
 export function getGamesimBaseUrl(): string {
   const configured = (import.meta as any).env?.VITE_GAMESIM_API_URL as string | undefined;
   return (configured ?? 'http://localhost:5000/api').replace(/\/$/, '');
 }
 
+export interface GamesimSession {
+  token: string;
+  teamId: Id;
+  simulationId: Id;
+}
+
 export function getGamesimToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
-export function setGamesimToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+
+/** The stored session, or null when any part of it is missing. */
+export function getStoredSession(): GamesimSession | null {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const teamId = localStorage.getItem(TEAM_KEY);
+  const simulationId = localStorage.getItem(SIM_KEY);
+  if (!token || !teamId || !simulationId) return null;
+  return { token, teamId, simulationId };
 }
-export function clearGamesimToken(): void {
+
+export function setGamesimSession(session: GamesimSession): void {
+  localStorage.setItem(TOKEN_KEY, session.token);
+  localStorage.setItem(TEAM_KEY, session.teamId);
+  localStorage.setItem(SIM_KEY, session.simulationId);
+}
+
+export function clearGamesimSession(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TEAM_KEY);
+  localStorage.removeItem(SIM_KEY);
 }
 
 export class GamesimApiError extends Error {
@@ -51,58 +86,103 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = text ? JSON.parse(text) : undefined;
 
   if (!res.ok) {
-    throw new GamesimApiError(res.status, body, (body as { message?: string })?.message ?? `Request to ${path} failed (${res.status}).`);
+    throw new GamesimApiError(
+      res.status,
+      body,
+      (body as { message?: string })?.message ?? `Request to ${path} failed (${res.status}).`,
+    );
   }
   return body as T;
 }
 
-export async function loginWithPasskey(passkey: string): Promise<{ accessToken: string }> {
-  return request('/auth/login/passkey', { method: 'POST', body: JSON.stringify({ passkey }) });
+const qs = (params: Record<string, string | number | undefined>): string => {
+  const search = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') search.set(k, String(v));
+  }
+  const s = search.toString();
+  return s ? `?${s}` : '';
+};
+
+// ── Auth ────────────────────────────────────────────────────────────────
+/** POST /users/login-passkey — the team-role login (public route). Returns the
+ *  token PLUS the team/simulation ids every later call needs as query params. */
+export function loginWithPasskey(passkey: string): Promise<PasskeyLoginResponse> {
+  return request('/users/login-passkey', { method: 'POST', body: JSON.stringify({ passkey }) });
 }
 
-export function getBootstrap(): Promise<BootstrapResponse> {
-  return request('/player/bootstrap');
+// ── Simulation context ──────────────────────────────────────────────────
+export function getSimulation(simulationId: Id): Promise<SimulationDto> {
+  return request(`/simulations/${simulationId}`);
 }
 
-export function getCurrentDecision(): Promise<{ decision: TeamRoundDecisionDto | null }> {
-  return request('/player/rounds/current/decision');
+export function getRounds(simulationId: Id): Promise<RoundDto[]> {
+  return request(`/rounds${qs({ simulationId })}`);
 }
 
-export function putCurrentDecision(body: {
-  version: number;
-  configVersion: string;
-  payload: FinlitDecisionPayload;
-}): Promise<TeamRoundDecisionDto> {
-  return request('/player/rounds/current/decision', { method: 'PUT', body: JSON.stringify(body) });
+// ── Decision form configuration ─────────────────────────────────────────
+export function getProducts(simulationTypeId: Id): Promise<ProductDto[]> {
+  return request(`/products${qs({ simulationTypeId })}`);
 }
 
-export function postPreview(body: {
-  decisionVersion?: number | null;
-  payload: FinlitDecisionPayload;
-}): Promise<PreviewResponse> {
-  return request('/player/rounds/current/preview', { method: 'POST', body: JSON.stringify(body) });
+export function getBaseData(simulationTypeId: Id): Promise<BaseDataDto[]> {
+  return request(`/base-data${qs({ simulationTypeId })}`);
 }
 
-export function submitCurrentDecision(body: { version?: number }): Promise<TeamRoundDecisionDto> {
-  return request('/player/rounds/current/decision/submit', { method: 'POST', body: JSON.stringify(body) });
+export function getGlobalInputs(simulationTypeId: Id): Promise<GlobalInputDto[]> {
+  return request(`/global-inputs${qs({ simulationTypeId })}`);
 }
 
-export function getResults(): Promise<{ results: TeamRoundResultDto[] }> {
-  return request('/player/results');
+// ── Projections (own financials) ────────────────────────────────────────
+/** POST /projections/recalc — server-side projection for ONE product's fields.
+ *  NOTE: this UPSERTS the team's projection document, so it is not a read-only
+ *  preview; call it for a configuration the team is actually considering. */
+export function recalcProjections(body: RecalcProjectionsBody): Promise<ProjectionDto> {
+  return request('/projections/recalc', { method: 'POST', body: JSON.stringify(body) });
 }
 
-export function getCurrentResult(): Promise<TeamRoundResultDto> {
-  return request('/player/results/current');
+export function getProjections(args: {
+  simulationId: Id;
+  teamId: Id;
+  roundNumber?: number;
+}): Promise<ProjectionDto[]> {
+  return request(`/projections${qs(args)}`);
 }
 
-export function getResultByRoundNumber(roundNumber: number): Promise<TeamRoundResultDto> {
-  return request(`/player/results/${roundNumber}`);
+// ── Decisions ───────────────────────────────────────────────────────────
+/** POST /decisions — insert-only, one document per (simulation, team, round).
+ *  A resubmission comes back as 409. */
+export function createDecision(body: CreateDecisionBody): Promise<DecisionDto> {
+  return request('/decisions', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function getDecisions(args: {
+  simulationId: Id;
+  teamId?: Id;
+  roundNumber?: number;
+}): Promise<DecisionDto[]> {
+  return request(`/decisions${qs(args)}`);
+}
+
+// ── Results (cross-team shares) ─────────────────────────────────────────
+/** GET /results — one document per product+segment+round, holding EVERY team's
+ *  weighted score and market share. Written by the operator's calculation run;
+ *  empty until that has happened. */
+export function getResults(args: { simulationId: Id; roundNumber?: number }): Promise<ResultDto[]> {
+  return request(`/results${qs(args)}`);
 }
 
 export type {
-  BootstrapResponse,
-  FinlitDecisionPayload,
-  PreviewResponse,
-  TeamRoundDecisionDto,
-  TeamRoundResultDto,
-};
+  BaseDataDto,
+  CreateDecisionBody,
+  DecisionDto,
+  GlobalInputDto,
+  Id,
+  PasskeyLoginResponse,
+  ProductDto,
+  ProjectionDto,
+  RecalcProjectionsBody,
+  ResultDto,
+  RoundDto,
+  SimulationDto,
+} from './types';

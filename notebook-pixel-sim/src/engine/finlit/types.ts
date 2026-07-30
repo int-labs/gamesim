@@ -1,4 +1,4 @@
-// Re-exported from the shared FinLit engine package.
+// Re-exported from the local FinLit engine core (src/engine/finlit/core).
 export type {
   FinlitLine,
   FinlitDecisions,
@@ -6,4 +6,4 @@ export type {
   FinlitDaySnapshot,
   FinlitLineResult,
   Route,
-} from '@gamesim/finlit-engine';
+} from './core';
