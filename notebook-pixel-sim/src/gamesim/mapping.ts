@@ -14,14 +14,30 @@
 //   projected_market_share   ← local engine's share proxy — A NEW INPUT; V3 has
 //                              no such decision (it used a fixed BASE_MARKET_SHARE)
 //
-// Two server quirks this file has to respect:
+// Server quirks this file has to respect:
 //   • A ProductField with no `coefficients` is SKIPPED by calcMarketModel, so a
 //     field we fill here still contributes nothing to the competition unless the
 //     operator configured coefficients for it.
-//   • recalcProjections reads projected_market_share as a FRACTION and clamps to
-//     [0,1] (a missing entry defaults to 20 → clamps to 1.0 = 100% share), while
-//     other parts of the model treat the same key as a percentage. We always send
-//     an explicit fraction so we never land on that default.
+//   • `selling_price` is skipped by the scoring loop outright
+//     (calcMarketModel.ts:192) — it drives revenue in calcFinancials, not share.
+//     So `score` is effectively the ONLY thing teams compete on today.
+//   • Every non-enum value is multiplied by a diminishing-returns factor that is
+//     1.0 at the midpoint of the field's [minValue, maxValue] and 2.0 at either
+//     bound. For `score` that means the field's range must be wide enough that
+//     the whole [0.6, 1.2] vocFit band sits on ONE side of the midpoint,
+//     otherwise a weak product can outrank a mid one — see
+//     scripts/provision-notebook.mjs, which configures [0, 3] for that reason.
+//   • projected_market_share is a FRACTION and it SCALES the score-derived
+//     share. In calcMarketModel: normalisedPms = pms / (1 / numberOfTeams), then
+//     actualShare = min(rawShare × normalisedPms, 1) — so pms = 1/numberOfTeams
+//     is the neutral claim, and getInput() additionally multiplies the value by a
+//     diminishing-returns factor that is 1.0 at the MIDPOINT of the field's
+//     [minValue, maxValue] and 2.0 at either bound. We therefore default to the
+//     field's midpoint (see `defaultProjectedShareFor`), which is the neutral,
+//     undistorted value when the operator sets the range to [0, 2/teams] — the
+//     range scripts/provision-notebook.mjs writes. recalcProjections reads the
+//     same key but clamps it to [0,1] and defaults a MISSING entry to 20 →
+//     clamped to 1.0 (100%), so we always send it explicitly.
 
 import type { GameState } from '@/state/store';
 import { unitCost } from '@/data/finlit';
@@ -122,12 +138,26 @@ export function pairLinesWithProducts(
   return pairs;
 }
 
+/**
+ * The neutral projected-market-share claim for a product: the midpoint of the
+ * field's configured range, where the server's diminishing-returns factor is
+ * exactly 1.0. Falls back to 0.2 when the product has no range configured.
+ */
+export function defaultProjectedShareFor(product: ProductDto): number {
+  const field = findField(product, FIELD_KEYS.projectedMarketShare);
+  const min = field?.minValue ?? null;
+  const max = field?.maxValue ?? null;
+  if (min === null || max === null || max <= min) return 0.2;
+  return (min + max) / 2;
+}
+
 export interface ToDecisionInputsArgs {
   state: GameState;
   products: ProductDto[];
   /** Per-line projected market share (fraction), keyed by line id. Missing
-   *  lines fall back to `defaultProjectedMarketShare`. */
+   *  lines fall back to the paired product's neutral midpoint. */
   projectedShareByLine?: Record<string, number>;
+  /** Overrides the per-product midpoint default for every line. */
   defaultProjectedMarketShare?: number;
 }
 
@@ -139,11 +169,13 @@ export function toDecisionInputs({
   state,
   products,
   projectedShareByLine = {},
-  defaultProjectedMarketShare = 0.2,
+  defaultProjectedMarketShare,
 }: ToDecisionInputsArgs): DecisionProductInput[] {
   const activeProducts = products.filter((p) => p.active !== false);
   return pairLinesWithProducts(state.portfolio.productLines, activeProducts).map(({ line, product }) => {
-    const values = lineDecisionValues(line, projectedShareByLine[line.id] ?? defaultProjectedMarketShare);
+    const share =
+      projectedShareByLine[line.id] ?? defaultProjectedMarketShare ?? defaultProjectedShareFor(product);
+    const values = lineDecisionValues(line, share);
     return {
       productId: product._id,
       segmentId: product.segmentId,
