@@ -35,6 +35,17 @@ const DecisionProductInputSchema = new Schema(
     productId:   { type: Schema.Types.ObjectId, ref: "Product", required: true },
     segmentId:   { type: Schema.Types.ObjectId, ref: "Segment", required: true },
     productName: { type: String, required: true },
+    // NOTE (not changed here — schema owner's call): the outer [ ] makes this an
+    // ARRAY OF ARRAYS, so Mongoose wraps each entry in its own inner array on
+    // save. A body of [{fieldId, value}, {fieldId, value}] persists as
+    // [[{...}], [{...}]] (verified). Both readers expect it flat —
+    // sim/calcMarketModel.ts:168 and sim/calcFinancials.ts:187/276/283/297 do
+    // `fields.find(f => f.fieldId.equals(...))` — so f.fieldId is undefined and
+    // POST /rounds/:id/calculate throws TypeError. No client payload can avoid
+    // this. Fix is to drop the outer array:
+    //   fields: { type: [DecisionFieldSchema], required: true, default: [] }
+    // Existing nested documents stay unreadable afterwards; clear them with
+    // DELETE /decisions?simulationId=&roundNumber= and resubmit (no migration).
     fields: [{ type: [DecisionFieldSchema], required: true, default: []}]
   },
   { _id: false }
