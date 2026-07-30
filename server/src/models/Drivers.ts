@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
-import Product from "./products";
+import Product from "./Products";
 
 export interface DriverYearData {
   [year: string]: number;

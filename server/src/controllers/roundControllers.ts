@@ -2,11 +2,11 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Round      from "../models/rounds";
 import Simulation from "../models/simulations";
-import BaseData   from "../models/baseData";
+import BaseData   from "../models/BaseData";
 import Decision   from "../models/decisions";
-import Product    from "../models/products";
-import Results    from "../models/results";
-import Projections from "../models/projections";
+import Product    from "../models/Products";
+import Results    from "../models/Results";
+import Projections from "../models/Projections";
 import { calcMarketModel, DecisionDocument, MarketModelProduct } from "../sim/calcMarketModel";
 import { calcFinancials, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
 

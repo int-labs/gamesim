@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import Segment from "../models/segment";
-import Product from "../models/products";
+import Segment from "../models/Segment";
+import Product from "../models/Products";
 
 // POST /segments
 export const createSegment = async (req: Request, res: Response): Promise<void> => {

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import Product from "../models/products";
+import Product from "../models/Products";
 
 // GET /products?simulationTypeId=&segmentId=
 export const getProductsBySimulationType = async (req: Request, res: Response): Promise<void> => {

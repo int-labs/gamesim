@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import Driver from "../models/drivers";
+import Driver from "../models/Drivers";
 
 // POST /drivers
 export const createDriver = async (req: Request, res: Response): Promise<void> => {
