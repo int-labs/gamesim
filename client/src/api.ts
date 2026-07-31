@@ -151,6 +151,7 @@ export const getBaseData = (simulationTypeId?: string) =>
 export const getBaseDataById = (id: string) => api.get(`/base-data/${id}`);
 
 export const createBaseData = (data: object) => api.post("/base-data", data);
+export const deleteBaseData = (id: string) => api.delete(`/base-data/${id}`);
 
 // ── Global Inputs ─────────────────────────────────────────────────
 export const getGlobalInputs = (simulationTypeId?: string, category?: string) =>

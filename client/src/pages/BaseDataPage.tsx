@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getBaseData, createBaseData, getSegments, getProducts, getGlobalInputs } from "../api";
+import { getBaseData, createBaseData, getSegments, getProducts, getGlobalInputs, deleteBaseData } from "../api";
 import type { BaseData } from "../types";
 import { getSimulationTypes } from "../api";
 
@@ -141,6 +141,16 @@ export default function BaseDataPage() {
       .then(res => setSimulationTypes(res.data?.data ?? res.data))
       .catch((e: any) => setCreateError(e.message));
   }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this base data?")) return;
+    try {
+      await deleteBaseData(id);
+      setRecord(null);
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message);
+    }
+  };
   
   //====================================================================
   //     MARKET DATA VIEW
@@ -1059,7 +1069,7 @@ export default function BaseDataPage() {
       <table border={1} cellPadding={4}>
         <thead>
           <tr>
-            <th>_id</th><th>SimTypeId</th><th>constants</th><th>marketData</th><th>marketModel</th><th>csatMarketModel</th>
+            <th>_id</th><th>SimTypeId</th><th>constants</th><th>marketData</th><th>marketModel</th><th>csatMarketModel</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -1071,7 +1081,9 @@ export default function BaseDataPage() {
               <td><MarketDataView marketData={record.marketData} /></td>
               <td><MarketModelView marketModel={record.marketModel} /></td>
               <td><CsatMarketModelView csatMarketModel={record.csatMarketModel} /></td>
-              <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(record.csatMarketModel, null, 2)}</pre></td>
+              <td>
+                <button onClick={() => handleDelete(record._id)}>Delete</button>
+              </td>
             </tr>
           )}
         </tbody>

@@ -226,13 +226,13 @@ export default function GlobalInputsPage() {
     }));
   };
 
-  const handleAddImpact = () => {
-    if (!impactKeyInput) return;
-    setItemForm(f => ({ ...f, impacts: { ...f.impacts, [impactKeyInput]: { type: impactTypeInput, value: impactValueInput } } }));
-    setImpactKeyInput("");
-    setImpactTypeInput("relative");
-    setImpactValueInput(0);
-  };
+    const handleAddImpact = () => {
+      if (!impactKeyInput) return;
+      setItemForm(f => ({ ...f, impacts: { ...f.impacts, [impactKeyInput]: { type: impactTypeInput, value: impactValueInput } } }));
+      setImpactKeyInput("");
+      setImpactTypeInput("relative");
+      setImpactValueInput(0);
+    };
 
   const handleRemoveImpact = (metricKey: string) => {
     setItemForm(f => {
