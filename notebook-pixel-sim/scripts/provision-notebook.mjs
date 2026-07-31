@@ -277,7 +277,16 @@ async function ensureBaseData(simulationTypeId, segmentId, products) {
     }],
   };
 
-  const all = await get(`/base-data?simulationTypeId=${simulationTypeId}`);
+  // GET /base-data 404s when none exists yet for this simulationTypeId (unlike
+  // /products or /segments, which return an empty array) — treat that as "no
+  // existing base data" instead of letting it abort provisioning.
+  let all;
+  try {
+    all = await get(`/base-data?simulationTypeId=${simulationTypeId}`);
+  } catch (err) {
+    if (!/404/.test(err.message)) throw err;
+    all = null;
+  }
   const found = Array.isArray(all) ? all[0] : all;
   if (found?._id) {
     console.log(`  base data exists (${found._id}) — updating marketData + marketModel`);
