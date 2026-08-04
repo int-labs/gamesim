@@ -52,7 +52,10 @@ export function StatChip({
   className?: string;
 }) {
   return (
-    <div className={clsx('border-2 px-2.5 py-2 min-w-0', CHIP_TONE[tone], className)}>
+    <div className={clsx('border-2 px-2.5 py-1.5 min-w-0', CHIP_TONE[tone], className)}>
+      {/* One line, always. .stat-label carries `white-space: nowrap`, so a long
+          caption clips at the chip edge instead of pushing the figure down and
+          leaving one chip in a row taller than its neighbours. */}
       <div className="stat-label stat-label-on-tint truncate">{label}</div>
       {/* Values wrap rather than truncate: a clipped "$11.50/day + $…" hides
           exactly the number the player needs. */}
@@ -96,18 +99,23 @@ export function OpsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1">
-      <header className="flex items-center gap-3 px-3.5 py-2.5 border-b-2 border-ink-900 bg-cream-200">
+    <section className="border-2 border-ink-900 bg-cream-50 shadow-pixel-2">
+      {/* The masthead carries the section's weight. It used to be a 32px mark
+          beside a 16px caption — smaller than the card titles underneath it —
+          so five stacked sections read as one undifferentiated column. Bigger
+          art, a heading that outranks its children, and a caramel band that is
+          tall enough to register as a header rather than a divider. */}
+      <header className="flex items-center gap-3.5 px-4 py-3 border-b-2 border-ink-900 bg-cream-200">
         <img
           src={icon}
           alt=""
-          className="w-8 h-8 object-contain shrink-0"
+          className="w-14 h-14 object-contain shrink-0"
           style={{ imageRendering: 'pixelated' }}
           draggable={false}
         />
         <div className="min-w-0 flex-1">
-          <h3 className="section-title text-ink-900 truncate">{title}</h3>
-          {hint && <p className="body-xs text-text-2 mt-0.5">{hint}</p>}
+          <h3 className="section-heading text-ink-900">{title}</h3>
+          {hint && <p className="body-xs text-text-2 mt-1">{hint}</p>}
         </div>
         {onDetails && (
           <motion.button
@@ -118,7 +126,7 @@ export function OpsSection({
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            className="shrink-0 self-start flex items-center gap-1.5 border-2 border-ink-900 bg-cream-50 hover:bg-cream-100 px-2.5 py-1.5 cursor-pointer shadow-pixel-1"
+            className="shrink-0 self-center flex items-center gap-1.5 border-2 border-ink-900 bg-cream-50 hover:bg-cream-100 px-2.5 py-1.5 cursor-pointer shadow-pixel-1"
           >
             {/* The glyph carries the meaning ("there's more to read here"), so it
                 leads; the word follows. Sized to the cap-height of eyebrow-sm so

@@ -257,7 +257,7 @@ export const BUSINESS_PAGE = {
     operations: {
       label: 'Operations',
       sub: 'Sell, market, hire & ship',
-      explainer: 'Your company decisions - where you sell, what you spend on marketing and sales, who you hire, and which vendor ships for you. Most spend energy; read the case study before you commit.',
+      explainer: 'Your company decisions - where you sell, what you spend on marketing and sales, who you hire, and which vendor ships for you. Most spend energy; read the case study before you commit. Everything here is reversible - clearing a decision refunds its energy.',
     },
     inventory: {
       label: 'Inventory',

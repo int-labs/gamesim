@@ -50,6 +50,16 @@ const CANDIDATE_ICON: Record<string, string> = {
   danoct: A.ui.studioOps.binding_machine,
 };
 
+// Storefront art per vendor. Every other option card on this page leads with a
+// pixel mark; the vendor tiles were the one set that was pure text, so a row of
+// four shops read as a table rather than as four places you could ship through.
+const VENDOR_ICON: Record<string, string> = {
+  als: A.ui.studioOps.supplier,
+  emils: A.ui.commercial.bulk_order,
+  phoebes: A.ui.studioOps.inventory_shelf,
+  nines: A.ui.commercial.limited_drop,
+};
+
 // A pending pick — set when the player taps an option; the case-study modal
 // then gates the actual engage (the PDF's "read before choosing").
 type Pending =
@@ -132,27 +142,46 @@ export function StudioPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between body-xs">
-        <span className="text-text-2">Company decisions · reversible (clearing refunds energy)</span>
-        <span className="num-xs text-warning inline-flex items-baseline gap-1"><EnergyValue amount={energy} /> energy</span>
-      </div>
+      {/* No page-level status strip. The page already opened with THREE
+          stacked bands of meta-text — the panel masthead, the tab explainer,
+          and a "company decisions · reversible" line — before a single
+          decision, and the energy figure in that third band was the same
+          number the persistent HUD shows at the top of the screen. The
+          reversibility note now lives in the tab explainer (copy.ts) and the
+          page starts on its first actual decision. */}
 
       {/* ── Your shop — the company's name. Also renameable from the shop sign
            on the desk (Product page); both write through setShopName. ── */}
       <OpsSection icon={SECTION_ICON.shop} title="Your Shop" hint="Your business name. Costs nothing, change it whenever you like.">
-        <input
-          // Local draft while typing, committed on blur/Enter. Writing straight
-          // through on every keystroke would fight setShopName's empty-fallback:
-          // clearing the field to retype would snap it back to the default.
-          value={shopDraft ?? shopName}
-          onChange={(e) => setShopDraft(e.target.value)}
-          onBlur={() => { apply((s) => setShopName(s, shopDraft ?? shopName)); setShopDraft(null); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-          maxLength={MAX_SHOP_NAME}
-          aria-label="Shop name"
-          placeholder={DEFAULT_SHOP_NAME}
-          className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text section-title outline-none focus:border-primary px-3 py-2"
-        />
+        {/* The field used to sit alone against a full panel width of nothing.
+            The counter and the "where does this show up?" line are what a
+            player actually wants next to a name box, and they earn the space
+            the empty half was wasting. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <input
+            // Local draft while typing, committed on blur/Enter. Writing straight
+            // through on every keystroke would fight setShopName's empty-fallback:
+            // clearing the field to retype would snap it back to the default.
+            value={shopDraft ?? shopName}
+            onChange={(e) => setShopDraft(e.target.value)}
+            onBlur={() => { apply((s) => setShopName(s, shopDraft ?? shopName)); setShopDraft(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            maxLength={MAX_SHOP_NAME}
+            aria-label="Shop name"
+            placeholder={DEFAULT_SHOP_NAME}
+            className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text section-title outline-none focus:border-primary px-3 py-2"
+          />
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="shrink-0 border-2 border-border-soft bg-surface-2 px-2 py-1">
+              <span className="num-xs text-text-2 tabular-nums">
+                {(shopDraft ?? shopName).length}/{MAX_SHOP_NAME}
+              </span>
+            </span>
+            <span className="body-xs text-text-3 min-w-0">
+              Appears on the shop sign on your desk and in the class standings.
+            </span>
+          </div>
+        </div>
       </OpsSection>
 
       {/* ── Sales channels — WHERE you sell. Company-wide: every notebook ships
@@ -214,13 +243,22 @@ export function StudioPanel() {
                 </div>
 
                 {/* The numbers you're actually choosing between get to look
-                    like values, not footnotes. */}
+                    like values, not footnotes.
+
+                    Offline takes no consignment, and omitting the chip left a
+                    hole in that card where its siblings had a third row — it
+                    read as a rendering fault rather than as "this one is
+                    cheaper". "None" is the actual answer, and it's the whole
+                    reason to pick offline, so it says so. */}
                 <div className="grid grid-cols-2 gap-2 mt-auto">
                   <StatChip label="Reach" value={lo === hi ? `${lo}%` : `${lo}-${hi}%`} tone="reach" />
                   <StatChip label="Per day" value={fmt$(row.maintenance)} tone="money" />
-                  {row.consignment > 0 && (
-                    <StatChip label="Per sale" value={fmt$(row.consignment)} tone="money" className="col-span-2" />
-                  )}
+                  <StatChip
+                    label="Per sale"
+                    value={row.consignment > 0 ? fmt$(row.consignment) : 'None'}
+                    tone={row.consignment > 0 ? 'money' : 'good'}
+                    className="col-span-2"
+                  />
                 </div>
               </motion.button>
             );
@@ -241,6 +279,8 @@ export function StudioPanel() {
             hint="Awareness - lifts DEMAND (more people want it)."
             value={marketingBudget}
             energy={BUDGET_LEVER_ENERGY}
+            effectLabel="Demand"
+            effect={`+${((marketingDemandMult(marketingBudget) - 1) * 100).toFixed(0)}%`}
             canActivate={marketingBudget > 0 || energy >= BUDGET_LEVER_ENERGY}
             onChange={(v) => { playSfx('tick'); apply((s) => setFinlitMarketingBudget(s, v)); }}
           />
@@ -249,6 +289,8 @@ export function StudioPanel() {
             hint="Conversion - lifts SELL-RATE (more of them buy)."
             value={salesBudget}
             energy={BUDGET_LEVER_ENERGY}
+            effectLabel="Sell-rate"
+            effect={`+${(salesSellBonus(salesBudget) * 100).toFixed(1)}%`}
             canActivate={salesBudget > 0 || energy >= BUDGET_LEVER_ENERGY}
             onChange={(v) => { playSfx('tick'); apply((s) => setFinlitSalesBudget(s, v)); }}
           />
@@ -276,7 +318,7 @@ export function StudioPanel() {
                 <SafeImage
                   src={CANDIDATE_ICON[c.id]}
                   alt=""
-                  className="shrink-0 w-20 h-20 object-contain self-start"
+                  className="shrink-0 w-20 h-20 object-contain self-center"
                   fallbackIcon="hire"
                   fallbackSize={56}
                 />
@@ -286,7 +328,13 @@ export function StudioPanel() {
                   {engaged && <PixelBadge tone="success">L{curLevel} hired</PixelBadge>}
                 </div>
                 <p className="body-xs text-text-2 mt-1 mb-2">{c.blurb}</p>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="flex flex-wrap items-start gap-3">
+                {/* Capped. Four tier buttons stretched across the full card
+                    width gave each one ~330px of box around ~50px of content —
+                    a row of mostly empty rectangles. At this width they read as
+                    a tier selector, and the space left over carries the
+                    trade-off the whole choice turns on. */}
+                <div className="grid grid-cols-4 gap-1.5 w-full max-w-[440px]">
                   {c.levels.map((lv) => {
                     const affordable = energy >= lv.energy;
                     const isCur = engaged && curLevel === lv.level;
@@ -296,18 +344,18 @@ export function StudioPanel() {
                         disabled={!affordable || isCur}
                         onClick={() => { playSfx('click-soft'); setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! }); }}
                         className={clsx(
-                          'ctl-btn flex flex-col items-center gap-1 py-2 px-1 border-2 transition-all',
+                          'ctl-btn flex flex-col items-center gap-0.5 py-1.5 px-1 border-2 transition-all',
                           isCur ? 'border-primary bg-primary-strong text-white'
                           : affordable ? 'border-border-soft bg-surface hover:border-primary text-text active:scale-95'
                           : 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed',
                         )}
                         title={`L${lv.level}: +${lv.prodBonus.toFixed(2)} prod, +${(lv.sellBonus * 100).toFixed(1)}% sell · ${lv.energy}⚡ to unlock · ${fmt$(lv.cost)}/day`}
                       >
-                        {/* Level is the IDENTITY of the button, so it leads at
-                            numeral scale. Wage and energy are what it costs —
-                            quiet, and captioned so "$5" and "2" can't be
-                            confused for each other. */}
-                        <span className={clsx('num-md leading-none', isCur ? 'text-white' : 'text-ink-900')}>
+                        {/* Level leads because it is the button's identity, but
+                            at .num-sm, not .num-md: "L1" is a two-character tag,
+                            not a headline figure, and at 21px four of them made
+                            the tier row the loudest thing in the section. */}
+                        <span className={clsx('num-sm leading-none', isCur ? 'text-white' : 'text-ink-900')}>
                           L{lv.level}
                         </span>
                         <span className={clsx('stat-label stat-label-on-tint', isCur && 'text-white')}>
@@ -318,14 +366,41 @@ export function StudioPanel() {
                     );
                   })}
                 </div>
+
+                {/* What separates Ains from Chewie, in numbers. Until now the
+                    per-level bonuses existed only in each button's `title`, so
+                    the actual basis for the choice was invisible unless you
+                    hovered — and the blurb's "modest sell lift" gave no way to
+                    compare two candidates. L1 → L4 shows both the floor and
+                    what the top tier buys. */}
+                <div className="grid grid-cols-2 gap-1.5 flex-1 min-w-[200px]">
+                  <StatChip
+                    label="Output / day"
+                    value={`+${c.levels[0].prodBonus.toFixed(2)} → +${c.levels[c.levels.length - 1].prodBonus.toFixed(2)}`}
+                    tone="good"
+                  />
+                  <StatChip
+                    label="Sell-rate"
+                    value={`+${(c.levels[0].sellBonus * 100).toFixed(1)}% → +${(c.levels[c.levels.length - 1].sellBonus * 100).toFixed(1)}%`}
+                    tone="reach"
+                  />
+                </div>
+                </div>
                 </div>
               </div>
             );
           })}
+          {/* A real control, not a text link. Undoing a hire refunds energy,
+              which is a decision worth as much affordance as making one. */}
           {hire && (
-            <button onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitHire(s)); }} className="item-name text-text-3 hover:text-danger self-start">
+            <PixelButton
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitHire(s)); }}
+            >
               Clear hire · refund <EnergyValue amount={hireRefund} className="ml-1" />
-            </button>
+            </PixelButton>
           )}
         </div>
       </OpsSection>
@@ -357,8 +432,15 @@ export function StudioPanel() {
                     )}
                     title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(cov.cost)}/day` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="h3 uppercase text-ink-900 truncate">{v.name}</span>
+                    <div className="flex items-center gap-2.5">
+                      <SafeImage
+                        src={VENDOR_ICON[v.id]}
+                        alt=""
+                        className="shrink-0 w-12 h-12 object-contain"
+                        fallbackIcon="box"
+                        fallbackSize={32}
+                      />
+                      <span className="h3 uppercase text-ink-900 truncate flex-1 min-w-0">{v.name}</span>
                       {stocks && <PixelBadge tone={cov.quality === 'perfect' ? 'success' : 'neutral'}>{cov.quality}</PixelBadge>}
                     </div>
                     {stocks ? (
@@ -375,9 +457,14 @@ export function StudioPanel() {
               })}
             </div>
             {activeLine.vendor && (
-              <button onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitVendor(s)); }} className="item-name text-text-3 hover:text-danger self-start">
+              <PixelButton
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitVendor(s)); }}
+              >
                 Clear vendor · refund <EnergyValue amount={vendorRefund} className="ml-1" />
-              </button>
+              </PixelButton>
             )}
           </div>
         ) : null}
@@ -469,6 +556,8 @@ function BudgetLever({
   hint,
   value,
   energy,
+  effectLabel,
+  effect,
   canActivate,
   onChange,
 }: {
@@ -476,6 +565,10 @@ function BudgetLever({
   hint: string;
   value: number;
   energy: number;
+  /** What the spend moves, e.g. "Demand". */
+  effectLabel: string;
+  /** The live figure for that effect at the current spend, e.g. "+5%". */
+  effect: string;
   canActivate: boolean;
   onChange: (v: number) => void;
 }) {
@@ -487,8 +580,12 @@ function BudgetLever({
         <p className="body-xs text-text-2 mt-1">{hint}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      {/* Three chips, because dragging the slider used to change exactly one
+          number — the spend — and say nothing about what that money bought.
+          The effect chip is the whole point of the lever. */}
+      <div className="grid grid-cols-3 gap-2">
         <StatChip label="Spend" value={`${fmt$(value)}/day`} tone={active ? 'money' : 'muted'} />
+        <StatChip label={effectLabel} value={effect} tone={active ? 'good' : 'muted'} />
         <StatChip
           label={active ? 'Running on' : 'To activate'}
           value={<EnergyValue amount={energy} size={13} />}

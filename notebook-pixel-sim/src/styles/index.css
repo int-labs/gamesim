@@ -394,6 +394,20 @@ button {
     text-transform: uppercase;
     color: var(--c-text);
   }
+  /* The masthead of a top-level framed section (OpsSection on the Business
+     page). It has to OUTRANK the .h3 (18px) used on the cards INSIDE it — at
+     .section-title's 16px a section header was two pixels smaller than its own
+     children, which is exactly why the page read as one flat list of boxes
+     instead of five containers each holding a decision. */
+  .section-heading {
+    font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 23px;
+    line-height: 1.02;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--c-text);
+  }
   .panel-title {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
