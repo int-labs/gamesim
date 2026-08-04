@@ -21,6 +21,7 @@ import { SafeImage } from '@/components/primitives/SafeImage';
 import { CountUp } from '@/components/primitives/CountUp';
 import { A } from '@/assets';
 import { HudMenu } from '@/components/hud/HudMenu';
+import { SessionChip } from '@/components/hud/SessionChip';
 import { HistoryDropdown } from '@/components/hud/HistoryDropdown';
 import { StatsDrawer } from '@/components/hud/StatsDrawer';
 import clsx from 'clsx';
@@ -191,6 +192,10 @@ export function TopHUD() {
             </span>
           </div>
         </Tooltip>
+
+        {/* === SESSION === which round is open, the facilitator's clock, and
+             who this team is. Renders nothing when running standalone. === */}
+        <SessionChip />
 
         <Sep />
 

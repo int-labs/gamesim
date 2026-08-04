@@ -234,15 +234,19 @@ export function PhaseIntroScreen() {
               initial={reduced ? false : { y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.45 }}
-              className="mt-4 flex items-start gap-2.5 border-2 border-primary bg-primary-soft px-3 py-2.5"
+              className="mt-4 border-2 border-primary bg-primary-soft px-3 py-2.5"
             >
-              <span className="shrink-0 bg-primary px-1.5 py-0.5 eyebrow eyebrow-sm text-inherit leading-none text-cream-50">
-                {info.learningFocus}
-              </span>
-              <div className="min-w-0">
-                <div className="item-name text-text">{lp.title}</div>
-                <div className="hint leading-snug text-text-2">{lp.blurb}</div>
+              {/* The pill shares one CENTERED row with the title it labels.
+                  `items-start` on the outer flex aligned it to the top of the
+                  whole two-line block, so it floated above the title's cap and
+                  read as detached from the text it belongs to. */}
+              <div className="flex items-center gap-2.5">
+                <span className="shrink-0 bg-primary-strong px-1.5 py-0.5 eyebrow eyebrow-sm text-inherit leading-none text-cream-50">
+                  {info.learningFocus}
+                </span>
+                <div className="item-name text-text min-w-0 truncate">{lp.title}</div>
               </div>
+              <div className="hint leading-snug text-text-2 mt-1.5">{lp.blurb}</div>
             </motion.div>
           </div>
 

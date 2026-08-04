@@ -70,8 +70,16 @@ export async function verifyPassKey(raw: string): Promise<VerifyResult> {
   if (!passkey) return { ok: false, reason: 'empty' };
 
   try {
-    const session = await loginWithPasskey(passkey);
-    setGamesimSession(session);
+    const res = await loginWithPasskey(passkey);
+    // Keep the identity with the session so the HUD can name the team after a
+    // reload without a second request just to find out who is playing.
+    setGamesimSession({
+      token: res.token,
+      teamId: res.teamId,
+      simulationId: res.simulationId,
+      teamName: res.teamName,
+      avatarUrl: res.avatar?.url ?? null,
+    });
     return { ok: true };
   } catch (err) {
     const status = (err as { status?: number })?.status;

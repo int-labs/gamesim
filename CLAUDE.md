@@ -92,6 +92,27 @@ Standings are unaffected — `calcMarketModel` doesn't use `dynamicPrice` — wh
 
 This is a **provisioning** problem, not an engine bug: `provision-notebook.mjs` creates a field set the financial model can't price. Fixing it means giving the product a money field that represents per-unit investment (or a competitive weight above zero on an existing one) and recalculating. That is a game-design decision, so it has deliberately not been made here — the console now **detects and explains it** on the Debrief instead of letting a facilitator read a misconfiguration as twelve bad teams.
 
+### Two simulation types, one game
+
+The platform carries two `SimulationType` rows and they are the SAME pedagogy:
+
+| | products | segments | base data | player config |
+|---|---|---|---|---|
+| **Notebook** | 4 | 1 | 9 | published |
+| **Financial Literacy** | 4 | 1 | 10 | published |
+
+"Notebook" is the one the live cohort points at; "Financial Literacy" is an earlier row for the same financial-literacy game — the player's engine subset is literally `finlit`, sourced from `FinLit Calc.xlsx` and the FinLit PDF. Both now carry an identical published `PlayerConfig`, so either can be run and edited.
+
+Seeding a type's config is one command, and it **imports the player's actual modules** rather than transcribing them, so the seed can't drift from what the game runs:
+
+```bash
+cd notebook-pixel-sim
+node scripts/export-player-config.mjs --push  --type <simulationTypeId> --token <jwt>
+node scripts/export-player-config.mjs --check --type <simulationTypeId> --token <jwt>   # drift detector
+```
+
+Whether the two rows should be consolidated is a product decision nobody has made. Deleting one is not reversible from the console, so it has been left alone.
+
 ### Three different numbers, and none of them is the others
 
 It is now possible to ask "how did that team do?" three ways, and conflating them is the easiest mistake in this codebase:
@@ -324,7 +345,8 @@ cd server && npm run create-admin -- --email you@intlabs.io --password 'your-pas
 - `src/gamesim/` is the **only** seam to the backend: `client.ts` (base URL, `gamesim:*` localStorage session, routes), `mapping.ts` (notebook design → ProductField values), `sync.ts` (submit + poll), `configHydrator.ts` (operator content overlay), `GamesimProvider.tsx`. There is no `/player/*` namespace — the player composes the generic routes.
 - **Operator content overlay:** `configHydrator.ts` fetches the published `PlayerConfig` once at boot (inside the bootstrap, while the app is still blocked on `status === 'loading'`) and edits the bundled tables *in place* — `GENRES`, `ADDONS`, `CHANNELS_BY_GENRE` and friends are `const` arrays imported directly by ~25 modules, so mutating the shared object is the only way to reach every importer. It refuses far more than it accepts, because the engine's accessors (`genreById`, `configOption`, `channelRow`, `vendorById`) **throw** on an unknown id: an id present in the bundle may never disappear, the five structurally-coupled sections (`genres`, `productionOptions`, `channelMeta`, `channelsByGenre`, `vendors`) are validated as one graph and applied together or not at all, and any failure leaves the bundle untouched. `scripts/test-config-hydrator.mjs` asserts exactly that. **Scalar balance constants now hydrate too.** They were `export const` numbers, and a module's own `const` binding cannot be rebound from outside it, so the console offered ~17 of them and editing any did nothing until the next build. They are `export let` behind `applyConstantOverrides` (`engine/finlit/core/config/constants.ts`) and `applyBalanceOverrides` (`data/balance.ts`), which works on **ES module live bindings**: an importer reads the binding, not a copy, so one reassignment inside the owning module reaches all ~25 importers without touching any of them. Two rules keep it safe — those setters are the only permitted writers, and nothing may derive a value from a scalar at *module* scope, which would snapshot the bundled number before hydration runs. Non-numeric values are refused rather than allowed to put NaN through the engine, and a key this build doesn't recognise is named in the `skipped` report.
 - **Authority split:** the browser FinLit engine drives gameplay feel; the server is authoritative for money (`GET /projections`) and for share/rank (`GET /results`). The two models genuinely differ, the numbers will not match, and the UI says so. Details and the verified quirks of the scoring math are in `notebook-pixel-sim/docs/gamesim-integration.md`.
-- Team login is `POST /users/login-passkey` → 12 h team JWT + `teamId` + `simulationId`.
+- Team login is `POST /users/login-passkey` → 12 h team JWT + `teamId` + `simulationId`, **plus `teamName` and the team's generated avatar**. The player had no idea who it was before that: `teamId` alone meant the game could never name a team or show the face the console made for it.
+- **The HUD shows the room, not just the run** (`components/hud/SessionChip.tsx`): which round is open, the facilitator's countdown, and the team's own name and avatar. The timer existed end to end — console sets `durationMinutes`, server stores `startDate`/`endDate`, `RoundDto` typed it — and no component ever read it, so a facilitator would say "you have 25 minutes" and the room had no clock. The chip renders nothing without a gamesim session, so standalone/demo play is untouched. It shows a **pixel** team mark rather than the server's DiceBear avatar — that avatar is abstract geometry in its own bright palette, which is right in the console's roster and completely foreign inside warm pixel art. The mark is still picked deterministically from the team name, so each team keeps a distinct badge from the game's own art set.
 - `server/src/finlit/` is a **hand-vendored copy** of the player's pure engine subset (relative imports instead of the `@/` alias). It is still imported by nothing outside itself, but re-syncing is now `npm run sync-finlit` and `server/src/test/finlitEngineParity.test.ts` fails the build if the two drift. See **The vendored FinLit engine** above.
 
 ## Deployment

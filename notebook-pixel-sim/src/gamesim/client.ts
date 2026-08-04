@@ -24,6 +24,8 @@ import type {
 const TOKEN_KEY = 'gamesim:accessToken';
 const TEAM_KEY = 'gamesim:teamId';
 const SIM_KEY = 'gamesim:simulationId';
+const NAME_KEY = 'gamesim:teamName';
+const AVATAR_KEY = 'gamesim:teamAvatarUrl';
 
 export function getGamesimBaseUrl(): string {
   const configured = (import.meta as any).env?.VITE_GAMESIM_API_URL as string | undefined;
@@ -50,19 +52,29 @@ export function getStoredSession(): GamesimSession | null {
   const teamId = localStorage.getItem(TEAM_KEY);
   const simulationId = localStorage.getItem(SIM_KEY);
   if (!token || !teamId || !simulationId) return null;
-  return { token, teamId, simulationId };
+  return {
+    token,
+    teamId,
+    simulationId,
+    // Optional: a session stored before the HUD showed team identity has
+    // neither, and the chip simply doesn't render its name half.
+    teamName: localStorage.getItem(NAME_KEY) ?? undefined,
+    avatarUrl: localStorage.getItem(AVATAR_KEY),
+  };
 }
 
 export function setGamesimSession(session: GamesimSession): void {
   localStorage.setItem(TOKEN_KEY, session.token);
   localStorage.setItem(TEAM_KEY, session.teamId);
   localStorage.setItem(SIM_KEY, session.simulationId);
+  if (session.teamName) localStorage.setItem(NAME_KEY, session.teamName);
+  if (session.avatarUrl) localStorage.setItem(AVATAR_KEY, session.avatarUrl);
 }
 
 export function clearGamesimSession(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(TEAM_KEY);
-  localStorage.removeItem(SIM_KEY);
+  for (const k of [TOKEN_KEY, TEAM_KEY, SIM_KEY, NAME_KEY, AVATAR_KEY]) {
+    localStorage.removeItem(k);
+  }
 }
 
 export class GamesimApiError extends Error {

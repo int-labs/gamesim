@@ -102,6 +102,13 @@ export function VisualNovelMascot() {
     return (current.seqIndex ?? 0) > 0;
   })();
   const isLastInSequence = !!current?.seqId && (current.seqIndex ?? 0) + 1 >= (current.seqLen ?? 1);
+  // How many messages are queued AFTER this one. The app routinely pushes two
+  // scripts back-to-back — the Phase 1 debrief immediately followed by the
+  // Phase 2 intro, for instance — so "last message of THIS sequence" is not the
+  // same thing as "end of all dialogue".
+  const queueLen = useGame((s) => s.mascot.queue.length);
+  // Only the genuine end: last of its sequence AND nothing waiting behind it.
+  const isFinalMessage = isLastInSequence && queueLen === 0;
 
   const [shown, setShown] = useState('');
   const intervalRef = useRef<number | null>(null);
@@ -177,12 +184,16 @@ export function VisualNovelMascot() {
       playSfx('click-soft');
       return;
     }
-    if (isLastInSequence) {
-      // Finish — closes the whole dialogue.
+    if (isFinalMessage) {
+      // Truly the end of all dialogue — safe to clear.
       playSfx('click');
       clearMascotQueue();
       return;
     }
+    // Either mid-sequence, or the last message of this script with a follow-up
+    // still queued. Advance rather than clear: `clearMascotQueue()` here would
+    // discard the queued script outright, so finishing the Phase 1 debrief
+    // silently ate the Phase 2 intro that had been pushed right behind it.
     playSfx('click-soft');
     popMascot();
   };
@@ -297,10 +308,10 @@ export function VisualNovelMascot() {
                   onClick={onNext}
                   className="vn-continue inline-flex items-center gap-2 h-[36px] px-5 border-2 border-border bg-primary-strong text-white cursor-pointer"
                   style={{ color: '#FAF7E8' }}
-                  aria-label={isLastInSequence ? 'Finish' : (fullyTyped ? 'Next message' : 'Reveal full message')}
+                  aria-label={isFinalMessage ? 'Finish' : (fullyTyped ? 'Next message' : 'Reveal full message')}
                 >
                   <span className="eyebrow eyebrow-sm text-inherit">
-                    {!fullyTyped ? 'Reveal' : isLastInSequence ? 'Finish' : 'Next'}
+                    {!fullyTyped ? 'Reveal' : isFinalMessage ? 'Finish' : 'Next'}
                   </span>
                   <PixelIcon kind="arrow-right" size={11} color="#FAF7E8" />
                 </button>

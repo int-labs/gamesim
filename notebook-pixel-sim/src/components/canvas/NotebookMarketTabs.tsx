@@ -165,7 +165,12 @@ function VocBar({ label, hint, value, delay }: { label: string; hint: string; va
         {Array.from({ length: pips }).map((_, i) => (
           <motion.div
             key={i}
-            className={clsx('flex-1 h-2.5', i < filled ? 'bg-ui-primary' : 'bg-surface-2')}
+            // A filled pip has to be obviously darker than an empty one. The
+            // pastel green on the caramel track measured 1.33:1 — well under
+            // the 3:1 that adjacent UI needs — so at a glance the meter read as
+            // one continuous bar and the value was impossible to eyeball.
+            // primary-strong on a cream track is 3.78:1.
+            className={clsx('flex-1 h-2.5', i < filled ? 'bg-primary-strong' : 'bg-cream-200')}
             style={{ transformOrigin: 'left' }}
             initial={{ scaleX: 0 }}
             animate={{ scaleX: 1 }}

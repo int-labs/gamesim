@@ -38,6 +38,9 @@ type Status = 'checking' | 'login' | 'loading' | 'no-simulation' | 'ready' | 'er
  *  generic routes (main has no single /player/bootstrap endpoint). */
 export interface GamesimBootstrap {
   teamId: Id;
+  /** Who this team is — name + generated avatar, from the passkey login. */
+  teamName?: string;
+  teamAvatarUrl?: string | null;
   simulation: SimulationDto;
   /** Highest Active round, else the highest-numbered round, else null. */
   round: RoundDto | null;
@@ -198,6 +201,8 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
 
         setBootstrap({
           teamId: session.teamId,
+          teamName: session.teamName,
+          teamAvatarUrl: session.avatarUrl ?? null,
           simulation,
           rounds,
           round: pickCurrentRound(rounds),
