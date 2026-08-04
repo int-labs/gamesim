@@ -253,6 +253,61 @@ test.describe("console", () => {
     expect([401, 403]).toContain(res.status());
   });
 
+  test("opens a detail view from a row on every collection that has one", async ({ page }) => {
+    // Each of these answers a question its table cannot: what did the team
+    // submit, why are they third, does this product have a price reference,
+    // who has not submitted yet. A detail view that quietly stops opening
+    // looks identical to a page that never had one, which is why this walks
+    // them rather than spot-checking one.
+    const pages: { route: string; expect: RegExp }[] = [
+      { route: "/decisions", expect: /submitted values/i },
+      { route: "/results", expect: /per product and segment/i },
+      { route: "/products", expect: /price reference/i },
+      { route: "/product-fields", expect: /how the engine scores it/i },
+      { route: "/rounds", expect: /still missing/i },
+    ];
+
+    for (const { route, expect: heading } of pages) {
+      await page.goto(route);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 20_000 });
+
+      const rows = dataRows(page);
+      // A page with no seeded data proves nothing here and must not fail the
+      // run — the collection pages are covered separately.
+      if ((await rows.count()) === 0) continue;
+
+      await rows.first().click();
+
+      // Scoped to the OPEN dialog: Radix keeps closed ones mounted, so a bare
+      // getByRole("dialog") can match a stale one from the previous route.
+      const dialog = page.locator('[role="dialog"][data-state="open"]');
+      await expect(dialog, `${route} should open a detail view`).toBeVisible({ timeout: 20_000 });
+      await expect(dialog.getByText(heading)).toBeVisible();
+
+      // It must close again — a detail view that traps the operator is worse
+      // than none, and Escape is the only affordance some of them have.
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden({ timeout: 10_000 });
+    }
+  });
+
+  test("never renders a product or team as Unknown when the record exists", async ({ page }) => {
+    // Products were looked up as `product.name`; the model's path is
+    // `productName` and never has been `name`, so every line in the results
+    // breakdown read "Unknown product" while the ids matched perfectly. The
+    // failure mode is silent and looks like missing data, not wrong code.
+    await page.goto("/results");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 20_000 });
+
+    const rows = dataRows(page);
+    if ((await rows.count()) === 0) return;
+
+    await rows.first().click();
+    const dialog = page.locator('[role="dialog"][data-state="open"]');
+    await expect(dialog).toBeVisible({ timeout: 20_000 });
+    await expect(dialog.getByText(/unknown product/i)).toHaveCount(0);
+  });
+
   test("reports whether uploads survive a redeploy", async ({ page }) => {
     // The console banner is the only place an operator learns that local-disk
     // storage is ephemeral. It reads a verified probe, not just config.

@@ -123,6 +123,48 @@ Until one is chosen, a scored round shows real revenue and a structural loss. Th
 
 Worth generalising: a `?? null` inside a `$set` turns every partial update into a destructive one.
 
+### Every row opens; `DetailDialog` is how
+
+`client/src/components/app/detail-dialog.tsx` is the shared "what IS this
+record" view, and it is deliberately **one** component rather than a dialog per
+page — thirteen hand-rolled detail views drift apart within a month. A page
+passes `sections[]` of `{label, value}` and gets the layout, wrapping and
+keyboard handling. It renders **data, never forms**: editing stays with
+`ResourceFormDialog`, because an edit form is the wrong tool for reading and
+invites an accidental write to the values a live round is being scored against.
+
+Wired on Decisions, Results, Products, Decision fields, Rounds and Teams (whose
+roster predates the component). The remaining collections are small enough that
+their edit form shows everything; add one when that stops being true.
+
+Two of these earn their place by showing something no column could:
+
+- **Products** states whether the product has a **price reference** at all —
+  the `calcFinancials` rule above. The Notebook type shipped without one for
+  its whole life, scoring $0 revenue while charging COGS, and no page could
+  have revealed it.
+- **Rounds** names the teams that have *not* submitted. "9 of 12" tells an
+  operator to go and look; naming the three tells them where to walk.
+
+Three defects surfaced while building it, all of the same silent kind:
+
+- `api.regeneratePasskey` issued a **POST** against a route mounted as
+  **PATCH**, so the action existed end to end and could never once have
+  succeeded. It also discarded the new key the server returned — rotating a key
+  the operator cannot read locks the team out.
+- Products were looked up as `product.name`. The model's path is
+  **`productName`** and never has been `name`, so every line read "Unknown
+  product" while the ids matched perfectly. Reads as missing data, not wrong code.
+- The Decisions row dropped `input.fields` when flattening, keeping only its
+  length — the values were fetched, then thrown away before render.
+
+**Running the e2e suite needs a staff account**, and the repo is public, so
+never inline one. Make a throwaway, run, then delete it:
+
+```bash
+cd server && npm run create-admin -- --email e2e-local@intlabs.io --password "$(openssl rand -base64 24)"
+```
+
 ### The debrief shows the data, not just the write-up
 
 `client/src/features/debrief/` computes its figures live from scored rounds rather than storing them, so the prose can go stale but the numbers can't. `cohort-data.ts` is pure and holds the derivations; `cohort-charts.tsx` draws them as hand-built SVG, matching the rest of the console.
