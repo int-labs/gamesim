@@ -112,10 +112,33 @@ export function FinalResultsScreen() {
   return (
     // z-[60] — must cover the sim's floating chrome underneath (EdgeDock
     // z-50, page tabs z-40) while staying under transitions/toast/VN.
-    <div className="absolute inset-0 bg-cream-50 z-[60] overflow-y-auto">
+    <div className="absolute inset-0 z-[60]">
+      {/* SCENE BACKDROP, not a blank rectangle. Both results surfaces used to
+          be `absolute inset-0 bg-cream-50` — a flat cream fill edge to edge —
+          so the payoff screen and the phase debrief were the only places in the
+          game where the world simply vanished and left a page. The desk is
+          already the run's setting; dimming it and floating the sheet on top
+          reads as a MODAL over the game rather than a navigation away from it,
+          and it keeps the transition between phases continuous. Backdrop and
+          scroller are siblings so the scene stays put while the sheet scrolls. */}
+      <img
+        src={A.env.deskFull}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover"
+        draggable={false}
+      />
+      <div aria-hidden className="absolute inset-0 bg-ink-900/60" />
+
       <Confetti tone={rank.confetti} />
 
+      <div className="absolute inset-0 overflow-y-auto">
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6">
+        {/* ONE floating sheet. With the desk showing through, the header used
+            to sit straight on dark walnut at about 1.1:1 — the scene backdrop
+            is only an improvement if the content still has a surface. This is
+            also what makes it read as a modal over the game rather than a page
+            that happens to have wallpaper. */}
+        <div className="pixel-frame bg-cream-50 p-4 sm:p-5">
         {/* Header row */}
         <motion.div
           className="flex items-center gap-3 mb-4"
@@ -364,6 +387,8 @@ export function FinalResultsScreen() {
             </motion.div>
           </div>
         </div>
+        </div>
+      </div>
       </div>
     </div>
   );

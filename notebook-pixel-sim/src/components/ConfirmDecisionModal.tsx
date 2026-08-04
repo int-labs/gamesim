@@ -153,10 +153,13 @@ export function ConfirmDecisionModal({
                 className={
                   'inline-flex items-center gap-2 h-[36px] px-5 border-2 cursor-pointer ' +
                   (tone === 'danger'
-                    ? 'border-danger bg-danger text-[#FAF7E8]'
-                    : 'border-[#4F9C72] bg-primary text-[#FAF7E8]')
+                    // -strong, not the pastel: cream on --c-danger is 3.5:1.
+                    ? 'border-[#8A1717] bg-danger-strong text-[#FAF7E8]'
+                    // Deep ink on the bright fill: cream on --c-primary is
+                    // 2.14:1, and this is a CONFIRM button.
+                    : 'border-[#1F4A2C] bg-primary text-[#12301C]')
                 }
-                style={{ color: '#FAF7E8' }}
+                style={{ color: tone === 'danger' ? '#FAF7E8' : '#12301C' }}
               >
                 <PixelIcon kind="check" size={11} color="#FAF7E8" />
                 <span className="eyebrow eyebrow-sm text-inherit">{confirmLabel}</span>

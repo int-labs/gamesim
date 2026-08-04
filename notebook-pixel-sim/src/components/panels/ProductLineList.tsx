@@ -242,7 +242,7 @@ export function ProductLineList() {
                     <span
                       aria-hidden
                       className="absolute top-0.5 left-0.5 bg-primary num-xs tracking-wider px-1 py-px border border-border z-10"
-                      style={{ color: '#FAF7E8' }}
+                      style={{ color: '#12301C' }}
                     >
                       ACTIVE
                     </span>

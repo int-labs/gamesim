@@ -306,14 +306,17 @@ export function VisualNovelMascot() {
                 )}
                 <button
                   onClick={onNext}
-                  className="vn-continue inline-flex items-center gap-2 h-[36px] px-5 border-2 border-border bg-primary-strong text-white cursor-pointer"
-                  style={{ color: '#FAF7E8' }}
+                  // Matches the game's primary CTA: bright fill, deep ink
+                  // label. The dark-fill/cream-label pairing this used to
+                  // share with `.game-btn` read as a disabled control, and
+                  // this is the button that advances every tutorial line.
+                  className="vn-continue inline-flex items-center gap-2 h-[36px] px-5 border-2 border-border bg-primary text-[#12301C] cursor-pointer"
                   aria-label={isFinalMessage ? 'Finish' : (fullyTyped ? 'Next message' : 'Reveal full message')}
                 >
                   <span className="eyebrow eyebrow-sm text-inherit">
                     {!fullyTyped ? 'Reveal' : isFinalMessage ? 'Finish' : 'Next'}
                   </span>
-                  <PixelIcon kind="arrow-right" size={11} color="#FAF7E8" />
+                  <PixelIcon kind="arrow-right" size={11} color="currentColor" />
                 </button>
               </div>
             </div>

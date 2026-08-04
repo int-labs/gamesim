@@ -102,7 +102,7 @@ export function NotebookGallery() {
         {/* h matches the ViewToggle's OUTER height so the strip aligns. */}
         <button
           onClick={() => { playSfx('click-soft'); openDrawer('left', 'details'); }}
-          className="pbtn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text border border-border-soft bg-surface"
+          className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
         >
           <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
           <span className="hidden md:inline">Details</span>

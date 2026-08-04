@@ -78,8 +78,23 @@ export function EvaluationScreen() {
   return (
     // z-[60] — must cover the sim's floating chrome underneath (EdgeDock
     // z-50, page tabs z-40) while staying under transitions/toast/VN.
-    <div className="absolute inset-0 bg-cream-50 z-[60] overflow-y-auto">
+    <div className="absolute inset-0 z-[60]">
+      {/* Same scene backdrop as the final screen — see the note there. A phase
+          debrief is a pause IN the run, not a departure from it, and a flat
+          cream fill edge to edge was the only thing in the game that made the
+          world disappear between phases. */}
+      <img
+        src={A.env.deskFull}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover"
+        draggable={false}
+      />
+      <div aria-hidden className="absolute inset-0 bg-ink-900/60" />
+      <div className="absolute inset-0 overflow-y-auto">
       <div className="max-w-[1100px] mx-auto px-6 py-6">
+        {/* One floating sheet over the scene — same reasoning as the final
+            screen: a backdrop only helps if the content keeps a surface. */}
+        <div className="pixel-frame bg-cream-50 p-4 sm:p-5">
         <div className="flex items-center gap-3 mb-4">
           <img src={A.logo} alt="int labs" className="h-10" />
           <div>
@@ -204,6 +219,8 @@ export function EvaluationScreen() {
               )}
             </PixelPanel>
           </div>
+        </div>
+      </div>
         </div>
       </div>
     </div>

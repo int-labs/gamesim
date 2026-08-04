@@ -250,7 +250,9 @@ export function HudMenu({ onOpenStats, onHelp }: Props) {
                 <button
                   type="button"
                   onClick={() => { playSfx('click'); gamesimLogout(); lockAccess(); }}
-                  className="h-[34px] px-4 border-2 border-border bg-danger btn-label-sm uppercase cursor-pointer inline-flex items-center gap-1.5"
+                  // `bg-danger` is the bright pastel — cream on it is 3.5:1.
+                  // `-strong` is the same hue darkened until cream passes.
+                  className="h-[34px] px-4 border-2 border-border bg-danger-strong btn-label-sm uppercase cursor-pointer inline-flex items-center gap-1.5"
                   style={{ color: '#FAF7E8' }}
                 >
                   <NavIcon icon={LogOut} size={12} color="#FAF7E8" />

@@ -291,7 +291,7 @@ function AmeliaVoicePicker({ open }: { open: boolean }) {
               mood: 'happy',
             });
           }}
-          className="h-[30px] px-3 border border-border bg-primary-soft text-text hover:bg-primary hover:text-[#FAF7E8] cursor-pointer eyebrow eyebrow-sm"
+          className="h-[30px] px-3 border border-border bg-primary-soft text-text hover:bg-primary hover:text-[#12301C] cursor-pointer eyebrow eyebrow-sm"
         >
           Test
         </button>

@@ -402,14 +402,24 @@ export function FinanceTable() {
             <tr className="bg-cream-200 border-b-2 border-ink-900">
               <th className="stat-label text-left py-2.5 pl-3 pr-2">Line item</th>
               {([1, 2, 3] as const).map((p) => (
+                // "You are here" is a COLUMN marker, so it reads as a rule
+                // under the heading, the way a selected tab does — not as a
+                // filled cell. The fill was `bg-info-soft`, a lavender block
+                // dropped into a table of warm creams and browns, and it
+                // highlighted one header cell rather than the column it names.
+                // The trailing "·" is gone with it: a stray dot after "P1" is
+                // not a legend anyone can read.
                 <th
                   key={p}
+                  aria-current={phaseNow === p ? 'true' : undefined}
                   className={clsx(
-                    'eyebrow eyebrow-sm text-right py-2.5 px-2 w-[78px]',
-                    phaseNow === p ? 'eyebrow-strong bg-info-soft' : 'eyebrow-muted',
+                    'eyebrow eyebrow-sm text-right py-2.5 px-2 w-[78px] border-b-4',
+                    phaseNow === p
+                      ? 'eyebrow-strong border-primary bg-cream-100'
+                      : 'eyebrow-muted border-transparent',
                   )}
                 >
-                  {phaseNow === p ? `P${p} ·` : `P${p}`}
+                  {`P${p}`}
                 </th>
               ))}
               <th className="stat-label text-text text-right py-2.5 pl-2 pr-3 w-[92px]">Total</th>
