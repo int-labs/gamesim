@@ -115,7 +115,7 @@ export default {
           5: 'var(--c-fin-profit)',
           6: 'var(--c-secondary)',
         },
-        brand: { 500: '#9b56c8', 400: '#c87bd9', 300: '#e29bd2' },
+        brand: { 500: '#954CC5', 400: '#c87bd9', 300: '#e29bd2' },
       },
       boxShadow: {
         // Softer, more restrained pixel shadows

@@ -39,8 +39,8 @@
 
   /* Ink / text */
   --c-text:         #2A1E12;   /* primary ink — slightly deeper */
-  --c-text-2:       #40301B;   /* secondary text — darkened for contrast */
-  --c-text-3:       #5C4A30;   /* tertiary / hint — darkened (was too faint) */
+  --c-text-2:       #3B2C19;   /* secondary text — ~12.5:1 cream, 7.8:1 caramel */
+  --c-text-3:       #493925;   /* tertiary / hint — ~10.3:1 cream, 6.4:1 caramel */
 
   /* Outlines */
   --c-border:       #2A1E12;   /* default ink border */
@@ -76,10 +76,10 @@
      contrast. The -ink weights are those same hues darkened to ~4.6:1, so the
      colour coding survives and the text is actually legible.
 
-     The -ink weights are tuned against the CARAMEL panel (#DEC189), not cream,
-     because coloured figures appear on both and caramel is much the darker of
-     the two. That puts them at ~4.5:1 there and ~7.3:1 on cream — comfortably
-     legible everywhere rather than only on the lighter surface.
+     The bar is >= 4.5:1 on EVERY light surface in the theme — cream, caramel,
+     the muted desk tone AND each state's own -soft tint. Tuning against caramel
+     alone left success/warning/danger/info at 4.47-4.48 on their own chips, i.e.
+     failing exactly where a coloured word most often sits.
 
      `info` is plum rather than the old sky blue (#6892C9). This palette is
      walnut, caramel, cream, sage and amber; a cold pastel blue read as an
@@ -88,16 +88,16 @@
      family as the Int Labs mark. */
   --c-success:      #6FBB85;
   --c-success-soft: #D4ECDB;
-  --c-success-ink:  #2B5B39;
+  --c-success-ink:  #0F4C29;
   --c-warning:      #DDA655;
   --c-warning-soft: #F3DEB7;
-  --c-warning-ink:  #6E4B16;
+  --c-warning-ink:  #6B3F0A;
   --c-danger:       #CB6356;
   --c-danger-soft:  #F1CCC4;
-  --c-danger-ink:   #8C362B;
+  --c-danger-ink:   #8A1717;
   --c-info:         #8E6CAC;
   --c-info-soft:    #E1D6EB;
-  --c-info-ink:     #614779;
+  --c-info-ink:     #604479;
 
   /* Finance — same three-weight rule as the semantic colours above. The bright
      values tint chart marks, icon strokes and borders; the -ink values are the
@@ -109,12 +109,12 @@
   --c-fin-cash:     #8E6CAC;
   --c-fin-inventory:#B98B5A;
   --c-fin-demand:   #B98BD4;
-  --c-fin-revenue-ink:   #2B5B39;
-  --c-fin-cost-ink:      #8C362B;
-  --c-fin-profit-ink:    #2E5A42;
-  --c-fin-cash-ink:      #62467C;
-  --c-fin-inventory-ink: #6A4C2D;
-  --c-fin-demand-ink:    #713794;
+  --c-fin-revenue-ink:   #2A5938;
+  --c-fin-cost-ink:      #89352A;
+  --c-fin-profit-ink:    #2D5841;
+  --c-fin-cash-ink:      #604479;
+  --c-fin-inventory-ink: #674A2C;
+  --c-fin-demand-ink:    #6F3690;
 }
 
 html, body, #root {

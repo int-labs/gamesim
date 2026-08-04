@@ -179,7 +179,7 @@ function Lp({ t, body, index }: { t: string; body: string; index: number }) {
       transition={{ duration: 0.35, delay: 0.3 + index * 0.07, ease: 'easeOut' }}
       className="flex items-center gap-2 border-2 border-ink-900 bg-cream-100 px-2.5 py-2 text-left shadow-pixel-soft cursor-default"
     >
-      <span className="shrink-0 bg-brand-500 px-1.5 py-0.5 eyebrow eyebrow-sm text-inherit leading-none text-cream-50">
+      <span className="shrink-0 bg-brand-500 px-1.5 py-0.5 eyebrow eyebrow-sm leading-none text-cream-50">
         {t}
       </span>
       <span className="font-body hint leading-tight text-ink-900">{body}</span>

@@ -142,10 +142,10 @@ export function PhaseActionBar() {
             <PixelIcon kind="phase" size={12} color="var(--c-border)" />
           </span>
           <div className="flex flex-col leading-tight min-w-0">
-            <span className="eyebrow eyebrow-sm text-[#9A7B4F]">Current Phase</span>
+            <span className="eyebrow eyebrow-sm text-[#9F7F52]">Current Phase</span>
             <span className="hint text-[#E8DCBE] truncate">
               Day <span className="num-xs">{day}</span> / 90
-              <span className="text-[#9A7B4F]"> · </span>
+              <span className="text-[#9F7F52]"> · </span>
               <span className="tabular-nums">{daysLeft}d</span> left
               <span className="hidden sm:inline"> in Phase {phase}</span>
             </span>

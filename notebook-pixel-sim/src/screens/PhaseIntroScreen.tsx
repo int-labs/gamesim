@@ -202,7 +202,7 @@ export function PhaseIntroScreen() {
                 initial={reduced ? false : { scale: 1.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.34, duration: 0.4, ease: [0.2, 1.7, 0.3, 1] }}
-                className="inline-block bg-brand-500 px-2 py-1 eyebrow eyebrow-sm text-inherit text-cream-50"
+                className="inline-block bg-brand-500 px-2 py-1 eyebrow eyebrow-sm text-cream-50"
               >
                 Round {phase}
               </motion.span>
@@ -241,7 +241,7 @@ export function PhaseIntroScreen() {
                   whole two-line block, so it floated above the title's cap and
                   read as detached from the text it belongs to. */}
               <div className="flex items-center gap-2.5">
-                <span className="shrink-0 bg-primary-strong px-1.5 py-0.5 eyebrow eyebrow-sm text-inherit leading-none text-cream-50">
+                <span className="shrink-0 bg-primary-strong px-1.5 py-0.5 eyebrow eyebrow-sm leading-none text-cream-50">
                   {info.learningFocus}
                 </span>
                 <div className="item-name text-text min-w-0 truncate">{lp.title}</div>
