@@ -185,3 +185,84 @@ export function StandingsBump({
     </div>
   );
 }
+
+
+/* ────────────────────────── How runs finished ─────────────────────────── */
+
+export interface RunRow {
+  teamId: string;
+  total: number;
+  netProfit: number;
+  inventory: number;
+  insight: number;
+  netDollar: number;
+  cleanliness: number;
+  shopName?: string | null;
+  route?: string | null;
+}
+
+/**
+ * Each team's own run outcome, broken into the rubric it was scored on.
+ *
+ * ── WHY THIS SITS APART FROM THE OTHER FIGURES ──────────────────────────────
+ * The charts above come from the SERVER (calcMarketModel / calcFinancials).
+ * These come from the PLAYER's engine. The two models genuinely differ and
+ * always will — that is documented behaviour, not drift — so they are never
+ * mixed into one figure and the heading says which is which. Presenting them
+ * as one number would invent a precision neither model has.
+ *
+ * The stacked bar is the rubric from the design PDF: Net Profit 50 ·
+ * Inventory Cleanliness 25 · Insight 25.
+ */
+export function RunOutcomes({
+  runs,
+  teams,
+}: {
+  runs: RunRow[];
+  teams: { _id: string; teamName: string; avatar?: { url?: string } | null }[];
+}) {
+  const nameOf = new Map(teams.map((t) => [String(t._id), t.teamName]));
+  const avatarOf = new Map(teams.map((t) => [String(t._id), t.avatar?.url ?? null]));
+
+  if (runs.length === 0) {
+    return (
+      <p className="py-8 text-center text-[13px] text-muted-foreground">
+        No team has finished a run yet — these appear as teams reach day 90.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="space-y-2.5">
+      {[...runs].sort((a, b) => b.total - a.total).map((r) => {
+        const name = nameOf.get(String(r.teamId)) ?? r.shopName ?? "Unknown team";
+        return (
+          <li key={r.teamId} className="flex items-center gap-3">
+            <Avatar name={name} src={avatarOf.get(String(r.teamId))} size="sm" />
+            <div className="w-32 shrink-0">
+              <div className="truncate text-[13px] font-medium text-foreground">{name}</div>
+              {r.shopName && r.shopName !== name && (
+                <div className="truncate text-[11px] text-muted-foreground">{r.shopName}</div>
+              )}
+            </div>
+
+            {/* One bar, three segments — the rubric's own weighting is the
+                shape, so a team can see WHERE its hundred came from. */}
+            <div className="flex h-6 flex-1 overflow-hidden rounded-md bg-muted">
+              <div className="bg-success" style={{ width: `${r.netProfit}%` }} title="Net profit /50" />
+              <div className="bg-navy-400" style={{ width: `${r.inventory}%` }} title="Inventory /25" />
+              <div className="bg-primary" style={{ width: `${r.insight}%` }} title="Insight /25" />
+            </div>
+
+            <span className="w-24 shrink-0 text-right text-[12.5px] tnum text-muted-foreground">
+              {money(r.netDollar)}
+            </span>
+            <span className="w-14 shrink-0 text-right text-[14px] font-semibold tnum text-foreground">
+              {Math.round(r.total)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

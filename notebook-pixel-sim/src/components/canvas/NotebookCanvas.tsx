@@ -24,6 +24,7 @@ import { DismissibleTip } from '@/components/hud/DismissibleTip';
 import { DustMotes } from '@/components/fx/DustMotes';
 import { PixelBurstLayer } from '@/components/fx/PixelBurst';
 import { playSfx } from '@/audio/audioManager';
+import { useDroppable } from '@dnd-kit/core';
 
 /**
  * NotebookCanvas — the FULL-BLEED stage. The desk artwork fills the entire
@@ -49,6 +50,9 @@ export function NotebookCanvas() {
   // not `product.size` — that legacy field is written once at line creation and
   // never updated, so scaling from it meant picking B4 changed nothing.
   const drawnSize = lineSize(product);
+  // Drop target for tiles dragged out of the Add-ons drawer (ProductPage owns
+  // the DndContext).
+  const { isOver, setNodeRef: setDropRef } = useDroppable({ id: 'notebook-canvas' });
   const hasNotebook = useGame((s) => s.portfolio.productLines.length > 0);
   const apply = useGame((s) => s.apply);
   const segment = useGame((s) => (product?.targetSegment ?? s.market.targetSegment));
@@ -254,7 +258,25 @@ export function NotebookCanvas() {
           >
             {/* pat squash-and-stretch */}
             <motion.div animate={patCtrl} style={{ transformOrigin: '50% 85%' }}>
-              <div className="relative" style={{ width: 'min(48vw, 520px)', maxWidth: '100%', aspectRatio: '1 / 1' }}>
+              <div ref={setDropRef} className="relative" style={{ width: 'min(48vw, 520px)', maxWidth: '100%', aspectRatio: '1 / 1' }}>
+                {/* Drop affordance. TRANSLUCENT on purpose: the notebook IS the
+                    drop target, so an opaque fill covers the very thing the
+                    player is aiming at and reads as the canvas going blank.
+                    The literal rgba() is also deliberate — a Tailwind /alpha
+                    suffix on a hex CSS-var token renders fully transparent in
+                    this codebase. The hint sits at the top, clear of the hero. */}
+                {isOver && (
+                  <div
+                    aria-hidden
+                    className="absolute inset-3 z-10 border-2 border-dashed border-success pointer-events-none flex items-start justify-center pt-5"
+                    style={{ background: 'rgba(111,187,133,0.14)' }}
+                  >
+                    <span className="inline-flex items-center gap-1.5 stat-label text-success bg-surface px-3 py-1.5 border-2 border-success shadow-[2px_2px_0_0_var(--c-shadow)]">
+                      <PixelIcon kind="plus" size={11} color="var(--c-success-ink)" />
+                      Drop to place
+                    </span>
+                  </div>
+                )}
                 <Notebook
                   archetype={product.archetype}
                   cover={product.cover}

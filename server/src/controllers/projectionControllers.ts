@@ -4,6 +4,7 @@ import Product from "../models/Products";
 import Projection from "../models/Projections";
 import { ROLES } from "../constants/roles";
 import BaseData from "../models/BaseData";
+import Round from "../models/rounds";
 import { calcFinancials, ProductField, BaseVariables } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
@@ -90,6 +91,34 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
 
     if (!simulationId || !simulationTypeId || !teamId || roundNumber === undefined) {
       res.status(400).json({ message: "simulationId, simulationTypeId, teamId, and roundNumber are required." });
+      return;
+    }
+
+    /**
+     * ── A CALCULATED ROUND IS READ-ONLY ─────────────────────────────────
+     * Despite the name, this route is NOT a read-only what-if: it upserts
+     * `Projections` on the same `{simulationId, teamId, roundNumber}` key and
+     * `$set`s the whole `projections.<productId>` sub-object that the round
+     * close writes.
+     *
+     * Its payload has no `marketShare`, so running it against an already
+     * calculated round silently strips the COMPETED share and replaces the
+     * official financials with the team's own self-declared what-if numbers —
+     * quietly rewriting a scored result with a worse one. The console's
+     * standings would keep working and simply be wrong.
+     *
+     * The round's own status is the authority: a `Completed` round has been
+     * scored, so recalculation is refused rather than allowed to overwrite it.
+     */
+    const round = await Round.findOne({ simulationId, roundNumber });
+    if (round?.status === "Completed") {
+      res.status(409).json({
+        message:
+          "Round " +
+          roundNumber +
+          " has already been scored. Recalculating would overwrite its official " +
+          "results with a what-if projection.",
+      });
       return;
     }
 

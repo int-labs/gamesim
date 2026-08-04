@@ -181,6 +181,30 @@ test.describe("console", () => {
     await expect(rows.first()).toBeVisible({ timeout: 20_000 });
   });
 
+  test("shows the debrief's evidence, not just its prose", async ({ page }) => {
+    await page.goto("/debrief");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+    // The section a facilitator writes FROM. If the figures stop rendering the
+    // page silently degrades to the text editor it used to be.
+    await expect(page.getByText("What the rounds showed")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("Revenue, and what each team kept")).toBeVisible();
+
+    // The player's rubric is shown separately and SAYS it is a different
+    // model — averaging the two would invent precision neither has.
+    await expect(page.getByText("How each run finished")).toBeVisible();
+    await expect(page.getByText(/not the competitive scorer above/)).toBeVisible();
+  });
+
+  test("refuses to leak a rival's run report to a team token", async ({ page }) => {
+    const api = process.env.VITE_GAMESIM_API_URL ?? "http://localhost:5000/api";
+    const res = await page.request.get(`${api}/run-reports?simulationId=x`, {
+      headers: { Authorization: "Bearer not-a-real-token" },
+      failOnStatusCode: false,
+    });
+    expect([401, 403]).toContain(res.status());
+  });
+
   test("refuses to leak live progress to a team token", async ({ page }) => {
     // A team asking for this is asking for every rival's cash position
     // mid-round — the thing the game is about discovering.

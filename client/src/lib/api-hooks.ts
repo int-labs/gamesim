@@ -359,6 +359,21 @@ export function useDrivers(productId?: string) {
 }
 
 /**
+ * Every team's filed run outcome.
+ *
+ * Distinct from `useResults` (how teams compared) and `useCohortProjections`
+ * (the server's financials) — this is what the PLAYER's own engine produced,
+ * which is the only place the design PDF's rubric actually exists.
+ */
+export function useRunReports(simulationId?: string, roundNumber?: number) {
+  return useQuery({
+    queryKey: ["run-reports", simulationId, roundNumber],
+    queryFn: () => list<any>(api.getRunReports(simulationId!, roundNumber)),
+    enabled: !!simulationId,
+  });
+}
+
+/**
  * Live progress for every team in the open round.
  *
  * Polled fast: this is the only view that answers "who needs help right now",
@@ -586,6 +601,19 @@ export const globalInputCrud = crud({
   create: (d) => api.createGlobalInput(d),
   update: (id, d) => api.updateGlobalInput(id, d),
   remove: (id) => api.deleteGlobalInput(id),
+});
+
+/**
+ * Simulations were create-and-delete only: an operator could start a cohort but
+ * never rename it, change its status, or move its dates. `updateSimulation`
+ * existed on the server and in api.ts the whole time with nothing calling it.
+ */
+export const simulationCrud = crud({
+  noun: "Simulation",
+  key: ["simulations"],
+  create: (d) => api.createSimulation(d),
+  update: (id, d) => api.updateSimulation(id, d),
+  remove: (id) => api.deleteSimulation(id),
 });
 
 export const teamCrud = crud({

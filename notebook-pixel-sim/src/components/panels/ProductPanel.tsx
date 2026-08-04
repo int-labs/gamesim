@@ -17,6 +17,7 @@ import { SafeImage } from '@/components/primitives/SafeImage';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
+import { useDraggable } from '@dnd-kit/core';
 
 // Tooltip copy for each material/binding/size/paper option — explains
 // trade-offs so the player learns what each choice DOES, not just
@@ -294,16 +295,26 @@ function AddOnTile({
   capReached: boolean;
   onToggle: () => void;
 }) {
-  // Pure toggle button now — no drag. catLocked (same-category sibling) swaps
-  // automatically on click; the only hard block is the 3-add-on cap.
+  // Both gestures at once: a plain click still toggles, and a 4px pointer move
+  // (the DndContext's activationConstraint, set in ProductPage) promotes the
+  // same press into a drag onto the notebook.
   const disabled = !placed && capReached;
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `addon-tile-${def.id}`,
+    data: { defId: def.id },
+    disabled,
+  });
   return (
     <button
+      ref={setNodeRef}
       type="button"
       disabled={disabled}
       onClick={onToggle}
+      {...attributes}
+      {...listeners}
       className={clsx(
-        'ctl-btn group relative border p-2.5 flex flex-col items-center gap-1.5 select-none',
+        'ctl-btn group relative border p-2.5 flex flex-col items-center gap-1.5 select-none touch-none',
+        isDragging && 'opacity-60 scale-105 shadow-pixel-2',
         placed
           ? 'bg-success-soft border-success'
           : disabled

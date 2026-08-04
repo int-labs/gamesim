@@ -1,11 +1,12 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { MonitorPlay, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { MonitorPlay, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { CopyChip, EntityCell, IconTile, SimulationStatusChip } from "@/components/app/bits";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { DataTable } from "@/components/app/data-table";
 import { EmptyState } from "@/components/app/feedback";
 import { PageHeader } from "@/components/app/page-header";
+import { ResourceFormDialog, type FormField } from "@/components/app/resource-form";
 import { StatCard } from "@/components/app/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
 import { IconButton } from "@/components/ui/icon-button";
 import { Label } from "@/components/ui/primitives";
 import {
+  simulationCrud,
   useCreateSimulation,
   useDeleteSimulation,
   useSimulationTypes,
@@ -39,6 +41,21 @@ import { useScope } from "@/lib/scope-store";
 function CreateSimulationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { data: types = [] } = useSimulationTypes();
   const create = useCreateSimulation();
+  const update = simulationCrud.useUpdate();
+  const [editing, setEditing] = React.useState<any>(null);
+
+  const editFields = React.useMemo<FormField[]>(
+    () => [
+      { key: "simulationName", label: "Name", required: true, wide: true,
+        help: "What this cohort is called everywhere in the console." },
+      { key: "status", label: "Status", kind: "select", required: true,
+        options: ["Active", "Inactive", "Completed"].map((v) => ({ value: v, label: v })),
+        help: "A debrief only unlocks for teams once the simulation is Completed." },
+      { key: "startDate", label: "Starts", kind: "text", placeholder: "YYYY-MM-DD" },
+      { key: "endDate", label: "Ends", kind: "text", placeholder: "YYYY-MM-DD" },
+    ],
+    []
+  );
 
   const [form, setForm] = React.useState({
     simulationName: "",
@@ -286,6 +303,9 @@ export default function SimulationsPage() {
                 >
                   <MonitorPlay /> Set as active scope
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setEditing(row.original)}>
+                  <Pencil /> Edit simulation
+                </DropdownMenuItem>
                 <DropdownMenuItem destructive onSelect={() => setPendingDelete(row.original)}>
                   <Trash2 /> Delete
                 </DropdownMenuItem>
@@ -295,7 +315,7 @@ export default function SimulationsPage() {
         ),
       },
     ],
-    [typeName, setScope]
+    [typeName, setScope, setEditing]
   );
 
   const activeCount = data.filter((s: any) => s.status === "Active").length;
@@ -344,6 +364,17 @@ export default function SimulationsPage() {
       />
 
       <CreateSimulationDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      <ResourceFormDialog
+        open={!!editing}
+        onOpenChange={(v) => !v && setEditing(null)}
+        title={`Edit ${editing?.simulationName ?? "simulation"}`}
+        description="Renaming is safe at any time. Moving to Completed is what unlocks the debrief for teams."
+        fields={editFields}
+        initial={editing}
+        submitting={update.isPending}
+        onSubmit={(values) => update.mutateAsync({ id: editing._id, data: values })}
+      />
 
       <ConfirmDialog
         open={!!pendingDelete}

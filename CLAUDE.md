@@ -92,6 +92,22 @@ Standings are unaffected — `calcMarketModel` doesn't use `dynamicPrice` — wh
 
 This is a **provisioning** problem, not an engine bug: `provision-notebook.mjs` creates a field set the financial model can't price. Fixing it means giving the product a money field that represents per-unit investment (or a competitive weight above zero on an existing one) and recalculating. That is a game-design decision, so it has deliberately not been made here — the console now **detects and explains it** on the Debrief instead of letting a facilitator read a misconfiguration as twelve bad teams.
 
+### Three different numbers, and none of them is the others
+
+It is now possible to ask "how did that team do?" three ways, and conflating them is the easiest mistake in this codebase:
+
+| Source | What it answers | Written by |
+|---|---|---|
+| `Results` | How teams compared — weighted score, share/rank | `calcMarketModel`, at round close |
+| `Projections` | The server's financials — revenue, COGS, gross profit | `calcFinancials`, at round close |
+| `TeamRunReport` | What the team's OWN 90-day run produced | The player, when it reaches day 90 |
+
+`TeamRunReport` carries the design PDF's rubric — Net Profit 50 · Inventory Cleanliness 25 · Insight 25 — which exists **only** in the player's FinLit engine; the server has no notion of it. Storing it does not make it authoritative for anything competitive, and nothing scores from it. The debrief shows it in its own section, labelled, precisely so the two models are never averaged into one figure that neither supports.
+
+Rubric components are **clamped server-side** to the ranges the PDF fixes (a forged 150/100 lands as 100), but `netDollar` deliberately is not — a real run can end deeply negative, and hiding that removes the most instructive outcome in the room.
+
+Both `/team-progress` and `/run-reports` take `teamId`/`simulationId` **from the token**, never the body. A team writing or reading another team's row is not a request a correct client can make.
+
 ### The debrief shows the data, not just the write-up
 
 `client/src/features/debrief/` computes its figures live from scored rounds rather than storing them, so the prose can go stale but the numbers can't. `cohort-data.ts` is pure and holds the derivations; `cohort-charts.tsx` draws them as hand-built SVG, matching the rest of the console.

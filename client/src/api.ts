@@ -229,6 +229,11 @@ export const createDiceBearAvatar = (style: string, seed: string, label?: string
   api.post("/avatars/dicebear", { style, seed, label });
 
 // ── Round notes ────────────────────────────────────────────────
+/** How each team's own 90-day run finished — the player's rubric, not the
+ *  competitive score. Staff see the cohort; a team sees only itself. */
+export const getRunReports = (simulationId: string, roundNumber?: number) =>
+  api.get("/run-reports", { params: { simulationId, ...(roundNumber != null ? { roundNumber } : {}) } });
+
 /** Live per-team progress while a round is open. Staff only. */
 export const getTeamProgress = (simulationId: string, roundNumber?: number) =>
   api.get("/team-progress", { params: { simulationId, ...(roundNumber != null ? { roundNumber } : {}) } });

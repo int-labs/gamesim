@@ -30,6 +30,7 @@ import { Label, Skeleton, StatusDot } from "@/components/ui/primitives";
 import {
   useCohortProjections,
   useResults,
+  useRunReports,
   useSimulations,
   useTeams,
 } from "@/lib/api-hooks";
@@ -39,7 +40,7 @@ import {
   headlineSpread,
   revenueLooksMisconfigured,
 } from "./cohort-data";
-import { RevenueVsProfit, StandingsBump } from "./cohort-charts";
+import { RevenueVsProfit, RunOutcomes, StandingsBump } from "./cohort-charts";
 import { money as fmtMoney, relativeTime } from "@/lib/format";
 import { useScope } from "@/lib/scope-store";
 
@@ -88,6 +89,7 @@ function DebriefEditor() {
   // the facilitator writes prose, the data stays true on its own.
   const cohortProjections = useCohortProjections(simulationId ?? undefined);
   const cohortResults = useResults(simulationId ?? undefined);
+  const runReports = useRunReports(simulationId ?? undefined);
 
   const teamRefs = React.useMemo(() => teams, [teams]);
   const moneyRows = React.useMemo(
@@ -283,6 +285,18 @@ function DebriefEditor() {
             they kept, not what they billed.
           </p>
           <RevenueVsProfit money={moneyRows} />
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <h3 className="mb-2 text-[13px] font-semibold text-foreground">
+            How each run finished
+          </h3>
+          <p className="mb-3 text-[12px] text-muted-foreground">
+            The player's own rubric — net profit out of 50, inventory cleanliness out of 25,
+            insight out of 25. These come from the team's own engine, not the competitive
+            scorer above, and the two models genuinely differ.
+          </p>
+          <RunOutcomes runs={(runReports.data ?? []) as any} teams={teamRefs} />
         </div>
 
         <div className="border-t border-border pt-4">

@@ -11,6 +11,7 @@ import {
 import * as gamesim from './client';
 import { hydratePlayerConfig } from './configHydrator';
 import { useGame } from '@/state/store';
+import { computeFinalScore } from '@/engine/mockEngine';
 import { PassKeyScreen } from '@/components/passkey/PassKeyScreen';
 import { GamesimStatusScreen } from '@/components/gamesim/GamesimStatusScreen';
 import {
@@ -310,6 +311,42 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     // moment the run moves, not because the effect body reads them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, bootstrap?.round?._id, runDay, runPhase, runEnded]);
+
+  // ── Run report ────────────────────────────────────────────────────────
+  //
+  // Filed once, when the team's own 90-day run finishes. This is the player's
+  // rubric (Net Profit 50 · Inventory 25 · Insight 25), NOT the competitive
+  // score — `Results` and `Projections` remain authoritative for anything
+  // teams are ranked on. It exists so the debrief can show what a team
+  // actually experienced rather than only where it placed.
+  const filedFor = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (status !== 'ready' || !bootstrap?.round || !runEnded) return;
+
+    const round = bootstrap.round.roundNumber;
+    // Once per round: `ended` stays true for the rest of the session, and this
+    // effect re-runs on every unrelated dependency change.
+    if (filedFor.current === round) return;
+    filedFor.current = round;
+
+    const s = useGame.getState();
+    const score = computeFinalScore(s);
+    void gamesim.reportRunResult({
+      roundNumber: round,
+      total: score.total,
+      netProfit: score.netProfit,
+      inventory: score.inventory,
+      insight: score.insight,
+      netDollar: score.netDollar,
+      cleanliness: score.cleanliness,
+      route: s.meta.route,
+      obligationMet: score.obligationMet,
+      insightsCorrect: s.insights.score.correct,
+      insightsTotal: s.insights.score.total,
+      shopName: s.meta.shopName,
+    });
+  }, [status, bootstrap?.round?._id, runEnded]);
 
   const latestOf = <T extends { roundNumber: number }>(byRound: Record<number, T>): T | null => {
     const rounds = Object.keys(byRound).map(Number);
