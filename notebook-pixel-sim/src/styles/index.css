@@ -277,10 +277,15 @@ button {
   .stat-label {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 600;
-    font-size: 11px;
+    /* 10px, and it never wraps. A caption that takes two lines stops being a
+       caption — it competes with the figure below it and pushes every chip in
+       the row to a different height. `truncate` alone was not enough because
+       the label would wrap BEFORE it overflowed. */
+    font-size: 10px;
     line-height: 1.15;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    white-space: nowrap;
     color: var(--c-text-3);
   }
   /* On a coloured chip the muted grey goes muddy — inherit the chip's ink. */

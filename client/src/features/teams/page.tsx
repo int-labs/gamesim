@@ -245,7 +245,24 @@ function TeamsTable() {
         header: "Members",
         size: 150,
         enableSorting: false,
-        cell: ({ row }) => <MemberStack members={row.original.members} />,
+        // Clickable: the avatars were the only hint a team HAD members, with
+        // no way to reach them except a menu item three clicks away.
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setRosterTeam(row.original);
+            }}
+            title={`Open ${row.original.teamName}'s roster`}
+            className="flex items-center rounded-md px-1 py-0.5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <MemberStack members={row.original.members} />
+            <span className="ml-2 text-[12px] text-muted-foreground">
+              {row.original.members?.length ?? 0}
+            </span>
+          </button>
+        ),
       },
       {
         accessorKey: "score",
@@ -325,7 +342,7 @@ function TeamsTable() {
         },
       },
     ],
-    [passkeyFor, issue]
+    [passkeyFor, issue, setRosterTeam]
   );
 
   const avgScore = data.length

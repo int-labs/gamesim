@@ -128,7 +128,13 @@ function CreateRoundDialog({
   );
 }
 
-function RoundsTable() {
+function RoundsTable({
+  createOpen,
+  setCreateOpen,
+}: {
+  createOpen: boolean;
+  setCreateOpen: (v: boolean) => void;
+}) {
   const { simulationId } = useScope();
   const { data: rounds = [], isLoading, isError, refetch } = useRounds(simulationId ?? undefined);
   const { data: teams = [] } = useTeams(simulationId ?? undefined);
@@ -138,7 +144,6 @@ function RoundsTable() {
   const endRound = useEndRound();
   const del = useDeleteRound();
 
-  const [createOpen, setCreateOpen] = React.useState(false);
   const [pendingDelete, setPendingDelete] = React.useState<any>(null);
   const [pendingCalc, setPendingCalc] = React.useState<any>(null);
   const [pendingEnd, setPendingEnd] = React.useState<any>(null);
@@ -288,11 +293,6 @@ function RoundsTable() {
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <Button shape="pill" onClick={() => setCreateOpen(true)}>
-          <Plus /> Create round
-        </Button>
-      </div>
 
       <DataTable
         columns={columns}
@@ -384,6 +384,10 @@ function SubmissionCell({ roundNumber, teams }: { roundNumber: number; teams: nu
 
 export default function RoundsPage() {
   const { simulationName } = useScope();
+  // Owned here so the primary action can sit on the title's line rather than
+  // in a band of its own below the header.
+  const [createOpen, setCreateOpen] = React.useState(false);
+
   return (
     <>
       <PageHeader
@@ -393,9 +397,14 @@ export default function RoundsPage() {
             ? `Decision windows for ${simulationName}. Starting a round opens it for team submissions.`
             : "Decision windows for the active simulation."
         }
+        actions={
+          <Button shape="pill" onClick={() => setCreateOpen(true)}>
+            <Plus /> Create round
+          </Button>
+        }
       />
       <ScopeGuard>
-        <RoundsTable />
+        <RoundsTable createOpen={createOpen} setCreateOpen={setCreateOpen} />
       </ScopeGuard>
     </>
   );

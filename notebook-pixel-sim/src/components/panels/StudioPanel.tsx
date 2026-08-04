@@ -194,7 +194,7 @@ export function StudioPanel() {
                   <img
                     src={CHANNEL_ICON[ch]}
                     alt=""
-                    className="w-10 h-10 object-contain shrink-0"
+                    className="w-14 h-14 object-contain shrink-0"
                     style={{ imageRendering: 'pixelated' }}
                     draggable={false}
                   />
