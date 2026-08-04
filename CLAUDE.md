@@ -94,6 +94,27 @@ Giving `unit_cost` a direction above zero fixes it, and is **safe**: the two cod
 
 What remains is calibration, not code. Demand falls off steeply with the ratio of price to reference — measured on real data: **1.7× → 62 customers, 2.4× → 0.5 customers.** The seeded demo cohort prices in that range, so it posts losses. The model is punishing overpricing, which is the pedagogy; whether the seed's prices are sensible is a game-balance decision.
 
+### The remaining calibration gap: production is not tied to demand
+
+With a price reference in place (above) revenue flows — the demo cohort went from **$0 to $203k** with 13,000 customers. It still posts a loss, and the reason is upstream of pricing:
+
+```ts
+// calcFinancials.ts — production volume, derived not decided
+const inventoryQty = productFields
+  .filter(f => f.direction != null && f.key !== SELLING_PRICE_KEY)
+  .reduce((acc, field) => { … }, INVENTORY_BASE) * inventoryAugmentation;
+```
+
+`inventoryQty` is a **formula over the decision fields**, seeded from `INVENTORY_BASE`. No team decides how much to make, and nothing in it references expected demand — so teams produce ~795 units per line and sell ~100, and COGS is charged on the full production run. The cohort's COGS ($305k) does not move when pricing improves, because it never depended on sales.
+
+That is a **game-design decision, not a defect**, and it has deliberately not been guessed at here. Three coherent answers exist:
+
+1. Give teams a production-quantity decision field, so over/under-production becomes the lever the pedagogy says it is (the player's own engine already works this way — see its inventory-cleanliness score).
+2. Derive `inventoryQty` from projected demand rather than from `INVENTORY_BASE`.
+3. Recognise COGS at *sale* rather than at production, matching the player's engine (`notebook-pixel-sim` charges COGS on sale — see `engine/scoring.ts`'s note on `inventory-purchase` being an asset swap).
+
+Until one is chosen, a scored round shows real revenue and a structural loss. The debrief will show it truthfully; the numbers are not wrong, the model is unbalanced.
+
 ### PATCH must mean partial
 
 `PATCH /products/:id/fields/:fieldId` built its `$set` from all eleven properties unconditionally. Mongoose strips `undefined` from an update so most absent fields survived by luck — but `unitCost` was written as `unitCost ?? null`, turning "not sent" into an explicit null and defeating that stripping.
