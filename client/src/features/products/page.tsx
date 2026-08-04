@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Package, Pencil, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { ActiveChip, CopyChip, EntityCell, IconTile } from "@/components/app/bits";
+import { guessGenreId, resolveArt } from "@/lib/player-assets";
 import { DataTable } from "@/components/app/data-table";
 import { EmptyState } from "@/components/app/feedback";
 import { PageHeader } from "@/components/app/page-header";
@@ -20,6 +21,7 @@ import {
   useProducts,
   useSegments,
 } from "@/lib/api-hooks";
+import { usePlayerConfig } from "@/lib/player-config-hooks";
 
 /**
  * Products — full CRUD.
@@ -32,6 +34,14 @@ export default function ProductsPage() {
   const { data = [], isLoading, isError, refetch } = useProducts();
   const { data: segments = [] } = useSegments();
   const typeId = useActiveSimulationTypeId();
+
+  // The cover art lives in the player and is resolved by convention from the
+  // genre id, so the genre list is what lets the console show it at all.
+  const config = usePlayerConfig(typeId ?? undefined);
+  const genreIds = React.useMemo<string[]>(
+    () => ((config.data as any)?.config?.genres ?? []).map((g: any) => String(g.id)),
+    [config.data]
+  );
 
   const crud = useResourceCrud<any>();
   const create = productCrud.useCreate();
@@ -82,13 +92,32 @@ export default function ProductsPage() {
       {
         accessorKey: "productName",
         header: "Product",
-        cell: ({ row }) => (
-          <EntityCell
-            leading={<IconTile icon={<Package />} tone="success" />}
-            primary={row.original.productName}
-            secondary={row.original.productType ?? <CopyChip value={row.original._id} />}
-          />
-        ),
+        cell: ({ row }) => {
+          const art = resolveArt(row.original, guessGenreId(row.original.productName, genreIds));
+          return (
+            <EntityCell
+              leading={
+                art ? (
+                  <img
+                    src={art}
+                    alt=""
+                    // The art is the product's own cover; if it 404s (a genre
+                    // with no PNG yet) fall back to the icon rather than
+                    // leaving a broken-image glyph in the table.
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                    className="size-9 shrink-0 rounded-md bg-muted object-cover"
+                  />
+                ) : (
+                  <IconTile icon={<Package />} tone="success" />
+                )
+              }
+              primary={row.original.productName}
+              secondary={row.original.productType ?? <CopyChip value={row.original._id} />}
+            />
+          );
+        },
       },
       {
         id: "fields",
@@ -145,7 +174,7 @@ export default function ProductsPage() {
         ),
       },
     ],
-    [segmentName, crud]
+    [segmentName, crud, genreIds]
   );
 
   const editing = crud.editing;

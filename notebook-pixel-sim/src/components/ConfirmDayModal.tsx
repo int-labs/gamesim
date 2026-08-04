@@ -60,7 +60,7 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
           spread: 70,
           startVelocity: 35,
           origin: { y: 0.45 },
-          colors: ['#5fb27a', '#e6b54a', '#9b56c8', '#5b86c2', '#e07a6a'],
+          colors: ['#5fb27a', '#e6b54a', '#9b56c8', '#8E6CAC', '#e07a6a'],
           ticks: 200,
         });
       }

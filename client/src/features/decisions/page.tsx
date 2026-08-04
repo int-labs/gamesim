@@ -103,7 +103,7 @@ function DecisionsTable() {
         size: 200,
         cell: ({ row }) => (
           <div className="flex items-center gap-2.5">
-            <Avatar name={row.original.teamName} size="md" />
+            <Avatar name={row.original.teamName} src={row.original.avatar?.url} size="md" />
             <span className="text-[13px] font-semibold text-foreground">{row.original.teamName}</span>
           </div>
         ),

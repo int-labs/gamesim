@@ -250,7 +250,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
       startVelocity: 36,
       origin: { y: 0.42 },
       colors: phaseDelta >= 0
-        ? ['#6FBB85', '#DDA655', '#9B6CD9', '#6892C9']
+        ? ['#6FBB85', '#DDA655', '#B98BD4', '#8E6CAC']
         : ['#CB6356', '#DDA655', '#8A765D'],
       ticks: 200,
     });
@@ -610,8 +610,17 @@ function Stat({
     : tone === 'warn' ? 'var(--c-warning)'
     : tone === 'info' ? 'var(--c-info)'
     : 'var(--c-text-2)';
+  // Tone has to reach the TILE, not just an 11px icon. A phase that stocked out
+  // 30 days of 30 and lost 29 sales was rendering in the same neutral panel as
+  // the revenue beside it — the one number the player most needed to notice was
+  // the one carrying no signal at all. `warn` now tints the whole chip, the way
+  // every other chip in the app already states its tone.
+  const toneChip =
+    tone === 'warn' ? 'border-warning bg-warning-soft/50'
+    : tone === 'cash' ? 'border-success/50 bg-success-soft/30'
+    : 'border-border-soft';
   return (
-    <div className="panel px-3 py-2 flex flex-col gap-0.5">
+    <div className={clsx('px-3 py-2 flex flex-col gap-0.5 border-2', toneChip)}>
       <div className="flex items-center gap-1.5">
         <PixelIcon kind={icon} size={11} color={color} />
         <span className="kpi-label">{label}</span>
@@ -727,8 +736,15 @@ function EvaluationStep({
             </span>
           </div>
           <p className="body-sm text-text leading-snug">
+            {/* A profitable phase spent entirely out of stock is not a phase
+                that "paid off" - it is money left on the table, and inventory
+                discipline is a quarter of the final rubric. Congratulating the
+                player here taught the opposite of the lesson, so a stockout
+                qualifies the headline instead of being buried in a side tile. */}
             {goodPhase
-              ? `Profit ${fmt$(summary.opProfit)} this phase - your decisions paid off.`
+              ? summary.unitsLost > 5
+                ? `Profit ${fmt$(summary.opProfit)} this phase - but you sold out on ${summary.stockoutDays} of ${summary.toDay - summary.fromDay + 1} days and turned away about ${fmtInt(summary.unitsLost)} buyers. Make more of what was already selling.`
+                : `Profit ${fmt$(summary.opProfit)} this phase - your decisions paid off.`
               : `Profit dipped (${fmt$(summary.opProfit)}). Trace it back to costs and timing in the P&L below.`}
           </p>
         </div>

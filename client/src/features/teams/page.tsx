@@ -224,7 +224,7 @@ function TeamsTable() {
                   className="size-9 shrink-0 rounded-full bg-muted object-cover"
                 />
               ) : (
-                <Avatar name={row.original.teamName} size="lg" />
+                <Avatar name={row.original.teamName} src={row.original.avatar?.url} size="lg" />
               )
             }
             primary={row.original.teamName}

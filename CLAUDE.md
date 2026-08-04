@@ -88,6 +88,24 @@ Two calibration facts worth knowing: the model assumes **12 teams** (`BASE_MARKE
 
 The values rank teams correctly, so they are fine for standings — but they are **not** a partition of the market and must never be labelled "x% of the market" anywhere an operator might repeat it to a room. The console's standings table calls the column "Strength" and says so in a footnote.
 
+### The console shows the player's art
+
+Notebook covers are resolved by **filename convention inside the player** — `genreArt()` returns `/img/notebooks/<genreId>.png` — so dropping a PNG in publishes a new notebook with no code change, and the seeded genres correctly carry `imagePath: null`.
+
+That convention is relative to the *player's* origin, so the console could never follow it: every product row rendered a generic icon while the art sat one origin away. `client/src/lib/player-assets.ts` is the join. It resolves in the player's own order (`imageAssetId` → `imagePath` → the convention) against `VITE_PLAYER_URL`, which also replaces the `http://localhost:5173` that `sim-preview` used to hardcode — that link was dead in every deployment.
+
+`Product` gained generic `imageAssetId` / `imagePath` fields rather than a notebook-specific `genreId`: a product belongs to the engine, genres belong to one game, and joining them in the schema would leak the notebook sim into every future simulation type. The genre is guessed from the product name, which returns *nothing* rather than a wrong picture when it doesn't match.
+
+### Every avatar is generated, and every surface shows it
+
+`Avatar` has always accepted a `src` — and **not one call site passed it**, so the whole console rendered initials over data that already existed. Fixed at every site; the three remaining `name`-only calls in `roster.tsx` are the fallback arms of an existing `avatar ? <img> : <Avatar>` and are correct.
+
+Two backend gaps fed it: `POST /teams` never generated an avatar (only the later roster/picker routes did, so a team created and left alone stayed faceless), and `User` had no avatar field at all. Both fixed, plus `npm run backfill-avatars` (`-- --dry` to preview, `--restyle` to re-render non-default styles) for records written before any of it.
+
+Two things found on the way: `POST /users` never read `email` out of the body, so every staff account created over the API was unable to sign in — which is why bootstrapping an admin needed its own script. And `POST /users/login` returned a narrower user than `GET /users/me`, so the avatar appeared only after a reload; the two shapes now match.
+
+A simulation is not a person — the dashboard's simulation list uses an icon tile, because initials in an avatar circle beside real generated faces read as a broken image.
+
 ### Avatars, and the Critters trap
 
 `server/src/services/avatars.ts` renders team/member avatars from DiceBear and inlines the SVG as a data URI, so a face never 404s and needs no storage.
@@ -135,6 +153,7 @@ Worth remembering as a shape: a required-field check that references something a
 - `cd server`: `npm run seed-db`, `npm run cleanup-db`, `npm run tsgen` (mongoose-tsgen), `sync-sim-type`, `update-sim-type`, `randomize-market-size`.
 - `cd server && npm run create-admin -- --email … --password …` — bootstrap a staff login (see **Auth is real** below).
 - `cd server && npm run repair-validators` — reconcile every collection's `$jsonSchema` with its model (`-- --dry` to preview). `npm run repair-images` is the older, `imageAssets`-only version.
+- `cd server && npm run backfill-avatars` — give a face to every team, member and staff account written before avatars existed (`-- --dry` to preview; `--restyle` also re-renders non-default styles).
 - `cd server && npm run sync-finlit` — re-copy the player's FinLit engine into `src/finlit/` (`-- --dry` to preview).
 - `cd server && npm run seed-demo -- --email … --password … [--reset]` — build a complete, believable cohort over the HTTP API: 12 teams with rosters and generated avatars, three rounds (two scored for real through `/rounds/:id/end`, the third left Active), facilitator notes and a published debrief. This is what makes the console demonstrable without a live class; every console page has real data behind it afterwards.
 

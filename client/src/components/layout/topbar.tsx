@@ -125,7 +125,7 @@ export function TopBar({
               type="button"
               className="flex items-center gap-2 rounded-full p-0.5 pr-2 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring outline-none"
             >
-              <Avatar name={user.email} size="lg" />
+              <Avatar name={user.email} src={user.avatar?.url} size="lg" />
               <div className="hidden text-left lg:block">
                 <div className="max-w-[180px] truncate text-[12.5px] font-semibold leading-4 text-foreground">
                   {user.email}

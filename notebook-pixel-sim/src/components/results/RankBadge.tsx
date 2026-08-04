@@ -17,7 +17,7 @@ export interface Rank {
 export function rankForScore(total: number): Rank {
   if (total >= 85) return { grade: 'S', label: 'Standout', color: '#e6b54a', confetti: 'full' };
   if (total >= 65) return { grade: 'A', label: 'Solid Run', color: '#5fb27a', confetti: 'full' };
-  if (total >= 45) return { grade: 'B', label: 'Getting There', color: '#5b86c2', confetti: 'calm' };
+  if (total >= 45) return { grade: 'B', label: 'Getting There', color: 'var(--c-fin-cash)', confetti: 'calm' };
   return { grade: 'C', label: 'Rocky Start', color: '#c2703e', confetti: 'none' };
 }
 

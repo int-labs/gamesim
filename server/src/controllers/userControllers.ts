@@ -5,6 +5,11 @@ import User from "../models/users";
 import Team from "../models/teams";
 import jwt from "jsonwebtoken";
 import { ROLES } from "../constants/roles";
+import {
+  DEFAULT_AVATAR_STYLE,
+  generateAndStoreAvatar,
+  isAvatarStyle,
+} from "../services/avatars";
 
 const SALT_ROUNDS = 10;
 
@@ -54,7 +59,16 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
 
     res.status(200).json({
       token,
-      user: { _id: user._id, email: user.email, role: user.role },
+      // Same shape as GET /users/me — the console renders the session from
+      // whichever it got first, so a field present in one and absent from the
+      // other shows up as an avatar that appears only after a reload.
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name ?? null,
+        role: user.role,
+        avatar: user.avatar ?? null,
+      },
     });
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to log in." });
@@ -87,13 +101,19 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await User.findById(userId).select("email role");
+    const user = await User.findById(userId).select("email name role avatar");
     if (!user) {
       res.status(401).json({ message: "This account no longer exists." });
       return;
     }
 
-    res.status(200).json({ _id: user._id, email: user.email, role: user.role });
+    res.status(200).json({
+      _id: user._id,
+      email: user.email,
+      name: user.name ?? null,
+      role: user.role,
+      avatar: user.avatar ?? null,
+    });
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to load account." });
   }
@@ -167,7 +187,7 @@ const generateUniquePasskey = async (simulationId: string): Promise<string> => {
 // POST /users
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { password, role, teamId } = req.body;
+    const { email, name, password, role, teamId, avatar: requestedAvatar } = req.body;
 
     if (!role) {
       res.status(400).json({ message: "role is required." });
@@ -199,14 +219,37 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       passkey      = await generateUniquePasskey(simulationId);
     }
 
+    // `email` was never read out of the body, so every staff account created
+    // over this route came back with no email — and `/users/login` matches on
+    // email, so the account could never sign in. That is why bootstrapping an
+    // admin needed its own script.
+    if (role !== ROLES.TEAM && !email) {
+      res.status(400).json({ message: "email is required for a staff account." });
+      return;
+    }
+
     const hashedPassword = await bcrypt.hash(effectivePassword, SALT_ROUNDS);
 
+    // Same treatment teams get: the server renders the avatar, so `kind` +
+    // `style` + `seed` stay the complete description and `url` is always
+    // derived. A caller-supplied url is ignored.
+    const style = isAvatarStyle(requestedAvatar?.style)
+      ? requestedAvatar.style
+      : DEFAULT_AVATAR_STYLE;
+    const avatar = await generateAndStoreAvatar(
+      style,
+      String(requestedAvatar?.seed ?? name ?? email ?? role)
+    ).catch(() => null);
+
     const user = await User.create({
+      email:        email ?? null,
+      name:         name  ?? null,
       password: hashedPassword,
       role,
       teamId:       teamId      ?? null,
       simulationId: simulationId ?? null,
       passkey:      passkey      ?? null,
+      avatar,
     });
 
     res.status(201).json(user);

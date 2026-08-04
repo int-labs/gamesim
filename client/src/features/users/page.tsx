@@ -75,7 +75,7 @@ export default function UsersPage() {
             <EntityCell
               leading={
                 u.role === "team" ? (
-                  <Avatar name={display} size="lg" />
+                  <Avatar name={display} src={row.original.avatar?.url} size="lg" />
                 ) : (
                   <IconTile icon={<UserRound />} tone={u.role === "admin" ? "brand" : "peri"} />
                 )

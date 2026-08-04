@@ -186,7 +186,7 @@ export function FinalResultsScreen() {
               <PixelPanel title="Score Breakdown" tone="paper">
                 <div className="grid grid-cols-3 gap-2">
                   <ScoreCell label="Net Profit" value={score.netProfit} max={50} color="#5fb27a" bg="bg-success-soft" delay={DATA_AT + 0.15} />
-                  <ScoreCell label="Inventory" value={score.inventory} max={25} color="#5b86c2" bg="bg-info-soft" delay={DATA_AT + 0.3} />
+                  <ScoreCell label="Inventory" value={score.inventory} max={25} color="var(--c-fin-cash)" bg="bg-info-soft" delay={DATA_AT + 0.3} />
                   <ScoreCell label="Insight" value={score.insight} max={25} color="#9b6cd9" bg="bg-brand-300" delay={DATA_AT + 0.45} />
                 </div>
               </PixelPanel>
@@ -202,7 +202,7 @@ export function FinalResultsScreen() {
                   </div>
                   <div>
                     <div className="stat-label mb-1">Profit trend</div>
-                    <PixelStepLine data={state.series.profit} stroke="#5b86c2" fill="rgba(91,134,194,0.15)" width={420} height={120} />
+                    <PixelStepLine data={state.series.profit} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.16)" width={420} height={120} />
                   </div>
                 </div>
                 <div className="mt-3">

@@ -104,7 +104,7 @@ export function EvaluationScreen() {
                 <PixelStepLine data={trend.cash} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" width={420} height={120} />
               </PixelPanel>
               <PixelPanel title="Daily profit">
-                <PixelStepLine data={trend.profit} stroke="#5b86c2" fill="rgba(91,134,194,0.15)" width={420} height={120} />
+                <PixelStepLine data={trend.profit} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.16)" width={420} height={120} />
               </PixelPanel>
             </div>
             <PixelPanel title="Cost mix this run">
@@ -113,7 +113,7 @@ export function EvaluationScreen() {
                   { label: 'Material', value: matCost, color: '#e07a6a' },
                   { label: 'Labor', value: labor, color: '#9b6cd9' },
                   { label: 'Marketing', value: marketing, color: '#e6b54a' },
-                  { label: 'Tools / upgrades', value: tools, color: '#5b86c2' },
+                  { label: 'Tools / upgrades', value: tools, color: 'var(--c-fin-cash)' },
                 ]}
                 width={520}
                 height={26}

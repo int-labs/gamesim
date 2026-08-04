@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Team from "../models/teams"; // adjust import path to match your models folder
+import { DEFAULT_AVATAR_STYLE, generateAndStoreAvatar } from "../services/avatars";
 
 // CREATE
 export const createTeam = async (req: Request, res: Response): Promise<void> => {
@@ -11,12 +12,26 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    // Give every team a face at creation.
+    //
+    // Avatars used to appear only once someone opened the roster and saved a
+    // member (PUT /:id/members) or picked a style (PUT /:id/avatar), so a team
+    // created and left alone had `avatar: null` forever and the console fell
+    // back to initials. A team is identified by its name in every list in the
+    // product; the picture is part of that, not an optional extra.
+    const avatar = await generateAndStoreAvatar(DEFAULT_AVATAR_STYLE, teamName).catch(
+      // Never fail team creation over avatar rendering — a faceless team is
+      // recoverable, a team that could not be created mid-class is not.
+      () => null
+    );
+
     const team = await Team.create({
       simulationId,
       teamName,
       teamLeader,
       score,
       marketShare,
+      avatar,
     });
 
     res.status(201).json({ data: team });

@@ -198,6 +198,8 @@ export function submissionState(round: any | undefined, teams: any[], decisions:
  */
 export function standings(results: any[], teams: any[], roundNumber?: number) {
   const name = new Map(teams.map((t) => [String(t._id), t.teamName]));
+  // Carried through so standings can show the team's face, not its initials.
+  const avatar = new Map(teams.map((t) => [String(t._id), t.avatar?.url ?? null]));
   const totals = new Map<string, { score: number; share: number; n: number }>();
 
   for (const r of results) {
@@ -215,6 +217,7 @@ export function standings(results: any[], teams: any[], roundNumber?: number) {
     .map(([teamId, v]) => ({
       teamId,
       teamName: name.get(teamId) ?? `Team ${teamId.slice(-6)}`,
+      avatarUrl: avatar.get(teamId) ?? null,
       index: v.n ? v.share / v.n : 0,
       score: v.n ? v.score / v.n : 0,
     }))

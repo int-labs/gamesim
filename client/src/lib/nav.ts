@@ -31,8 +31,6 @@ export type NavEntry = {
   tone: TileTone;
   /** Pages that are meaningless without an active simulation (spec §10.0). */
   scoped?: boolean;
-  /** Rendered indented under the entry above it. */
-  child?: boolean;
 };
 
 export type NavGroup = {
@@ -82,9 +80,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Game Content", to: "/game-content", icon: Palette, tone: "brand" },
       { label: "Simulation Types", to: "/simulation-types", icon: Shapes, tone: "navy" },
       { label: "Products", to: "/products", icon: Package, tone: "success" },
-      // Fields and drivers only exist in relation to a product, so they read as
-      // its children rather than as peers of Segments.
-      { label: "Decision fields", to: "/product-fields", icon: ListChecks, tone: "neutral", child: true },
+      // Sits right after Products because that is where its rows live, but as a
+      // peer: one indented entry in the whole sidebar read as a rendering bug
+      // rather than as a hierarchy.
+      { label: "Decision fields", to: "/product-fields", icon: ListChecks, tone: "neutral" },
       { label: "Segments", to: "/segments", icon: ChartPie, tone: "gold" },
     ],
   },

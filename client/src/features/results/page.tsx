@@ -54,6 +54,11 @@ function ResultsInner() {
     [teams]
   );
 
+  const teamAvatar = React.useCallback(
+    (id: string) => teams.find((t: any) => t._id === id)?.avatar?.url ?? null,
+    [teams]
+  );
+
   /** Results are per product×segment; aggregate to a per-team leaderboard. */
   const leaderboard = React.useMemo(() => {
     const acc = new Map<string, { teamId: string; score: number; share: number; n: number }>();
@@ -75,12 +80,13 @@ function ResultsInner() {
         _id: e.teamId,
         teamId: e.teamId,
         teamName: teamName(e.teamId),
+        avatarUrl: teamAvatar(e.teamId),
         score: e.score,
         marketShare: e.n > 0 ? e.share / e.n : 0,
       }))
       .sort((a, b) => b.score - a.score)
       .map((r, i) => ({ ...r, rank: i + 1 }));
-  }, [data, teamName]);
+  }, [data, teamName, teamAvatar]);
 
   const runCalculation = () => {
     if (!roundDoc) return;
@@ -113,7 +119,7 @@ function ResultsInner() {
         header: "Team",
         cell: ({ row }) => (
           <div className="flex items-center gap-2.5">
-            <Avatar name={row.original.teamName} size="lg" />
+            <Avatar name={row.original.teamName} src={row.original.avatarUrl} size="lg" />
             <span className="text-[14px] font-semibold text-foreground">{row.original.teamName}</span>
           </div>
         ),
@@ -198,7 +204,7 @@ function ResultsInner() {
                   >
                     {i + 1}
                   </span>
-                  <Avatar name={t.teamName} size="lg" />
+                  <Avatar name={t.teamName} src={t.avatarUrl} size="lg" />
                 </div>
                 <div className="mt-4">
                   <div

@@ -79,7 +79,7 @@ export function ConfirmPhaseModal({ open, onClose }: Props) {
         spread: 90,
         startVelocity: 38,
         origin: { y: 0.4 },
-        colors: ['#6FBB85', '#DDA655', '#9B6CD9', '#6892C9'],
+        colors: ['#6FBB85', '#DDA655', '#B98BD4', '#8E6CAC'],
         ticks: 220,
       });
       // Dynamic phase debrief — pushes a short multi-message script so

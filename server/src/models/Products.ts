@@ -30,6 +30,15 @@ export interface ProductInterface extends Document {
   baseVariables:    Record<string, number> | null;
   fields:           ProductField[];
   description:      string | null;
+  /**
+   * Cover art, resolved the same way PlayerConfig entries are:
+   * `imageAssetId` (an upload) wins, else `imagePath` — a key into the player's
+   * own asset map or a path under its public root, e.g. `img/notebooks/cute.png`.
+   * Kept generic rather than joining to a notebook `genreId`, because a Product
+   * belongs to the engine and genres belong to one particular game.
+   */
+  imageAssetId:     string | null;
+  imagePath:        string | null;
   createdAt:        Date;
   updatedAt:        Date;
 }
@@ -67,6 +76,8 @@ const productSchema = new Schema<ProductInterface>(
     active:           { type: Boolean, default: true },
     baseVariables:    { type: Schema.Types.Mixed, default: null },
     description:      { type: String, default: null },
+    imageAssetId:     { type: Schema.Types.ObjectId, ref: "ImageAsset", default: null },
+    imagePath:        { type: String, default: null },
     fields:           { type: [productFieldSchema], default: [] },
   },
   { timestamps: true }

@@ -338,7 +338,8 @@ export const SECTIONS: SectionSpec[] = [
     key: "addOnCategories",
     label: "Add-on categories",
     group: "Catalog",
-    description: "Categories add-ons can belong to. The player groups the picker by these.",
+    description:
+      "The registry every add-on's category must exist in - it is what validation checks against, and what groups this editor. The player's own picker groups by a fixed layout, so renaming a category here does not relabel the shop.",
     render: "table",
     fields: [
       ID,

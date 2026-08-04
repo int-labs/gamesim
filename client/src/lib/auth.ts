@@ -15,7 +15,11 @@ const TOKEN_KEY = "gamesim:console:token";
 export interface StaffUser {
   _id: string;
   email: string;
+  /** Optional display name; the console falls back to the email's local part. */
+  name?: string | null;
   role: "admin" | "operator" | "client";
+  /** Generated server-side — see server/src/services/avatars.ts. */
+  avatar?: { url: string; style?: string; seed?: string } | null;
 }
 
 export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);

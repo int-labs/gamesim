@@ -154,8 +154,20 @@ export default function App() {
 
           {/* The phase-intro hero screen has its own big mascot, so suppress
               the dialogue-bubble mascot there (avoids two Amelias + its scrim
-              dimming the hero). */}
-          {screen !== 'phase_intro' && <VisualNovelMascot />}
+              dimming the hero).
+
+              Suppressed on every RESULTS surface for the same reason - the
+              phase sequence, the standalone evaluation and the final score.
+              Each is a focused flow whose whole purpose is a screen of numbers
+              to read, and the mascot's scrim dims exactly that. The queue also
+              persists, so a script the player skipped earlier (a route-choice
+              line, say) resurfaces at the next screen that allows the mascot
+              and talks over an evaluation it has nothing to do with. */}
+          {screen !== 'phase_intro'
+            && screen !== 'evaluation'
+            && screen !== 'final'
+            && !sequenceActive
+            && <VisualNovelMascot />}
           <DayAdvanceFlash />
           {/* Pixel-wipe transition on the big moments: game start, each
               round/phase change, and game end. */}

@@ -460,6 +460,22 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
    * other — an operator renaming a genre would watch the rename disappear.
    * One field, one owner: genres own the text, archetypes render it.
    */
+  /**
+   * `addOnCategories` has no player-side table to merge into.
+   *
+   * A category exists in the player only as a string on each add-on plus a
+   * placement entry in `data/addOnDefaults.ts`; the shop's grouping is a fixed
+   * layout in `ProductPanel.tsx`, not data. The section is still load-bearing
+   * — the server validates every add-on's `category` against it — it just has
+   * no effect HERE, and saying so is better than looking applied.
+   */
+  if (Array.isArray(cfg.addOnCategories) && cfg.addOnCategories.length > 0) {
+    skipped.push({
+      section: 'addOnCategories',
+      why: 'a registry the server validates add-ons against - the player has no table to merge it into',
+    });
+  }
+
   if (Array.isArray(cfg.archetypes) && cfg.archetypes.length > 0) {
     skipped.push({
       section: 'archetypes',

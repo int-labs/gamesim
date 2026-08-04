@@ -7,6 +7,8 @@ interface Row {
   teamName: string;
   index: number;
   score: number;
+  /** The team's generated avatar; initials are the fallback when absent. */
+  avatarUrl?: string | null;
 }
 
 /**
@@ -58,7 +60,7 @@ export function StandingsTable({
               {i + 1}
             </span>
 
-            <Avatar name={r.teamName} size="sm" />
+            <Avatar name={r.teamName} src={r.avatarUrl} size="sm" />
 
             <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-foreground">
               {r.teamName}

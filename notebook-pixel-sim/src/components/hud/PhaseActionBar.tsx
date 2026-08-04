@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { useGame } from '@/state/store';
 import { PhaseSequenceModal } from '@/components/PhaseSequenceModal';
@@ -34,6 +34,17 @@ export function PhaseActionBar() {
   // Bumped each time the modal opens so the modal remounts fresh —
   // prevents the previous run's "running" local state from persisting.
   const [openCount, setOpenCount] = useState(0);
+
+  // "Before you lock Phase 1, two checks..." — pushed on ARRIVAL, not on the
+  // confirm click. Fired from the click it queued behind the sequence modal and
+  // surfaced on the Phase 1 DEBRIEF, telling a player to check decisions they
+  // had already made while its scrim dimmed the results. Guidance titled
+  // "before you confirm" has to precede the decision to mean anything.
+  // pushMascotSequence de-dupes by script id, so this runs once per save.
+  useEffect(() => {
+    if (phase === 1) pushMascotSequence(expandScript(SCRIPT_BEFORE_PHASE1_CONFIRM));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const target = PHASE_END[phase];
   const daysLeft = Math.max(0, target - day + 1);
@@ -107,12 +118,6 @@ export function PhaseActionBar() {
         mood: 'concerned_soft',
       });
       return;
-    }
-    // First Phase 1 confirm — push the "before you confirm" guidance
-    // script so first-time players understand exactly what's about to
-    // happen. The script de-dupes by id so it only fires once.
-    if (phase === 1) {
-      pushMascotSequence(expandScript(SCRIPT_BEFORE_PHASE1_CONFIRM));
     }
     playSfx('confirm');
     setOpenCount((c) => c + 1);

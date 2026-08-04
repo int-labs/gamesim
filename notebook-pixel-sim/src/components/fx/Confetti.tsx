@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 
-const COLORS = ['#5fb27a', '#e6b54a', '#e09b6a', '#e07a6a', '#9b6cd9', '#5b86c2', '#f2d06b'];
+const COLORS = ['#5fb27a', '#e6b54a', '#e09b6a', '#e07a6a', '#B98BD4', '#8E6CAC', '#f2d06b'];
 
 /**
  * Confetti — a one-shot pixel-confetti rain for the results celebration.

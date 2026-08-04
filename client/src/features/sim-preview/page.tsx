@@ -4,8 +4,11 @@ import { Card, CardHeader } from "@/components/app/card";
 import { IconTile } from "@/components/app/bits";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
+import { PLAYER_ORIGIN } from "@/lib/player-assets";
 
-const PLAYER_URL = "http://localhost:5173";
+// Was hardcoded to localhost:5173, which made this link dead in every
+// deployment. Now one setting, shared with the art resolver.
+const PLAYER_URL = PLAYER_ORIGIN;
 
 /**
  * The player is a separate origin with its own session, so embedding it is a

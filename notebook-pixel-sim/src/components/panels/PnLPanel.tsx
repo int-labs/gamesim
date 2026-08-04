@@ -109,7 +109,7 @@ export function PnLPanel() {
                 <PixelStepLine data={series.cash.slice(-30)} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" width={310} height={86} />
               </Labeled>
               <Labeled tag="Daily profit">
-                <PixelStepLine data={series.profit.slice(-30)} stroke="#5b86c2" fill="rgba(91,134,194,0.18)" width={310} height={86} />
+                <PixelStepLine data={series.profit.slice(-30)} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.18)" width={310} height={86} />
               </Labeled>
             </div>
           </PixelPanel>
@@ -120,7 +120,7 @@ export function PnLPanel() {
                 { label: 'Material', value: matCost, color: '#e07a6a' },
                 { label: 'Labor', value: labor, color: '#9b6cd9' },
                 { label: 'Marketing', value: marketing, color: '#e6b54a' },
-                { label: 'Tools', value: tools, color: '#5b86c2' },
+                { label: 'Tools', value: tools, color: 'var(--c-fin-cash)' },
               ]}
               width={310}
               height={26}
@@ -132,7 +132,7 @@ export function PnLPanel() {
               data={series.sold.slice(-14).map((v, i) => ({
                 label: String(i + 1),
                 value: v,
-                color: '#5b86c2',
+                color: 'var(--c-fin-cash)',
               }))}
               width={310}
               height={110}
@@ -163,7 +163,7 @@ export function PnLPanel() {
               <PixelStepLine data={series.revenue.slice(-14)} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" width={310} height={70} />
             </Labeled>
             <Labeled tag="Profit (last 14d)">
-              <PixelStepLine data={series.profit.slice(-14)} stroke="#5b86c2" fill="rgba(91,134,194,0.18)" width={310} height={70} />
+              <PixelStepLine data={series.profit.slice(-14)} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.18)" width={310} height={70} />
             </Labeled>
             <p className="body-xs text-ink-700 mt-2 leading-snug">
               When revenue rises but profit doesn't, look at Material and Marketing in the P&L tab.

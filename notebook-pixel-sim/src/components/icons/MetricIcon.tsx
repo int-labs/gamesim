@@ -108,10 +108,10 @@ function renderGlyph(kind: MetricIconKind) {
       // shopping cart-ish
       return (
         <g>
-          <rect x="2" y="4" width="2" height="2" fill="#5b86c2" />
-          <rect x="4" y="6" width="9" height="5" fill="#5b86c2" stroke="#3e6299" strokeWidth="1" />
-          <rect x="5" y="11" width="2" height="2" fill="#3e6299" />
-          <rect x="10" y="11" width="2" height="2" fill="#3e6299" />
+          <rect x="2" y="4" width="2" height="2" fill="#8E6CAC" />
+          <rect x="4" y="6" width="9" height="5" fill="#8E6CAC" stroke="#62467C" strokeWidth="1" />
+          <rect x="5" y="11" width="2" height="2" fill="#62467C" />
+          <rect x="10" y="11" width="2" height="2" fill="#62467C" />
           <rect x="6" y="7" width="1" height="3" fill="#bfd4ee" />
           <rect x="9" y="7" width="1" height="3" fill="#bfd4ee" />
         </g>
@@ -153,9 +153,9 @@ function renderGlyph(kind: MetricIconKind) {
       return (
         <g>
           <rect x="2" y="4" width="3" height="3" fill="#e6b54a" stroke="#7a4a2b" strokeWidth="1" />
-          <rect x="1" y="8" width="5" height="6" fill="#5b86c2" stroke="#3e6299" strokeWidth="1" />
+          <rect x="1" y="8" width="5" height="6" fill="#8E6CAC" stroke="#62467C" strokeWidth="1" />
           <rect x="9" y="4" width="3" height="3" fill="#e07a6a" stroke="#7a4a2b" strokeWidth="1" />
-          <rect x="8" y="8" width="5" height="6" fill="#9b6cd9" stroke="#3e6299" strokeWidth="1" />
+          <rect x="8" y="8" width="5" height="6" fill="#9b6cd9" stroke="#62467C" strokeWidth="1" />
         </g>
       );
     case 'marketing':
@@ -184,7 +184,7 @@ function renderGlyph(kind: MetricIconKind) {
       return (
         <g>
           <rect x="1" y="6" width="8" height="6" fill="#cba87a" stroke="#7a4a2b" strokeWidth="1" />
-          <rect x="9" y="8" width="5" height="4" fill="#5b86c2" stroke="#3e6299" strokeWidth="1" />
+          <rect x="9" y="8" width="5" height="4" fill="#8E6CAC" stroke="#62467C" strokeWidth="1" />
           <rect x="2" y="12" width="3" height="2" fill="#2a2017" />
           <rect x="10" y="12" width="3" height="2" fill="#2a2017" />
         </g>

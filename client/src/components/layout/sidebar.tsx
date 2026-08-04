@@ -23,7 +23,7 @@ function NavItem({
   badge?: number;
   index: number;
 }) {
-  const { icon: Icon, label, to, child } = entry;
+  const { icon: Icon, label, to } = entry;
 
   return (
     <NavLink to={to} end={to === "/"}>
@@ -35,8 +35,6 @@ function NavItem({
           className={cn(
             "group/nav relative flex h-10 items-center rounded-md transition-colors duration-150",
             collapsed ? "w-11 justify-center" : "gap-3 px-3",
-            // Children sit under their parent rather than beside it.
-            !collapsed && child && "ml-3 h-9",
             isActive
               ? "text-primary"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -60,18 +58,14 @@ function NavItem({
           )}
           <Icon
             className={cn(
-              "relative z-10 shrink-0 transition-colors",
-              child ? "size-4" : "size-5",
+              "relative z-10 shrink-0 transition-colors size-5",
               isActive ? "text-primary" : "group-hover/nav:text-primary"
             )}
           />
           {!collapsed && (
             <>
               <span
-                className={cn(
-                  "relative z-10 flex-1 truncate font-semibold",
-                  child ? "text-[13px]" : "text-[13.5px]"
-                )}
+                className="relative z-10 flex-1 truncate font-semibold text-[13.5px]"
               >
                 {label}
               </span>

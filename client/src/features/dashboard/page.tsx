@@ -1,4 +1,5 @@
 import { CheckCircle2, CircleDashed, MonitorPlay } from "lucide-react";
+import { IconTile } from "@/components/app/bits";
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -9,7 +10,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardArrow } from "@/components/ui/icon-button";
-import { Avatar, Skeleton } from "@/components/ui/primitives";
+import { Skeleton } from "@/components/ui/primitives";
 import { AttentionList } from "@/features/dashboard/attention-list";
 import { buildAttention, standings, submissionState } from "@/features/dashboard/attention";
 import { LiveRoundStrip } from "@/features/dashboard/live-round";
@@ -306,7 +307,9 @@ export default function DashboardPage() {
           <ul className="mt-3 space-y-1">
             {(sims.data ?? []).slice(0, 5).map((s: any) => (
               <li key={s._id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted">
-                <Avatar name={s.simulationName} size="sm" />
+                {/* A simulation is not a person: initials in an avatar circle
+                    beside real generated faces read as a broken image. */}
+                <IconTile icon={<MonitorPlay />} tone="brand" />
                 <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-foreground">
                   {s.simulationName}
                 </span>
