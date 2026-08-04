@@ -121,7 +121,22 @@ const FIELDS = [
     order: 3, required: true, minValue: 0, maxValue: 100,
     // NOT competed (no coefficients) — this is the COGS basis. unitCost: 1 makes
     // calcFinancials read the submitted value as cost per unit.
-    direction: 0, tightening: 3, coefficients: {}, unitCost: 1,
+    //
+    // `direction: 1` is load-bearing, not cosmetic. calcFinancials builds its
+    // price reference (`dynamicPrice`) by summing the product's MONEY fields
+    // with direction > 0, excluding selling_price. With this at 0 the Notebook
+    // type had no such field, so dynamicPrice was 0, calcPricingScore returned
+    // 0 on its guard, no customers converted, and every scored round posted a
+    // pure ~$40k loss for every team while COGS was still charged. Standings
+    // looked fine throughout, because calcMarketModel never reads dynamicPrice.
+    //
+    // Safe for rankings: calcMarketModel iterates the BASE DATA market model's
+    // field list (score, selling_price, projected_market_share — and it skips
+    // the last two). `unit_cost` is not in that list, so its direction cannot
+    // move a standing. The live database was already corrected by hand; this
+    // script is idempotent, so leaving it at 0 here meant the next provisioning
+    // run would silently restore the bug.
+    direction: 1, tightening: 3, coefficients: {}, unitCost: 1,
   },
   {
     key: 'projected_market_share', label: 'Projected market share', type: 'number',
