@@ -1272,3 +1272,34 @@ button {
   }
   .vn-character { width: 100%; }
 }
+
+
+/* ── Pat-Amelia bounce ──────────────────────────────────────────────────────
+   A squash-and-stretch the mascot plays when you pat her. All scale, no
+   translate, so it never clips against the phase-intro letterbox or the VN
+   crop window, and it reads identically at every mascot size.
+
+   A real CSS animation rather than framer's imperative controls: it fires
+   reliably in every browser, and "is the class applied?" is checkable straight
+   from the DOM without depending on requestAnimationFrame timing - which
+   matters here, because a hidden tab freezes rAF entirely. */
+@keyframes mascot-pat {
+  0%   { transform: scaleX(1)     scaleY(1);    }
+  16%  { transform: scaleX(1.045) scaleY(0.9);  }
+  40%  { transform: scaleX(0.98)  scaleY(1.06); }
+  62%  { transform: scaleX(1.015) scaleY(0.96); }
+  82%  { transform: scaleX(0.995) scaleY(1.02); }
+  100% { transform: scaleX(1)     scaleY(1);    }
+}
+.mascot-pat,
+.vn-character.is-hopping {
+  /* `.vn-character.is-hopping` outranks the base `.vn-character` idle
+     animation, so the pat takes over; removing the class restores breathing. */
+  animation: mascot-pat 0.5s ease-out;
+  transform-origin: bottom center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot-pat,
+  .vn-character.is-hopping { animation: none; }
+}

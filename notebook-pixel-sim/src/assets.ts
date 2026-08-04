@@ -225,6 +225,14 @@ export const A = {
       sparkles: i('img/ui/pixel-icons/sparkles.png'),
       gift: i('img/ui/pixel-icons/gift.png'),
     },
+    // Heart + sparkle sprites for the pat-Amelia love bomb (components/fx/HeartRain).
+    lovebomb: {
+      red: i('img/lovebomb/love-red.png'),
+      yellow: i('img/lovebomb/love-yellow.png'),
+      pink: i('img/lovebomb/love-pink.png'),
+      blue: i('img/lovebomb/love-blue.png'),
+      sparkle: i('img/lovebomb/sparkle-1.png'),
+    },
     config: {
       notebook_type: i('img/ui/Product Configuration Icons/icon_notebook_type_v01.png'),
       notebook_size: i('img/ui/Product Configuration Icons/icon_notebook_size_v01.png'),

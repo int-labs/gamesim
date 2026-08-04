@@ -5,6 +5,8 @@ import clsx from 'clsx';
 import { A } from '@/assets';
 import { playSfx } from '@/audio/audioManager';
 import { PASSKEY } from '@/content/copy';
+import { useHop } from '@/hooks/useHop';
+import { patHeartRain, originOf } from '@/components/fx/HeartRain';
 import { projectX, projectY, type StageMetrics } from './useStage';
 
 /**
@@ -53,7 +55,8 @@ export function AcademyMascotStage({
   const [idx, setIdx] = useState(0);
   const [bubble, setBubble] = useState<string | null>(null);
   const [dragOff, setDragOff] = useState<{ x: number; y: number } | null>(null);
-  const bounce = useAnimationControls();
+  const hop = useHop();
+  const btnRef = useRef<HTMLButtonElement>(null);
   const fade = useAnimationControls();
   const clicks = useRef(0);
   const lineCursor = useRef(0);
@@ -136,9 +139,15 @@ export function AcademyMascotStage({
     if (!d || d.id !== e.pointerId) return;
     dragInfo.current = null;
     if (d.moved) {
-      suppressClick.current = true;
-      setDragOff(null); // CSS transition springs her back
+      setDragOff(null); // a drag - spring her back, no pat
+    } else {
+      // A clean TAP. Fire from pointerup rather than the button's onClick:
+      // setPointerCapture (onPointerDown) retargets the trailing `click` to the
+      // capturing wrapper, so the button's handler never ran on a real mouse
+      // tap - which is why patting her did nothing outside touch devices.
+      onActivate();
     }
+    suppressClick.current = true; // swallow the browser's trailing click, if any
   };
 
   const onActivate = () => {
@@ -149,7 +158,9 @@ export function AcademyMascotStage({
     clicks.current += 1;
     playSfx('pop');
     showBubble(REACTIONS[(clicks.current - 1) % REACTIONS.length]);
-    if (!reduced) bounce.start({ scale: [1.06, 0.97, 1], transition: { duration: 0.4 } });
+    if (!reduced) hop.trigger();
+    // Keep patting her and the hearts escalate.
+    patHeartRain(clicks.current, originOf(btnRef.current));
     if (clicks.current % 5 === 0) {
       playSfx('coin');
       if (!reduced) confetti({ particleCount: 60, spread: 70, origin: { x: 0.4, y: 0.7 }, scalar: 0.8 });
@@ -224,13 +235,14 @@ export function AcademyMascotStage({
           )}
         </AnimatePresence>
 
-        <motion.button
+        <button
+          ref={btnRef}
           type="button"
           aria-label="Talk to Amelia (drag to move)"
           onClick={onActivate}
-          animate={bounce}
+          onAnimationEnd={hop.onAnimationEnd}
           style={{ transformOrigin: 'bottom center' }}
-          className="block h-full w-full cursor-grab border-0 bg-transparent p-0 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#6FBB85]/70 active:cursor-grabbing"
+          className={clsx('block h-full w-full cursor-grab border-0 bg-transparent p-0 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#6FBB85]/70 active:cursor-grabbing', hop.active && 'mascot-pat')}
         >
           {/* Breathing (scale from the feet), not a floating bob. */}
           <motion.span
@@ -246,7 +258,7 @@ export function AcademyMascotStage({
               className="pointer-events-none h-full w-full object-contain object-bottom drop-shadow-[2px_4px_0_rgba(42,32,23,0.3)]"
             />
           </motion.span>
-        </motion.button>
+        </button>
       </div>
     </motion.div>
   );

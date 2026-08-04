@@ -5,6 +5,7 @@ import { A } from '@/assets';
 import { VideoBackdrop } from './VideoBackdrop';
 import { PassKeyPanel } from './PassKeyPanel';
 import { AcademyMascotStage } from './AcademyMascotStage';
+import { HeartRain } from '@/components/fx/HeartRain';
 import { SceneAmbience } from './SceneAmbience';
 import { PixelWipe } from './PixelWipe';
 import { useStage, projectX, projectY } from './useStage';
@@ -75,6 +76,11 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
             className="absolute inset-0 z-[2]"
             onClick={() => setRoamTick((t) => t + 1)}
           />
+
+          {/* Hearts erupt from BEHIND Amelia: this canvas sits at z-14, she is
+              at z-15. Mounted per-mascot-context rather than globally so the
+              sprite always stays in front of its own love bomb. */}
+          <HeartRain className="pointer-events-none absolute inset-0 z-[14]" />
 
           {/* Roaming "idle-lobby" mascot — positions itself in the scene. */}
           <AcademyMascotStage stage={stage} reduced={!!reduced} roamTick={roamTick} />
