@@ -84,50 +84,23 @@ Two calibration facts worth knowing: the model assumes **12 teams** (`BASE_MARKE
 
 ### A product with no price reference earns nothing
 
-`calcFinancials` derives a reference price (`dynamicPrice`) by summing the product's **money** fields with `direction > 0`, *excluding* `selling_price` ([calcFinancials.ts:280](server/src/sim/calcFinancials.ts:280)). That reference is what a team's selling price is judged against.
+`calcFinancials` derives a reference price (`dynamicPrice`) by summing the product's **money** fields with `direction > 0`, *excluding* `selling_price` ([calcFinancials.ts:267](server/src/sim/calcFinancials.ts:267)). That reference is what a team's selling price is judged against; with no such field it is 0, `calcPricingScore` returns 0 on its guard, no customers convert, and revenue is 0 while COGS is charged anyway.
 
-The Notebook product ships four fields — `score`, `selling_price` (direction 0), `unit_cost` (direction 0) and `projected_market_share` — so **no field feeds `dynamicPrice`**. It is therefore 0, `calcPricingScore` returns 0 on its `dynamicPrice <= 0` guard, no customers convert, and revenue is 0 while COGS is still charged. Every team in a scored round posts a pure loss of roughly $40,000 regardless of what they decided.
+The **Notebook** type shipped exactly that way — `score`, `selling_price` (direction 0), `unit_cost` (direction 0), `projected_market_share` — so every scored round was a guaranteed ~$40k loss for every team. Standings looked healthy throughout, because `calcMarketModel` never touches `dynamicPrice`.
 
-Standings are unaffected — `calcMarketModel` doesn't use `dynamicPrice` — which is exactly why this went unnoticed: the console's rankings look completely healthy while every financial figure underneath them is meaningless.
+Giving `unit_cost` a direction above zero fixes it, and is **safe**: the two code paths read different field sets. `dynamicPrice` reads the PRODUCT's fields; `calcMarketModel` iterates the BASE DATA market model's field list, which is `score`, `selling_price`, `projected_market_share` — and it skips the last two. `unit_cost` is not in it, so its direction cannot move a ranking.
 
-This is a **provisioning** problem, not an engine bug: `provision-notebook.mjs` creates a field set the financial model can't price. Fixing it means giving the product a money field that represents per-unit investment (or a competitive weight above zero on an existing one) and recalculating. That is a game-design decision, so it has deliberately not been made here — the console now **detects and explains it** on the Debrief instead of letting a facilitator read a misconfiguration as twelve bad teams.
+**The Financial Literacy type was designed correctly** all along: six money fields (`stickers`, `addons`, `page_size`, `paper_material`, `page_design`, `cover_page`), each with a real direction and unit cost. It is the Notebook provisioning that is thin.
 
-### Two simulation types, one game
+What remains is calibration, not code. Demand falls off steeply with the ratio of price to reference — measured on real data: **1.7× → 62 customers, 2.4× → 0.5 customers.** The seeded demo cohort prices in that range, so it posts losses. The model is punishing overpricing, which is the pedagogy; whether the seed's prices are sensible is a game-balance decision.
 
-The platform carries two `SimulationType` rows and they are the SAME pedagogy:
+### PATCH must mean partial
 
-| | products | segments | base data | player config |
-|---|---|---|---|---|
-| **Notebook** | 4 | 1 | 9 | published |
-| **Financial Literacy** | 4 | 1 | 10 | published |
+`PATCH /products/:id/fields/:fieldId` built its `$set` from all eleven properties unconditionally. Mongoose strips `undefined` from an update so most absent fields survived by luck — but `unitCost` was written as `unitCost ?? null`, turning "not sent" into an explicit null and defeating that stripping.
 
-"Notebook" is the one the live cohort points at; "Financial Literacy" is an earlier row for the same financial-literacy game — the player's engine subset is literally `finlit`, sourced from `FinLit Calc.xlsx` and the FinLit PDF. Both now carry an identical published `PlayerConfig`, so either can be run and edited.
+**Any edit that didn't restate the unit cost erased it.** The console's own field editor omits empty values, so renaming a money field was enough to strip the per-unit cost COGS is priced from — and nothing surfaced it, because the next round close simply computed a cost of zero. Now only keys actually present in the body are written (`null` still clears a value, since that is a real intent).
 
-Seeding a type's config is one command, and it **imports the player's actual modules** rather than transcribing them, so the seed can't drift from what the game runs:
-
-```bash
-cd notebook-pixel-sim
-node scripts/export-player-config.mjs --push  --type <simulationTypeId> --token <jwt>
-node scripts/export-player-config.mjs --check --type <simulationTypeId> --token <jwt>   # drift detector
-```
-
-Whether the two rows should be consolidated is a product decision nobody has made. Deleting one is not reversible from the console, so it has been left alone.
-
-### Three different numbers, and none of them is the others
-
-It is now possible to ask "how did that team do?" three ways, and conflating them is the easiest mistake in this codebase:
-
-| Source | What it answers | Written by |
-|---|---|---|
-| `Results` | How teams compared — weighted score, share/rank | `calcMarketModel`, at round close |
-| `Projections` | The server's financials — revenue, COGS, gross profit | `calcFinancials`, at round close |
-| `TeamRunReport` | What the team's OWN 90-day run produced | The player, when it reaches day 90 |
-
-`TeamRunReport` carries the design PDF's rubric — Net Profit 50 · Inventory Cleanliness 25 · Insight 25 — which exists **only** in the player's FinLit engine; the server has no notion of it. Storing it does not make it authoritative for anything competitive, and nothing scores from it. The debrief shows it in its own section, labelled, precisely so the two models are never averaged into one figure that neither supports.
-
-Rubric components are **clamped server-side** to the ranges the PDF fixes (a forged 150/100 lands as 100), but `netDollar` deliberately is not — a real run can end deeply negative, and hiding that removes the most instructive outcome in the room.
-
-Both `/team-progress` and `/run-reports` take `teamId`/`simulationId` **from the token**, never the body. A team writing or reading another team's row is not a request a correct client can make.
+Worth generalising: a `?? null` inside a `$set` turns every partial update into a destructive one.
 
 ### The debrief shows the data, not just the write-up
 

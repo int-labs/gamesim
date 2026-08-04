@@ -299,7 +299,7 @@ export function RosterDialog({
         <DialogContent width="max-w-[640px]">
           <DialogTitle>{team?.teamName} · roster</DialogTitle>
           <p className="mt-1.5 text-[13px] text-muted-foreground">
-            Members are display-only — names and faces for the room. Scores and market share come
+            Members are display-only — names and faces for the room. Scores and strength come
             from the round calculation, not from here.
           </p>
 

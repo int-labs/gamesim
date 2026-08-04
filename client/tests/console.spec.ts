@@ -83,12 +83,31 @@ test.describe("console", () => {
     const name = `E2E probe ${Date.now()}`;
     const renamed = `${name} renamed`;
 
+    // Sweep anything a previously-interrupted run left behind. Without this,
+    // one aborted run leaves a row that makes the collection look wrong to a
+    // human reading the console afterwards.
+    const api = process.env.VITE_GAMESIM_API_URL ?? "http://localhost:5000/api";
+    const token = await page.evaluate((k) => localStorage.getItem(k), TOKEN_KEY);
+    const auth = { Authorization: `Bearer ${token}` };
+    const existing = await page.request.get(`${api}/initiatives`, { headers: auth });
+    if (existing.ok()) {
+      const body = await existing.json();
+      for (const row of body.data ?? body ?? []) {
+        if (typeof row?.name === "string" && row.name.startsWith("E2E probe")) {
+          await page.request.delete(`${api}/initiatives/${row._id}`, { headers: auth });
+        }
+      }
+    }
+
     await page.goto("/initiatives");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
     // ── create ──────────────────────────────────────────────────────────
     await page.getByRole("button", { name: /new initiative/i }).first().click();
-    const dialog = page.getByRole("dialog");
+    // Scoped to the OPEN dialog: Radix keeps closed ones mounted, so a bare
+    // getByRole("dialog") can match several and drive the wrong form. This is
+    // the same trap that makes manual debugging of these pages misleading.
+    const dialog = page.locator('[role="dialog"][data-state="open"]');
     await expect(dialog).toBeVisible();
 
     await dialog.getByLabel("Name", { exact: true }).fill(name);
@@ -99,13 +118,25 @@ test.describe("console", () => {
     // The dialog closes itself on a resolved mutation, and the table refreshes
     // from the invalidated query — both halves have been broken before.
     await expect(dialog).toBeHidden({ timeout: 20_000 });
+
+    // Confirm the WRITE landed before asserting on the render. Checking only
+    // the table cannot distinguish "never saved" from "saved, not repainted
+    // yet", and those are different bugs.
+    await expect
+      .poll(async () => {
+        const res = await page.request.get(`${api}/initiatives`, { headers: auth });
+        const body = await res.json();
+        return (body.data ?? body ?? []).filter((r: any) => r?.name === name).length;
+      }, { timeout: 20_000 })
+      .toBe(1);
+
     await waitForTable(page);
     const created = dataRows(page).filter({ hasText: name });
     await expect(created).toHaveCount(1, { timeout: 20_000 });
 
     // ── edit ────────────────────────────────────────────────────────────
     await created.getByRole("button", { name: /edit initiative/i }).click();
-    const editDialog = page.getByRole("dialog");
+    const editDialog = page.locator('[role="dialog"][data-state="open"]');
     await expect(editDialog).toBeVisible();
     // Seeded from the row, not blank — a create form wearing an edit title is
     // how you silently create a duplicate instead of editing.

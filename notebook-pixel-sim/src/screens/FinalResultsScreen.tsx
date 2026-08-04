@@ -8,12 +8,13 @@ import { PixelStackedBar } from '@/components/charts/PixelStackedBar';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
 import { Confetti } from '@/components/fx/Confetti';
 import { RankBadge, rankForScore } from '@/components/results/RankBadge';
-import { fmt$ } from '@/utils/format';
+import { fmt$, fmtInt } from '@/utils/format';
 import { A } from '@/assets';
 import { FINAL } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
 import { useGamesimSession } from '@/gamesim/GamesimProvider';
 import { DebriefCard } from '@/gamesim/OperatorContent';
+import clsx from 'clsx';
 
 /**
  * FinalResultsScreen — Day 90, reworked as a CELEBRATION instead of a report.
@@ -283,41 +284,32 @@ export function FinalResultsScreen() {
                       Round {latestResults?.roundNumber ?? latestFinancials?.roundNumber}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 body-xs">
-                    <div>
-                      <div className="stat-label">Revenue</div>
-                      <div className="num-sm text-ink-900">{fmt$(latestFinancials?.revenue ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="stat-label">Gross Profit</div>
-                      <div className="num-sm text-ink-900">{fmt$(latestFinancials?.grossProfit ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="stat-label">COGS</div>
-                      <div className="num-sm text-ink-900">{fmt$(latestFinancials?.cogs ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="stat-label">Customers</div>
-                      <div className="num-sm text-ink-900">{Math.round(latestFinancials?.customersObtained ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="stat-label">Market Share</div>
-                      <div className="num-sm text-ink-900">
-                        {latestResults
-                          ? `${(latestResults.averageMarketShare * 100).toFixed(1)}%`
-                          : 'Pending'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="stat-label">Rank</div>
-                      <div className="num-sm text-ink-900">
-                        {latestResults && teamId
-                          ? `#${
-                              latestResults.leaderboard.findIndex((t) => t.teamId === teamId) + 1
-                            } / ${latestResults.leaderboard.length}`
-                          : 'Pending'}
-                      </div>
-                    </div>
+                  {/* Bordered, tinted readouts — the same language as every
+                      other number in the app. Bare label+value divs made the
+                      most important panel in the product read as a plain data
+                      table dropped into a pixel game. */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <ServerStat label="Revenue" value={fmt$(latestFinancials?.revenue ?? 0)} tone="good" />
+                    <ServerStat label="Gross Profit" value={fmt$(latestFinancials?.grossProfit ?? 0)} tone="good" />
+                    <ServerStat label="COGS" value={fmt$(latestFinancials?.cogs ?? 0)} tone="cost" />
+                    <ServerStat label="Customers" value={fmtInt(Math.round(latestFinancials?.customersObtained ?? 0))} />
+                    {/* "Strength", not "Market share": calcMarketModel multiplies a
+                        competed share by each team's OWN declared projection, so the
+                        values rank teams correctly but do not partition the market —
+                        twelve teams sum to ~175%. Never label it as a share of the
+                        market where a facilitator might repeat it to a room. */}
+                    <ServerStat
+                      label="Strength"
+                      value={latestResults ? `${(latestResults.averageMarketShare * 100).toFixed(1)}%` : 'Pending'}
+                      tone={latestResults ? 'info' : 'muted'}
+                    />
+                    <ServerStat
+                      label="Rank"
+                      value={latestResults && teamId
+                        ? `#${latestResults.leaderboard.findIndex((t) => t.teamId === teamId) + 1} / ${latestResults.leaderboard.length}`
+                        : 'Pending'}
+                      tone={latestResults ? 'info' : 'muted'}
+                    />
                   </div>
 
                   {latestResults && (
@@ -327,15 +319,18 @@ export function FinalResultsScreen() {
                         {latestResults.leaderboard.map((t, i) => (
                           <div
                             key={t.teamId}
-                            className="flex items-center gap-2 py-0.5 border-b border-ink-700/15"
+                            className={clsx(
+                              'flex items-center gap-2 px-2 py-1 border-b border-border-soft last:border-b-0',
+                              t.teamId === teamId && 'bg-primary-soft',
+                            )}
                           >
                             <PixelBadge tone={t.teamId === teamId ? 'info' : 'neutral'}>
                               #{i + 1}
                             </PixelBadge>
-                            <div className="flex-1">
+                            <div className={clsx('flex-1 truncate', t.teamId === teamId ? 'item-name' : 'body-xs')}>
                               {t.teamId === teamId ? 'Your team' : `Team ${t.teamId.slice(-6)}`}
                             </div>
-                            <div className="stat-label">
+                            <div className="num-xs text-text">
                               {(t.averageMarketShare * 100).toFixed(1)}%
                             </div>
                           </div>
@@ -346,7 +341,7 @@ export function FinalResultsScreen() {
 
                   {!latestResults && (
                     <p className="hint mt-2">
-                      Market share and ranking appear once your facilitator has run this round's
+                      Strength and ranking appear once your facilitator has run this round's
                       calculation for every team.
                     </p>
                   )}
@@ -475,4 +470,32 @@ function useCountUp(target: number, duration = 1250, delayMs = 0) {
     };
   }, [target, duration, delayMs, reduced]);
   return v;
+}
+
+/**
+ * One server-authoritative figure, in the app's own readout language: tinted
+ * box, quiet caption, loud value. Deliberately the same shape as the chips on
+ * the Operations page so the official numbers read as part of the game rather
+ * than a report pasted into it.
+ */
+function ServerStat({
+  label,
+  value,
+  tone = 'muted',
+}: {
+  label: string;
+  value: string;
+  tone?: 'good' | 'cost' | 'info' | 'muted';
+}) {
+  const skin =
+    tone === 'good' ? 'border-success bg-success-soft/50'
+    : tone === 'cost' ? 'border-warning bg-warning-soft/50'
+    : tone === 'info' ? 'border-info bg-info-soft/50'
+    : 'border-border-soft bg-surface-2/60';
+  return (
+    <div className={clsx('border-2 px-2.5 py-2 min-w-0', skin)}>
+      <div className="stat-label stat-label-on-tint truncate">{label}</div>
+      <div className="num-sm text-text mt-1 truncate">{value}</div>
+    </div>
+  );
 }

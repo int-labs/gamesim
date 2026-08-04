@@ -255,7 +255,9 @@ function TeamsTable() {
       },
       {
         accessorKey: "marketShare",
-        header: "Market share",
+        // "Strength", not "Market share" — see the note in features/results.
+        // The value ranks teams but is not a partition of the market.
+        header: "Strength",
         size: 170,
         cell: ({ row }) => {
           const ms = row.original.marketShare ?? 0;

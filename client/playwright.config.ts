@@ -25,10 +25,23 @@ const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./tests",
-  fullyParallel: true,
+
+  /**
+   * SERIAL, deliberately.
+   *
+   * These are integration tests: every worker drives the same console against
+   * the same API and the same database. Run four at once and they race — a
+   * test asserting on a collection sees rows another test is mid-way through
+   * creating or deleting, and a DIFFERENT test fails on each run. A regression
+   * suite whose failures move around teaches you nothing.
+   *
+   * The whole suite takes well under a minute serially, which is a price worth
+   * paying for a green run meaning something.
+   */
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
   // `list` prints each test as it runs; the old "null" reporter meant a red
   // suite and a green suite looked identical from the terminal.
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",

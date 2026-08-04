@@ -122,7 +122,7 @@ function ProjectionsInner() {
                   subtitle={`${Math.round(p.customersObtained ?? 0)} customers`}
                   action={
                     p.marketShare != null ? (
-                      <Badge tone="brand">{percent(p.marketShare)} share</Badge>
+                      <Badge tone="brand">{percent(p.marketShare)} strength</Badge>
                     ) : (
                       <Badge tone="warning">what-if</Badge>
                     )

@@ -139,7 +139,13 @@ function ResultsInner() {
       },
       {
         accessorKey: "marketShare",
-        header: "Market share",
+        // "Strength", NOT "Market share". calcMarketModel computes a properly
+        // competed share and then multiplies it by each team's OWN declared
+        // projected_market_share, so the values rank teams correctly but are
+        // NOT a partition of the market — twelve teams declaring 1/12 each sum
+        // to ~175%. Labelling it a share is the one thing that must not happen
+        // here, because an operator reads this column out to a room.
+        header: "Strength",
         size: 190,
         cell: ({ row }) => (
           <div className="w-36">
@@ -220,7 +226,7 @@ function ResultsInner() {
                     <NumberFlow value={Number(t.score.toFixed(2))} />
                   </div>
                   <div className={`mt-2 text-[12px] ${i === 0 ? "text-hero-muted" : "text-muted-foreground"}`}>
-                    {percent(t.marketShare)} market share
+                    {percent(t.marketShare)} strength
                   </div>
                 </div>
               </Card>
@@ -228,6 +234,14 @@ function ResultsInner() {
           ))}
         </div>
       )}
+
+      {/* Explains the column name where an operator actually reads it. */}
+      <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+        <strong>Strength</strong> ranks teams against each other; it is not a share of
+        the market and the column does not sum to 100%. Each team&rsquo;s competed
+        score is scaled by the market share it declared, so a full cohort can total
+        well above 100%.
+      </p>
 
       <DataTable
         columns={columns}
@@ -274,7 +288,7 @@ export default function ResultsPage() {
     <>
       <PageHeader
         title="Results"
-        subtitle="The authoritative leaderboard — weighted scores and competed market share per round."
+        subtitle="The authoritative leaderboard — weighted scores and competitive strength per round."
       />
       <ScopeGuard>
         <ResultsInner />
