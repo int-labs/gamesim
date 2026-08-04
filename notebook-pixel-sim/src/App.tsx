@@ -14,6 +14,7 @@ import { RouteChoiceScreen } from '@/screens/RouteChoiceScreen';
 import { PhaseIntroScreen } from '@/screens/PhaseIntroScreen';
 import { SimulationScreen } from '@/screens/SimulationScreen';
 import { VisualNovelMascot } from '@/components/mascot/VisualNovelMascot';
+import { AudiencePickerModal } from '@/components/AudiencePickerModal';
 import { Toast } from '@/components/Toast';
 import { SmallScreenGate } from '@/components/SmallScreenGate';
 import { AppShell } from '@/components/AppShell';
@@ -168,6 +169,11 @@ export default function App() {
             && screen !== 'final'
             && !sequenceActive
             && <VisualNovelMascot />}
+          {/* Opens only when the run has no target audience — a migrated save,
+              or a player who cleared theirs. A fresh game derives one from the
+              starter genre, so it stays silent there. It shipped orphaned in the
+              vendor drop: the file existed but nothing ever rendered it. */}
+          <AudiencePickerModal />
           <DayAdvanceFlash />
           {/* Pixel-wipe transition on the big moments: game start, each
               round/phase change, and game end. */}

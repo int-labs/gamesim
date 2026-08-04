@@ -435,7 +435,7 @@ export function selectWarnings(s: GameState): Warning[] {
   const out: Warning[] = [];
   if (!s.market.targetSegment) out.push({ tone: 'warn', text: 'No target audience yet - demand stays weak.' });
   if (k.cash < 100) out.push({ tone: 'error', text: 'Cash low - pause marketing or batch buys.' });
-  if (k.finished === 0 && s.meta.day > 4) out.push({ tone: 'error', text: 'No finished goods - buy raw materials, then confirm the phase.' });
+  if (k.finished === 0 && s.meta.day > 4) out.push({ tone: 'error', text: 'No finished goods - set Produce / day in Business > Inventory, then confirm the phase.' });
   if (k.demandEst > k.finished * 1.4 && k.finished > 0) out.push({ tone: 'warn', text: 'Demand outpacing stock - risk of stockout.' });
   if (k.finished > 5 * Math.max(4, k.demandEst)) out.push({ tone: 'warn', text: 'Stock piling up - overstock traps cash.' });
   if (k.fitPct !== null && k.fitPct < 40) out.push({ tone: 'warn', text: 'Weak segment fit - design and target mismatched.' });

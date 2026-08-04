@@ -89,6 +89,12 @@ export function PixelModal({ open, onClose, title, width, size = 'md', playful, 
           // leak above this layer. `data-pixel-modal` lets lower layers
           // (e.g. Drawer) detect a stacked modal and yield Esc to it.
           data-pixel-modal
+          // Dialog semantics: without these a screen reader announces the panel
+          // as an unlabelled group and never traps the user inside it, so the
+          // page behind stays reachable while it is visually blocked.
+          role="dialog"
+          aria-modal="true"
+          aria-label={typeof title === 'string' ? title : 'Dialog'}
           className="fixed inset-0 z-[100] flex"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         >

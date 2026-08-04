@@ -123,7 +123,7 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
 
             <div className="flex flex-wrap items-center gap-1.5">
               {expectedSold === 0 && finished === 0 && (
-                <PixelBadge tone="error">No stock - buy raw materials first</PixelBadge>
+                <PixelBadge tone="error">No stock - set Produce / day first</PixelBadge>
               )}
               {finished > intDemand * 5 && intDemand > 0 && (
                 <PixelBadge tone="warn">Overstock risk</PixelBadge>

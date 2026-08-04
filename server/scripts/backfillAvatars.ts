@@ -21,15 +21,25 @@ import mongoose from "mongoose";
 import connectToDatabase from "../src/db/db";
 import Team from "../src/models/teams";
 import User from "../src/models/users";
-import { DEFAULT_AVATAR_STYLE, generateAndStoreAvatar } from "../src/services/avatars";
+import {
+  DEFAULT_AVATAR_STYLE,
+  DEFAULT_TEAM_AVATAR_STYLE,
+  generateAndStoreAvatar,
+} from "../src/services/avatars";
 
 const dryRun = process.argv.includes("--dry");
 const restyle = process.argv.includes("--restyle");
 
-/** Does this record need work? */
-const needsAvatar = (avatar: any): boolean => {
+/**
+ * Does this record need work?
+ *
+ * `expected` differs by kind: a TEAM defaults to abstract shapes and a PERSON
+ * to a character, so that a team and a roster member are never rendered as the
+ * same kind of thing in a list.
+ */
+const needsAvatar = (avatar: any, expected: string): boolean => {
   if (!avatar?.url) return true;
-  return restyle && avatar.style !== DEFAULT_AVATAR_STYLE;
+  return restyle && avatar.style !== expected;
 };
 
 async function main() {
@@ -43,11 +53,11 @@ async function main() {
   for (const team of await Team.find({})) {
     let dirty = false;
 
-    if (needsAvatar(team.avatar)) {
+    if (needsAvatar(team.avatar, DEFAULT_TEAM_AVATAR_STYLE)) {
       console.log(`  team    ${team.teamName}`);
       if (!dryRun) {
         team.avatar = (await generateAndStoreAvatar(
-          DEFAULT_AVATAR_STYLE,
+          DEFAULT_TEAM_AVATAR_STYLE,
           team.teamName
         ).catch(() => null)) as any;
       }
@@ -56,7 +66,7 @@ async function main() {
     }
 
     for (const m of team.members ?? []) {
-      if (!needsAvatar((m as any).avatar)) continue;
+      if (!needsAvatar((m as any).avatar, DEFAULT_AVATAR_STYLE)) continue;
       console.log(`  member  ${team.teamName} › ${(m as any).name}`);
       if (!dryRun) {
         (m as any).avatar = await generateAndStoreAvatar(
@@ -76,7 +86,7 @@ async function main() {
   // in every UI by their TEAM, which has its own avatar. Giving them a second,
   // different face would be a second identity for the same player.
   for (const user of await User.find({ role: { $ne: "team" } })) {
-    if (!needsAvatar(user.avatar)) continue;
+    if (!needsAvatar(user.avatar, DEFAULT_AVATAR_STYLE)) continue;
     const label = user.name ?? user.email ?? String(user._id);
     console.log(`  user    ${label}`);
     if (!dryRun) {

@@ -229,6 +229,10 @@ export const createDiceBearAvatar = (style: string, seed: string, label?: string
   api.post("/avatars/dicebear", { style, seed, label });
 
 // ── Round notes ────────────────────────────────────────────────
+/** Live per-team progress while a round is open. Staff only. */
+export const getTeamProgress = (simulationId: string, roundNumber?: number) =>
+  api.get("/team-progress", { params: { simulationId, ...(roundNumber != null ? { roundNumber } : {}) } });
+
 export const getRoundNotes = (simulationId: string, roundNumber?: number) =>
   api.get("/round-notes", {
     params: { simulationId, ...(roundNumber !== undefined ? { roundNumber } : {}) },

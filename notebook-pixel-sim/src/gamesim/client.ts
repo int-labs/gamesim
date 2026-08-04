@@ -212,6 +212,35 @@ export function getDebrief(simulationId: Id): Promise<DebriefDto> {
   return request(`/debrief${qs({ simulationId })}`);
 }
 
+export interface TeamProgressBody {
+  roundNumber: number;
+  day: number;
+  phase: number;
+  cash: number;
+  energy: number;
+  lines: number;
+  shopName?: string | null;
+  ended?: boolean;
+}
+
+/**
+ * PUT /team-progress — tell the facilitator where this team has got to.
+ *
+ * FIRE AND FORGET, on purpose. This exists so an operator can see who is stuck
+ * mid-round; it is not part of the game and nothing is restored from it. The
+ * server takes the team's identity from the token, so no ids are sent.
+ *
+ * The promise never rejects: a heartbeat that could throw would be a network
+ * call able to interrupt a day-tick, which is the one place in the app that
+ * must not be able to fail.
+ */
+export function reportTeamProgress(body: TeamProgressBody): Promise<void> {
+  return request<void>('/team-progress', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  }).catch(() => undefined);
+}
+
 export type {
   BaseDataDto,
   CreateDecisionBody,

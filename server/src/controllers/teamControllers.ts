@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import Team from "../models/teams"; // adjust import path to match your models folder
-import { DEFAULT_AVATAR_STYLE, generateAndStoreAvatar } from "../services/avatars";
+import { DEFAULT_TEAM_AVATAR_STYLE, generateAndStoreAvatar } from "../services/avatars";
 
 // CREATE
 export const createTeam = async (req: Request, res: Response): Promise<void> => {
@@ -19,7 +19,7 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
     // created and left alone had `avatar: null` forever and the console fell
     // back to initials. A team is identified by its name in every list in the
     // product; the picture is part of that, not an optional extra.
-    const avatar = await generateAndStoreAvatar(DEFAULT_AVATAR_STYLE, teamName).catch(
+    const avatar = await generateAndStoreAvatar(DEFAULT_TEAM_AVATAR_STYLE, teamName).catch(
       // Never fail team creation over avatar rendering — a faceless team is
       // recoverable, a team that could not be created mid-class is not.
       () => null

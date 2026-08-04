@@ -174,7 +174,7 @@ export const PHASE_INTRO = {
   },
   2: {
     title: 'Phase 2 · Days 31-60 - Inventory Flow',
-    body: "Demand grows. Now you have to keep stock flowing without trapping cash. Hire helpers, buy raw materials at the right moment, and watch your stockout / overstock days.",
+    body: "Demand grows. Now you have to keep stock flowing without trapping cash. Hire helpers, tune Produce / day, and watch your stockout / overstock days.",
     cta: 'Start Phase 2',
     learningFocus: 'LP2',
   },
@@ -239,7 +239,7 @@ export const PRODUCT_PAGE = {
     },
     weakFit: 'Weak segment fit - design and target are mismatched.',
     strongFit: 'Strong segment fit - your design matches the audience.',
-    noStockYet: 'Buy raw, then confirm phase',
+    noStockYet: 'Set Produce / day, then confirm phase',
     cannibalization: {
       none: 'None',
       low: 'Low',
@@ -271,7 +271,7 @@ export const BUSINESS_PAGE = {
     },
   },
   inventory: {
-    rawHint: 'Raw materials get turned into finished notebooks each day.',
+    rawHint: 'Your Produce / day target is made into finished notebooks each day.',
     finishedHint: 'Finished stock is ready to sell. No stock = no sales.',
     stockoutHint: 'A stockout means a customer wanted to buy but you had nothing to sell - lost demand.',
     overstockHint: 'Overstock means cash is sitting in unsold notebooks. It traps liquidity.',

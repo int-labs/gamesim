@@ -24,6 +24,7 @@ import { importEsmNamespace } from "../utils/esmImport";
 
 export type AvatarStyleId =
   | "critters"
+  | "shapes"
   | "pixelArt"
   | "pixelArtNeutral"
   | "thumbs"
@@ -43,6 +44,12 @@ export const AVATAR_STYLES: {
     label: "Critters",
     license: "CC0 1.0",
     note: "Friendly creatures. The platform default. Rendered via DiceBear's hosted API (see REMOTE_ONLY) because the npm collection stops at v9.",
+  },
+  {
+    id: "shapes",
+    label: "Shapes",
+    license: "CC0 1.0",
+    note: "Abstract geometry. The default for TEAMS — a team is not a person, and giving it a face made it indistinguishable from a roster member in every list.",
   },
   {
     id: "pixelArt",
@@ -74,6 +81,19 @@ export const AVATAR_STYLES: {
  * the result, so the runtime behaviour matches every other style.
  */
 export const DEFAULT_AVATAR_STYLE: AvatarStyleId = "critters";
+
+/**
+ * Teams get a different style on purpose.
+ *
+ * A team and a person rendered in the same character style are impossible to
+ * tell apart in a list — the console shows both, often adjacent (a team row
+ * with its members beneath it). `shapes` is abstract geometry, so the kind of
+ * thing is legible before you read the label. It is also CC0 and ships in the
+ * npm package, so unlike Critters it renders with no network call at all.
+ *
+ * An operator picking a style explicitly (PUT /teams/:id/avatar) still wins.
+ */
+export const DEFAULT_TEAM_AVATAR_STYLE: AvatarStyleId = "shapes";
 
 /** Used when a REMOTE_ONLY style can't be fetched. Must be locally renderable. */
 const LOCAL_FALLBACK_STYLE: AvatarStyleId = "bottts";

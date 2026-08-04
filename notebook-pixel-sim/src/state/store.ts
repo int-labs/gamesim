@@ -269,6 +269,10 @@ const STARTER_LINE_ID = 'line-starter';
  */
 const STARTER_GENRE_ID = 'indie';
 
+/** The starter genre's legacy segment — shared by the line and the market slice. */
+const starterSegment = () =>
+  segmentForGenre((GENRES.find((g) => g.id === STARTER_GENRE_ID) ?? GENRES[0]).id);
+
 const starterLine = (): ProductLine => {
   const genre = GENRES.find((g) => g.id === STARTER_GENRE_ID) ?? GENRES[0];
   return {
@@ -282,7 +286,7 @@ const starterLine = (): ProductLine => {
     isCustomName: false,
     addOnsByArchetype: { [genre.id]: [] },
     quantityTarget: 25,
-    targetSegment: segmentForGenre(genre.id),
+    targetSegment: starterSegment(),
     inventory: { raw: 2, finished: 1, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
     finlitSpec: { type: genre.id, paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
     channels: ['offline'],
@@ -334,14 +338,18 @@ const startingState = (): GameState => ({
     activeLineId: STARTER_LINE_ID,
   },
   market: {
-    // Matches the active starter line (Student → minimalist → professionals),
-    // so the phase-gate is satisfied out of the box (starter lines have genres).
-    targetSegment: 'professionals',
+    // Derived from the SAME genre as the starter line, so the global lead
+    // segment and the line's own target cannot disagree on the first frame.
+    // This was hardcoded to 'professionals' — correct only for the retired
+    // "Student → minimalist" starter — while the line targeted students.
+    targetSegment: starterSegment(),
     retention: { students: 0, creators: 0, professionals: 0, gift: 0 },
+    // Keyed on the line that actually exists. The old map was keyed on
+    // 'line-student' / 'line-planner' / 'line-daily', none of which are created
+    // any more, so the starter line opened with no fit entry at all. The engine
+    // recomputes this every tick; these are just the first-frame values.
     fitBySegmentByLineId: {
-      'line-student': { students: 0.55, creators: 0.40, professionals: 0.35, gift: 0.40 },
-      'line-planner': { students: 0.40, creators: 0.55, professionals: 0.55, gift: 0.40 },
-      'line-daily':   { students: 0.30, creators: 0.55, professionals: 0.50, gift: 0.55 },
+      [STARTER_LINE_ID]: { students: 0.55, creators: 0.40, professionals: 0.35, gift: 0.40 },
     },
   },
   ops: {

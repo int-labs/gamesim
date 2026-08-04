@@ -10,6 +10,7 @@ import {
 } from 'react';
 import * as gamesim from './client';
 import { hydratePlayerConfig } from './configHydrator';
+import { useGame } from '@/state/store';
 import { PassKeyScreen } from '@/components/passkey/PassKeyScreen';
 import { GamesimStatusScreen } from '@/components/gamesim/GamesimStatusScreen';
 import {
@@ -268,6 +269,47 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, bootstrap?.round?._id, refreshOfficial, refetchBootstrap]);
+
+  // ── Progress heartbeat ────────────────────────────────────────────────
+  //
+  // Tells the facilitator where this team has got to, so the console can show
+  // who is playing, who is stuck and who has finished. It is a one-way report:
+  // nothing here is read back, and nothing about the run depends on it.
+  //
+  // Deliberately driven off the day counter rather than a timer alone. A team
+  // that has the app open and is deliberating shows a fresh `lastSeenAt` with
+  // an unchanged day, which is exactly the state a facilitator wants to spot —
+  // "open but not progressing" reads very differently from "gone".
+  const runDay = useGame((s) => s.meta.day);
+  const runPhase = useGame((s) => s.meta.phase);
+  const runEnded = useGame((s) => s.meta.ended);
+
+  useEffect(() => {
+    if (status !== 'ready' || !bootstrap?.round) return undefined;
+
+    const beat = () => {
+      // Read at call time rather than closing over the values, so the timer
+      // path always sends the CURRENT state and not the state at mount.
+      const s = useGame.getState();
+      void gamesim.reportTeamProgress({
+        roundNumber: bootstrap.round!.roundNumber,
+        day: s.meta.day,
+        phase: s.meta.phase,
+        cash: s.player.cash,
+        energy: s.player.energy,
+        lines: s.portfolio.productLines.length,
+        shopName: s.meta.shopName,
+        ended: s.meta.ended,
+      });
+    };
+
+    beat();
+    const timer = window.setInterval(beat, POLL_MS);
+    return () => window.clearInterval(timer);
+    // `runDay` / `runPhase` / `runEnded` are here to re-fire the beat the
+    // moment the run moves, not because the effect body reads them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, bootstrap?.round?._id, runDay, runPhase, runEnded]);
 
   const latestOf = <T extends { roundNumber: number }>(byRound: Record<number, T>): T | null => {
     const rounds = Object.keys(byRound).map(Number);

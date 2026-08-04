@@ -124,7 +124,7 @@ const RULES: FeedbackRule[] = [
         priority: 1,
         mood: 'warning',
         body:
-          "Customers want the product but stock is low. You may lose sales unless you produce more - buy raw, then confirm the phase.",
+          "Customers want the product but stock is low. You may lose sales unless you produce more - raise Produce / day in Business > Inventory, then confirm the phase.",
       };
     },
   },
@@ -143,7 +143,7 @@ const RULES: FeedbackRule[] = [
         priority: 2,
         mood: 'thinking',
         body:
-          "You made more notebooks than customers want. That traps cash in inventory - slow raw-material buys until stock drains.",
+          "You made more notebooks than customers want. That traps cash in inventory - lower Produce / day until stock drains.",
       };
     },
   },
@@ -181,7 +181,7 @@ const RULES: FeedbackRule[] = [
         priority: 1,
         mood: 'concerned',
         body:
-          "Cash is getting tight. Profit may look fine, but stock and upgrade buys hit cash first. Pause marketing or batch your raw-material orders.",
+          "Cash is getting tight. Profit may look fine, but stock and upgrades hit cash first. Pause marketing or ease off Produce / day.",
       };
     },
   },

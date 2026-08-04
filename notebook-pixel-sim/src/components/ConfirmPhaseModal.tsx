@@ -103,12 +103,12 @@ export function ConfirmPhaseModal({ open, onClose }: Props) {
       }
       if (stockoutDays >= 3) {
         messages.push({
-          body: `You ran out of stock on ${stockoutDays} days - that's demand you couldn't fulfil. Hire a helper or buy raw materials sooner.`,
+          body: `You ran out of stock on ${stockoutDays} days - that's demand you couldn't fulfil. Hire a helper or raise your production target.`,
           mood: 'concerned_soft',
         });
       } else if (overstockDays >= 5) {
         messages.push({
-          body: `You held overstock for ${overstockDays} days - cash trapped in unsold notebooks. Slow your raw-material buys until stock drains.`,
+          body: `You held overstock for ${overstockDays} days - cash trapped in unsold notebooks. Lower your production target until stock drains.`,
           mood: 'concerned_soft',
         });
       }

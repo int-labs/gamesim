@@ -358,6 +358,21 @@ export function useDrivers(productId?: string) {
   });
 }
 
+/**
+ * Live progress for every team in the open round.
+ *
+ * Polled fast: this is the only view that answers "who needs help right now",
+ * and a facilitator reads it while walking the room.
+ */
+export function useTeamProgress(simulationId?: string, roundNumber?: number) {
+  return useQuery({
+    queryKey: ["team-progress", simulationId, roundNumber],
+    queryFn: () => list<any>(api.getTeamProgress(simulationId!, roundNumber)),
+    enabled: !!simulationId,
+    refetchInterval: 15_000,
+  });
+}
+
 export function useGlobalInputs(simulationTypeId?: string) {
   const fallback = useActiveSimulationTypeId();
   const typeId = simulationTypeId ?? fallback;

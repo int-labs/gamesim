@@ -133,12 +133,12 @@ export function EvaluationScreen() {
                   </p>
                   {inventory.stockoutDays > 3 && (
                     <p className="mb-1.5">
-                      <strong>{inventory.stockoutDays} stockout days</strong> - that's demand you couldn't fulfil. Hire a helper, buy raw earlier, or trim a slow line.
+                      <strong>{inventory.stockoutDays} stockout days</strong> - that's demand you couldn't fulfil. Hire a helper, raise your production target, or trim a slow line.
                     </p>
                   )}
                   {inventory.overstockDays > 3 && (
                     <p className="mb-1.5">
-                      <strong>{inventory.overstockDays} overstock days</strong> - cash trapped in unsold notebooks. Slow your raw-material buys or boost demand with marketing.
+                      <strong>{inventory.overstockDays} overstock days</strong> - cash trapped in unsold notebooks. Lower your production target or boost demand with marketing.
                     </p>
                   )}
                   {inventory.stockoutDays <= 3 && inventory.overstockDays <= 3 && opProfit >= 0 && (
