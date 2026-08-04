@@ -28,11 +28,11 @@ import { EnergyValue } from '@/components/primitives/EnergyValue';
 type ChipTone = 'money' | 'energy' | 'reach' | 'good' | 'muted';
 
 const CHIP_TONE: Record<ChipTone, string> = {
-  money: 'border-warning bg-warning-soft text-text',
-  energy: 'border-warning bg-warning-soft text-text',
-  reach: 'border-info bg-info-soft text-text',
-  good: 'border-success bg-success-soft text-text',
-  muted: 'border-border-soft bg-surface-2 text-text-2',
+  money: 'bg-warning-soft text-text',
+  energy: 'bg-warning-soft text-text',
+  reach: 'bg-info-soft text-text',
+  good: 'bg-success-soft text-text',
+  muted: 'bg-surface-2 text-text-2',
 };
 
 /**
@@ -52,7 +52,12 @@ export function StatChip({
   className?: string;
 }) {
   return (
-    <div className={clsx('border-2 px-2.5 py-1.5 min-w-0', CHIP_TONE[tone], className)}>
+    // No border. A chip carrying a number is not pressable, and giving it the
+    // same 2px frame as the buttons beside it is most of why the page was hard
+    // to read as a set of controls. `.readout`'s inset shadow says "display",
+    // the tint still groups label + value, and the only 2px frames left on the
+    // page are things you can actually click.
+    <div className={clsx('readout px-2.5 py-1.5 min-w-0', CHIP_TONE[tone], className)}>
       {/* One line, always. .stat-label carries `white-space: nowrap`, so a long
           caption clips at the chip edge instead of pushing the figure down and
           leaving one chip in a row taller than its neighbours. */}
@@ -69,7 +74,7 @@ export function EnergyTag({ amount, className }: { amount: number; className?: s
   return (
     <span
       className={clsx(
-        'inline-flex items-center gap-1 border-2 border-warning bg-warning-soft px-1.5 py-[1px]',
+        'inline-flex items-center gap-1 bg-warning-soft px-1.5 py-[1px]',
         className,
       )}
     >
@@ -99,7 +104,7 @@ export function OpsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="border-2 border-ink-900 bg-cream-50 shadow-pixel-2">
+    <section className="border-2 border-ink-900 bg-cream-50">
       {/* The masthead carries the section's weight. It used to be a 32px mark
           beside a 16px caption — smaller than the card titles underneath it —
           so five stacked sections read as one undifferentiated column. Bigger
@@ -126,7 +131,7 @@ export function OpsSection({
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            className="shrink-0 self-center flex items-center gap-1.5 border-2 border-ink-900 bg-cream-50 hover:bg-cream-100 px-2.5 py-1.5 cursor-pointer shadow-pixel-1"
+            className="ctl-btn shrink-0 self-center flex items-center gap-1.5 border-2 border-ink-900 bg-cream-50 hover:bg-cream-100 px-2.5 py-1.5 cursor-pointer"
           >
             {/* The glyph carries the meaning ("there's more to read here"), so it
                 leads; the word follows. Sized to the cap-height of eyebrow-sm so
@@ -238,7 +243,7 @@ export function OperationsDetailModal({
             {inputs.map((inp, i) => (
               <motion.div
                 key={inp.name}
-                className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1"
+                className="border-2 border-ink-900 bg-cream-50"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04, type: 'spring', stiffness: 280, damping: 22 }}
@@ -278,7 +283,7 @@ export function OperationsDetailModal({
             {tables.map((t, i) => (
               <motion.div
                 key={i}
-                className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1 overflow-x-auto"
+                className="border-2 border-ink-900 bg-cream-50 overflow-x-auto"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.08 + i * 0.04, type: 'spring', stiffness: 280, damping: 22 }}

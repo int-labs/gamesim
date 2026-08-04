@@ -22,8 +22,12 @@ const base =
   'hover:-translate-y-px hover:shadow-pixel-1 active:translate-y-0 active:shadow-none ' +
   'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:shadow-none';
 
+// `primary` is the bright pastel with a DEEP ink label — see the long note on
+// `.game-btn` in index.css. Dark-fill + cream-label passed contrast by exactly
+// 0.01 and read as a disabled control, which is the worst possible look for the
+// button the whole screen is pointing at.
 const variants: Record<Variant, string> = {
-  primary:   'bg-primary-strong text-white hover:brightness-110 active:brightness-95',
+  primary:   'bg-primary hover:brightness-105 active:brightness-95',
   secondary: 'bg-secondary-strong text-white hover:brightness-110 active:brightness-95',
   danger:    'bg-danger-strong text-white hover:brightness-105 active:brightness-95',
   ghost:     'bg-surface text-text hover:bg-surface-2',
@@ -48,7 +52,14 @@ export function PixelButton({
   return (
     <button
       className={clsx(base, variants[variant], sizes[size], full && 'w-full', className)}
-      style={{ color: variant === 'ghost' ? undefined : '#FAF7E8' }}
+      // Cream is right on the three DARK fills and wrong on `primary`, which
+      // is now a light fill. `ghost` keeps the theme's own text colour.
+      style={{
+        color:
+          variant === 'ghost' ? undefined
+          : variant === 'primary' ? '#12301C'
+          : '#FAF7E8',
+      }}
       {...rest}
     >
       {icon ? <span className="flex items-center shrink-0">{icon}</span> : null}

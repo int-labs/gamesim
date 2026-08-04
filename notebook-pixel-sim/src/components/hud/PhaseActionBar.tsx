@@ -238,12 +238,12 @@ export function PhaseActionBar() {
             blocked && 'game-btn--blocked',
           )}
         >
-          <PixelIcon kind="check" size={13} color="#FAF7E8" />
+          <PixelIcon kind="check" size={13} color="#12301C" />
           <span className="btn-label uppercase tracking-wide">
             <span className="sm:hidden">Confirm Phase {phase}</span>
             <span className="hidden sm:inline">{phaseTitle}</span>
           </span>
-          <PixelIcon kind="arrow-right" size={13} color="#FAF7E8" />
+          <PixelIcon kind="arrow-right" size={13} color="#12301C" />
         </button>
         </Tooltip>
       </div>

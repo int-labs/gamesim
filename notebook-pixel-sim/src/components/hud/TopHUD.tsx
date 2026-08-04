@@ -40,11 +40,13 @@ const toneText: Record<KpiTone, string> = {
   warning: 'text-warning',
   danger: 'text-danger',
 };
+// -ink, for the same reason as CanvasStatusStrip's: the Energy chip's fill IS
+// caramel and the bolt was drawn in --c-warning, i.e. caramel on caramel.
 const toneIcon: Record<KpiTone, string> = {
   neutral: 'var(--c-text-2)',
-  success: 'var(--c-success)',
-  warning: 'var(--c-warning)',
-  danger: 'var(--c-danger)',
+  success: 'var(--c-success-ink)',
+  warning: 'var(--c-warning-ink)',
+  danger: 'var(--c-danger-ink)',
 };
 
 // The Cash chip fills with saturated green (`.game-hud-chip-success`, #B7DDC0),

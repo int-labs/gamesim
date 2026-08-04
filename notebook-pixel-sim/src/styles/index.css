@@ -143,6 +143,15 @@ html, body, #root {
   box-sizing: border-box;
 }
 
+/* The one genuinely blue thing on screen was never ours: with no ::selection
+   rule the browser paints its own system highlight, which on macOS is a cold
+   blue that lands across warm cream panels every time a player drags over a
+   number. Warm amber keeps a selection inside the palette. */
+::selection {
+  background: var(--c-warning-soft);
+  color: var(--c-text);
+}
+
 img {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -398,11 +407,14 @@ button {
      page). It has to OUTRANK the .h3 (18px) used on the cards INSIDE it — at
      .section-title's 16px a section header was two pixels smaller than its own
      children, which is exactly why the page read as one flat list of boxes
-     instead of five containers each holding a decision. */
+     instead of five containers each holding a decision.
+
+     Sized against .h2 (24px), which is what the option cards inside a section
+     now use — this must stay clearly above it or the inversion is back. */
   .section-heading {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 23px;
+    font-size: 28px;
     line-height: 1.02;
     letter-spacing: 0.03em;
     text-transform: uppercase;
@@ -610,12 +622,20 @@ button {
     gap: 8px;
     padding: 0 16px;
     height: 40px;
-    border: 1px solid #2B5B39;
-    /* The strong fill, not the pastel: this is the game's primary call to
-       action and cream on --c-primary measured 2.14:1, making the single most
-       important button the hardest text on screen to read. */
-    background-color: var(--c-primary-strong);
-    color: #FAF7E8;
+    border: 2px solid #1F4A2C;
+    /* BRIGHT fill + DEEP ink label, not dark fill + cream label.
+       The previous pairing was picked to fix a contrast bug — cream on the
+       pastel --c-primary measured 2.14:1 — and it did, but it solved it by
+       darkening the fill to #3C7F4F, which sits at exactly 4.49:1 against
+       cream. That is simultaneously the darkest green that still passes AND
+       the muddiest, so the game's single most important button ended up
+       looking like a disabled control.
+       Flipping the pair fixes both: the pastel fill reads bright and alive,
+       and #12301C on it measures 6.2:1 — better contrast than before, not a
+       trade against it. The blocked state (opacity + grayscale) is now
+       obviously different from the live one. */
+    background-color: var(--c-primary);
+    color: #12301C;
     font-weight: 800;
     letter-spacing: 0.04em;
     cursor: pointer;

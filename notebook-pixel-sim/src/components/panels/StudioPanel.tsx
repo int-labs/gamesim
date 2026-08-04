@@ -172,7 +172,7 @@ export function StudioPanel() {
             className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text section-title outline-none focus:border-primary px-3 py-2"
           />
           <div className="flex items-center gap-3 min-w-0">
-            <span className="shrink-0 border-2 border-border-soft bg-surface-2 px-2 py-1">
+            <span className="readout shrink-0 bg-surface-2 px-2 py-1">
               <span className="num-xs text-text-2 tabular-nums">
                 {(shopDraft ?? shopName).length}/{MAX_SHOP_NAME}
               </span>
@@ -215,30 +215,32 @@ export function StudioPanel() {
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 340, damping: 20 }}
                 className={clsx(
-                  'ctl-btn flex flex-col gap-2 p-3 border-2 text-left cursor-pointer',
-                  on ? 'border-success bg-success-soft shadow-pixel-1' : 'border-border-soft bg-surface hover:border-border',
+                  // Ink frame either way — this is a switch, and an "off"
+                  // switch is still a control. State is carried by the FILL.
+                  'ctl-btn flex flex-col gap-2 p-3 border-2 border-ink-900 text-left cursor-pointer',
+                  on ? 'bg-success-soft' : 'bg-surface hover:bg-cream-100',
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
                   <img
                     src={CHANNEL_ICON[ch]}
                     alt=""
-                    className="w-14 h-14 object-contain shrink-0"
+                    className="w-20 h-20 object-contain shrink-0"
                     style={{ imageRendering: 'pixelated' }}
                     draggable={false}
                   />
                   <span className={clsx(
-                    'shrink-0 border-2 px-2 py-1',
-                    on ? 'border-success bg-surface' : 'border-border-soft',
+                    'shrink-0 px-2 py-1',
+                    on ? 'bg-success text-ink-900' : 'bg-surface-2',
                   )}>
-                    <span className={clsx('eyebrow eyebrow-sm', on ? 'text-success' : 'eyebrow-muted')}>
+                    <span className={clsx('eyebrow eyebrow-sm', on ? 'text-ink-900' : 'eyebrow-muted')}>
                       {on ? 'On' : 'Off'}
                     </span>
                   </span>
                 </div>
 
                 <div className="min-w-0">
-                  <div className="h3 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
+                  <div className="h2 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
                   <p className="body-xs text-text-2 mt-1">{CHANNEL_META[ch].blurb}</p>
                 </div>
 
@@ -309,7 +311,9 @@ export function StudioPanel() {
             const engaged = hire?.candidate === c.id;
             const curLevel = engaged ? hire!.level : 0;
             return (
-              <div key={c.id} className={clsx('border-2 px-2.5 py-2 flex gap-2.5', engaged ? 'border-primary bg-primary-soft' : 'border-border-soft bg-surface')}>
+              // A roster ROW, not a control — you click the tier buttons
+              // inside it, never the row. Fill alone marks the engaged hire.
+              <div key={c.id} className={clsx('readout px-2.5 py-2 flex gap-2.5', engaged ? 'bg-primary-soft' : 'bg-surface')}>
                 {/* Candidate portrait. No frame: a box around a transparent
                     pixel sprite added a second border inside a bordered card
                     and boxed the art into a narrow column. Unframed it reads as
@@ -324,7 +328,7 @@ export function StudioPanel() {
                 />
                 <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="h3 uppercase text-ink-900">{c.name}</span>
+                  <span className="h2 uppercase text-ink-900">{c.name}</span>
                   {engaged && <PixelBadge tone="success">L{curLevel} hired</PixelBadge>}
                 </div>
                 <p className="body-xs text-text-2 mt-1 mb-2">{c.blurb}</p>
@@ -345,8 +349,8 @@ export function StudioPanel() {
                         onClick={() => { playSfx('click-soft'); setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! }); }}
                         className={clsx(
                           'ctl-btn flex flex-col items-center gap-0.5 py-1.5 px-1 border-2 transition-all',
-                          isCur ? 'border-primary bg-primary-strong text-white'
-                          : affordable ? 'border-border-soft bg-surface hover:border-primary text-text active:scale-95'
+                          isCur ? 'border-ink-900 bg-primary text-ink-900'
+                          : affordable ? 'border-ink-900 bg-surface hover:bg-cream-100 text-text active:scale-95'
                           : 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed',
                         )}
                         title={`L${lv.level}: +${lv.prodBonus.toFixed(2)} prod, +${(lv.sellBonus * 100).toFixed(1)}% sell · ${lv.energy}⚡ to unlock · ${fmt$(lv.cost)}/day`}
@@ -355,10 +359,10 @@ export function StudioPanel() {
                             at .num-sm, not .num-md: "L1" is a two-character tag,
                             not a headline figure, and at 21px four of them made
                             the tier row the loudest thing in the section. */}
-                        <span className={clsx('num-sm leading-none', isCur ? 'text-white' : 'text-ink-900')}>
+                        <span className={clsx('num-sm leading-none', isCur ? 'text-ink-900' : 'text-ink-900')}>
                           L{lv.level}
                         </span>
-                        <span className={clsx('stat-label stat-label-on-tint', isCur && 'text-white')}>
+                        <span className="stat-label stat-label-on-tint">
                           {fmt$(lv.cost)}/day
                         </span>
                         {!isCur && <EnergyTag amount={lv.energy} />}
@@ -428,7 +432,9 @@ export function StudioPanel() {
                     onClick={() => { playSfx('click-soft'); setPending({ kind: 'vendor', id: v.id as VendorId, energy: cost, study: studyFor('vendor', v.id)! }); }}
                     className={clsx(
                       'ctl-btn text-left px-2 py-2 border-2 transition-all active:scale-[0.98]',
-                      on ? 'border-success bg-success-soft' : stocks && affordable ? 'border-border-soft bg-surface hover:border-border' : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed',
+                      on ? 'border-ink-900 bg-success-soft'
+                      : stocks && affordable ? 'border-ink-900 bg-surface hover:bg-cream-100'
+                      : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed',
                     )}
                     title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(cov.cost)}/day` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
                   >
@@ -440,7 +446,7 @@ export function StudioPanel() {
                         fallbackIcon="box"
                         fallbackSize={32}
                       />
-                      <span className="h3 uppercase text-ink-900 truncate flex-1 min-w-0">{v.name}</span>
+                      <span className="h2 uppercase text-ink-900 truncate flex-1 min-w-0">{v.name}</span>
                       {stocks && <PixelBadge tone={cov.quality === 'perfect' ? 'success' : 'neutral'}>{cov.quality}</PixelBadge>}
                     </div>
                     {stocks ? (
@@ -512,11 +518,11 @@ export function StudioPanel() {
             {/* The trade-off, as a matched pair — same shape, opposite colour,
                 so "when this wins" and "when it hurts" weigh the same. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="border-2 border-success/45 bg-success-soft/40 px-3 py-2.5">
+              <div className="readout bg-success-soft/50 px-3 py-2.5">
                 <div className="stat-label text-success">Best when</div>
                 <div className="body-xs text-text mt-1.5">{pending.study.bestWhen}</div>
               </div>
-              <div className="border-2 border-warning/45 bg-warning-soft/40 px-3 py-2.5">
+              <div className="readout bg-warning-soft/50 px-3 py-2.5">
                 <div className="stat-label text-warning">Watch out</div>
                 <div className="body-xs text-text mt-1.5">{pending.study.watchOut}</div>
               </div>
@@ -574,9 +580,10 @@ function BudgetLever({
 }) {
   const active = value > 0;
   return (
-    <div className={clsx('border-2 p-3 flex flex-col gap-2', active ? 'border-success bg-success-soft shadow-pixel-1' : 'border-border-soft bg-surface')}>
+    // The lever's CONTROL is the slider; the card around it is a panel.
+    <div className={clsx('readout p-3 flex flex-col gap-2', active ? 'bg-success-soft' : 'bg-surface')}>
       <div>
-        <div className="h3 uppercase text-ink-900">{label}</div>
+        <div className="h2 uppercase text-ink-900">{label}</div>
         <p className="body-xs text-text-2 mt-1">{hint}</p>
       </div>
 

@@ -123,11 +123,17 @@ type Tone = 'good' | 'bad' | 'warn' | 'revenue';
 
 // High-contrast light cards on the dark HUD bar. Value colour carries the
 // signal; the label stays quiet so the number reads first.
+// The -INK weights, not the bright pastels. The three-weight rule was written
+// for TEXT and never applied to icon strokes, and these icons sit on a caramel
+// (#DEC189) tile: --c-warning is #DDA655, which is the same colour as its own
+// background to within a few percent, and --c-fin-revenue fared little better.
+// A 2px stroke is thinner than a letterform, so if anything it needs MORE
+// contrast than text, not less.
 const tones: Record<Tone, { value: string; icon: string }> = {
-  good:    { value: 'text-success',     icon: 'var(--c-success)' },
-  bad:     { value: 'text-danger',      icon: 'var(--c-danger)' },
-  warn:    { value: 'text-warning',     icon: 'var(--c-warning)' },
-  revenue: { value: 'text-fin-revenue', icon: 'var(--c-fin-revenue)' },
+  good:    { value: 'text-success',     icon: 'var(--c-success-ink)' },
+  bad:     { value: 'text-danger',      icon: 'var(--c-danger-ink)' },
+  warn:    { value: 'text-warning',     icon: 'var(--c-warning-ink)' },
+  revenue: { value: 'text-fin-revenue', icon: 'var(--c-fin-revenue-ink)' },
 };
 
 function Kpi({
