@@ -232,17 +232,51 @@ async function main() {
     for (const [i, team] of teams.entries()) {
       const inputs = products.map((p) => {
         const fields = [];
+
+        /**
+         * Price relative to the reference the engine will derive, not to the
+         * field's slider range.
+         *
+         * `calcFinancials` builds `dynamicPrice` from the product's money
+         * fields (here, `unit_cost`) scaled by a diminishing-returns factor,
+         * then scores the selling price against THAT. Seeding prices off
+         * min/max instead put every team 1.7-2.4x above the reference, which
+         * the model correctly reads as gross overpricing — so the whole demo
+         * cohort converted almost nobody and posted a pure loss. The charts
+         * were right; the seed was not.
+         *
+         * Mirrors calcFinancials' own bell factor so the seeded markup lands
+         * where it is meant to: a spread around the reference, with some teams
+         * under-pricing for volume and some over-pricing for margin. That
+         * spread IS the debrief.
+         */
+        const unitCostField = (p.fields ?? []).find((f) => f.key === "unit_cost");
+        const unitCostValue = Math.round((3 + team.spec.score * 2.2) * 100) / 100;
+        const bellFactor = (() => {
+          const min = unitCostField?.minValue;
+          const max = unitCostField?.maxValue;
+          if (min == null || max == null || max <= min) return 1;
+          const mean = (min + max) / 2;
+          const sd = (max - min) / 4;
+          const z = (unitCostValue - mean) / sd;
+          return 2 - Math.exp(-(z * z) / 2);
+        })();
+        const reference = unitCostValue * bellFactor;
+
         for (const f of p.fields ?? []) {
           const lo = f.minValue ?? 0;
           const hi = f.maxValue ?? 100;
           let value;
           if (f.key === "selling_price") {
-            value = Math.round((lo + (hi - lo) * team.spec.price * drift(round, i)) * 100) / 100;
+            // 0.85x-1.45x of the reference across the cohort.
+            const markup = 0.85 + team.spec.price * 0.6;
+            const raw = reference * markup * drift(round, i);
+            value = Math.round(Math.min(hi, Math.max(lo, raw)) * 100) / 100;
           } else if (f.key === "score") {
             value = Math.min(hi, Math.max(lo, Math.round(team.spec.score * drift(round, i) * 10) / 10));
           } else if (f.key === "unit_cost") {
             // Better design costs more to make — that trade-off is the lesson.
-            value = Math.round((3 + team.spec.score * 2.2) * 100) / 100;
+            value = unitCostValue;
           } else if (f.key === "projected_market_share") {
             value = 1 / TEAMS.length;
           } else {
