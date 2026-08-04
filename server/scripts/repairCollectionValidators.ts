@@ -96,6 +96,13 @@ const CORRECTIONS: Record<
     },
   },
 
+  paramList: {
+    why: "`parameters` is declared an object but the model is an ARRAY of parameter subdocuments",
+    apply: (s) => {
+      if (s.properties) s.properties.parameters = { bsonType: ["array", "null"] };
+    },
+  },
+
   drivers: {
     why: "a driver hangs off a product only — the model has no segmentId",
     apply: (s) => {

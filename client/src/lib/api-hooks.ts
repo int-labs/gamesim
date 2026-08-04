@@ -616,6 +616,35 @@ export const simulationCrud = crud({
   remove: (id) => api.deleteSimulation(id),
 });
 
+/**
+ * Param lists were treated as read-only on the strength of a bad file-name
+ * guess — `paramRoutes.ts` is mounted at `/param-list` with POST, DELETE and a
+ * PATCH that upserts ONE parameter at a time, keyed by `paramCode`.
+ */
+export const paramListCrud = {
+  ...crud({
+    noun: "Param list",
+    key: ["param-lists"],
+    create: (d) => api.createParamList(d),
+    remove: (id) => api.deleteParamList(id),
+  }),
+
+  /** PATCH /param-list/:id/parameters — upsert a single parameter by code. */
+  useUpsertParameter() {
+    const qc = useQueryClient();
+    const t = crudToast("saved", "Parameter");
+    return useMutation({
+      mutationFn: ({ id, data }: { id: string; data: any }) =>
+        api.updateParamListParameters(id, data),
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["param-lists"] });
+        t.ok();
+      },
+      onError: t.fail,
+    });
+  },
+};
+
 export const teamCrud = crud({
   noun: "Team",
   key: ["teams"],

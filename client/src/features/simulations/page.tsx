@@ -41,21 +41,6 @@ import { useScope } from "@/lib/scope-store";
 function CreateSimulationDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { data: types = [] } = useSimulationTypes();
   const create = useCreateSimulation();
-  const update = simulationCrud.useUpdate();
-  const [editing, setEditing] = React.useState<any>(null);
-
-  const editFields = React.useMemo<FormField[]>(
-    () => [
-      { key: "simulationName", label: "Name", required: true, wide: true,
-        help: "What this cohort is called everywhere in the console." },
-      { key: "status", label: "Status", kind: "select", required: true,
-        options: ["Active", "Inactive", "Completed"].map((v) => ({ value: v, label: v })),
-        help: "A debrief only unlocks for teams once the simulation is Completed." },
-      { key: "startDate", label: "Starts", kind: "text", placeholder: "YYYY-MM-DD" },
-      { key: "endDate", label: "Ends", kind: "text", placeholder: "YYYY-MM-DD" },
-    ],
-    []
-  );
 
   const [form, setForm] = React.useState({
     simulationName: "",
@@ -218,6 +203,35 @@ export default function SimulationsPage() {
 
   const [createOpen, setCreateOpen] = React.useState(false);
   const [pendingDelete, setPendingDelete] = React.useState<any>(null);
+
+  // Simulations were create-and-delete only: there was no way to rename a
+  // cohort or move it to Completed, which is the state that unlocks the
+  // debrief for teams. `updateSimulation` had existed unused the whole time.
+  const update = simulationCrud.useUpdate();
+  const [editing, setEditing] = React.useState<any>(null);
+
+  const editFields = React.useMemo<FormField[]>(
+    () => [
+      {
+        key: "simulationName",
+        label: "Name",
+        required: true,
+        wide: true,
+        help: "What this cohort is called everywhere in the console.",
+      },
+      {
+        key: "status",
+        label: "Status",
+        kind: "select",
+        required: true,
+        options: ["Active", "Inactive", "Completed"].map((v) => ({ value: v, label: v })),
+        help: "A debrief only unlocks for teams once the simulation is Completed.",
+      },
+      { key: "startDate", label: "Starts", placeholder: "YYYY-MM-DD" },
+      { key: "endDate", label: "Ends", placeholder: "YYYY-MM-DD" },
+    ],
+    []
+  );
 
   const typeName = React.useCallback(
     (id: string) => types.find((t: any) => t._id === id)?.name ?? "—",

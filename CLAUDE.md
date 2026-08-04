@@ -191,6 +191,12 @@ It fixed eleven of the twenty-one validators. Two classes of problem:
 
 If a write starts failing with "Document failed validation", run the repair with `--dry` first: it names the collection and says what disagrees.
 
+### Two pages rendered fields their model has never had
+
+`Drivers` showed `name` and `key`; a Driver is `{ productId, years }`, so every row read "Unnamed driver". `Param list` showed `name`, `key` and `value`; a ParamList is `{ segmentId, productId, parameters[] }`, so every row read "Unnamed". Both were built against an imagined shape and both looked like empty data rather than wrong code.
+
+Worth doing before writing a collection page: fetch one document and read it. The console's own `GET` is the fastest check available and neither of these would have survived it.
+
 ### Controllers can demand fields their model doesn't have
 
 `POST /drivers` required a `segmentId` in the body, then passed it to `Driver.create()` — where Mongoose stripped it, because the schema has no such path. The check's only effect was to make a driver impossible to create without sending a value that was immediately discarded, and the 409 message spoke of "this product and team" when the unique index is on `productId` alone. Fixed in [driversControllers.ts](server/src/controllers/driversControllers.ts).
@@ -260,7 +266,9 @@ Both are reached two ways:
 
 Deliberately thin: `src/api.ts` is a flat list of axios calls (roughly one per route) and every file in `src/pages/` is CRUD over a single collection. `MainSimPage.tsx` is the operator console (activate a round, calculate it). Shared state is one `context/AppContext.tsx`.
 
-**Navigation is grouped by when you use it**, not by which table a page maps to — `src/lib/nav.ts`. Five groups: *Session* (what is happening in the room right now; the only one open by default), *Game design* (the copy and structure a facilitator rewrites per client), *Market model* (the numbers the engine scores with), *Reference*, and *Platform*. **Editable and read-only never share a group**, so nobody hunts for an edit button that was never going to exist: Param List is the sole genuinely read-only collection — it has no route file and therefore no write API — and Archetypes is derived from genres, which is where you change one.
+**Navigation is grouped by when you use it**, not by which table a page maps to — `src/lib/nav.ts`. Four groups: *Session* (what is happening in the room right now; the only one open by default), *Game design* (the copy and structure a facilitator rewrites per client), *Market model* (the numbers the engine scores with) and *Platform*.
+
+*(Historical, and a warning: there was briefly a fifth "Reference" group holding Param List, on the claim that it had no write API. That was wrong — `paramRoutes.ts` is mounted at `/param-list` with POST, PATCH `/:id/parameters` and DELETE. The survey that produced the claim searched for a file called `paramListRoutes.ts`, didn't find one, and concluded the routes didn't exist. **Grep the mount table in `src/routes/index.ts`, not the filenames.** The only genuinely derived-and-uneditable surface is Archetypes, which is built from genres.)*
 
 **One form for every collection** — `src/components/app/resource-form.tsx`. A page declares its fields (`text` · `textarea` · `number` · `money` · `switch` · `select` · `json`) and gets the create dialog, the edit dialog, validation and the delete confirmation from `ResourceFormDialog` / `useResourceCrud` / `DeleteResourceDialog`, with the mutations coming from the `crud()` factory in `src/lib/api-hooks.ts`. Three things worth knowing:
 

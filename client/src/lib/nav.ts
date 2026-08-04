@@ -47,9 +47,8 @@ export type NavGroup = {
  * thing you touch every session (Rounds) at the same visual weight as the one
  * you touch once a year (Param List), and gave no clue which was which. The
  * split is now the platform's own: running a live session, authoring the game,
- * tuning the market model it is scored by, read-only reference, and the
- * platform underneath all of it. Editable and read-only never share a group,
- * so nobody looks for an edit button that was never going to exist.
+ * tuning the market model it is scored by, and the platform underneath all of
+ * it.
  *
  * Only the first group is open by default. An operator mid-session sees eight
  * entries instead of twenty-one, and the authoring surface is one click away
@@ -97,13 +96,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Drivers", to: "/drivers", icon: Gauge, tone: "gold" },
       { label: "Global Inputs", to: "/global-inputs", icon: Globe, tone: "peri" },
       { label: "Initiatives", to: "/initiatives", icon: Rocket, tone: "brand" },
-    ],
-  },
-  {
-    // Read-only. Grouped separately so nobody hunts for an edit button that
-    // was never going to be there — the server exposes no write route for these.
-    eyebrow: "Reference",
-    items: [
+      // Was in a "Reference" group on the mistaken belief that it had no write
+      // API. `paramRoutes.ts` is mounted at /param-list with POST, PATCH and
+      // DELETE; the earlier survey looked for `paramListRoutes.ts`.
       { label: "Param List", to: "/param-list", icon: SlidersHorizontal, tone: "neutral" },
     ],
   },

@@ -98,7 +98,6 @@ export const getUserById = (id: string) => api.get(`/users/${id}`);
 export const createUser = (data: object) => api.post("/users", data);
 export const deleteUser = (id: string) => api.delete(`/users/${id}`);
 export const regeneratePasskey = (id: string) => api.post(`/users/${id}/regenerate-passkey`);
-export const loginWithPasskey = (passkey: string) => api.post("/users/login-passkey", { passkey });
 
 // ── Segments ──────────────────────────────────────────────────
 export const getSegments = (simulationTypeId?: string) =>
@@ -106,8 +105,8 @@ export const getSegments = (simulationTypeId?: string) =>
 export const getSegmentById = (id: string) => api.get(`/segments/${id}`);
 export const createSegment = (data: object) => api.post("/segments", data);
 export const deleteSegment = (id: string) => api.delete(`/segments/${id}`);
-export const activateSegment = (id: string) => api.patch(`/segments/${id}/activate`);
-export const deactivateSegment = (id: string) => api.patch(`/segments/${id}/deactivate`);
+
+
 export const updateSegment = (id: string, data: object) => api.patch(`/segments/${id}`, data);
 // Update endpoints the console needs for editing (the controllers existed;
 // several were simply never called from here).
@@ -154,7 +153,7 @@ export const getDecisions = (simulationId?: string, teamId?: string, roundNumber
     },
   });
 export const getDecisionById = (id: string) => api.get(`/decisions/${id}`);
-export const createDecision = (data: object) => api.post("/decisions", data);
+
 export const deleteDecision = (id: string) => api.delete(`/decisions/${id}`);
 
 // ── Param List ────────────────────────────────────────────────
@@ -162,6 +161,9 @@ export const getParamLists = (segmentId?: string, productId?: string) =>
   api.get("/param-list", { params: { ...(segmentId ? { segmentId } : {}), ...(productId ? { productId } : {}) } });
 export const getParamListById = (id: string) => api.get(`/param-list/${id}`);
 export const createParamList = (data: object) => api.post("/param-list", data);
+/** Upserts ONE parameter, matched on `paramCode` — see paramController.ts. */
+export const updateParamListParameters = (id: string, data: object) =>
+  api.patch(`/param-list/${id}/parameters`, data);
 export const deleteParamList = (id: string) => api.delete(`/param-list/${id}`);
 
 // ── Projections ───────────────────────────────────────────────
@@ -275,13 +277,18 @@ export const revertPlayerConfig = (simulationTypeId: string) =>
   api.post(`/player-config/${simulationTypeId}/revert`);
 
 // ── Projection ─────────────────────────────────────────────────
-export const recalcProjections = (data: {
-  simulationId:      string;
-  simulationTypeId:  string;
-  teamId:            string;
-  roundNumber:       number;
-  productId?:        string;
-  focusedProductId?: string;
-  fields?:           { fieldId: string; value: any }[];
-  globalInputs:      any[];
-}) => api.post("/projections/recalc", data);
+/**
+ * ── DELIBERATELY ABSENT ─────────────────────────────────────────────────────
+ * These server routes exist and are reachable, but the CONSOLE must not call
+ * them. They were sitting here unused, which reads as "not wired up yet"
+ * rather than "not ours", and the difference matters:
+ *
+ *   - loginWithPasskey — teams sign in on the PLAYER; the console signs in at /users/login
+ *   - recalcProjections — a player-side what-if; from here it would overwrite scored rounds
+ *   - createDecision — decisions are submitted by teams from the player, never by staff
+ *   - activateSegment — superseded by the `active` switch on the Segments form (PATCH /segments/:id)
+ *   - deactivateSegment — superseded by the `active` switch on the Segments form (PATCH /segments/:id)
+ *
+ * If one of these is ever needed, add it back with a comment saying why the
+ * rule changed rather than reintroducing it silently.
+ */

@@ -21,8 +21,10 @@ test.describe("console", () => {
   test("groups navigation by when you use it", async ({ page }) => {
     const nav = page.getByRole("navigation");
 
-    // Editable and read-only deliberately never share a group.
-    for (const group of ["Session", "Game design", "Market model", "Reference", "Platform"]) {
+    // Grouped by WHEN you use it. There is deliberately no "Reference" group:
+    // it existed briefly for Param List on the mistaken belief that the
+    // collection had no write API, and its absence is the regression guard.
+    for (const group of ["Session", "Game design", "Market model", "Platform"]) {
       await expect(nav.getByText(group, { exact: false }).first()).toBeVisible();
     }
 
@@ -64,13 +66,17 @@ test.describe("console", () => {
     expect(errors, `Uncaught errors while walking the console:\n${errors.join("\n")}`).toEqual([]);
   });
 
-  test("says plainly that Param list cannot be edited", async ({ page }) => {
+  test("lets an operator edit param lists", async ({ page }) => {
+    // This page was labelled read-only and grouped under "Reference" on the
+    // strength of a bad file-name guess — /param-list has POST, PATCH and
+    // DELETE. The affordance being present is the regression guard.
     await page.goto("/param-list");
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/param/i);
-    await expect(page.getByText(/read-only/i)).toBeVisible();
-    // No create affordance, because the API has no write route for it.
-    await expect(page.getByRole("button", { name: /new param/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /new param list/i }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/read-only/i)).toHaveCount(0);
   });
 
   test("creates, edits and deletes an initiative", async ({ page }) => {
