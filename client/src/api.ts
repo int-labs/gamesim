@@ -97,7 +97,10 @@ export const getUsers = () => api.get("/users");
 export const getUserById = (id: string) => api.get(`/users/${id}`);
 export const createUser = (data: object) => api.post("/users", data);
 export const deleteUser = (id: string) => api.delete(`/users/${id}`);
-export const regeneratePasskey = (id: string) => api.post(`/users/${id}/regenerate-passkey`);
+// PATCH, not POST — the route is `router.patch("/:id/regenerate-passkey")`.
+// As a POST this 404'd on every call, so the action existed end to end and
+// could never once have succeeded.
+export const regeneratePasskey = (id: string) => api.patch(`/users/${id}/regenerate-passkey`);
 
 // ── Segments ──────────────────────────────────────────────────
 export const getSegments = (simulationTypeId?: string) =>

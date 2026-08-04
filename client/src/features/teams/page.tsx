@@ -1,5 +1,15 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { Copy, KeyRound, MoreHorizontal, Pencil, Plus, Trash2, Users, UsersRound } from "lucide-react";
+import {
+  Copy,
+  KeyRound,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Users,
+  UsersRound,
+} from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { CopyChip, EntityCell, ProgressLinear, ScoreBar } from "@/components/app/bits";
@@ -32,6 +42,7 @@ import {
   useDeleteTeam,
   teamCrud,
   useIssueTeamPasskey,
+  useRegeneratePasskey,
   useTeams,
   useUsers,
 } from "@/lib/api-hooks";
@@ -191,10 +202,12 @@ function TeamsTable() {
   const [editTeam, setEditTeam] = React.useState<any>(null);
   const renameTeam = teamCrud.useUpdate();
   const issue = useIssueTeamPasskey();
+  const regen = useRegeneratePasskey();
 
   const [createOpen, setCreateOpen] = React.useState(false);
   const [pendingDelete, setPendingDelete] = React.useState<any>(null);
   const [rosterTeam, setRosterTeam] = React.useState<any>(null);
+  const [pendingRotate, setPendingRotate] = React.useState<any>(null);
   const [issued, setIssued] = React.useState<{ teamName: string; passkey?: string | null } | null>(
     null
   );
@@ -204,6 +217,13 @@ function TeamsTable() {
     (teamId: string) =>
       users.find((u: any) => u.role === "team" && String(u.teamId) === String(teamId))?.passkey ??
       null,
+    [users]
+  );
+
+  /** The route rotates a USER, so the row needs the credential's id too. */
+  const loginIdFor = React.useCallback(
+    (teamId: string) =>
+      users.find((u: any) => u.role === "team" && String(u.teamId) === String(teamId))?._id ?? null,
     [users]
   );
 
@@ -333,6 +353,11 @@ function TeamsTable() {
                       <KeyRound /> Issue pass key
                     </DropdownMenuItem>
                   )}
+                  {hasKey && (
+                    <DropdownMenuItem onSelect={() => setPendingRotate(row.original)}>
+                      <RefreshCw /> Regenerate pass key
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem destructive onSelect={() => setPendingDelete(row.original)}>
                     <Trash2 /> Delete team
@@ -430,6 +455,23 @@ function TeamsTable() {
       />
 
       <PasskeyIssuedDialog result={issued} onClose={() => setIssued(null)} />
+
+      {/* Rotating mid-round locks a team out of a game they are playing, which
+          is why this is confirmed rather than a one-click menu item. */}
+      <ConfirmDialog
+        open={!!pendingRotate}
+        onOpenChange={(v) => !v && setPendingRotate(null)}
+        title={`Regenerate ${pendingRotate?.teamName ?? "this team"}'s pass key?`}
+        description="The current key stops working immediately. Anyone already signed in stays signed in until their session expires, but nobody can sign in again without the new key — so don't do this mid-round unless the team has lost theirs."
+        confirmLabel="Regenerate pass key"
+        loading={regen.isPending}
+        onConfirm={async () => {
+          const userId = loginIdFor(pendingRotate._id);
+          if (!userId) return;
+          const res: any = await regen.mutateAsync(userId);
+          setIssued({ teamName: pendingRotate.teamName, passkey: res?.data?.passkey });
+        }}
+      />
 
       <ConfirmDialog
         open={!!pendingDelete}

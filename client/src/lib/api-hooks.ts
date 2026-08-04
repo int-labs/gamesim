@@ -258,9 +258,14 @@ export function useRegeneratePasskey() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.regeneratePasskey(id),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: qk.users() });
-      toast.success("Passkey regenerated");
+      // Show the new key: rotating one the operator can't read leaves the team
+      // locked out until someone goes looking for it.
+      const next = res?.data?.passkey;
+      toast.success("Pass key regenerated", {
+        description: next ? `The new key is ${next}. The old one no longer works.` : undefined,
+      });
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? "Couldn't regenerate the passkey"),
   });

@@ -22,10 +22,136 @@ import {
   SelectValue,
 } from "@/components/ui/overlays";
 import { Avatar } from "@/components/ui/primitives";
-import { useCalculateRound, useResults, useRounds, useTeams } from "@/lib/api-hooks";
+import { DetailDialog } from "@/components/app/detail-dialog";
+import {
+  useCalculateRound,
+  useProducts,
+  useResults,
+  useRounds,
+  useSegments,
+  useTeams,
+} from "@/lib/api-hooks";
 import { percent } from "@/lib/format";
 import { SPRING } from "@/lib/motion";
 import { useScope } from "@/lib/scope-store";
+
+/**
+ * Why a team is ranked where it is.
+ *
+ * The leaderboard sums each team's score across every product × segment and
+ * shows one number. That number is the whole story only if every line
+ * contributed evenly, which is never true — a team is usually third because
+ * one segment went badly, and the aggregate hides exactly that.
+ *
+ * The share column is deliberately labelled STRENGTH, not "% of the market":
+ * `calcMarketModel` multiplies a competed share by the team's own declared
+ * `projected_market_share`, so the values rank correctly but do not sum to 100%.
+ */
+function TeamResultDetail({
+  team,
+  docs,
+  roundNumber,
+  onOpenChange,
+}: {
+  team: any | null;
+  docs: any[];
+  roundNumber?: number;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { data: products = [] } = useProducts();
+  const { data: segments = [] } = useSegments();
+
+  const lines = React.useMemo(() => {
+    if (!team) return [];
+    return docs
+      .map((doc: any) => {
+        const score = Number(doc.weightedScores?.[team.teamId] ?? 0);
+        const share = Number(doc.marketShares?.[team.teamId] ?? 0);
+        if (!doc.weightedScores || !(team.teamId in doc.weightedScores)) return null;
+        const product = products.find((p: any) => String(p._id) === String(doc.productId));
+        const segment = segments.find((sg: any) => String(sg._id) === String(doc.segmentId));
+        // Rank WITHIN this line — the actionable figure, and the one the
+        // aggregate destroys.
+        const all = Object.values(doc.weightedScores ?? {}).map(Number).sort((a, b) => b - a);
+        return {
+          // `productName`, not `name` — the Product model has never had a
+          // `name` path, so `?? "Unknown product"` rendered on every row.
+          product: product?.productName ?? "Unknown product",
+          segment: segment?.name ?? "All segments",
+          score,
+          share,
+          rank: all.indexOf(score) + 1,
+          of: all.length,
+        };
+      })
+      .filter(Boolean) as any[];
+  }, [team, docs, products, segments]);
+
+  if (!team) return null;
+
+  const cohortSize = lines[0]?.of ?? 0;
+  const best = [...lines].sort((a, b) => a.rank - b.rank)[0];
+  const worst = [...lines].sort((a, b) => b.rank - a.rank)[0];
+
+  return (
+    <DetailDialog
+      open={!!team}
+      onOpenChange={onOpenChange}
+      eyebrow={roundNumber ? `Round ${roundNumber} result` : "Result"}
+      title={team.teamName}
+      subtitle={
+        cohortSize
+          ? `Ranked #${team.rank} of ${cohortSize} teams on total weighted score`
+          : "This round has not been calculated yet"
+      }
+      leading={<Avatar name={team.teamName} src={team.avatarUrl} size="lg" />}
+      sections={[
+        {
+          title: "Overall",
+          fields: [
+            { label: "Rank", value: `#${team.rank}`, mono: true },
+            { label: "Total weighted score", value: team.score.toFixed(2), mono: true },
+            { label: "Strength (not % of market)", value: percent(team.marketShare), mono: true },
+            {
+              label: "Lines scored",
+              value: String(lines.length),
+              mono: true,
+            },
+          ],
+        },
+        {
+          title: "Per product and segment",
+          fields:
+            lines.length === 0
+              ? [{ label: "Breakdown", value: "This round has not been calculated yet.", wide: true, empty: true }]
+              : [
+                  ...lines.map((l) => ({
+                    label: `${l.product} · ${l.segment}`,
+                    value: (
+                      <span className="flex items-center gap-2">
+                        <Badge tone={l.rank === 1 ? "success" : l.rank > l.of / 2 ? "warning" : "neutral"} size="sm">
+                          #{l.rank} of {l.of}
+                        </Badge>
+                        <span className="tnum text-muted-foreground">{l.score.toFixed(2)}</span>
+                      </span>
+                    ),
+                    wide: true,
+                  })),
+                  ...(best && worst && best !== worst
+                    ? [
+                        {
+                          label: "Where the round was won and lost",
+                          value: `Strongest on ${best.product} · ${best.segment} (#${best.rank}); weakest on ${worst.product} · ${worst.segment} (#${worst.rank}).`,
+                          wide: true,
+                        },
+                      ]
+                    : []),
+                ],
+        },
+      ]}
+    />
+  );
+}
 
 const MEDAL = ["bg-yellow-500 text-signal-ink", "bg-neutral-tint text-neutral", "bg-warning-tint text-warning"];
 
@@ -37,6 +163,7 @@ function ResultsInner() {
 
   const [round, setRound] = React.useState<string>("");
   const [confirmCalc, setConfirmCalc] = React.useState(false);
+  const [detail, setDetail] = React.useState<any | null>(null);
 
   React.useEffect(() => {
     if (round || rounds.length === 0) return;
@@ -250,6 +377,7 @@ function ResultsInner() {
         isError={isError}
         onRetry={refetch}
         searchPlaceholder="Search teams…"
+        onRowClick={(row: any) => setDetail(row)}
         empty={
           <EmptyState
             icon={<Trophy />}
@@ -270,6 +398,13 @@ function ResultsInner() {
           />
         </div>
       )}
+
+      <TeamResultDetail
+        team={detail}
+        docs={data as any[]}
+        roundNumber={roundNumber}
+        onOpenChange={(v) => !v && setDetail(null)}
+      />
 
       <ConfirmDialog
         open={confirmCalc}

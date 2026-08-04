@@ -17,8 +17,15 @@ import {
   SelectValue,
 } from "@/components/ui/overlays";
 import { Avatar } from "@/components/ui/primitives";
-import { useDecisions, useDeleteDecisionsByRound, useRounds, useTeams } from "@/lib/api-hooks";
-import { relativeTime } from "@/lib/format";
+import { DetailDialog, DetailMap } from "@/components/app/detail-dialog";
+import {
+  useDecisions,
+  useDeleteDecisionsByRound,
+  useProducts,
+  useRounds,
+  useTeams,
+} from "@/lib/api-hooks";
+import { money, percent, relativeTime } from "@/lib/format";
 import { useScope } from "@/lib/scope-store";
 
 /**
@@ -30,6 +37,123 @@ function isLegacyShape(input: any): boolean {
   const fields = input?.fields;
   if (!Array.isArray(fields) || fields.length === 0) return false;
   return Array.isArray(fields[0]);
+}
+
+/**
+ * Renders a submitted value the way the field means it.
+ *
+ * The raw store is faithful and unreadable — a projected market share arrives
+ * as `0.08333333333333333`, which no facilitator can compare against another
+ * team at a glance. Money follows its field type; a share reads as a percent;
+ * everything else is trimmed to the precision the engine actually uses.
+ */
+function formatValue(raw: unknown, def: any): unknown {
+  if (raw === null || raw === undefined || raw === "") return raw;
+  if (typeof raw !== "number") return raw;
+
+  if (def?.type === "money") return money(raw);
+  // A stored fraction that means a percentage. Keyed off the field key rather
+  // than the magnitude — a genuine 0.5 unit cost must not become "50%".
+  if (typeof def?.key === "string" && /share|rate|percent/i.test(def.key) && Math.abs(raw) <= 1) {
+    return percent(raw);
+  }
+  // Trailing float noise helps nobody; four places is past anything the
+  // decision form can even enter.
+  return Number.isInteger(raw) ? String(raw) : String(Number(raw.toFixed(4)));
+}
+
+/**
+ * What a team actually submitted.
+ *
+ * The table can only show that N fields were sent — which is a count, not an
+ * answer. The question this page exists for is "what did they choose?", and
+ * until now the only way to see it was to query Mongo directly.
+ *
+ * Field ids are resolved back to their product's LABELS; a raw ObjectId beside
+ * a number tells an operator nothing. Enum values are resolved through the
+ * field's `options` map for the same reason.
+ */
+function DecisionDetail({
+  row,
+  onOpenChange,
+}: {
+  row: any | null;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { data: products = [] } = useProducts();
+
+  const fields = React.useMemo(() => {
+    if (!row) return [];
+    const product = products.find((p: any) => String(p._id) === String(row.productId));
+    const defs: any[] = product?.fields ?? [];
+
+    return (row.fields ?? []).map((f: any) => {
+      const def = defs.find((d: any) => String(d._id) === String(f.fieldId));
+      const raw = f.value;
+      // An enum's stored value is its option KEY; the operator picked a label.
+      const label =
+        def?.type === "enum" && def?.options && typeof raw === "string" && raw in def.options
+          ? `${raw} (${def.options[raw]})`
+          : formatValue(raw, def);
+      return {
+        label: def?.label ?? "Unknown field",
+        key: def?.key,
+        type: def?.type,
+        value: label,
+        // A field the product no longer has: the decision still references it,
+        // and hiding that would make a scoring mismatch impossible to explain.
+        orphaned: !def,
+      };
+    });
+  }, [row, products]);
+
+  if (!row) return null;
+
+  return (
+    <DetailDialog
+      open={!!row}
+      onOpenChange={onOpenChange}
+      eyebrow="Decision"
+      title={row.productName}
+      subtitle={`Submitted by ${row.teamName} · ${relativeTime(row.submittedAt)}`}
+      leading={<IconTile icon={<GitBranch />} tone="brand" />}
+      sections={[
+        {
+          title: "Submitted values",
+          fields:
+            fields.length === 0
+              ? [{ label: "Values", value: "This decision carries no field values.", wide: true, empty: true }]
+              : fields.map((f: any) => ({
+                  label: f.orphaned ? `${f.label} · no longer on the product` : f.label,
+                  value:
+                    typeof f.value === "object" && f.value !== null ? (
+                      <DetailMap value={f.value} />
+                    ) : (
+                      <span className={f.orphaned ? "text-warning" : undefined}>{String(f.value ?? "—")}</span>
+                    ),
+                  mono: f.type === "number" || f.type === "money",
+                  empty: f.value === undefined || f.value === null || f.value === "",
+                })),
+        },
+        {
+          title: "Context",
+          fields: [
+            { label: "Team", value: row.teamName },
+            { label: "Global inputs", value: String(row.globalInputs) },
+            { label: "Fields submitted", value: String(row.fieldCount), mono: true },
+            {
+              label: "Storage format",
+              value: row.legacy ? (
+                <Badge tone="danger" size="sm">Legacy — unreadable by the engine</Badge>
+              ) : (
+                <Badge tone="success" size="sm">Current</Badge>
+              ),
+            },
+          ],
+        },
+      ]}
+    />
+  );
 }
 
 function DecisionsTable() {
@@ -51,6 +175,7 @@ function DecisionsTable() {
   const { data = [], isLoading, isError, refetch } = useDecisions(simulationId ?? undefined, roundNumber);
   const delByRound = useDeleteDecisionsByRound();
   const [confirmClear, setConfirmClear] = React.useState(false);
+  const [detail, setDetail] = React.useState<any | null>(null);
 
   const teamName = React.useCallback(
     (id: string) => teams.find((t: any) => t._id === id)?.teamName ?? "Unknown team",
@@ -70,6 +195,10 @@ function DecisionsTable() {
           globalInputs: (d.globalInputs ?? []).length,
           legacy: isLegacyShape(input),
           submittedAt: d.createdAt,
+          // The actual submitted values — the whole point of the page, and
+          // previously not carried past the row count.
+          fields: Array.isArray(input.fields) ? input.fields : [],
+          productId: input.productId,
         }))
       ),
     [data, teamName]
@@ -181,6 +310,7 @@ function DecisionsTable() {
         onRetry={refetch}
         searchPlaceholder="Search decisions…"
         groupBy="teamName"
+        onRowClick={(row: any) => setDetail(row)}
         empty={
           <EmptyState
             icon={<GitBranch />}
@@ -189,6 +319,8 @@ function DecisionsTable() {
           />
         }
       />
+
+      <DecisionDetail row={detail} onOpenChange={(v) => !v && setDetail(null)} />
 
       <ConfirmDialog
         open={confirmClear}
