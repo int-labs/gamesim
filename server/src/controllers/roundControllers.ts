@@ -2,11 +2,11 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Round      from "../models/rounds";
 import Simulation from "../models/simulations";
-import BaseData   from "../models/BaseData";
+import BaseData   from "../models/baseData";
 import Decision   from "../models/decisions";
-import Product    from "../models/Products";
-import Results    from "../models/Results";
-import Projections from "../models/Projections";
+import Product    from "../models/products";
+import Results    from "../models/results";
+import Projections from "../models/projections";
 import { calcMarketModel, DecisionDocument, MarketModelProduct } from "../sim/calcMarketModel";
 import { calcFinancials, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
 
@@ -147,7 +147,14 @@ export const calculateRound = async (req: Request, res: Response): Promise<void>
     // ── Map decisions to DecisionDocument shape ───────────────────────────
     const decisions: DecisionDocument[] = decisionDocs.map((d: any) => ({
       teamId: d.teamId,
-      inputs: d.inputs,
+      inputs: (d.inputs ?? []).map((inp: any) => ({
+        ...inp,
+        productId: new mongoose.Types.ObjectId(inp.productId?.$oid ?? inp.productId),
+        fields: (inp.fields ?? []).map((f: any) => ({
+          fieldId: new mongoose.Types.ObjectId(f.fieldId?.$oid ?? f.fieldId),
+          value:   f.value,
+        })),
+      })),
     }));
 
     const yearKey = String(roundNumber);

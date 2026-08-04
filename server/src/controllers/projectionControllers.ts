@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import Product from "../models/Products";
-import Projection from "../models/Projections";
-import BaseData from "../models/BaseData";
+import Product from "../models/products";
+import Projection from "../models/projections";
+import BaseData from "../models/baseData";
 import { calcFinancials, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
