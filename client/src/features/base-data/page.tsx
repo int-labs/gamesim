@@ -1,4 +1,4 @@
-import { Database, Download, Pencil, SlidersHorizontal } from "lucide-react";
+import { Database, Download, Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { IconTile } from "@/components/app/bits";
@@ -16,6 +16,8 @@ import {
   OverridesEditor,
 } from "@/features/base-data/editor";
 import { count } from "@/lib/format";
+import { DeleteResourceDialog } from "@/components/app/resource-form";
+import { deleteBaseData } from "@/api";
 
 export default function BaseDataPage() {
   const { data: doc, isLoading, isError, refetch } = useBaseData();
@@ -24,6 +26,11 @@ export default function BaseDataPage() {
   const { simulationId } = useScope();
   const { data: rounds = [] } = useRounds(simulationId ?? undefined);
   const [mode, setMode] = React.useState<"view" | "market" | "overrides">("view");
+  // Carried forward from main's BaseDataPage, which this feature replaced.
+  // Merging the two architectures would otherwise have silently dropped the
+  // delete main had just added.
+  const [confirmDelete, setConfirmDelete] = React.useState<unknown | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
 
   const segmentName = React.useCallback(
     (id: string) => segments.find((s: any) => String(s._id) === id)?.name ?? `Segment ${id.slice(-6)}`,
@@ -40,6 +47,21 @@ export default function BaseDataPage() {
     () => rounds.filter((r: any) => r.status === "Completed").map((r: any) => r.roundNumber),
     [rounds]
   );
+
+  const doDelete = async () => {
+    if (!doc?._id) return;
+    setDeleting(true);
+    try {
+      await deleteBaseData(String(doc._id));
+      setConfirmDelete(null);
+      toast.success("Base data deleted");
+      refetch();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? "Could not delete this base data");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const download = () => {
     const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
@@ -123,8 +145,23 @@ export default function BaseDataPage() {
             <Button variant="outline" shape="pill" onClick={download}>
               <Download /> Export JSON
             </Button>
+            {doc?._id && (
+              <Button variant="outline" shape="pill" onClick={() => setConfirmDelete(doc)}>
+                <Trash2 /> Delete
+              </Button>
+            )}
           </>
         }
+      />
+
+      <DeleteResourceDialog
+        row={confirmDelete}
+        onOpenChange={(v) => !v && setConfirmDelete(null)}
+        label="base data"
+        name={doc?._id ? `Base data ${String(doc._id).slice(-6)}` : undefined}
+        loading={deleting}
+        onConfirm={doDelete}
+        consequence="Every market size, scoring weight and CSAT driver for this simulation type goes with it, and any round calculated afterwards will score against nothing."
       />
 
       {mode === "market" && (

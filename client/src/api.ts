@@ -206,6 +206,7 @@ export const patchBaseDataSection = (
   force = false
 ) =>
   api.patch(`/base-data/${id}/section/${section}${force ? "?force=true" : ""}`, value);
+export const deleteBaseData = (id: string) => api.delete(`/base-data/${id}`);
 
 // ── Global Inputs ─────────────────────────────────────────────────
 export const getGlobalInputs = (simulationTypeId?: string, category?: string) =>
