@@ -887,8 +887,13 @@ button {
      validation passes. Subtle inhale/exhale of the shadow so the
      button quietly invites a click without distracting motion. */
   @keyframes ready-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(111, 187, 133, 0); }
-    50%      { box-shadow: 0 0 0 3px rgba(111, 187, 133, 0.35); }
+    /* Carries game-btn's resting 2px drop-shadow through the whole cycle and
+       pulses the mint ring ON TOP of it. `box-shadow` is a single property, so
+       animating it without the drop-shadow clobbered the button's own — the
+       flagship "Confirm phase" CTA sat visibly FLAT between pulses, which is
+       the opposite of what a pulse is meant to advertise. */
+    0%, 100% { box-shadow: 2px 2px 0 0 var(--c-shadow), 0 0 0 0 rgba(111, 187, 133, 0); }
+    50%      { box-shadow: 2px 2px 0 0 var(--c-shadow), 0 0 0 3px rgba(111, 187, 133, 0.35); }
   }
   .ready-pulse {
     animation: ready-pulse 2.4s ease-in-out infinite;
@@ -1317,4 +1322,23 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .mascot-pat,
   .vn-character.is-hopping { animation: none; }
+}
+
+
+/* Image loading skeleton — a calm warm pulse painted in an image's reserved box
+   while its bytes decode, so a not-yet-loaded image reads as "loading" instead
+   of an empty or broken hole. SafeImage drops the class the instant the image
+   decodes, so transparent PNGs are never tinted. Only visible where the box has
+   a reserved size (a fixed w+h); w-auto boxes have no width to paint, which is
+   fine and why SafeImage takes a `skeleton={false}` opt-out. */
+.img-skeleton {
+  background-color: #E4D8BB;
+  animation: img-skeleton 1.15s ease-in-out infinite;
+}
+@keyframes img-skeleton {
+  0%, 100% { background-color: #E8DEC3; }
+  50%      { background-color: #D5C59E; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .img-skeleton { animation: none; }
 }
