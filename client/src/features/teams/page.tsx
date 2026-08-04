@@ -235,7 +235,9 @@ function TeamsTable() {
       {
         id: "passkey",
         header: "Pass key",
-        size: 180,
+        // Wide enough for a revealed key plus the copy button — at 180 the
+        // masked state fitted and the revealed one did not.
+        size: 210,
         enableSorting: false,
         accessorFn: (r) => passkeyFor(r._id) ?? "",
         cell: ({ row }) => <PasskeyCell passkey={passkeyFor(row.original._id)} />,
@@ -375,6 +377,12 @@ function TeamsTable() {
         isError={isError}
         onRetry={refetch}
         searchPlaceholder="Search teams…"
+        // The row IS the detail affordance: everything about a team beyond the
+        // summary columns lives in its roster. `DataTable` has supported this
+        // the whole time; Teams simply never passed it, so the only way in was
+        // a menu item. Cells that do their own thing (the pass key, the member
+        // stack) stop propagation, so this never fires out from under them.
+        onRowClick={(row) => setRosterTeam(row)}
         initialSorting={[{ id: "score", desc: true }]}
         empty={
           <EmptyState

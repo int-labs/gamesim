@@ -92,7 +92,10 @@ export function PasskeyCell({
         onClick={toggle}
         title={revealed ? "Hide pass key" : "Show pass key"}
         aria-label={revealed ? `Pass key ${passkey}. Click to hide.` : "Show pass key"}
-        className="inline-flex h-[26px] items-center gap-1.5 rounded-xs border border-border bg-muted px-2 font-mono text-[12px] text-foreground outline-none transition-colors hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring"
+        // `whitespace-nowrap` matters: a revealed key like "stretch-column"
+        // otherwise wraps at the column width and doubles the row height, so
+        // revealing one key visibly shoves the whole table around.
+        className="inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xs border border-border bg-muted px-2 font-mono text-[12px] leading-none text-foreground outline-none transition-colors hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring"
       >
         {revealed ? passkey : "••••••••"}
         {revealed ? (

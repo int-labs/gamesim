@@ -7,6 +7,7 @@ import { TOAST, VALIDATION } from '@/content/copy';
 import { expandScript, SCRIPT_BEFORE_PHASE1_CONFIRM } from '@/content/mascotScripts';
 import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
+import { SessionChip } from '@/components/hud/SessionChip';
 
 const PHASE_END = { 1: 30, 2: 60, 3: 90 } as const;
 
@@ -151,6 +152,13 @@ export function PhaseActionBar() {
             </span>
           </div>
         </div>
+
+        {/* The ROOM, next to the run. Round + facilitator's clock + team name
+            used to sit in the top bar, where they were the widest block that
+            could not shrink and pushed the projection dashboard over its
+            neighbours. They read better here anyway: this bar already answers
+            "where am I in the session", which is the same question. */}
+        <SessionChip />
 
         {blockReason && (
           (needsSegment || needsAnyNotebook) ? (

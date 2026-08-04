@@ -21,7 +21,6 @@ import { SafeImage } from '@/components/primitives/SafeImage';
 import { CountUp } from '@/components/primitives/CountUp';
 import { A } from '@/assets';
 import { HudMenu } from '@/components/hud/HudMenu';
-import { SessionChip } from '@/components/hud/SessionChip';
 import { HistoryDropdown } from '@/components/hud/HistoryDropdown';
 import { StatsDrawer } from '@/components/hud/StatsDrawer';
 import clsx from 'clsx';
@@ -193,10 +192,6 @@ export function TopHUD() {
           </div>
         </Tooltip>
 
-        {/* === SESSION === which round is open, the facilitator's clock, and
-             who this team is. Renders nothing when running standalone. === */}
-        <SessionChip />
-
         <Sep />
 
         {/* === Resources — Energy (caramel) + Cash (green). Matches
@@ -251,7 +246,15 @@ export function TopHUD() {
             Each card is self-framed and high-contrast; the Product/Business
             tabs float on the canvas top-center (see SimulationScreen).
             lg+ only — the bottom Stats section covers smaller screens. */}
-        <div className="flex-1 min-w-0 hidden lg:flex justify-center px-2">
+        {/* `overflow-hidden` is the guard, not the decoration. Every other
+            child of this bar is `shrink-0` — correct, they are the essentials —
+            so the centre track is the ONLY thing that can absorb a narrow
+            viewport. It used to hold a `shrink-0` strip, which meant the strip
+            kept its full 519px no matter how little room the track had and
+            spilled out BOTH sides of it (justify-center), drawing over the cash
+            chip on the left and the utility menu on the right. A flex child
+            cannot overflow a track that clips. */}
+        <div className="flex-1 min-w-0 overflow-hidden hidden lg:flex justify-center px-2">
           {hasLines && <CanvasStatusStrip />}
         </div>
         <div className="flex-1 min-w-0 lg:hidden" />

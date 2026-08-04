@@ -93,7 +93,7 @@ export function CanvasStatusStrip() {
   const satTone: Tone = dash.satisfaction >= 80 ? 'good' : dash.satisfaction >= 55 ? 'warn' : 'bad';
 
   return (
-    <div className="flex items-stretch gap-1.5 shrink-0">
+    <div className="flex items-stretch gap-1.5 min-w-0">
       <Kpi
         icon="revenue"
         label="Proj. Revenue"
@@ -110,10 +110,10 @@ export function CanvasStatusStrip() {
       />
       <Kpi
         icon="fit"
-        label="Satisfaction"
+        label="Market Fit"
         value={`${dash.satisfaction}%`}
         tone={satTone}
-        tip="How happy customers are - blends product fit (do they like it?) with how much demand you can actually fill."
+        tip="How well the portfolio matches its market - blends product fit (do they want what you made?) with how much of that demand you can actually fill."
       />
     </div>
   );
@@ -148,12 +148,19 @@ function Kpi({
   return (
     <Tooltip content={tip} placement="bottom">
       {/* READOUT card — recessed (inset shadow), not a button. */}
-      <div className="inline-flex items-center gap-2 border-2 border-border-soft bg-surface px-3 py-1.5 leading-none shadow-[inset_1.5px_1.5px_0_rgba(0,0,0,0.09)]">
+      <div className="inline-flex items-center gap-2 border-2 border-border-soft bg-surface px-3 py-1.5 leading-none shadow-[inset_1.5px_1.5px_0_rgba(0,0,0,0.09)] min-w-0">
         <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2 shrink-0">
           <PixelIcon kind={icon} size={14} color={t.icon} />
         </span>
-        <span className="flex flex-col gap-0.5">
-          <span className="eyebrow eyebrow-sm text-text-2">{label}</span>
+        <span className="flex flex-col gap-0.5 min-w-0">
+          {/* The label DROPS below xl rather than truncating. Three cards with
+              their full labels need ~530px of track; below xl there is closer
+              to 340px, which squeezed "Proj. Revenue" down to "Proj. R…" on
+              every card. A mangled word is worse than no word when the icon
+              already says which metric this is and the tooltip spells it out.
+              The VALUE is never hidden and never truncated — it is the only
+              thing on the card the player is actually reading. */}
+          <span className="hidden xl:block eyebrow eyebrow-sm text-text-2 truncate">{label}</span>
           {/* keyed pop — the number ticks whenever the projection changes.
               Clean bold numerals (not the blocky arcade font) so the value
               stays prominent without overpowering its label. */}
