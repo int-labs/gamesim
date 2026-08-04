@@ -88,16 +88,13 @@ function CostChip({ item, size }: { item: CostItem; size: 'sm' | 'md' }) {
     >
       <PixelIcon kind={meta.icon} size={size === 'sm' ? 9 : 11} color={sw.ink} />
       <span
-        className={clsx(
-          'uppercase tracking-[0.1em] font-bold',
-          size === 'sm' ? 'text-[10px]' : 'text-[11px]',
-        )}
+        className="stat-label"
         style={{ color: sw.ink }}
       >
         {meta.label}
       </span>
       <span
-        className={clsx('font-extrabold tabular-nums', size === 'sm' ? 'text-[12px]' : 'text-[14px]')}
+        className={size === 'sm' ? 'num-xs' : 'num-sm'}
         style={{ color: sw.ink }}
       >
         {value}

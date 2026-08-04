@@ -159,7 +159,7 @@ export function ConfirmDecisionModal({
                 style={{ color: '#FAF7E8' }}
               >
                 <PixelIcon kind="check" size={11} color="#FAF7E8" />
-                <span className="eyebrow eyebrow-sm">{confirmLabel}</span>
+                <span className="eyebrow eyebrow-sm text-inherit">{confirmLabel}</span>
               </button>
             </div>
           </motion.div>

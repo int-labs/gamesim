@@ -1,4 +1,4 @@
-import { MouseEvent } from 'react';
+import { MouseEvent, useRef, useState } from 'react';
 import {
   motion,
   useMotionValue,
@@ -10,6 +10,8 @@ import { useGame } from '@/state/store';
 import { A } from '@/assets';
 import { PHASE_INTRO, LEARNING_POINTS } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
+import { HeartRain, patHeartRain, originOf } from '@/components/fx/HeartRain';
+import clsx from 'clsx';
 
 const PHASE_BG = { 1: A.env.round1, 2: A.env.round2, 3: A.env.round3 } as const;
 
@@ -72,6 +74,18 @@ export function PhaseIntroScreen() {
   const apply = useGame((s) => s.apply);
   const reduced = useReducedMotion();
 
+  // Pat the hero pose: same squash-and-stretch + escalating love bomb as the
+  // other two Amelias, so the gesture means the same thing everywhere.
+  const [patting, setPatting] = useState(false);
+  const patCount = useRef(0);
+  const heroRef = useRef<HTMLImageElement>(null);
+  const onPat = () => {
+    patCount.current += 1;
+    playSfx('pop');
+    setPatting(true);
+    patHeartRain(patCount.current, originOf(heroRef.current));
+  };
+
   const info = PHASE_INTRO[phase];
   const lp = LEARNING_POINTS[info.learningFocus as keyof typeof LEARNING_POINTS];
   const [eyebrow, theme] = splitTitle(info.title);
@@ -133,6 +147,7 @@ export function PhaseIntroScreen() {
               animate={reduced ? undefined : { opacity: [0.7, 1, 0.7], scale: [1, 1.05, 1] }}
               transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
             />
+            <HeartRain className="pointer-events-none absolute inset-0 z-[9]" />
             <motion.div
               style={{ x: charX, y: charY }}
               className="pointer-events-none absolute inset-x-0 bottom-0 top-[6%] z-[10]"
@@ -148,13 +163,19 @@ export function PhaseIntroScreen() {
                     at the screen bottom and is covered by the bottom bar. Subtle
                     idle "breathing" from the feet keeps her alive. */}
                 <motion.img
+                  ref={heroRef}
                   src={PHASE_POSE[phase]}
                   alt=""
                   draggable={false}
+                  onClick={onPat}
                   style={{ transformOrigin: 'bottom center' }}
                   animate={reduced ? undefined : { scaleY: [1, 1.016, 1], scaleX: [1, 0.994, 1] }}
                   transition={{ duration: 3.9, repeat: Infinity, ease: 'easeInOut' }}
-                  className="h-full w-full object-cover object-top drop-shadow-[8px_12px_0_rgba(0,0,0,0.42)]"
+                  className={clsx(
+                    'h-full w-full object-cover object-top cursor-pointer drop-shadow-[8px_12px_0_rgba(0,0,0,0.42)]',
+                    patting && 'mascot-pat',
+                  )}
+                  onAnimationEnd={(e) => { if (/mascot-pat/.test(e.animationName)) setPatting(false); }}
                 />
               </motion.div>
             </motion.div>
@@ -181,11 +202,11 @@ export function PhaseIntroScreen() {
                 initial={reduced ? false : { scale: 1.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.34, duration: 0.4, ease: [0.2, 1.7, 0.3, 1] }}
-                className="inline-block bg-brand-500 px-2 py-1 eyebrow eyebrow-sm text-cream-50"
+                className="inline-block bg-brand-500 px-2 py-1 eyebrow eyebrow-sm text-inherit text-cream-50"
               >
                 Round {phase}
               </motion.span>
-              <span className="eyebrow eyebrow-sm text-ink-500">{eyebrow}</span>
+              <span className="eyebrow eyebrow-sm eyebrow-muted">{eyebrow}</span>
             </motion.div>
 
             {/* Big theme title — punches in from the left. */}
@@ -215,7 +236,7 @@ export function PhaseIntroScreen() {
               transition={{ delay: 0.5, duration: 0.45 }}
               className="mt-4 flex items-start gap-2.5 border-2 border-primary bg-primary-soft px-3 py-2.5"
             >
-              <span className="shrink-0 bg-primary px-1.5 py-0.5 eyebrow eyebrow-sm leading-none text-cream-50">
+              <span className="shrink-0 bg-primary px-1.5 py-0.5 eyebrow eyebrow-sm text-inherit leading-none text-cream-50">
                 {info.learningFocus}
               </span>
               <div className="min-w-0">
@@ -227,7 +248,9 @@ export function PhaseIntroScreen() {
 
           {/* Footer — big CTA */}
           <div className="flex items-center justify-between gap-3 border-t-2 border-ink-900 bg-cream-200 p-4 sm:px-6">
-            <span className="eyebrow eyebrow-sm text-ink-500">
+            {/* eyebrow-muted, not ink-500: the legacy ink ramp bottoms out at
+                2.74:1 on cream, below the 3:1 floor even for a label. */}
+            <span className="eyebrow eyebrow-sm eyebrow-muted">
               Round {phase} of 3
             </span>
             <motion.button
@@ -238,7 +261,7 @@ export function PhaseIntroScreen() {
               transition={{ delay: 0.6, duration: 0.4, ease: [0.2, 1.5, 0.4, 1] }}
               whileHover={reduced ? undefined : { y: -2, filter: 'brightness(1.06)' }}
               whileTap={{ scale: 0.97 }}
-              className="group relative inline-flex items-center gap-2 overflow-hidden border-2 border-ink-900 bg-primary px-5 py-3 eyebrow eyebrow-sm text-ink-900 shadow-[3px_3px_0_0_var(--c-shadow)] sm:body-xs"
+              className="group relative inline-flex items-center gap-2 overflow-hidden border-2 border-ink-900 bg-primary px-5 py-3 eyebrow eyebrow-sm text-inherit text-ink-900 shadow-[3px_3px_0_0_var(--c-shadow)] sm:body-xs"
             >
               {/* gentle "ready" pulse behind the label */}
               {!reduced && (

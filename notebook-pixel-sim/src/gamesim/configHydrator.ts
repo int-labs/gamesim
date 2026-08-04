@@ -33,6 +33,7 @@
 import { A } from '@/assets';
 import {
   ADDON_OPTIONS,
+  applyConstantOverrides,
   CANDIDATES,
   CHANNEL_META,
   CHANNELS_BY_GENRE,
@@ -50,6 +51,7 @@ import {
   VENDORS,
 } from '@/data/finlit';
 import {
+  applyBalanceOverrides,
   BINDING_COST,
   COVER_COST,
   ENERGY_COSTS,
@@ -485,11 +487,17 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
 }
 
 /**
- * Balance constants. Only the object-shaped ones can be applied: the scalars
- * (`BASERATE`, `ENERGY_CAP`, `HIRE_DAILY_WAGE`, …) are `const` number exports,
- * and a module's own `const` binding cannot be rebound from outside it. Editing
- * those in the console is currently a no-op, so they're reported as skipped
- * rather than silently dropped.
+ * Balance constants.
+ *
+ * Both shapes now apply. The object-shaped tables are edited in place like
+ * every other catalog. The SCALARS used to be impossible — they were `const`
+ * number exports and a module's own `const` binding cannot be rebound from
+ * outside it — so the console offered them and editing them did nothing.
+ *
+ * They are now `export let` behind `applyConstantOverrides` /
+ * `applyBalanceOverrides`, which works on ES module live bindings: an importer
+ * reads the binding rather than a copy, so a reassignment inside the owning
+ * module is visible to all ~25 importers without touching one of them.
  */
 const CONSTANT_OBJECTS: Record<string, Dict> = {
   PHASE_MAX_ENERGY,
@@ -545,7 +553,8 @@ function applyConstants(cfg: Dict, applied: string[], skipped: HydrationReport['
 
     const target = CONSTANT_OBJECTS[key];
     if (!target) {
-      unapplied.push(key);
+      // Not an object table — it may still be one of the scalars, which are
+      // applied in a single pass below.
       continue;
     }
     if (!isObj(value)) continue;
@@ -556,11 +565,26 @@ function applyConstants(cfg: Dict, applied: string[], skipped: HydrationReport['
     touched = true;
   }
 
+  // Scalars, in one pass. Each module reports which names it recognised, so a
+  // key the console offers but this build has never heard of is surfaced as
+  // skipped instead of being silently swallowed.
+  const landed = new Set([
+    ...applyConstantOverrides(cfg.constants as Dict),
+    ...applyBalanceOverrides(cfg.constants as Dict),
+  ]);
+  if (landed.size > 0) touched = true;
+
+  for (const key of Object.keys(cfg.constants)) {
+    if (landed.has(key)) continue;
+    if (CONSTANT_OBJECTS[key] || ROUTE_START_KEYS[key] || key === 'SCENARIO_DAYS') continue;
+    unapplied.push(key);
+  }
+
   if (touched) applied.push('constants');
   if (unapplied.length) {
     skipped.push({
       section: 'constants',
-      why: `${unapplied.length} scalar constant(s) need a build to take effect: ${unapplied
+      why: `${unapplied.length} constant(s) this build doesn't recognise: ${unapplied
         .slice(0, 6)
         .join(', ')}${unapplied.length > 6 ? '…' : ''}`,
     });

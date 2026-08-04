@@ -1,4 +1,4 @@
-import { AlertTriangle, Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import * as React from "react";
 import {
   CatalogTable,
@@ -82,38 +82,19 @@ const CONSTANT_HELP: Record<string, string> = {
 const isMap = (v: unknown) => v !== null && typeof v === "object" && !Array.isArray(v);
 
 /**
- * Constants the player CANNOT pick up at runtime.
+ * Constants reach a running game at the player's next load.
  *
- * The hydrator overlays the published config by editing the player's exported
- * tables in place. That works for objects and arrays, but these are plain
- * `const` number/string exports, and a module's own `const` binding cannot be
- * rebound from outside it — so editing them here changes the published config
- * and the player keeps using its compiled-in value until the app is rebuilt.
+ * This used to carry a `NEEDS_REBUILD` list of ~17 scalars that could be
+ * published and would never take effect, because they were plain `const`
+ * number exports and a module's own `const` binding cannot be rebound from
+ * outside it. They are now `export let` behind `applyConstantOverrides` /
+ * `applyBalanceOverrides` in the player, which works on ES module live
+ * bindings — so every key in this editor genuinely applies.
  *
- * Saying so is the point: an editor that silently does nothing is worse than
- * one that admits its limit. Keep in sync with `CONSTANT_OBJECTS` +
- * `ROUTE_START_KEYS` in notebook-pixel-sim/src/gamesim/configHydrator.ts.
+ * A key this build of the player has never heard of is still surfaced, but by
+ * the hydration report rather than guessed at here: keeping a duplicate list
+ * in the console is what let this one go stale in the first place.
  */
-const NEEDS_REBUILD = new Set([
-  "BASERATE",
-  "BASE_MARKET_SHARE",
-  "UNIT_CONTRIBUTION",
-  "DEMAND_SCALE",
-  "HOLDING_RATE_PER_DAY",
-  "BUDGET_MAX",
-  "BUDGET_LEVER_ENERGY",
-  "MARKETING_DEMAND_RATE",
-  "SALES_SELL_RATE",
-  "PHASE_LENGTH_DAYS",
-  "ENERGY_START",
-  "ENERGY_PER_PHASE",
-  "ENERGY_CAP",
-  "BASE_PRODUCTION",
-  "HIRE_CAPACITY",
-  "HIRE_DAILY_WAGE",
-  "DEFAULT_DEFECT",
-  "SEED_DEFAULT",
-]);
 
 export function ConstantsEditor({
   value,
@@ -125,7 +106,6 @@ export function ConstantsEditor({
   const [query, setQuery] = React.useState("");
   const entries = Object.entries(value ?? {}).sort(([a], [b]) => a.localeCompare(b));
   const shown = entries.filter(([k]) => k.toLowerCase().includes(query.toLowerCase()));
-  const rebuildCount = entries.filter(([k]) => NEEDS_REBUILD.has(k)).length;
 
   const set = (k: string, v: any) => onChange({ ...value, [k]: v });
 
@@ -148,19 +128,6 @@ export function ConstantsEditor({
         </p>
       </div>
 
-      {rebuildCount > 0 && (
-        <div className="flex items-start gap-3 rounded-lg bg-warning-tint p-3">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-          <p className="text-[12.5px] leading-4 text-warning">
-            <span className="font-semibold">
-              {rebuildCount} of these take effect only after the player app is rebuilt.
-            </span>{" "}
-            They're marked <span className="font-semibold">Needs rebuild</span> below. Everything
-            else reaches players the next time they load the game. Publishing still saves the value
-            — it just won't change a running simulation.
-          </p>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {shown.map(([k, v]) => (
@@ -168,11 +135,6 @@ export function ConstantsEditor({
             <div className="mb-1.5 flex items-baseline justify-between gap-2">
               <code className="font-mono text-[12px] font-semibold text-foreground">{k}</code>
               <div className="flex shrink-0 items-center gap-1.5">
-                {NEEDS_REBUILD.has(k) && (
-                  <Badge tone="warning" size="sm">
-                    Needs rebuild
-                  </Badge>
-                )}
                 {Array.isArray(v) && <Badge tone="outline" size="sm">list</Badge>}
                 {isMap(v) && <Badge tone="outline" size="sm">map</Badge>}
               </div>

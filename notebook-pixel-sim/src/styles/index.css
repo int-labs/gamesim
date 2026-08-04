@@ -197,6 +197,14 @@ button {
      figure, the pair is wrong — that is the single most common way this UI
      has drifted, so check it every time you build a chip.
 
+   RULE 6 — the type classes PAINT, so mind light-on-dark.
+     .eyebrow, .stat-label and .hint each set a colour. That colour beats a
+     colour inherited from a parent, so a label inside a dark button renders in
+     dark ink on a dark fill and disappears — this shipped twice, as an
+     invisible modal ✕ at 1.03:1 and a NEXT button label at 1.26:1. Inside any
+     element that sets its own light colour, add `text-inherit` (or use
+     .eyebrow-light) so the label follows the button, including its hover swap.
+
    RULE 3 — weight carries meaning, so spend it sparingly.
      Bold is for VALUES and the ACTIVE item only. It is already baked into
      .num-* and .eyebrow. Body copy stays regular. When almost everything is

@@ -105,7 +105,7 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
               <div className="flex flex-col leading-tight">
                 <span className="stat-label">All stats</span>
                 <span className="hint text-text">
-                  Phase <span className="font-bold">{phase}</span> · Day <span className="num-xs">{day}</span>
+                  Phase <span className="strong">{phase}</span> · Day <span className="num-xs">{day}</span>
                 </span>
               </div>
               <button
@@ -291,7 +291,7 @@ function AmeliaVoicePicker({ open }: { open: boolean }) {
               mood: 'happy',
             });
           }}
-          className="h-[30px] px-3 border border-border bg-primary-soft text-text hover:bg-primary hover:text-[#FAF7E8] cursor-pointer eyebrow eyebrow-sm"
+          className="h-[30px] px-3 border border-border bg-primary-soft text-text hover:bg-primary hover:text-[#FAF7E8] cursor-pointer eyebrow eyebrow-sm text-inherit"
         >
           Test
         </button>

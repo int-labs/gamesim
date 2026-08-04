@@ -293,7 +293,7 @@ export const SECTIONS: SectionSpec[] = [
     label: "Constants",
     group: "Economy",
     description:
-      "Engine tunables. Only whitelisted keys are accepted — an unknown key is rejected rather than silently stored.",
+      "Engine tunables. Every key here reaches a running game the next time a player loads it. Only whitelisted keys are accepted — an unknown key is rejected rather than silently stored.",
     render: "constants",
   },
 

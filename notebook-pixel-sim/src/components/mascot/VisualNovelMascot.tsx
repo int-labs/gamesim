@@ -8,6 +8,7 @@ import type { BubbleType, MascotMood } from '@/types';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { playSfx } from '@/audio/audioManager';
+import { HeartRain, patHeartRain, originOf } from '@/components/fx/HeartRain';
 import { ameliaVoice, moodFromMessage } from '@/audio/ameliaVoice';
 
 const tones: Record<BubbleType, { accent: string; tag: string; tagBg: string }> = {
@@ -104,6 +105,19 @@ export function VisualNovelMascot() {
 
   const [shown, setShown] = useState('');
   const intervalRef = useRef<number | null>(null);
+
+  // Patting the dialogue portrait: a CSS squash-and-stretch plus an escalating
+  // love bomb behind her. The counter is a ref, not state, so a pat never
+  // re-renders the typewriter mid-line.
+  const [patting, setPatting] = useState(false);
+  const patCount = useRef(0);
+  const spriteRef = useRef<HTMLImageElement>(null);
+  const onPat = () => {
+    patCount.current += 1;
+    playSfx('pop');
+    setPatting(true);
+    patHeartRain(patCount.current, originOf(spriteRef.current));
+  };
 
   // Typewriter + voice narration. Both are driven by `current.id`
   // changes — when the displayed line flips (Next/Prev/auto-promote),
@@ -285,7 +299,7 @@ export function VisualNovelMascot() {
                   style={{ color: '#FAF7E8' }}
                   aria-label={isLastInSequence ? 'Finish' : (fullyTyped ? 'Next message' : 'Reveal full message')}
                 >
-                  <span className="eyebrow eyebrow-sm">
+                  <span className="eyebrow eyebrow-sm text-inherit">
                     {!fullyTyped ? 'Reveal' : isLastInSequence ? 'Finish' : 'Next'}
                   </span>
                   <PixelIcon kind="arrow-right" size={11} color="#FAF7E8" />
@@ -296,9 +310,28 @@ export function VisualNovelMascot() {
         </AnimatePresence>
 
         {/* RIGHT — Mascot crop window. Plain DOM (no framer-motion on the
-             crop or the img) so the CSS idle animation runs cleanly. */}
-        <div className="vn-character-crop" aria-hidden>
-          <img className="vn-character" key={current.id + ':sprite'} src={src} alt="" draggable={false} />
+             crop or the img) so the CSS idle animation runs cleanly.
+
+             Pat her and hearts erupt from BEHIND: the canvas sits at z-1, the
+             crop at z-2, so Amelia is never covered by her own love bomb. */}
+        <HeartRain className="pointer-events-none absolute inset-0 z-[1]" />
+        <div
+          className="vn-character-crop"
+          onClick={onPat}
+          role="button"
+          tabIndex={0}
+          aria-label="Pat Amelia"
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPat(); } }}
+        >
+          <img
+            ref={spriteRef}
+            className={clsx('vn-character', patting && 'is-hopping')}
+            onAnimationEnd={(e) => { if (/mascot-pat/.test(e.animationName)) setPatting(false); }}
+            key={current.id + ':sprite'}
+            src={src}
+            alt=""
+            draggable={false}
+          />
         </div>
       </div>
     </div>

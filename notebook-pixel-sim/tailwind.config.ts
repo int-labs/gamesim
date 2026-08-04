@@ -15,6 +15,11 @@ export default {
       // property — so no call site has to remember which weight to reach for,
       // and a green number is readable without stopping being green.
       textColor: {
+        // Restores Tailwind's own `text-inherit`, which the wholesale `colors`
+        // override below removes. It is the escape hatch for the trap in RULE 6:
+        // the type classes paint, so a label inside a light-on-dark button needs
+        // an explicit way to yield to its parent.
+        inherit: 'inherit',
         success: 'var(--c-success-ink)',
         warning: 'var(--c-warning-ink)',
         danger: 'var(--c-danger-ink)',

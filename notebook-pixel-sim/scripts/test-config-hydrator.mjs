@@ -62,6 +62,10 @@ await writeFile(
   export { INSIGHTS } from '@/data/insights';
   export { ARCHETYPE_INFO, notebookCatalogue } from '@/data/notebookArchetypes';
   export * as balance from '@/data/balance';
+  // Namespace import so the ES module LIVE BINDINGS are observable: the
+  // scalars are reassigned inside their own module at hydration time, and a
+  // namespace reflects that where a destructured copy would not.
+  export * as finlitConstants from '@/engine/finlit/core/config/constants';
   export * as copy from '@/content/copy';
   export * as assets from '@/assets';
   `,
@@ -113,6 +117,10 @@ const BUNDLED = {
   addOnCount: BASE.ADDONS.length,
   paperCount: BASE.PAPER_OPTIONS.length,
   rowsPerGenre: BASE.CHANNELS_BY_GENRE[Object.keys(BASE.CHANNELS_BY_GENRE)[0]].length,
+  // Read from the bundle rather than hardcoded, so re-balancing the game
+  // doesn't turn these guards into false failures.
+  baserate: BASE.finlitConstants.BASERATE,
+  energyCap: BASE.finlitConstants.ENERGY_CAP,
 };
 console.log(
   `bundled baseline: ${BUNDLED.genreCount} genres (first "${BUNDLED.firstGenreName}"), ` +
@@ -326,18 +334,56 @@ await run("a section with a non-numeric rate is refused", {
 });
 
 // ── 6. Constants ────────────────────────────────────────────────────────
-await run("object constants apply; scalars are reported, not silently dropped", {
+await run("object AND scalar constants both apply", {
   payload: (() => {
     const p = clone();
     p.config.constants.PAPER_COST = { ...p.config.constants.PAPER_COST, premium: 9.9 };
+    // Scalars used to be impossible — `const` exports cannot be rebound from
+    // outside their module, so the console offered them and nothing happened.
     p.config.constants.BASERATE = 12345;
+    p.config.constants.ENERGY_CAP = 7;
+    p.config.constants.HIRE_DAILY_WAGE = 99;
     return p;
   })(),
   assert: (r, m) => {
     eq(m.balance.PAPER_COST.premium, 9.9, "PAPER_COST applied");
+    eq(m.finlitConstants.BASERATE, 12345, "BASERATE applied (live binding)");
+    eq(m.finlitConstants.ENERGY_CAP, 7, "ENERGY_CAP applied (live binding)");
+    eq(m.balance.HIRE_DAILY_WAGE, 99, "HIRE_DAILY_WAGE applied (live binding)");
+    eq(r.sections.includes("constants"), true, "constants reported as applied");
+
     const note = r.skipped.find((s) => s.section === "constants");
-    eq(!!note, true, "scalar constants reported");
-    eq(/BASERATE/.test(note.why), true, `scalar named in report: ${note?.why}`);
+    eq(/BASERATE|ENERGY_CAP|HIRE_DAILY_WAGE/.test(note?.why ?? ""), false,
+       `applied scalars must not be listed as skipped: ${note?.why}`);
+  },
+});
+
+await run("a scalar this build doesn't know is reported, not swallowed", {
+  payload: (() => {
+    const p = clone();
+    p.config.constants.SOME_FUTURE_CONSTANT = 42;
+    return p;
+  })(),
+  assert: (r) => {
+    const note = r.skipped.find((s) => s.section === "constants");
+    eq(!!note, true, "unknown constant reported");
+    eq(/SOME_FUTURE_CONSTANT/.test(note.why), true, `named in report: ${note?.why}`);
+  },
+});
+
+await run("a non-numeric scalar is refused rather than poisoning the engine", {
+  payload: (() => {
+    const p = clone();
+    // A half-filled console form; letting this through would put NaN through
+    // every downstream calculation, and the engine's invariant is that no NaN
+    // ever reaches state.
+    p.config.constants.BASERATE = "not a number";
+    p.config.constants.ENERGY_CAP = null;
+    return p;
+  })(),
+  assert: (r, m) => {
+    eq(m.finlitConstants.BASERATE, BUNDLED.baserate, "BASERATE kept its bundled value");
+    eq(m.finlitConstants.ENERGY_CAP, BUNDLED.energyCap, "ENERGY_CAP kept its bundled value");
   },
 });
 
