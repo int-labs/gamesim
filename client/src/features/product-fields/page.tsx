@@ -4,6 +4,7 @@ import * as React from "react";
 import { CopyChip, EntityCell, IconTile } from "@/components/app/bits";
 import { Card } from "@/components/app/card";
 import { DataTable } from "@/components/app/data-table";
+import { DetailDialog, DetailMap } from "@/components/app/detail-dialog";
 import { EmptyState } from "@/components/app/feedback";
 import { PageHeader } from "@/components/app/page-header";
 import {
@@ -36,10 +37,105 @@ const FIELD_TYPES = [
   { value: "enum", label: "Choice — one of a fixed set of options" },
 ];
 
+/**
+ * A decision field's two most consequential properties are maps, and a table
+ * cell can only ever show their size.
+ *
+ * `coefficients` weights the field inside `calcMarketModel`; `options` maps an
+ * enum's stored key to the value the engine resolves it to. Both were reachable
+ * only by opening the edit form — which is the wrong tool for reading, because
+ * it invites an accidental write to the very values a round is scoring against.
+ *
+ * `unitCost` is shown plainly for the same reason it was worth a controller
+ * fix: a partial PATCH used to erase it, and a cost of zero looks exactly like
+ * a cost that was never set.
+ */
+function FieldDetail({ row, onOpenChange }: { row: any | null; onOpenChange: (v: boolean) => void }) {
+  if (!row) return null;
+
+  const isEnum = row.type === "enum";
+  const optionCount = Object.keys(row.options ?? {}).length;
+
+  return (
+    <DetailDialog
+      open={!!row}
+      onOpenChange={onOpenChange}
+      eyebrow="Decision field"
+      title={row.label || "Unlabelled field"}
+      subtitle={`${row.productName} · ${row.type}`}
+      leading={<IconTile icon={<ListChecks />} tone="brand" />}
+      sections={[
+        {
+          title: "Definition",
+          fields: [
+            { label: "Key", value: row.key, mono: true },
+            { label: "Type", value: row.type },
+            { label: "Order", value: String(row.order), mono: true },
+            { label: "Required", value: row.required ? "Yes" : "No" },
+            {
+              label: "Range",
+              value:
+                row.minValue == null && row.maxValue == null
+                  ? "—"
+                  : `${row.minValue ?? "−∞"} … ${row.maxValue ?? "∞"}`,
+              mono: true,
+              empty: row.minValue == null && row.maxValue == null,
+            },
+            {
+              label: "Unit cost",
+              value: row.unitCost != null ? String(row.unitCost) : "Not set",
+              mono: true,
+              empty: row.unitCost == null,
+            },
+          ],
+        },
+        {
+          title: "How the engine scores it",
+          fields: [
+            {
+              label: "Direction",
+              value:
+                Number(row.direction) > 0
+                  ? "Positive — higher values score better, and money fields here form the price reference"
+                  : Number(row.direction) < 0
+                    ? "Negative — lower values score better"
+                    : "Zero — excluded from the price reference",
+              wide: true,
+            },
+            { label: "Tightening", value: String(row.tightening), mono: true },
+            {
+              label: "Coefficients",
+              value: <DetailMap value={row.coefficients} />,
+              wide: true,
+              empty: Object.keys(row.coefficients ?? {}).length === 0,
+            },
+            ...(isEnum || optionCount > 0
+              ? [
+                  {
+                    label: "Options",
+                    value:
+                      optionCount > 0 ? (
+                        <DetailMap value={row.options} />
+                      ) : (
+                        "An enum with no options — the player has nothing to choose."
+                      ),
+                    wide: true,
+                    empty: optionCount === 0,
+                  },
+                ]
+              : []),
+          ],
+        },
+      ]}
+    />
+  );
+}
+
 export default function ProductFieldsPage() {
   const { data: products = [], isLoading, isError, refetch } = useProducts();
 
   const crud = useResourceCrud<any>();
+  const [detail, setDetail] = React.useState<any>(null);
   const create = productFieldCrud.useCreate();
   const update = productFieldCrud.useUpdate();
   const remove = productFieldCrud.useDelete();
@@ -303,6 +399,7 @@ export default function ProductFieldsPage() {
         isError={isError}
         onRetry={refetch}
         searchPlaceholder="Search fields…"
+        onRowClick={(r: any) => setDetail(r)}
         groupBy="productId"
         groupLabel={(k) => <span>{productName(k)}</span>}
         toolbarExtra={
@@ -323,6 +420,8 @@ export default function ProductFieldsPage() {
           />
         }
       />
+
+      <FieldDetail row={detail} onOpenChange={(v: boolean) => !v && setDetail(null)} />
 
       <ResourceFormDialog
         open={crud.creating}

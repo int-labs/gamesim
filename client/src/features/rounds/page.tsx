@@ -14,10 +14,12 @@ import { toast } from "sonner";
 import { ProgressLinear, RoundStatusChip } from "@/components/app/bits";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { DataTable } from "@/components/app/data-table";
+import { DetailDialog } from "@/components/app/detail-dialog";
 import { EmptyState } from "@/components/app/feedback";
 import { PageHeader } from "@/components/app/page-header";
 import { ScopeGuard } from "@/components/app/scope-guard";
 import { RoundNotesDialog } from "@/features/notes/round-notes";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
@@ -128,6 +130,104 @@ function CreateRoundDialog({
   );
 }
 
+/**
+ * A round is the unit an operator runs the class in, and the table shows only
+ * its status and a submission count. Everything a facilitator asks between
+ * rounds — when did this open, how long did it actually run, who never
+ * submitted — lived only in the database.
+ *
+ * The missing-teams list is the point. "9 of 12 submitted" tells an operator
+ * to go and look; naming the three tells them where to walk.
+ */
+function RoundDetail({
+  round,
+  simulationId,
+  teams,
+  onOpenChange,
+}: {
+  round: any | null;
+  simulationId?: string;
+  teams: any[];
+  onOpenChange: (v: boolean) => void;
+}) {
+  // Before the early return: a hook may not be called conditionally, and the
+  // query disables itself when there is no round to describe.
+  const { data: decisions = [] } = useDecisions(simulationId, round?.roundNumber);
+
+  if (!round) return null;
+
+  const submitted = new Set(decisions.map((d: any) => String(d.teamId)));
+  const missing = teams.filter((t: any) => !submitted.has(String(t._id)));
+
+  const start = round.timer?.startDate ? new Date(round.timer.startDate) : null;
+  const end = round.timer?.endDate ? new Date(round.timer.endDate) : null;
+  // The clock the facilitator announced, versus the window it actually ran in.
+  const actualMinutes =
+    start && end ? Math.round((end.getTime() - start.getTime()) / 60000) : null;
+
+  return (
+    <DetailDialog
+      open={!!round}
+      onOpenChange={onOpenChange}
+      eyebrow="Round"
+      title={`Round ${round.roundNumber}`}
+      subtitle={`${round.status} · ${submitted.size} of ${teams.length} teams submitted`}
+      leading={<RoundStatusChip status={round.status} />}
+      sections={[
+        {
+          title: "Timing",
+          fields: [
+            {
+              label: "Announced duration",
+              value: round.timer?.durationMinutes ? duration(round.timer.durationMinutes) : "No timer set",
+              empty: !round.timer?.durationMinutes,
+            },
+            {
+              label: "Scheduled window",
+              value: actualMinutes != null ? duration(actualMinutes) : "—",
+              empty: actualMinutes == null,
+            },
+            {
+              label: "Opened",
+              value: start ? absoluteTime(start) : "Not opened yet",
+              empty: !start,
+            },
+            {
+              label: "Closes",
+              value: end ? `${absoluteTime(end)} (${relativeTime(end)})` : "—",
+              empty: !end,
+            },
+          ],
+        },
+        {
+          title: "Submissions",
+          fields: [
+            { label: "Submitted", value: `${submitted.size} of ${teams.length}`, mono: true },
+            {
+              label: "Still missing",
+              wide: true,
+              value:
+                missing.length === 0 ? (
+                  <span className="text-success">Every team has submitted.</span>
+                ) : (
+                  <span className="flex flex-wrap gap-1.5">
+                    {missing.map((t: any) => (
+                      <Badge key={t._id} tone="warning" size="sm">
+                        {t.teamName}
+                      </Badge>
+                    ))}
+                  </span>
+                ),
+              empty: false,
+            },
+            { label: "Round id", value: round._id, mono: true, wide: true },
+          ],
+        },
+      ]}
+    />
+  );
+}
+
 function RoundsTable({
   createOpen,
   setCreateOpen,
@@ -148,6 +248,7 @@ function RoundsTable({
   const [pendingCalc, setPendingCalc] = React.useState<any>(null);
   const [pendingEnd, setPendingEnd] = React.useState<any>(null);
   const [notesRound, setNotesRound] = React.useState<any>(null);
+  const [detail, setDetail] = React.useState<any>(null);
 
   const nextNumber =
     rounds.reduce((max: number, r: any) => Math.max(max, r.roundNumber ?? 0), 0) + 1;
@@ -301,6 +402,7 @@ function RoundsTable({
         isError={isError}
         onRetry={refetch}
         searchPlaceholder="Search rounds…"
+        onRowClick={(r: any) => setDetail(r)}
         groupBy="status"
         groupLabel={(k) => <span>{k}</span>}
         initialSorting={[{ id: "roundNumber", desc: false }]}
@@ -334,6 +436,13 @@ function RoundsTable({
           nextNumber={nextNumber}
         />
       )}
+
+      <RoundDetail
+        round={detail}
+        simulationId={simulationId ?? undefined}
+        teams={teams}
+        onOpenChange={(v: boolean) => !v && setDetail(null)}
+      />
 
       <ConfirmDialog
         open={!!pendingCalc}
