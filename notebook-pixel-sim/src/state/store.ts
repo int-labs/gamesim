@@ -480,13 +480,26 @@ export const useGame = create<Store>()(
         }),
       popMascot: () =>
         set((st) => {
+          const done = st.mascot.current;
           // Push current onto history (capped at 20) before advancing.
-          if (st.mascot.current) {
-            st.mascot.history.push(st.mascot.current);
+          if (done) {
+            st.mascot.history.push(done);
             if (st.mascot.history.length > 20) st.mascot.history.shift();
           }
           st.mascot.current = st.mascot.queue.shift() ?? null;
           if (st.mascot.current?.mood) st.mascot.mood = st.mascot.current.mood;
+
+          // A script is SEEN once its last message has been advanced past —
+          // recorded here, not only in clearMascotQueue. Relying on the clear
+          // meant a script that ran to its end through Next was never marked,
+          // so it replayed in full on every reload: the Phase 1 debrief came
+          // back every single time the player refreshed at phase 2. History is
+          // dropped on persist, so nothing else remembers it happened.
+          if (done?.seqId && (done.seqIndex ?? 0) + 1 >= (done.seqLen ?? 1)) {
+            if (!st.mascot.seenScripts.includes(done.seqId)) {
+              st.mascot.seenScripts.push(done.seqId);
+            }
+          }
         }),
       prevMascot: () =>
         set((st) => {
