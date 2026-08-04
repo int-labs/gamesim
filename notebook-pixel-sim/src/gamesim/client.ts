@@ -34,6 +34,10 @@ export interface GamesimSession {
   token: string;
   teamId: Id;
   simulationId: Id;
+  /** Stored so the game can greet the team by name after a reload, without a
+   *  second round-trip just to learn who is playing. */
+  teamName?: string;
+  avatarUrl?: string | null;
 }
 
 export function getGamesimToken(): string | null {

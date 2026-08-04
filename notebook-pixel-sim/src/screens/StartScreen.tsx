@@ -140,7 +140,11 @@ export function StartScreen() {
                     {HOME.cta.continue(day)}
                   </PixelButton>
                 </CtaPulse>
-                <PixelButton variant="secondary" size="lg" onClick={onStartNew}>
+                {/* Ghost, not a second filled button. This one WIPES the saved
+                    run, and sitting it beside Continue as an equally solid,
+                    equally coloured CTA invited exactly the misclick you can't
+                    undo. Continue is the only filled button here. */}
+                <PixelButton variant="ghost" size="lg" onClick={onStartNew}>
                   {HOME.cta.startNew}
                 </PixelButton>
               </div>

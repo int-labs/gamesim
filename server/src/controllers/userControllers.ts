@@ -158,6 +158,11 @@ export const loginWithPasskey = async (req: Request, res: Response): Promise<voi
       token,
       teamId: team._id,
       simulationId: team.simulationId,
+      // The player had no idea who it was: `teamId` alone meant the game could
+      // never greet a team by name or show the face the console generated for
+      // it. Both already exist on the document being read here.
+      teamName: team.teamName,
+      avatar: team.avatar ?? null,
     });
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to log in." });
