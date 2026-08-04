@@ -13,7 +13,7 @@ export function PixelStepLine({ data, width = 220, height = 60, stroke = '#5fb27
     return (
       <div
         style={{ maxWidth: width, height, aspectRatio: `${width} / ${height}` }}
-        className="w-full max-w-full flex items-center justify-center bg-cream-100 border-2 border-ink-900 font-hud text-[10px] text-ink-700"
+        className="w-full max-w-full flex items-center justify-center bg-cream-100 border-2 border-ink-900 eyebrow eyebrow-sm text-ink-700"
       >
         No data
       </div>
@@ -47,7 +47,7 @@ export function PixelStepLine({ data, width = 220, height = 60, stroke = '#5fb27
       style={{ maxWidth: width }}
     >
       {label && (
-        <text x={pad} y={10} className="font-hud" fontSize={9} fill="#5a4a37">
+        <text x={pad} y={10} className="chart-label" fill="#5a4a37">
           {label}
         </text>
       )}

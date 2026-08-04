@@ -22,9 +22,9 @@ export function PixelMeter({ value, max, pips = 10, tint = 'energy', showLabel =
   return (
     <div className="flex flex-col gap-1">
       {showLabel && (
-        <div className="flex justify-between font-hud text-[9px] text-ink-800 uppercase">
-          <span>{label}</span>
-          <span>
+        <div className="flex justify-between items-baseline text-ink-800 uppercase">
+          <span className="pixel-caption">{label}</span>
+          <span className="num-xs">
             {Math.round(value)} / {max}
           </span>
         </div>

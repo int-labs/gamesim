@@ -50,18 +50,23 @@ if (!Number.isFinite(TEAMS) || TEAMS < 2) {
 const SIM_TYPE_NAME = 'Notebook';
 const SEGMENT = { name: 'Notebook Buyers', key: 'notebook_buyers' };
 
-// One Product per notebook archetype in the game (src/data/notebookArchetypes.ts).
-// The player pairs its local product lines to these by name, then positionally,
-// so the names and the ORDER both matter.
+// One Product per notebook in the game's catalogue — the four MARKETS the
+// engine models (GENRES in src/engine/finlit/core/config/genres.ts). These used
+// to be three V2 "archetypes" (Student / Planner / Daily Journal) that had no
+// counterpart in the simulation, so the server was scoring a product set the
+// player never actually chose between.
 //
-// marketSize per round = the genre demand the browser engine uses for phases
-// 1/2/3 (src/engine/finlit/core/config/genres.ts), so the server's market is the
-// same size as the one the game shows locally:
-//   student → minimalist demand · planner → indie · daily → cute
+// `id` matches the genre id, which is what the player sends, so the pairing is
+// by identity rather than by name or list position.
+//
+// marketSize per round IS that genre's demand for phases 1/2/3, so the server's
+// market is exactly the size the game shows locally. Keep these in step with
+// `GENRES[].demand` (p1/p2/p3) if the curve is ever retuned.
 const PRODUCTS = [
-  { name: 'Student Notebook', order: 1, price: [5, 30], market: { 1: 16409, 2: 18552, 3: 21543 } },
-  { name: 'Planner', order: 2, price: [8, 40], market: { 1: 17562, 2: 19527, 3: 22511 } },
-  { name: 'Daily Journal', order: 3, price: [12, 60], market: { 1: 14507, 2: 17115, 3: 20759 } },
+  { id: 'cute',       name: 'Cute Notebook',       order: 1, price: [5, 40], market: { 1: 14507, 2: 17115, 3: 20759 } },
+  { id: 'anime',      name: 'Anime Notebook',      order: 2, price: [5, 40], market: { 1: 14093, 2: 17108, 3: 21023 } },
+  { id: 'minimalist', name: 'Minimalist Notebook', order: 3, price: [5, 40], market: { 1: 16409, 2: 18552, 3: 21543 } },
+  { id: 'indie',      name: 'Indie Notebook',      order: 4, price: [5, 40], market: { 1: 17562, 2: 19527, 3: 22511 } },
 ];
 
 // `projected_market_share` is read as a FRACTION by calcMarketModel, and it
@@ -253,6 +258,30 @@ async function ensureProduct(simulationTypeId, segmentId, product) {
     `product ${product.name} fields`);
 }
 
+/**
+ * Delete Products for this simulation type that the catalogue no longer lists.
+ *
+ * Without this, renaming the catalogue leaves the retired rows behind and the
+ * round close scores a mix of current and dead products. `ensureBaseData` runs
+ * after this and rewrites marketData/marketModel around the survivors only.
+ *
+ * DESTRUCTIVE: any Decision or Results row referencing a deleted product stops
+ * resolving. That is intended when replacing the catalogue outright, which is
+ * why it only ever runs under --apply.
+ */
+async function pruneRetiredProducts(simulationTypeId) {
+  const all = await get(`/products?simulationTypeId=${simulationTypeId}`);
+  const keep = new Set(PRODUCTS.map((p) => p.name));
+  const stale = (Array.isArray(all) ? all : []).filter((p) => !keep.has(p.productName));
+  if (stale.length === 0) {
+    console.log('  no retired products to prune');
+    return;
+  }
+  for (const p of stale) {
+    await write('DELETE', `/products/${p._id}`, undefined, `prune retired product "${p.productName}"`);
+  }
+}
+
 async function ensureBaseData(simulationTypeId, segmentId, products) {
   const marketData = {
     segments: [{
@@ -317,6 +346,7 @@ try {
   const products = [];
   for (const p of PRODUCTS) products.push(await ensureProduct(simType._id, segment._id, p));
 
+  await pruneRetiredProducts(simType._id);
   await ensureBaseData(simType._id, segment._id, products);
   await ensureGlobalInput(simType._id);
 

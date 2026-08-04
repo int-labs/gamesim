@@ -48,8 +48,8 @@ export function PixelChip({
     >
       {icon ? <span className="flex shrink-0">{icon}</span> : null}
       <span className="chip-label text-text capitalize">{label}</span>
-      {meta ? <span className="ml-auto text-[11px] text-text-3 font-medium">{meta}</span> : null}
-      {selected && <span className="ml-1 text-primary text-[12px] leading-none font-bold">✓</span>}
+      {meta ? <span className="ml-auto hint text-text-3 font-medium">{meta}</span> : null}
+      {selected && <span className="ml-1 text-primary hint leading-none strong">✓</span>}
     </button>
   );
 }

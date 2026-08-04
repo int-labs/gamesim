@@ -79,13 +79,13 @@ export function PnLPanel() {
 
       {tab === 'pnl' && (
         <PixelPanel title="Profit & Loss · Live">
-          <table className="w-full text-[14px]" style={{ borderCollapse: 'collapse' }}>
+          <table className="w-full body-xs" style={{ borderCollapse: 'collapse' }}>
             <thead>
               <tr className="bg-cream-200">
-                <th className="text-left px-2 py-1.5 font-hud text-[10px] uppercase text-ink-700 w-7"></th>
-                <th className="text-left px-1 py-1.5 font-hud text-[10px] uppercase text-ink-700">Line item</th>
-                <th className="text-right px-2 py-1.5 font-hud text-[10px] uppercase text-ink-700 w-24">Amount</th>
-                <th className="text-right px-2 py-1.5 font-hud text-[10px] uppercase text-ink-700 w-16 hidden sm:table-cell">Cause</th>
+                <th className="text-left px-2 py-1.5 eyebrow eyebrow-sm text-ink-700 w-7"></th>
+                <th className="text-left px-1 py-1.5 eyebrow eyebrow-sm text-ink-700">Line item</th>
+                <th className="text-right px-2 py-1.5 eyebrow eyebrow-sm text-ink-700 w-24">Amount</th>
+                <th className="text-right px-2 py-1.5 eyebrow eyebrow-sm text-ink-700 w-16 hidden sm:table-cell">Cause</th>
               </tr>
             </thead>
             <tbody>
@@ -165,7 +165,7 @@ export function PnLPanel() {
             <Labeled tag="Profit (last 14d)">
               <PixelStepLine data={series.profit.slice(-14)} stroke="#5b86c2" fill="rgba(91,134,194,0.18)" width={310} height={70} />
             </Labeled>
-            <p className="text-[13px] text-ink-700 mt-2 leading-snug">
+            <p className="body-xs text-ink-700 mt-2 leading-snug">
               When revenue rises but profit doesn't, look at Material and Marketing in the P&L tab.
             </p>
           </PixelPanel>
@@ -201,13 +201,13 @@ function PnLRow({ row }: { row: PnLRowData }) {
       <td className="py-1.5 px-2 align-middle">
         <MetricIcon kind={row.icon} tone={row.iconTone} size={22} />
       </td>
-      <td className={clsx('py-1.5 leading-tight', row.emphasis ? 'text-[14px] text-ink-900' : 'text-[13px] text-ink-800')}>
+      <td className={clsx('py-1.5 leading-tight', row.emphasis ? 'body-xs text-ink-900' : 'body-xs text-ink-800')}>
         {row.label}
       </td>
-      <td className={clsx('py-1.5 px-2 text-right font-hud', row.emphasis ? 'text-[15px]' : 'text-[13px]', valueClass)}>
+      <td className={clsx('py-1.5 px-2 text-right num-xs', valueClass)}>
         {fmt$(row.value)}
       </td>
-      <td className="py-1.5 px-2 text-right text-[11px] text-ink-700 hidden sm:table-cell">i</td>
+      <td className="py-1.5 px-2 text-right hint text-ink-700 hidden sm:table-cell">i</td>
     </tr>
   );
 }
@@ -215,7 +215,7 @@ function PnLRow({ row }: { row: PnLRowData }) {
 function Labeled({ tag, children }: { tag: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="font-hud text-[10px] uppercase text-ink-700 mb-1">{tag}</div>
+      <div className="eyebrow eyebrow-sm text-ink-700 mb-1">{tag}</div>
       {children}
     </div>
   );

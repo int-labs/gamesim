@@ -29,7 +29,7 @@ export function AccessMenu({ inline = false }: { inline?: boolean }) {
 
   const confirmCard = (
     <div className="pixel-frame w-[240px] bg-cream-50 p-2.5 shadow-pixel-2">
-      <p className="mb-2 font-body text-[12px] text-ink-800">
+      <p className="mb-2 font-body hint text-ink-800">
         Log out and re-enter your pass key? Your progress is saved.
       </p>
       <div className="flex justify-end gap-2">
@@ -95,7 +95,7 @@ export function AccessMenu({ inline = false }: { inline?: boolean }) {
           className="flex cursor-pointer items-center gap-1.5 rounded-pixel border border-ink-900/25 bg-ink-900/35 px-2 py-1 text-cream-50/70 backdrop-blur-sm transition-colors hover:bg-ink-900/60 hover:text-cream-50"
         >
           <PixelIcon kind="lock" size={11} color="currentColor" />
-          <span className="font-hud text-[9px] uppercase tracking-wide">Log out</span>
+          <span className="eyebrow eyebrow-sm tracking-wide">Log out</span>
         </button>
       )}
     </div>

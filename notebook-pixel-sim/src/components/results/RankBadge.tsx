@@ -57,10 +57,10 @@ export function RankBadge({ rank, delay = 0 }: { rank: Rank; delay?: number }) {
       <span aria-hidden className="absolute top-1 right-1 w-[3px] h-[3px]" style={{ background: rank.color }} />
       <span aria-hidden className="absolute bottom-1 left-1 w-[3px] h-[3px]" style={{ background: rank.color }} />
       <span aria-hidden className="absolute bottom-1 right-1 w-[3px] h-[3px]" style={{ background: rank.color }} />
-      <span className="font-hud text-[42px] leading-none" style={{ color: rank.color }}>
+      <span className="h2 leading-none" style={{ color: rank.color }}>
         {rank.grade}
       </span>
-      <span className="font-hud text-[8px] uppercase tracking-wider text-ink-700 mt-2 text-center px-1 leading-tight">
+      <span className="eyebrow eyebrow-sm text-ink-700 mt-2 text-center px-1 leading-tight">
         {rank.label}
       </span>
     </motion.div>

@@ -152,7 +152,7 @@ export async function submitRoundDecision(
   } catch (err) {
     if (err instanceof gamesim.GamesimApiError && err.status === 409) {
       throw new GamesimSyncError(
-        'This round\'s decision has already been submitted — decisions are final once sent.',
+        'This round\'s decision has already been submitted - decisions are final once sent.',
         err,
         true,
       );

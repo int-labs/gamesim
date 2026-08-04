@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import clsx from 'clsx';
+import { CloseX } from '@/components/primitives/CloseX';
 
 interface Props {
   open: boolean;
@@ -161,9 +162,7 @@ export function Drawer({
                 aria-label="Close panel"
                 className="game-hud-iconbtn shrink-0 text-text-2"
               >
-                <span aria-hidden className="font-hud text-[11px] leading-none">
-                  ✕
-                </span>
+                <CloseX />
               </button>
             </header>
             <div className={clsx('flex-1 min-h-0 overflow-y-auto p-3.5', bodyClassName)}>

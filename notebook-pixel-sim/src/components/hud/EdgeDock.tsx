@@ -118,14 +118,14 @@ export function EdgeDock({ side, items, activeId, onSelect, ariaLabel, anchor = 
                   draggable={false}
                 />
                 {it.badge != null && it.badge !== '' && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] sm:min-w-[16px] sm:h-[16px] px-0.5 inline-flex items-center justify-center bg-primary text-white text-[9px] font-bold leading-none border border-border rounded-full tabular-nums">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] sm:min-w-[16px] sm:h-[16px] px-0.5 inline-flex items-center justify-center bg-primary-strong text-white item-name leading-none border border-border rounded-full tabular-nums">
                     {it.badge}
                   </span>
                 )}
               </span>
               <span
                 className={clsx(
-                  'text-[7.5px] sm:text-[9.5px] uppercase tracking-wide font-bold leading-none text-center',
+                  'eyebrow eyebrow-sm tracking-wide leading-none text-center',
                   active ? 'text-primary' : 'text-text-2 group-hover:text-text',
                 )}
               >

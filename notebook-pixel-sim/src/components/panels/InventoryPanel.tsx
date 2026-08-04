@@ -8,7 +8,6 @@ import {
 import { vocFit } from '@/engine/finlit/fit';
 import { PixelPanel, PixelBadge } from '@/components/primitives';
 import { fmt$, fmtInt } from '@/utils/format';
-import { PixelStepLine } from '@/components/charts/PixelStepLine';
 import { BUSINESS_PAGE } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import clsx from 'clsx';
@@ -68,7 +67,6 @@ export function InventoryPanel() {
   const finished = useGame((s) => s.inventory.totalFinished);
   const stockoutDays = useGame((s) => s.inventory.stockoutDays);
   const overstockDays = useGame((s) => s.inventory.overstockDays);
-  const series = useGame((s) => s.series);
   const apply = useGame((s) => s.apply);
 
   const sellBonus =
@@ -83,7 +81,7 @@ export function InventoryPanel() {
 
   if (lines.length === 0) {
     return (
-      <div className="border-2 border-border-soft bg-surface p-6 text-center text-[17px] text-text-2">
+      <div className="border-2 border-border-soft bg-surface p-6 text-center body-sm text-text-2">
         No notebooks yet - add one in Notebook Items to plan its production.
       </div>
     );
@@ -115,7 +113,7 @@ export function InventoryPanel() {
 
       {/* ── Production Plan — the decisions: units/day per notebook ── */}
       <PixelPanel title="Production Plan">
-        <div className="text-[12px] font-medium text-text-3 -mt-1 mb-2 leading-tight">
+        <div className="hint font-medium text-text-3 -mt-1 mb-2 leading-tight">
           Set how many of each notebook to make per day. Aim near demand - over-make and stock piles up, under-make and you sell out.
         </div>
         <div className="flex flex-col gap-2">
@@ -127,20 +125,6 @@ export function InventoryPanel() {
               onChange={(v) => apply((s) => setLineTargetPerDay(s, v, line.id))}
             />
           ))}
-        </div>
-      </PixelPanel>
-
-      {/* ── Trends ── */}
-      <PixelPanel title="Trends" tone="paper">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="eyebrow eyebrow-sm mb-1">Finished goods</div>
-            <PixelStepLine data={series.finished.slice(-30)} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" />
-          </div>
-          <div>
-            <div className="eyebrow eyebrow-sm mb-1">Demand</div>
-            <PixelStepLine data={series.demand.slice(-30)} stroke="#5b86c2" fill="rgba(91,134,194,0.18)" />
-          </div>
         </div>
       </PixelPanel>
     </div>
@@ -179,18 +163,24 @@ function ProductionRow({
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
           {/* TITLE = line name; genre is a quiet tag before it */}
-          <span className="text-[9.5px] uppercase tracking-wider font-semibold text-brand-500 shrink-0">{genreById(stats.genre).name}</span>
-          <span className="text-[16px] font-bold text-text truncate">{name}</span>
+          <span className="eyebrow eyebrow-sm text-brand-500 shrink-0">{genreById(stats.genre).name}</span>
+          <span className="item-name text-text truncate">{name}</span>
         </div>
-        <span className="flex items-center gap-2.5 shrink-0 text-[11.5px] font-medium text-text-3">
+        <span className="flex items-center gap-3 shrink-0">
           {/* Price is read-only here - it's set on the Product page next to unit
               cost/margin. Echoed so the commercial picture reads in one place. */}
-          <span>price <span className="font-bold text-text tabular-nums text-[13px]">{fmt$(stats.price)}</span></span>
-          <span>stock <span className="font-bold text-text tabular-nums text-[13px]">{fmtInt(stats.finished)}</span></span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="stat-label">Price</span>
+            <span className="num-xs text-text">{fmt$(stats.price)}</span>
+          </span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="stat-label">Stock</span>
+            <span className="num-xs text-text">{fmtInt(stats.finished)}</span>
+          </span>
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <span className="text-[11px] uppercase tracking-wider text-text-3 w-20 shrink-0">Produce / day</span>
+        <span className="stat-label w-24 shrink-0">Produce / day</span>
         <input
           type="range"
           min={0}
@@ -201,11 +191,23 @@ function ProductionRow({
           className="flex-1 accent-ui-primary cursor-pointer"
         />
         {/* VALUE — the loudest thing in the row */}
-        <span className="text-[19px] font-extrabold tabular-nums text-text w-14 text-right">{value}<span className="text-text-3 font-bold text-[12px]">/d</span></span>
+        <span className="num-sm text-text w-16 text-right shrink-0">
+          {value}
+          <span className="stat-label">/d</span>
+        </span>
       </div>
-      <div className="flex items-center justify-between mt-1 text-[11.5px]">
-        <span className="text-text-3">demand <span className="font-bold text-info tabular-nums">~{demandRounded}/d</span> · capacity <span className="font-bold text-text-2 tabular-nums">~{stats.capacity.toFixed(1)}/d</span></span>
-        <span className={clsx('font-bold', hintColor)}>{hint}</span>
+      <div className="flex items-center justify-between gap-3 mt-2">
+        <span className="flex items-center gap-3 min-w-0">
+          <span className="flex items-baseline gap-1.5">
+            <span className="stat-label">Demand</span>
+            <span className="num-xs text-info">~{demandRounded}/d</span>
+          </span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="stat-label">Capacity</span>
+            <span className="num-xs text-text-2">~{stats.capacity.toFixed(1)}/d</span>
+          </span>
+        </span>
+        <span className={clsx('item-name shrink-0', hintColor)}>{hint}</span>
       </div>
     </div>
   );

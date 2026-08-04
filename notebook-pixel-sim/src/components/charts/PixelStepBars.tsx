@@ -26,12 +26,12 @@ export function PixelStepBars({ data, width = 240, height = 100, showValues = tr
         const by = pad + (h - bh);
         return (
           <g key={i}>
-            <rect x={bx} y={by} width={barW} height={bh} fill={b.color ?? '#5b86c2'} stroke="#2a2017" strokeWidth={2} />
-            <text x={bx + barW / 2} y={pad + h + 12} fontSize={8} className="font-hud" fill="#3b2e21" textAnchor="middle">
+            <rect x={bx} y={by} width={barW} height={bh} fill={b.color ?? 'var(--c-fin-revenue)'} stroke="#2a2017" strokeWidth={2} />
+            <text x={bx + barW / 2} y={pad + h + 12} className="chart-label" fill="#3b2e21" textAnchor="middle">
               {b.label}
             </text>
             {showValues && (
-              <text x={bx + barW / 2} y={by - 2} fontSize={8} className="font-hud" fill="#3b2e21" textAnchor="middle">
+              <text x={bx + barW / 2} y={by - 2} className="chart-value" fill="#3b2e21" textAnchor="middle">
                 {Math.round(b.value)}
               </text>
             )}

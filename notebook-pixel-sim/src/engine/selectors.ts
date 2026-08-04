@@ -7,8 +7,9 @@ import { computeFinalScore, type FinalScore } from './scoring';
 import { mulberry32, seedFrom } from '@/utils/rng';
 import { totalReceivables, totalPayables } from './cashflow';
 import { aggregateActive } from './modifiers';
-import type { Phase, Segment } from '@/types';
+import type { Phase, Segment, Size } from '@/types';
 import { SEGMENTS } from '@/data/segments';
+import { GENRES } from '@/data/finlit';
 
 export interface KpiSet {
   cash: number;
@@ -411,10 +412,10 @@ export function selectProductSummary(s: GameState): ProductSummary {
     if (fitBySegment[seg.id] > topFit.fit) topFit = { segment: seg.id, fit: fitBySegment[seg.id] };
   }
   return {
-    archetype: activeLine?.archetype ?? 'student',
+    archetype: activeLine?.archetype ?? GENRES[0].id,
     cover: activeLine?.cover ?? 'hardcover',
     binding: activeLine?.binding ?? 'ring',
-    size: activeLine?.size ?? 'm',
+    size: lineSize(activeLine),
     paperQuality: activeLine?.paperQuality ?? 'standard',
     price: activeLine?.price ?? 8,
     effectivePrice,
@@ -447,3 +448,24 @@ export function selectWarnings(s: GameState): Warning[] {
   }
   return out;
 }
+
+/**
+ * The drawn size of a notebook.
+ *
+ * There are two size fields on a ProductLine and only one of them is real.
+ * `line.size` ('s'|'m'|'l') is legacy: it is written once at line creation and
+ * no mutator has ever updated it since the old design controls were replaced.
+ * The live decision is `finlitSpec.size` ('a5'|'b5'|'b4'), which the Design
+ * dropdown writes and which drives production rate and cost.
+ *
+ * So the canvas was scaling from a field the player could not change — pick B4
+ * and the sprite stayed exactly the same. Deriving here makes the FinLit spec
+ * the single source of truth for physical size; `line.size` is only a fallback
+ * for a line saved before the spec existed.
+ *
+ * Order is real paper size: A5 (148x210mm) < B5 (176x250mm) < B4 (250x353mm).
+ */
+const FINLIT_SIZE_TO_SIZE: Record<string, Size> = { a5: 's', b5: 'm', b4: 'l' };
+
+export const lineSize = (line?: { size?: Size; finlitSpec?: { size?: string } }): Size =>
+  FINLIT_SIZE_TO_SIZE[line?.finlitSpec?.size ?? ''] ?? line?.size ?? 'm';

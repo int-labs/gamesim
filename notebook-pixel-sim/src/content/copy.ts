@@ -137,11 +137,10 @@ export const LEARNING_POINTS = {
 
 export const ROUTE = {
   shop: {
-    eyebrow: 'Step 1',
-    title: 'Name your shop',
+    title: 'Name your studio',
     hint: 'This is your business. You can rename it any time from the shop sign on your desk.',
   },
-  eyebrow: 'Step 2',
+  eyebrow: 'Step 1',
   title: 'Choose your funding route',
   subtitle:
     'Each route changes your starting cash, the pressure you feel, and how your final score is weighted. Either route can score 100.',

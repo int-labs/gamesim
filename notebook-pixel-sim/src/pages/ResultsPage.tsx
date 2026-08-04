@@ -9,7 +9,7 @@ export function ResultsPage() {
       <section className="min-w-0 min-h-0 flex flex-col panel overflow-hidden">
         <header className="px-4 py-3 border-b border-border-soft bg-surface-2 shrink-0">
           <div className="panel-title text-text">Phase results &amp; insights</div>
-          <div className="text-[11px] text-text-3 mt-0.5">
+          <div className="hint text-text-3 mt-0.5">
             Look at what happened, why it happened, and what to try next phase.
           </div>
         </header>

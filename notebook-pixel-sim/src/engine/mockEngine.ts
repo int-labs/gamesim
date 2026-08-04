@@ -38,10 +38,11 @@ import {
   scenarioById as finlitScenarioById,
   BUDGET_MAX,
   BUDGET_LEVER_ENERGY,
+  GENRES,
 } from '@/data/finlit';
 import { clamp, phaseOf } from '@/utils/format';
 import type {
-  LedgerEntry, Segment, ProductLine, Archetype,
+  LedgerEntry, Segment, ProductLine, Archetype, AddOnInstance,
   FinlitGenreId, FinlitProductionSpec, FinlitChannelId, FinlitVendorId,
   FinlitCandidateId, FinlitMarketingId,
 } from '@/types';
@@ -123,11 +124,14 @@ export const canAddProductLine = (s: GameState): boolean =>
 
 const newLineId = () => 'line-' + Math.random().toString(36).slice(2, 8);
 
-/** Default human-readable label for a notebook archetype. */
+/**
+ * Default human-readable label for a notebook. Reads the live catalogue, so a
+ * notebook published by an operator names itself correctly with no code change.
+ * Unknown ids fall back to the raw id rather than throwing — naming is cosmetic
+ * and must never be the thing that breaks a load.
+ */
 export const archetypeLabel = (archetype: Archetype): string =>
-  archetype === 'student' ? 'Student'
-  : archetype === 'planner' ? 'Planner'
-  : 'Daily Journal';
+  GENRES.find((g) => g.id === archetype)?.name ?? archetype;
 
 /**
  * Pick the next available name for a new notebook of the given archetype:
@@ -145,14 +149,30 @@ export const nextNameForArchetype = (s: GameState, archetype: Archetype): string
   return `${base}-${n}`;
 };
 
-// Archetype → a sensible default V3 genre, so a new notebook lands as a valid
-// FinLit line (a market + a lean, cheap, decent-margin spec) out of the box.
-const ARCHETYPE_TO_GENRE: Record<Archetype, FinlitGenreId> = {
-  student: 'minimalist', planner: 'indie', daily: 'cute',
+/** The notebook a new line makes when the caller doesn't name one. */
+export const defaultNotebookId = (): Archetype => GENRES[0].id;
+
+/**
+ * The add-on list for a line's current notebook, created on first use.
+ *
+ * Notebook ids are open-ended now, so a line can be switched to an id that has
+ * no list yet — including one an operator published after the save was written.
+ * Every read and write goes through here so that case is a no-op rather than a
+ * crash on `undefined.push`.
+ */
+export const addOnsForLine = (line: ProductLine): AddOnInstance[] => {
+  const key = line.archetype;
+  let list = line.addOnsByArchetype[key];
+  if (!list) {
+    list = [];
+    line.addOnsByArchetype[key] = list;
+  }
+  return list;
 };
 
-const defaultLine = (id: string, name: string, archetype: Archetype = 'student'): ProductLine => {
-  const genre = ARCHETYPE_TO_GENRE[archetype];
+const defaultLine = (id: string, name: string, archetype: Archetype = defaultNotebookId()): ProductLine => {
+  // Identity and market are the same thing now, so there is nothing to map.
+  const genre = archetype;
   return {
     id,
     name,
@@ -164,9 +184,10 @@ const defaultLine = (id: string, name: string, archetype: Archetype = 'student')
     paperQuality: 'standard',
     pricePoint: 'balanced',
     price: 16,
-    addOnsByArchetype: { student: [], planner: [], daily: [] },
+    // Seeded for this notebook only; other ids get a list when first used.
+    addOnsByArchetype: { [archetype]: [] },
     quantityTarget: 30,
-    targetSegment: GENRE_TO_SEGMENT[genre],
+    targetSegment: segmentForGenre(genre),
     inventory: { raw: 0, finished: 0, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
     // V3 defaults — a valid market + a lean/cheap spec + one channel.
     genre,
@@ -181,7 +202,7 @@ const defaultLine = (id: string, name: string, archetype: Archetype = 'student')
  * Auto-names based on archetype: "Student" / "Student-2" / "Student-3", etc.
  * In Phase 1 the new item inherits the shared global target segment.
  */
-export const addProductLine = (s: GameState, archetype: Archetype = 'student'): string | null => {
+export const addProductLine = (s: GameState, archetype: Archetype = defaultNotebookId()): string | null => {
   if (!canAddProductLine(s)) return null;
   const id = newLineId();
   const name = nextNameForArchetype(s, archetype);
@@ -205,11 +226,14 @@ export const duplicateProductLine = (s: GameState, sourceId: string): string | n
     ...src,
     id,
     name: `${src.name} (copy)`,
-    addOnsByArchetype: {
-      student: src.addOnsByArchetype.student.map((a) => ({ ...a, id: 'inst-' + Math.random().toString(36).slice(2, 8) })),
-      planner: src.addOnsByArchetype.planner.map((a) => ({ ...a, id: 'inst-' + Math.random().toString(36).slice(2, 8) })),
-      daily: src.addOnsByArchetype.daily.map((a) => ({ ...a, id: 'inst-' + Math.random().toString(36).slice(2, 8) })),
-    },
+    // Copy whatever notebooks this line actually has lists for — the set is
+    // open-ended, so enumerating ids here would silently drop the rest.
+    addOnsByArchetype: Object.fromEntries(
+      Object.entries(src.addOnsByArchetype).map(([k, list]) => [
+        k,
+        (list ?? []).map((a) => ({ ...a, id: 'inst-' + Math.random().toString(36).slice(2, 8) })),
+      ]),
+    ),
     inventory: { raw: 0, finished: 0, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
   };
   s.portfolio.productLines.push(copy);
@@ -281,7 +305,7 @@ export const placeAddOn = (
   placement?: { x?: number; y?: number; scale?: number },
 ) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  const list = line.addOnsByArchetype[line.archetype];
+  const list = addOnsForLine(line);
   if (list.length >= 3) return false;
   const cat = ADDONS.find((a) => a.id === defId)?.category;
   if (!cat) return false;
@@ -324,8 +348,7 @@ export const updateAddOnPlacement = (
   lineId?: string,
 ) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  const arch = line.archetype;
-  const inst = line.addOnsByArchetype[arch].find((a) => a.id === instId);
+  const inst = addOnsForLine(line).find((a) => a.id === instId);
   if (!inst) return false;
   if (patch.x !== undefined) inst.x = clamp(finite(patch.x, inst.x), PLACEMENT_BOUNDS.xMin, PLACEMENT_BOUNDS.xMax);
   if (patch.y !== undefined) inst.y = clamp(finite(patch.y, inst.y), PLACEMENT_BOUNDS.yMin, PLACEMENT_BOUNDS.yMax);
@@ -338,8 +361,7 @@ export const updateAddOnPlacement = (
 /** Reset an add-on's placement back to its category default. */
 export const resetAddOnPlacement = (s: GameState, instId: string, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  const arch = line.archetype;
-  const inst = line.addOnsByArchetype[arch].find((a) => a.id === instId);
+  const inst = addOnsForLine(line).find((a) => a.id === instId);
   if (!inst) return false;
   const def = ADDONS.find((a) => a.id === inst.defId);
   const place = defaultPlacementFor(def?.category);
@@ -353,8 +375,7 @@ export const resetAddOnPlacement = (s: GameState, instId: string, lineId?: strin
 
 export const removeAddOn = (s: GameState, instId: string, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  const arch = line.archetype;
-  line.addOnsByArchetype[arch] = line.addOnsByArchetype[arch].filter((a) => a.id !== instId);
+  line.addOnsByArchetype[line.archetype] = addOnsForLine(line).filter((a) => a.id !== instId);
   s.history.push({ day: s.meta.day, text: `Removed add-on (${line.name})`, cause: 'addon_remove' });
 };
 
@@ -425,16 +446,21 @@ export const setPrice = (s: GameState, n: number, lineId?: string) => {
 
 // Genre → legacy segment, so choosing a V3 market also clears the V2
 // "pick a target audience" phase-gate until that gate is migrated to genres.
-const GENRE_TO_SEGMENT: Record<FinlitGenreId, Segment> = {
-  cute: 'creators', anime: 'gift', minimalist: 'professionals', indie: 'students',
-};
+// Re-exported from the config module, which is where `src/data/` reads it
+// without importing this facade (that would be circular).
+export { GENRE_TO_SEGMENT } from './finlit/core/config/genreSegments';
+import { segmentForGenre } from './finlit/core/config/genreSegments';
 
-/** Set the notebook genre (market) for a line. */
+/**
+ * Set the notebook a line makes. `genre` is the identity, and `archetype`
+ * mirrors it so the two never disagree — see the note on ProductLine.
+ */
 export const setLineGenre = (s: GameState, genre: FinlitGenreId, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   line.genre = genre;
+  line.archetype = genre;
   // Bridge to the legacy target so the phase-confirm gate is satisfied.
-  const seg = GENRE_TO_SEGMENT[genre];
+  const seg = segmentForGenre(genre);
   line.targetSegment = seg;
   s.market.targetSegment = seg;
   s.history.push({ day: s.meta.day, text: `${line.name} → ${genre} market`, cause: 'finlit_genre' });

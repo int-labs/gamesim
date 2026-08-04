@@ -91,7 +91,7 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
           >
             <div className="flex items-start gap-3">
               <MascotAvatar mood="thinking" size={64} />
-              <div className="flex-1 text-[14px] text-ink-900 leading-snug">
+              <div className="flex-1 body-xs text-ink-900 leading-snug">
                 {days === 1
                   ? 'Lock in your decisions and advance one day. The numbers below are an estimate, not a promise - actual demand is rolled on the day.'
                   : `Skip forward ${days} days. Use this to ramp up Phase 1 quickly.`}
@@ -106,8 +106,8 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
             </div>
 
             <div className="bg-cream-100 border-2 border-ink-900 px-3 py-2.5 shadow-pixel-1">
-              <div className="font-hud text-[10px] uppercase tracking-wider text-ink-700 mb-1.5">Estimated next-day impact</div>
-              <ul className="text-[14px] text-ink-900 leading-snug space-y-0.5">
+              <div className="eyebrow eyebrow-sm text-ink-700 mb-1.5">Estimated next-day impact</div>
+              <ul className="body-xs text-ink-900 leading-snug space-y-0.5">
                 <li>· Likely sold: <strong>{expectedSold}</strong> units</li>
                 <li>· Revenue est.: <strong>{fmt$(expectedRevenue)}</strong></li>
                 <li>· Daily expenses: <strong>{fmt$(dailyExpenses)}</strong></li>
@@ -149,8 +149,8 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
             className="flex flex-col items-center justify-center py-8 gap-3 min-h-[220px]"
           >
             <MascotAvatar mood="happy_soft" size={72} />
-            <div className="font-hud text-[16px] uppercase tracking-wider text-ink-900">Advancing day…</div>
-            <div className="text-[14px] text-ink-700">Reading the numbers</div>
+            <div className="eyebrow eyebrow-sm text-ink-900">Advancing day…</div>
+            <div className="body-xs text-ink-700">Reading the numbers</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -173,9 +173,9 @@ function PreviewRow({
     <div className="flex items-center gap-2 bg-cream-50 border-2 border-ink-900 px-2.5 py-2">
       <MetricIcon kind={icon} size={26} tone="cream" />
       <div className="flex-1 leading-tight">
-        <div className="font-hud text-[10px] uppercase tracking-wider text-ink-700">{label}</div>
-        <div className="font-hud text-[14px] text-ink-900">{value}</div>
-        {hint && <div className="text-[11px] text-ink-700">{hint}</div>}
+        <div className="eyebrow eyebrow-sm text-ink-700">{label}</div>
+        <div className="eyebrow eyebrow-sm text-ink-900">{value}</div>
+        {hint && <div className="hint text-ink-700">{hint}</div>}
       </div>
     </div>
   );

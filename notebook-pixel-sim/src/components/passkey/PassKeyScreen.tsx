@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { A } from '@/assets';
@@ -29,10 +29,18 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
   const [leaving, setLeaving] = useState(false);
   const [roamTick, setRoamTick] = useState(0);
 
+  // canvas-confetti draws into a PERSISTENT full-screen canvas that outlives
+  // whatever triggered it. Without this reset the unlock burst kept falling
+  // over the route-choice screen that replaces us, drifting across its heading.
+  // The celebration belongs to the screen that earned it.
+  useEffect(() => () => { confetti.reset(); }, []);
+
   const handleUnlock = () => {
     setLeaving(true);
     playSfx('phase-up');
-    if (!reduced) confetti({ particleCount: 110, spread: 90, origin: { y: 0.6 }, scalar: 0.9 });
+    // `ticks` is tuned to the 720ms exit below so the burst finishes ON this
+    // screen instead of being cut off mid-flight.
+    if (!reduced) confetti({ particleCount: 110, spread: 90, origin: { y: 0.6 }, scalar: 0.9, ticks: 70 });
     window.setTimeout(onEnter, reduced ? 200 : 720);
   };
 

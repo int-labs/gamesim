@@ -121,7 +121,7 @@ export function ConfirmDecisionModal({
             </header>
 
             <div className="px-4 py-3 flex flex-col gap-2.5">
-              <p className="text-[18px] text-text leading-relaxed">{summary}</p>
+              <p className="body-sm text-text leading-relaxed">{summary}</p>
 
               {lines && lines.length > 0 && (
                 <CostTiles
@@ -135,7 +135,7 @@ export function ConfirmDecisionModal({
               )}
 
               {reversibility && (
-                <p className="text-[16px] text-text-3 italic leading-relaxed">{reversibility}</p>
+                <p className="body-xs text-text-3 italic leading-relaxed">{reversibility}</p>
               )}
             </div>
 
@@ -145,7 +145,7 @@ export function ConfirmDecisionModal({
                 onClick={() => { playSfx('click-soft'); onCancel(); }}
                 className="inline-flex items-center gap-1.5 h-[36px] px-4 border-2 border-border-soft bg-surface text-text-2 hover:bg-surface-2 hover:text-text cursor-pointer"
               >
-                <span className="text-[17px] uppercase tracking-wider font-bold">{cancelLabel}</span>
+                <span className="eyebrow eyebrow-sm">{cancelLabel}</span>
               </button>
               <button
                 type="button"
@@ -159,7 +159,7 @@ export function ConfirmDecisionModal({
                 style={{ color: '#FAF7E8' }}
               >
                 <PixelIcon kind="check" size={11} color="#FAF7E8" />
-                <span className="text-[17px] uppercase tracking-wider font-bold">{confirmLabel}</span>
+                <span className="eyebrow eyebrow-sm">{confirmLabel}</span>
               </button>
             </div>
           </motion.div>

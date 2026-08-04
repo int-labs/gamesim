@@ -77,18 +77,18 @@ export function HistoryDropdown({ anchor, onClose }: Props) {
         <header className="flex items-center justify-between px-3.5 py-2.5 border-b-2 border-border-soft bg-surface-2">
           <div className="flex items-center gap-2">
             <PixelIcon kind="history" size={11} color="var(--c-primary)" />
-            <span className="text-[11px] uppercase tracking-wider font-bold text-text">
+            <span className="eyebrow eyebrow-sm text-text">
               Decision Timeline
             </span>
           </div>
-          <span className="text-[10px] uppercase tracking-wider text-text-3">
+          <span className="stat-label">
             Day {day} · Phase {phase}
           </span>
         </header>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-2">
           {reversed.length === 0 ? (
-            <div className="px-2 py-3 text-[12px] text-text-2">
+            <div className="px-2 py-3 hint text-text-2">
               No decisions yet - start configuring your notebooks.
             </div>
           ) : (
@@ -98,10 +98,10 @@ export function HistoryDropdown({ anchor, onClose }: Props) {
                   key={i}
                   className="flex items-start gap-2 px-2 py-1.5 border-b border-border-soft/60 last:border-b-0"
                 >
-                  <span className="shrink-0 inline-flex items-center justify-center min-w-[36px] h-[20px] px-1.5 border border-border-soft bg-surface-2 text-[10px] uppercase tracking-wider font-bold text-text-3 tabular-nums">
+                  <span className="shrink-0 inline-flex items-center justify-center min-w-[36px] h-[20px] px-1.5 border border-border-soft bg-surface-2 stat-label tabular-nums">
                     D{h.day}
                   </span>
-                  <span className="text-[12.5px] text-text leading-snug">{h.text}</span>
+                  <span className="hint text-text leading-snug">{h.text}</span>
                 </li>
               ))}
             </ul>

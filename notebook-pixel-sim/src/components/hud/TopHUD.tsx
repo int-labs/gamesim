@@ -186,9 +186,9 @@ export function TopHUD() {
             aria-label={`Phase ${phase} of 3`}
           >
             <NavIcon icon={Flag} size={14} color="var(--c-primary)" />
-            <span className="hidden sm:inline text-[12px] uppercase tracking-[0.14em] font-bold text-text-2 leading-none">Phase</span>
-            <span className="text-[18px] font-bold tabular-nums text-text leading-none">
-              {phase}<span className="text-text-3 font-medium text-[14px]"> / 3</span>
+            <span className="hidden sm:inline eyebrow eyebrow-sm text-text-2 leading-none">Phase</span>
+            <span className="num-sm text-text leading-none">
+              {phase}<span className="text-text-3 font-medium body-xs"> / 3</span>
             </span>
           </div>
         </Tooltip>
@@ -210,7 +210,7 @@ export function TopHUD() {
             ghostDownClass="text-warning"
             pulseDanger={energy === 0}
             render={
-              <span className="font-bold tabular-nums text-text">
+              <span className="num-xs text-text">
                 {energy}<span className="text-text-3 font-medium">/{maxEnergy}</span>
               </span>
             }
@@ -448,7 +448,7 @@ function Chip({
           <NavIcon icon={icon} size={14} color={variant === 'success' ? successChipInk[tone] : toneIcon[tone]} />
           <span
             className={clsx(
-              'font-semibold uppercase tracking-[0.14em] text-[12px]',
+              'font-semibold uppercase tracking-[0.14em] hint',
               variant === 'success' ? 'text-ink-900/80' : 'text-text-3',
               compact && 'hidden xl:inline',
             )}
@@ -456,16 +456,16 @@ function Chip({
             {label}
           </span>
           {render ? (
-            <span className={clsx('font-bold tabular-nums text-[17px]', variant !== 'success' && toneText[tone])} style={variant === 'success' ? { color: successChipInk[tone] } : undefined}>{render}</span>
+            <span className={clsx('num-xs', variant !== 'success' && toneText[tone])} style={variant === 'success' ? { color: successChipInk[tone] } : undefined}>{render}</span>
           ) : numValue !== undefined && format ? (
             <CountUp
               value={numValue}
               format={format}
-              className={clsx('font-bold tabular-nums text-[17px]', variant !== 'success' && toneText[tone])}
+              className={clsx('num-xs', variant !== 'success' && toneText[tone])}
               style={variant === 'success' ? { color: successChipInk[tone] } : undefined}
             />
           ) : (
-            <span className={clsx('font-bold tabular-nums text-[17px]', variant !== 'success' && toneText[tone])} style={variant === 'success' ? { color: successChipInk[tone] } : undefined}>{value}</span>
+            <span className={clsx('num-xs', variant !== 'success' && toneText[tone])} style={variant === 'success' ? { color: successChipInk[tone] } : undefined}>{value}</span>
           )}
         </div>
         {ghostFormat &&

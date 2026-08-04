@@ -137,9 +137,9 @@ export function PhaseActionBar() {
             <PixelIcon kind="phase" size={12} color="var(--c-border)" />
           </span>
           <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-[9.5px] uppercase tracking-[0.14em] font-bold text-[#9A7B4F]">Current Phase</span>
-            <span className="text-[12px] text-[#E8DCBE] truncate">
-              Day <span className="font-bold tabular-nums">{day}</span> / 90
+            <span className="eyebrow eyebrow-sm text-[#9A7B4F]">Current Phase</span>
+            <span className="hint text-[#E8DCBE] truncate">
+              Day <span className="num-xs">{day}</span> / 90
               <span className="text-[#9A7B4F]"> · </span>
               <span className="tabular-nums">{daysLeft}d</span> left
               <span className="hidden sm:inline"> in Phase {phase}</span>
@@ -182,7 +182,7 @@ export function PhaseActionBar() {
             >
               <PixelIcon kind="warning" size={11} color="var(--c-warning)" />
               <span className="truncate">{blockReason}</span>
-              <span className="ml-1 hidden sm:inline-flex items-center text-[10px] uppercase tracking-wider opacity-75">
+              <span className="ml-1 hidden sm:inline-flex items-center eyebrow eyebrow-sm opacity-75">
                 Tap to fix
               </span>
               <PixelIcon kind="arrow-right" size={10} color="var(--c-warning)" />

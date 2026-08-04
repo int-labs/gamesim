@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useGame } from '@/state/store';
 import { PixelIcon, type PixelIconKind } from '@/components/icons/PixelIcon';
 import { playSfx } from '@/audio/audioManager';
+import { CloseX } from '@/components/primitives/CloseX';
 
 type TipTone = 'warn' | 'info' | 'success';
 
@@ -44,7 +45,7 @@ export function DismissibleTip({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={reduced ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.94 }}
           transition={{ duration: 0.24, ease: [0.2, 1.4, 0.4, 1] }}
-          className={clsx('inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 border-2 text-[12px] shadow-[2px_2px_0_0_var(--c-shadow)]', t.box, className)}
+          className={clsx('inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 border-2 hint shadow-[2px_2px_0_0_var(--c-shadow)]', t.box, className)}
         >
           <PixelIcon kind={icon} size={12} color={t.icon} />
           <span className="leading-snug">{children}</span>
@@ -54,7 +55,7 @@ export function DismissibleTip({
             aria-label="Dismiss tip"
             className="ml-0.5 shrink-0 inline-flex items-center justify-center w-5 h-5 text-text-3 hover:text-text hover:bg-black/10 transition-colors"
           >
-            <span aria-hidden className="font-hud text-[10px] leading-none">✕</span>
+            <CloseX size={10} />
           </button>
         </motion.div>
       )}

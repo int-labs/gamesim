@@ -153,7 +153,7 @@ function Kpi({
           <PixelIcon kind={icon} size={14} color={t.icon} />
         </span>
         <span className="flex flex-col gap-0.5">
-          <span className="text-[10px] uppercase tracking-[0.1em] font-bold text-text-2">{label}</span>
+          <span className="eyebrow eyebrow-sm text-text-2">{label}</span>
           {/* keyed pop — the number ticks whenever the projection changes.
               Clean bold numerals (not the blocky arcade font) so the value
               stays prominent without overpowering its label. */}
@@ -162,7 +162,7 @@ function Kpi({
             initial={reduced ? false : { scale: 1.22 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-            className={clsx('text-[16px] font-extrabold tabular-nums leading-none inline-block', t.value)}
+            className={clsx('num-xs leading-none inline-block', t.value)}
           >
             {value}
           </motion.span>

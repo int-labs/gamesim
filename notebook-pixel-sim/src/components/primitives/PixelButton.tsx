@@ -23,9 +23,9 @@ const base =
   'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:shadow-none';
 
 const variants: Record<Variant, string> = {
-  primary:   'bg-primary text-white hover:brightness-105 active:brightness-95',
-  secondary: 'bg-secondary text-white hover:brightness-105 active:brightness-95',
-  danger:    'bg-danger text-white hover:brightness-105 active:brightness-95',
+  primary:   'bg-primary-strong text-white hover:brightness-110 active:brightness-95',
+  secondary: 'bg-secondary-strong text-white hover:brightness-110 active:brightness-95',
+  danger:    'bg-danger-strong text-white hover:brightness-105 active:brightness-95',
   ghost:     'bg-surface text-text hover:bg-surface-2',
   wood:      'bg-leather text-white hover:brightness-105 active:brightness-95',
 };
@@ -33,7 +33,7 @@ const variants: Record<Variant, string> = {
 const sizes: Record<Size, string> = {
   sm: 'btn-label-sm uppercase px-2.5 py-1.5',
   md: 'btn-label uppercase px-3.5 py-2',
-  lg: 'btn-label uppercase px-5 py-2.5 text-[14px]',
+  lg: 'btn-label uppercase px-5 py-2.5 body-xs',
 };
 
 export function PixelButton({

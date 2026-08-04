@@ -154,13 +154,13 @@ export function ConfirmPhaseModal({ open, onClose }: Props) {
           >
             <div className="flex items-start gap-3">
               <MascotAvatar mood="presenting" size={66} />
-              <div className="flex-1 text-[14px] text-text leading-relaxed">
+              <div className="flex-1 body-xs text-text leading-relaxed">
                 <p className="mb-1">
                   Lock in your decisions for <strong>Phase {phase}</strong>. The simulation
                   will run <strong>{daysLeft} day{daysLeft === 1 ? '' : 's'}</strong> with your current
                   product, audience, channels, and operations.
                 </p>
-                <p className="text-text-2 text-[13px]">
+                <p className="text-text-2 body-xs">
                   These numbers are an estimate. Actual demand is rolled day-by-day, so results may swing - that's part of the game. Adjust before confirming if needed.
                 </p>
               </div>
@@ -175,7 +175,7 @@ export function ConfirmPhaseModal({ open, onClose }: Props) {
 
             <div className="panel-muted px-3.5 py-3">
               <div className="panel-title text-text mb-2">Estimated phase impact</div>
-              <ul className="text-[13px] text-text leading-relaxed space-y-1">
+              <ul className="body-xs text-text leading-relaxed space-y-1">
                 <li>• Likely sold over {daysLeft}d: <strong>~{expectedSold * daysLeft}</strong> units</li>
                 <li>• Revenue est.: <strong>{fmt$(expectedRevenue)}</strong></li>
                 <li>• Operating expenses: <strong>{fmt$(dailyExpenses)}</strong></li>
@@ -204,8 +204,8 @@ export function ConfirmPhaseModal({ open, onClose }: Props) {
             className="flex flex-col items-center justify-center py-10 gap-3 min-h-[240px]"
           >
             <MascotAvatar mood="excited" size={76} />
-            <div className="font-hud text-[14px] uppercase tracking-wider text-text">Simulating phase…</div>
-            <div className="text-[13px] text-text-2">Reading the numbers</div>
+            <div className="eyebrow eyebrow-sm text-text">Simulating phase…</div>
+            <div className="body-xs text-text-2">Reading the numbers</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -238,7 +238,7 @@ function Stat({
         <span className="kpi-label">{label}</span>
       </div>
       <div className="num-md text-text">{value}</div>
-      {sub && <div className="text-[10px] text-text-3">{sub}</div>}
+      {sub && <div className="hint text-text-3">{sub}</div>}
     </div>
   );
 }

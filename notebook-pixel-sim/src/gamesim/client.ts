@@ -172,6 +172,46 @@ export function getResults(args: { simulationId: Id; roundNumber?: number }): Pr
   return request(`/results${qs(args)}`);
 }
 
+// ── Operator-authored content ───────────────────────────────────────────
+export interface RoundNoteDto {
+  _id: Id;
+  roundNumber: number;
+  teamId: Id | null;
+  title: string;
+  body: string;
+  pinned: boolean;
+}
+
+export interface DebriefSectionDto {
+  title: string;
+  body: string;
+  teamId: Id | null;
+  order: number;
+}
+
+export interface DebriefDto {
+  _id: Id;
+  status: 'draft' | 'published';
+  title: string;
+  intro: string;
+  sections: DebriefSectionDto[];
+}
+
+/** GET /round-notes — the server filters to general + this team's notes for a
+ *  team token, whatever we pass, so no teamId param is needed here. */
+export function getRoundNotes(args: {
+  simulationId: Id;
+  roundNumber?: number;
+}): Promise<RoundNoteDto[]> {
+  return request(`/round-notes${qs(args)}`);
+}
+
+/** GET /debrief — 404 until an operator publishes it AND the simulation is
+ *  Completed. Other teams' sections are stripped server-side. */
+export function getDebrief(simulationId: Id): Promise<DebriefDto> {
+  return request(`/debrief${qs({ simulationId })}`);
+}
+
 export type {
   BaseDataDto,
   CreateDecisionBody,

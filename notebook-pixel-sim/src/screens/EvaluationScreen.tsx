@@ -83,8 +83,8 @@ export function EvaluationScreen() {
         <div className="flex items-center gap-3 mb-4">
           <img src={A.logo} alt="int labs" className="h-10" />
           <div>
-            <div className="font-hud text-[10px] uppercase tracking-wider text-brand-500">Phase {phase} {isFinal ? 'Final' : 'Evaluation'}</div>
-            <h2 className="font-hud text-[22px] uppercase">{isFinal ? 'Closing the books' : `Looking back at Phase ${phase}`}</h2>
+            <div className="eyebrow eyebrow-sm text-brand-500">Phase {phase} {isFinal ? 'Final' : 'Evaluation'}</div>
+            <h2 className="pixel-caption">{isFinal ? 'Closing the books' : `Looking back at Phase ${phase}`}</h2>
           </div>
         </div>
         <div className="grid lg:grid-cols-3 gap-4">
@@ -125,7 +125,7 @@ export function EvaluationScreen() {
             <PixelPanel title="Amelia's debrief" tone="paper">
               <div className="flex gap-2 items-start">
                 <MascotAvatar mood={opProfit >= 0 ? 'happy' : 'concerned'} size={68} />
-                <div className="text-[13px] font-body text-ink-800 leading-relaxed">
+                <div className="body-xs font-body text-ink-800 leading-relaxed">
                   <p className="mb-1.5">
                     {opProfit >= 0
                       ? `Profit positive (${fmt$(opProfit)}) - your decisions paid off this phase. The audience and price found each other.`
@@ -158,7 +158,7 @@ export function EvaluationScreen() {
             </PixelPanel>
 
             <PixelPanel title="Insight check">
-              <div className="text-[13px] font-body mb-2 text-ink-900">{insight.question}</div>
+              <div className="body-xs font-body mb-2 text-ink-900">{insight.question}</div>
               <div className="flex flex-col gap-1">
                 {insight.options.map((o) => {
                   const picked = answer === o.id;
@@ -170,7 +170,7 @@ export function EvaluationScreen() {
                       disabled={revealed}
                       onClick={() => { playSfx('click-soft'); setAnswer(o.id); }}
                       className={clsx(
-                        'text-left p-2 border-2 font-body text-[12px] transition-all',
+                        'text-left p-2 border-2 font-body hint transition-all',
                         // Selected (pre-reveal): dark walnut + cream
                         // text — unambiguous against the cream panel.
                         picked && !revealed && 'bg-[#221710] text-[#FAF7E8] border-primary',
@@ -181,7 +181,7 @@ export function EvaluationScreen() {
                     >
                       <span
                         className={clsx(
-                          'font-hud text-[10px] mr-2 uppercase',
+                          'eyebrow eyebrow-sm mr-2 uppercase',
                           picked && !revealed ? 'text-primary' : '',
                         )}
                       >
@@ -218,8 +218,8 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: 'suc
     tone === 'error' ? 'bg-error-soft' : 'bg-cream-100';
   return (
     <div className={`${bg} border-2 border-ink-900 p-2`}>
-      <div className="font-hud text-[10px] uppercase text-ink-700">{label}</div>
-      <div className="font-hud text-[16px]">{value}</div>
+      <div className="eyebrow eyebrow-sm text-ink-700">{label}</div>
+      <div className="h3">{value}</div>
     </div>
   );
 }

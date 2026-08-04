@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import type { BubbleType } from '@/types';
+import { CloseX } from '@/components/primitives/CloseX';
 
 interface Props {
   open: boolean;
@@ -72,20 +73,20 @@ export function MascotBubble({ open, type = 'hint', text, side = 'left', onClose
             )}
           />
           <div className="px-3 pt-2 pb-1 flex justify-between items-center border-b-2 border-ink-900 bg-cream-200">
-            <div className="font-hud text-[10px] uppercase tracking-wider">
+            <div className="eyebrow eyebrow-sm">
               {speakerName} · {labelByType[type]}
             </div>
             {onClose && (
               <button
                 onClick={onClose}
-                className="font-hud text-[10px] hover:text-ui-danger transition-colors"
+                className="grid place-items-center w-5 h-5 text-text-2 hover:text-ui-danger transition-colors"
                 aria-label="dismiss"
               >
-                ✕
+                <CloseX size={10} />
               </button>
             )}
           </div>
-          <div className="px-3 py-2 text-[13px] leading-snug font-body text-ink-900 whitespace-pre-wrap min-h-[36px]">
+          <div className="px-3 py-2 body-xs leading-snug font-body text-ink-900 whitespace-pre-wrap min-h-[36px]">
             {shown}
             {shown.length < text.length && <span className="opacity-60">▌</span>}
           </div>
@@ -96,7 +97,7 @@ export function MascotBubble({ open, type = 'hint', text, side = 'left', onClose
                   key={idx}
                   onClick={a.onClick}
                   className={clsx(
-                    'border-2 border-ink-900 font-hud text-[10px] uppercase px-2 py-1 transition-transform active:translate-y-[1px]',
+                    'border-2 border-ink-900 eyebrow eyebrow-sm px-2 py-1 transition-transform active:translate-y-[1px]',
                     a.tone === 'primary'
                       ? 'bg-ui-primary text-cream-50 shadow-pixel-2'
                       : 'bg-cream-50 shadow-pixel-1',

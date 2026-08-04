@@ -11,8 +11,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useGame, MAX_SHOP_NAME } from '@/state/store';
 import { EnvironmentBackground } from './EnvironmentBackground';
 import { Notebook, sizeScale } from './Notebook';
+import { lineSize } from '@/engine/selectors';
 import { AddOnLayer } from './AddOnLayer';
 import { removeAddOn, currentAddOns, setActiveLine, renameProductLine, setShopName } from '@/engine/mockEngine';
+import { archetypeLabel } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { NavIcon } from '@/components/icons/NavIcon';
@@ -43,6 +45,10 @@ export function NotebookCanvas() {
     (s) => s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId)
       ?? s.portfolio.productLines[0],
   );
+  // The drawn size comes from the FinLit spec (the dropdown the player uses),
+  // not `product.size` — that legacy field is written once at line creation and
+  // never updated, so scaling from it meant picking B4 changed nothing.
+  const drawnSize = lineSize(product);
   const hasNotebook = useGame((s) => s.portfolio.productLines.length > 0);
   const apply = useGame((s) => s.apply);
   const segment = useGame((s) => (product?.targetSegment ?? s.market.targetSegment));
@@ -154,13 +160,13 @@ export function NotebookCanvas() {
         <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6 py-10 gap-3">
           <div className="panel-frame bg-surface px-8 py-8 flex flex-col items-center gap-3">
             <PixelIcon kind="product" size={28} color="var(--c-text-3)" />
-            <div className="text-[14px] font-bold text-text">No notebook selected</div>
-            <p className="text-[12px] text-text-2 max-w-[28ch]">
-              Open <span className="font-bold text-text">Notebook Items</span> in the left dock to add your first notebook.
+            <div className="item-name text-text">No notebook selected</div>
+            <p className="hint text-text-2 max-w-[28ch]">
+              Open <span className="strong text-text">Notebook Items</span> in the left dock to add your first notebook.
             </p>
             <button
               onClick={() => openDrawer('left', 'items')}
-              className="pbtn mt-1 px-3 h-[30px] text-[11px] uppercase tracking-wider font-semibold text-text border-2 border-primary bg-primary-soft"
+              className="pbtn mt-1 px-3 h-[30px] eyebrow eyebrow-sm text-text border-2 border-primary bg-primary-soft"
             >
               Open Notebook Items
             </button>
@@ -228,7 +234,7 @@ export function NotebookCanvas() {
           notebooks (scale-fade for config changes), then LIVES: leans toward
           the cursor, bobs in place, and squashes when patted. */}
       <motion.div
-        key={`${product.id}-${product.archetype}-${product.cover}-${product.binding}-${product.size}`}
+        key={`${product.id}-${product.archetype}-${product.cover}-${product.binding}-${drawnSize}`}
         initial={{
           opacity: 0,
           x: slideDir * 72,
@@ -253,7 +259,7 @@ export function NotebookCanvas() {
                   archetype={product.archetype}
                   cover={product.cover}
                   binding={product.binding}
-                  size={product.size}
+                  size={drawnSize}
                 />
                 {/* Decorations live INSIDE the notebook square AND scale with
                     its size, so their 0..1 placement maps onto the cover and
@@ -261,7 +267,7 @@ export function NotebookCanvas() {
                     of the notebook. */}
                 <div
                   className="absolute inset-0"
-                  style={{ transform: `scale(${sizeScale(product.size)})`, transformOrigin: 'center center' }}
+                  style={{ transform: `scale(${sizeScale(drawnSize)})`, transformOrigin: 'center center' }}
                 >
                   <AddOnLayer addOns={addOns} />
                 </div>
@@ -284,7 +290,7 @@ export function NotebookCanvas() {
             <PixelIcon kind="product" size={15} color="var(--c-primary)" />
           </span>
           <div className="flex flex-col justify-center gap-[3px] leading-none min-w-0">
-            <span className="text-[8px] uppercase tracking-[0.24em] font-bold text-text-3 leading-none">
+            <span className="stat-label leading-none">
               Notebook
             </span>
             {editing ? (
@@ -303,7 +309,7 @@ export function NotebookCanvas() {
                 // Shrinks with the viewport so the field never pushes out of
                 // the title card (the card's wrapper is max-w-[calc(50%-120px)]
                 // — the icon + padding eat ~120px, so cap the field to match).
-                className="w-[min(240px,calc(50vw_-_190px))] min-w-[90px] max-w-full bg-cream-50 border-2 border-primary text-ink-900 font-hud text-[12px] uppercase outline-none px-1.5 py-0.5"
+                className="w-[min(240px,calc(50vw_-_190px))] min-w-[90px] max-w-full bg-cream-50 border-2 border-primary text-ink-900 eyebrow eyebrow-sm outline-none px-1.5 py-0.5"
               />
             ) : (
               <button
@@ -319,7 +325,7 @@ export function NotebookCanvas() {
                   initial={reduced ? false : { y: 9, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.2, ease: [0.2, 1, 0.4, 1] }}
-                  className="font-hud text-[13px] uppercase tracking-wide text-text truncate leading-none"
+                  className="eyebrow eyebrow-sm tracking-wide text-text truncate leading-none"
                 >
                   {product.name}
                 </motion.span>
@@ -330,8 +336,8 @@ export function NotebookCanvas() {
             )}
           </div>
           <span aria-hidden className="hidden md:block w-px h-6 bg-border-soft shrink-0" />
-          <div className="hidden md:block text-[11px] text-text-2 truncate">
-            {labelArch(product.archetype)} · {product.cover === 'leather' ? 'Leather' : 'Hardcover'} · {product.binding === 'ring' ? 'Ring' : 'Staple'} · {sizeLabel(product.size)}
+          <div className="hidden md:block hint text-text-2 truncate">
+            {labelArch(product.archetype)} · {product.cover === 'leather' ? 'Leather' : 'Hardcover'} · {product.binding === 'ring' ? 'Ring' : 'Staple'} · {sizeLabel(drawnSize)}
           </div>
         </div>
       </div>
@@ -343,7 +349,7 @@ export function NotebookCanvas() {
             border = 32px) so the row reads as one aligned control strip. */}
         <button
           onClick={() => openDrawer('left', 'details')}
-          className="pbtn px-2.5 h-[32px] text-[10px] uppercase tracking-wider font-semibold text-text-2 hover:text-text border border-border-soft bg-surface"
+          className="pbtn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text border border-border-soft bg-surface"
         >
           <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
           <span className="hidden md:inline">Details</span>
@@ -368,7 +374,7 @@ export function NotebookCanvas() {
               draggable={false}
             />
           </button>
-          <div className="pointer-events-none inline-flex items-center gap-1 px-2.5 py-1.5 bg-ink-900/70 text-cream-100 text-[10px] uppercase tracking-wider font-bold border border-black/40 tabular-nums overflow-hidden">
+          <div className="pointer-events-none inline-flex items-center gap-1 px-2.5 py-1.5 bg-ink-900/70 text-cream-100 eyebrow eyebrow-sm border border-black/40 tabular-nums overflow-hidden">
             {/* keyed flip — the counter rolls like an odometer */}
             <motion.span
               key={idx}
@@ -440,7 +446,7 @@ export function NotebookCanvas() {
           playSfx('click-soft');
           document.getElementById('stats-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }}
-        className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 h-[34px] bg-surface border-2 border-border text-text text-[10px] uppercase tracking-wider font-bold shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:text-primary active:scale-95 transition-all cursor-pointer"
+        className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 h-[34px] bg-surface border-2 border-border text-text eyebrow eyebrow-sm shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:text-primary active:scale-95 transition-all cursor-pointer"
       >
         Stats &amp; P&amp;L
         <NavIcon icon={ChevronDown} size={13} color="currentColor" />
@@ -458,8 +464,13 @@ export function NotebookCanvas() {
 }
 
 function labelArch(a: string) {
-  return a === 'student' ? 'Student' : a === 'planner' ? 'Planner' : 'Daily Journal';
+  // Live catalogue: a published notebook labels itself.
+  return archetypeLabel(a);
 }
+// The caption echoes the player's own choice, so it names the paper the Design
+// dropdown offers (A5/B5/B4). A "Small/Medium/Large" paraphrase would disagree
+// with the control that set it.
+const SIZE_TO_PAPER: Record<'s' | 'm' | 'l', string> = { s: 'A5', m: 'B5', l: 'B4' };
 function sizeLabel(s: 's' | 'm' | 'l') {
-  return s === 's' ? 'Small' : s === 'm' ? 'Medium' : 'Large';
+  return SIZE_TO_PAPER[s];
 }

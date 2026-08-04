@@ -170,7 +170,7 @@ export default function App() {
           {(screen === 'start' || screen === 'route' || screen === 'phase_intro') && <AccessMenu />}
 
           {/* Dev: show seed in corner */}
-          <div className="fixed bottom-1 right-2 font-hud text-[8px] text-ink-700/50 pointer-events-none select-none">
+          <div className="fixed bottom-1 right-2 pixel-caption text-ink-700/50 pointer-events-none select-none">
             v0.1 · seed {useGame.getState().meta.seed.slice(0, 14)}
           </div>
         </div>

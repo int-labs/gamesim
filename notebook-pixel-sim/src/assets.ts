@@ -46,6 +46,10 @@ export const A = {
     },
   },
 
+  // NOTE: notebook cover art is deliberately NOT mapped here. It lives at
+  // `assets/img/notebooks/<genreId>.png` and is resolved by `genreArt()` in
+  // engine/finlit/core/config/genres.ts, so publishing a new notebook never
+  // requires editing this file. The map below is the legacy V2 archetype art.
   notebook: {
     student: {
       hardcover_ring: i('img/notebook-core/student/student_angle_hardcover-ring_v01.png'),
@@ -148,10 +152,10 @@ export const A = {
       highlighters: i('img/add-ons/writing-tools/highlighter_set.png'),
     },
     badge: {
-      premium: i('img/add-ons/logic only — backend impact/premium_upgrade.png'),
-      cost_reduction: i('img/add-ons/logic only — backend impact/cost_reduction_upgrade.png'),
-      production_speed: i('img/add-ons/logic only — backend impact/production_speed_upgrade.png'),
-      demand_boost: i('img/add-ons/logic only — backend impact/demand_boost_pack.png'),
+      premium: i('img/add-ons/logic only - backend impact/premium_upgrade.png'),
+      cost_reduction: i('img/add-ons/logic only - backend impact/cost_reduction_upgrade.png'),
+      production_speed: i('img/add-ons/logic only - backend impact/production_speed_upgrade.png'),
+      demand_boost: i('img/add-ons/logic only - backend impact/demand_boost_pack.png'),
     },
   },
 

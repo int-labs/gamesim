@@ -38,15 +38,15 @@ export function SmallScreenGate({ children }: { children: React.ReactNode }) {
           <div className="pixel-frame bg-cream-50 border-2 border-ink-900 max-w-[420px] mx-auto p-3 shadow-pixel-2 pointer-events-auto">
             <div className="flex items-start gap-2.5">
               <div className="flex-1">
-                <div className="font-hud uppercase text-[11px] mb-1 text-ink-900">Compact mode</div>
-                <p className="text-[12px] font-body text-ink-800 leading-snug">
+                <div className="pixel-caption uppercase mb-1 text-ink-900">Compact mode</div>
+                <p className="hint font-body text-ink-800 leading-snug">
                   You're on a small screen. The layout adapts, but some
                   charts read better in landscape or on a tablet/desktop.
                 </p>
               </div>
               <button
                 onClick={dismiss}
-                className="shrink-0 border-2 border-ink-900 bg-cream-100 hover:bg-cream-200 font-hud uppercase text-[10px] px-2 py-1 cursor-pointer"
+                className="shrink-0 border-2 border-ink-900 bg-cream-100 hover:bg-cream-200 font-hud uppercase hint px-2 py-1 cursor-pointer"
                 aria-label="Dismiss"
               >
                 Got it

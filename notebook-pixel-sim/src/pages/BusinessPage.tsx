@@ -64,15 +64,15 @@ export function BusinessPage() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="panel-title text-text">{activeTab?.label}</div>
-            <div className="text-[14px] font-medium text-text-2 mt-0.5">{activeTab?.sub}</div>
+            <div className="body-xs font-medium text-text-2 mt-0.5">{activeTab?.sub}</div>
           </div>
-          <span className="hidden lg:block text-[11px] font-medium text-text-2 text-right leading-snug max-w-[260px]">
+          <span className="hidden lg:block hint font-medium text-text-2 text-right leading-snug max-w-[260px]">
             Decisions here don't advance days - confirm a phase to simulate.
           </span>
         </header>
         {/* Per-tab explainer - primes the user on what this section is for. */}
         {activeTab && (
-          <div className="px-4 py-2.5 border-b border-border-soft bg-surface text-[15px] text-text-2 leading-relaxed">
+          <div className="px-4 py-2.5 border-b border-border-soft bg-surface body-xs text-text-2 leading-relaxed">
             {activeTab.explainer}
           </div>
         )}
@@ -165,10 +165,10 @@ function FolderTabs({
               <PixelIcon kind={t.icon} size={isActive ? 14 : 12} color="#2a2017" />
             </span>
             <span className="flex flex-col leading-tight min-w-0">
-              <span className={clsx('font-extrabold uppercase tracking-wide text-ink-900 truncate', isActive ? 'text-[16px]' : 'text-[15px]')}>
+              <span className={clsx('strong uppercase tracking-wide text-ink-900 truncate', isActive ? 'body-xs' : 'body-xs')}>
                 {t.label}
               </span>
-              <span className="hidden md:block text-[12px] font-medium text-ink-800 truncate mt-0.5">{t.sub}</span>
+              <span className="hidden md:block hint font-medium text-ink-800 truncate mt-0.5">{t.sub}</span>
             </span>
           </motion.button>
         );

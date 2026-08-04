@@ -61,7 +61,7 @@ export function AudiencePickerModal() {
     >
       <div className="mb-4 flex items-start gap-3">
         <MascotAvatar mood="presenting" size={60} />
-        <p className="text-[13.5px] leading-snug text-text">
+        <p className="body-xs text-text">
           First things first: pick who you're making notebooks for. Your audience drives demand and
           decides which design choices land. You can switch anytime on the Business page.
         </p>
@@ -83,9 +83,9 @@ export function AudiencePickerModal() {
               <img src={seg.imgPath} alt={seg.name} className="h-12 w-12 object-contain" />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-bold uppercase tracking-wider text-text">{seg.name}</div>
-              <div className="mt-0.5 text-[11.5px] leading-snug text-text-2">{seg.description}</div>
-              <div className="mt-1.5 text-[10.5px] text-text-3">
+              <div className="eyebrow eyebrow-sm text-text">{seg.name}</div>
+              <div className="mt-0.5 hint leading-snug text-text-2">{seg.description}</div>
+              <div className="mt-1.5 hint text-text-3">
                 Anchor ~{fmt$(seg.preferredPriceRef)} · Cares about {topPrefs(seg.preference).join(', ')}
               </div>
             </div>
@@ -97,7 +97,7 @@ export function AudiencePickerModal() {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-[12px] text-text-3 underline underline-offset-2 hover:text-text"
+          className="hint text-text-3 underline underline-offset-2 hover:text-text"
         >
           I'll choose on the Business page
         </button>

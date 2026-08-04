@@ -235,7 +235,7 @@ export function VisualNovelMascot() {
                   {/* Title is ALWAYS dark ink — tone colours (amber/green/…)
                       were unreadable on the caramel header bar; the tone
                       still shows via the icon chip + accent border. */}
-                  <span className="font-bold text-[12px] uppercase tracking-[0.16em] truncate text-ink-900">
+                  <span className="eyebrow eyebrow-sm tracking-[0.16em] truncate text-ink-900">
                     {current.seqTitle
                       ? `Amelia · ${current.seqTitle}`
                       : `Amelia · ${labels[current.type]}`}
@@ -243,7 +243,7 @@ export function VisualNovelMascot() {
                 </div>
                 {current.seqLen && current.seqLen > 1 && (
                   <span
-                    className="font-bold text-[11px] tabular-nums tracking-wider text-text-3 shrink-0"
+                    className="num-xs tracking-wider text-text-3 shrink-0"
                     aria-label={`Message ${(current.seqIndex ?? 0) + 1} of ${current.seqLen}`}
                   >
                     {(current.seqIndex ?? 0) + 1} / {current.seqLen}
@@ -253,7 +253,7 @@ export function VisualNovelMascot() {
 
               {/* Body — typewriter (flex-grow so footer stays pinned) */}
               <div
-                className="px-7 py-6 text-[17px] leading-[1.6] text-text whitespace-pre-wrap flex-1 overflow-auto"
+                className="px-7 py-6 body-xs leading-[1.6] text-text whitespace-pre-wrap flex-1 overflow-auto"
               >
                 {shown}
                 {!fullyTyped && <span className="opacity-60 animate-pulse">▌</span>}
@@ -276,16 +276,16 @@ export function VisualNovelMascot() {
                     aria-label="Previous message"
                   >
                     <PixelIcon kind="arrow-right" size={11} color="currentColor" className="rotate-180" />
-                    <span className="text-[12px] uppercase tracking-wider font-bold">Previous</span>
+                    <span className="eyebrow eyebrow-sm">Previous</span>
                   </button>
                 )}
                 <button
                   onClick={onNext}
-                  className="vn-continue inline-flex items-center gap-2 h-[36px] px-5 border-2 border-border bg-primary text-white cursor-pointer"
+                  className="vn-continue inline-flex items-center gap-2 h-[36px] px-5 border-2 border-border bg-primary-strong text-white cursor-pointer"
                   style={{ color: '#FAF7E8' }}
                   aria-label={isLastInSequence ? 'Finish' : (fullyTyped ? 'Next message' : 'Reveal full message')}
                 >
-                  <span className="text-[12px] uppercase tracking-wider font-bold">
+                  <span className="eyebrow eyebrow-sm">
                     {!fullyTyped ? 'Reveal' : isLastInSequence ? 'Finish' : 'Next'}
                   </span>
                   <PixelIcon kind="arrow-right" size={11} color="#FAF7E8" />

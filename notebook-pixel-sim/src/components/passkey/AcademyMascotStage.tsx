@@ -206,7 +206,7 @@ export function AcademyMascotStage({
             >
               <div
                 className={clsx(
-                  'relative rounded-2xl border-2 border-ink-900 bg-cream-50 px-4 py-3 text-left font-body text-[15px] leading-snug text-balance text-ink-900',
+                  'relative rounded-2xl border-2 border-ink-900 bg-cream-50 px-4 py-3 text-left font-body body-xs leading-snug text-balance text-ink-900',
                   bubbleRight ? 'rounded-bl-none' : 'rounded-br-none',
                 )}
                 style={{ boxShadow: '3px 3px 0 0 var(--c-shadow)' }}

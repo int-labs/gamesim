@@ -21,7 +21,7 @@ export function LearnMoreModal({ open, onClose }: { open: boolean; onClose: () =
       title={PASSKEY.learnMore.title}
       width="min(520px, calc(100vw - 32px))"
     >
-      <div className="space-y-3 font-body text-[14px] leading-relaxed text-ink-800">
+      <div className="space-y-3 font-body body-xs leading-relaxed text-ink-800">
         {PASSKEY.learnMore.body.map((p, i) => (
           <p key={i}>{p}</p>
         ))}

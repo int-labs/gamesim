@@ -26,12 +26,14 @@ import clsx from 'clsx';
  * cost; price also feeds product-market fit (vocFit).
  */
 
+// `addon` is deliberately absent: add-ons are picked visually from the Add-ons
+// drawer on the canvas, so a duplicate dropdown here was a second way to set the
+// same value. The axis still exists in the spec and the engine still costs it.
 const AXES: { axis: ConfigAxis; label: string }[] = [
   { axis: 'paper', label: 'Paper' },
   { axis: 'size', label: 'Size' },
   { axis: 'pageDesign', label: 'Page Design' },
-  { axis: 'addon', label: 'Add-on' },
-  { axis: 'cover', label: 'Cover' },
+  { axis: 'cover', label: 'Cover Material' },
 ];
 
 const DEFAULT_SPEC: ProductionSpec = {
@@ -49,7 +51,7 @@ export function FinlitDesignControls() {
   const salesBudget = useGame((s) => s.finlit.salesBudget);
 
   if (!line) {
-    return <div className="text-[17px] text-text-2 p-2">Add a notebook first, then design it here.</div>;
+    return <div className="body-sm text-text-2 p-2">Add a notebook first, then design it here.</div>;
   }
 
   const genre: GenreId = line.genre ?? 'indie';
@@ -83,34 +85,16 @@ export function FinlitDesignControls() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── Market (genre) ── */}
-      <Section title="Market" hint="Which notebook genre this line sells into.">
-        <div className="grid grid-cols-2 gap-2">
-          {GENRES.map((g) => {
-            const active = genre === g.id;
-            return (
-              <button
-                key={g.id}
-                onClick={() => apply((s) => setLineGenre(s, g.id))}
-                className={clsx(
-                  'ctl-btn text-left px-2.5 py-2 border-2 transition-all active:scale-[0.98]',
-                  active ? 'border-primary bg-primary-soft' : 'border-border-soft bg-surface hover:border-border',
-                )}
-              >
-                <div className="text-[17px] font-bold text-text">{g.name}</div>
-                <div className="text-[14px] text-text-3 leading-tight mt-0.5 line-clamp-2">{g.blurb}</div>
-              </button>
-            );
-          })}
-        </div>
-      </Section>
+      {/* ── Market (genre) — HIDDEN for now. The picker still exists and
+           `setLineGenre` is untouched, so nothing about the engine changed;
+           this section is just not surfaced in the design drawer. ── */}
 
       {/* ── Production spec (5 axes; type mirrors genre) ── */}
       <Section title="Production Spec" hint="Each choice changes production speed and unit cost.">
         <div className="flex flex-col gap-2">
           {AXES.map(({ axis, label }) => (
             <div key={axis} className="flex items-center justify-between gap-2">
-              <span className="text-[16px] text-text-2 w-24 shrink-0">{label}</span>
+              <span className="field-label w-28 shrink-0">{label}</span>
               <PixelSelect
                 ariaLabel={label}
                 value={spec[axis]}
@@ -136,29 +120,35 @@ export function FinlitDesignControls() {
       </Section>
 
       {/* ── Live feedback (the numbers the engine uses) ── */}
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-3 gap-2">
         <Stat label="Capacity" value={`${capacity.toFixed(1)}/d`} tone="info" />
-        <Stat label="Demand" value={`${Math.round(demandPerDay)}/d`} tone="info" />
         <Stat label="Unit cost" value={fmt$(uCost)} tone="warn" />
         <Stat label="Margin" value={fmt$(margin)} tone={margin > 0 ? 'good' : 'bad'} />
       </div>
 
       {/* Signpost — these used to live here; tell the player where they went. */}
-      <div className="text-[13px] font-medium text-text-3 leading-snug border-t border-border-soft pt-2.5">
-        Selling through <span className="font-bold text-text-2">{channelLabel}</span>.
-        Set sales channels in <span className="font-bold text-text-2">Business ▸ Operations</span>,
-        and how many to make in <span className="font-bold text-text-2">Business ▸ Inventory</span>.
+      <div className="hint border-t border-border-soft pt-3">
+        Selling through <span className="strong text-text-2">{channelLabel}</span>.
+        Set sales channels in <span className="strong text-text-2">Business ▸ Operations</span>,
+        and how many to make in <span className="strong text-text-2">Business ▸ Inventory</span>.
       </div>
     </div>
   );
 }
 
+/**
+ * A titled group. Sections used to be a bare caption over content, so two of
+ * them in a column read as one undifferentiated list. The framed header gives
+ * each a clear start and end — RULE 5: border-2 is the container weight.
+ */
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section>
-      <div className="text-[11px] uppercase tracking-[0.09em] font-bold text-text-2 mb-1">{title}</div>
-      {hint && <div className="text-[12px] font-medium text-text-3 mb-1.5 leading-tight">{hint}</div>}
-      {children}
+    <section className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1">
+      <header className="px-3.5 py-2.5 border-b-2 border-ink-900 bg-cream-200">
+        <div className="section-title text-ink-900">{title}</div>
+        {hint && <div className="hint mt-0.5">{hint}</div>}
+      </header>
+      <div className="p-3.5">{children}</div>
     </section>
   );
 }
@@ -169,8 +159,8 @@ function Slider({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[16px] text-text-2">{label}</span>
-        <span className="text-[17px] font-bold tabular-nums text-text">{fmt(value)}</span>
+        <span className="field-label">{label}</span>
+        <span className="num-sm text-text">{fmt(value)}</span>
       </div>
       <input
         type="range" min={min} max={max} step={step} value={value}
@@ -185,9 +175,9 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: 'inf
   const cls =
     tone === 'good' ? 'text-success' : tone === 'bad' ? 'text-danger' : tone === 'warn' ? 'text-warning' : 'text-text';
   return (
-    <div className="readout border-2 border-border-soft bg-surface px-2 py-1.5 text-center">
-      <div className="text-[14px] uppercase tracking-wider text-text-3">{label}</div>
-      <div className={clsx('text-[18px] font-bold tabular-nums', cls)}>{value}</div>
+    <div className="readout border border-border-soft bg-surface px-2.5 py-2 text-center">
+      <div className="stat-label">{label}</div>
+      <div className={clsx('num-sm mt-1', cls)}>{value}</div>
     </div>
   );
 }

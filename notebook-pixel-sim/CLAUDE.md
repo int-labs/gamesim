@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A 90-day pixel-art entrepreneurship simulation (notebook business). The player runs a portfolio of notebook product lines across three 30-day phases, making decisions about product design, pricing, target segments, channels, inventory, and upgrades. Days 30/60/90 trigger evaluations with charts and an insight-check question; day 90 ends the run with a scored result.
 
-It runs as the **player client of the gamesim backend** (`../server`), which is treated as final: the integration adds no server files, no shared package, and no new routes. `src/gamesim/` is the only seam — login, decision submission, and the official numbers. The local FinLit engine stays authoritative for gameplay feel but **not** for scoring; market share/score come from the server's `calcMarketModel` and financials from `calcFinancials`. See `docs/gamesim-integration.md` (endpoint table, the proposed field mapping still awaiting confirmation, and what `main` does *not* have — notably no round-calculate route and no socket events).
+It runs as the **player client of the gamesim backend** (`../server`), which is treated as final: the integration adds no server files, no shared package, and no new routes. `src/gamesim/` is the only seam — login, decision submission, the official numbers, and the operator's content overlay (`configHydrator.ts`, see **Tunable game data** below). The local FinLit engine stays authoritative for gameplay feel but **not** for scoring; market share/score come from the server's `calcMarketModel` and financials from `calcFinancials`. See `docs/gamesim-integration.md` (endpoint table, the proposed field mapping still awaiting confirmation, and what `main` does *not* have — notably no round-calculate route and no socket events).
 
 ## Commands
 
@@ -94,6 +94,9 @@ Every money movement appends a `LedgerEntry` with a `cause` tag; every decision 
 - **Numeric safety:** pass values through `clamp` / `finite` (`engine/validation.ts`) at engine boundaries; the codebase treats "no NaN ever reaches state" as an invariant.
 - **Styling:** Tailwind v3 with custom pixel tokens in `tailwind.config.ts` — fonts `font-pixel` (Pixelify Sans) and `font-hud` (Press Start 2P), and `ink` / `brand` / paper color scales. Charts are hand-built SVG in `src/components/charts/` (no chart library).
 - **Tunable game data** lives in `src/data/` (balance, segments, channels, addOns, upgrades, events, archetypes); copy/text lives in `src/content/`.
+- **These tables are edited in place at boot** by `src/gamesim/configHydrator.ts`, which overlays the operator's published `PlayerConfig` from the backend. The bundled values are the permanent fallback: with no config, an unreachable server, or a payload the guard rejects, the game runs exactly as it shipped. Two consequences when you touch `src/data/` or `engine/finlit/core/config/`:
+  - **Keep the containers mutable and keep reads lazy.** Hydration works by emptying and refilling the exported array/object, so every importer sees the change. Building a lookup `Map` or a derived constant at *module scope* would silently freeze the bundled values — today every read is a `.find()`/index at call time, and that must stay true.
+  - **Adding a table means teaching the hydrator about it**, otherwise the console can edit it and nothing happens. Run `node scripts/test-config-hydrator.mjs --token <jwt> --type <simulationTypeId>` after any change to the config shape; it proves rejected configs leave the bundle untouched.
 
 ## Reference docs
 

@@ -48,28 +48,73 @@
   --c-shadow:       rgba(42, 30, 18, 0.65);
 
   /* Action colors */
-  --c-primary:      #6FBB85;   /* confirm green */
+  --c-primary:      #6FBB85;   /* confirm green - borders, tints, active states */
   --c-primary-soft: #D4ECDB;
-  --c-secondary:    #6892C9;   /* info blue */
-  --c-secondary-soft:#D5E2F3;
+  --c-secondary:    #8E6CAC;   /* plum accent (was a cold #6892C9 sky blue) */
+  --c-secondary-soft:#E1D6EB;
 
-  /* Semantic */
+  /* SOLID BUTTON FILLS. A filled button carries cream text, and cream on the
+     bright pastels measures 2.14:1 - the game's own primary call to action was
+     the least readable text on screen. These are the same hues darkened until
+     cream clears 4.5:1, so the button still reads green/plum but the label is
+     actually legible. Use them ONLY as a fill behind cream text; borders and
+     tints keep the bright values above. */
+  --c-primary-strong:   #3C7F4F;
+  --c-secondary-strong: #8762A7;
+  --c-danger-strong:    #C24A3C;
+
+  /* Semantic — each colour comes in three weights, and they are NOT
+     interchangeable:
+       --c-X       the bright pastel. Borders and solid fills only.
+       --c-X-soft  the tint behind a chip.
+       --c-X-ink   the only one safe to set TEXT in on a cream surface.
+
+     The pastels were being used as text colour, which is where a lot of this
+     UI's "hard to read" came from: #6FBB85 on #FBF6E9 measures 2.13:1 and
+     #DDA655 measures 2.01:1, against the 4.5:1 that normal text needs. Every
+     green number and every amber cost in the game sat under half the required
+     contrast. The -ink weights are those same hues darkened to ~4.6:1, so the
+     colour coding survives and the text is actually legible.
+
+     The -ink weights are tuned against the CARAMEL panel (#DEC189), not cream,
+     because coloured figures appear on both and caramel is much the darker of
+     the two. That puts them at ~4.5:1 there and ~7.3:1 on cream — comfortably
+     legible everywhere rather than only on the lighter surface.
+
+     `info` is plum rather than the old sky blue (#6892C9). This palette is
+     walnut, caramel, cream, sage and amber; a cold pastel blue read as an
+     accident every time it appeared next to a caramel tile. Plum stays clearly
+     distinct from the green/amber semantics and belongs to the same warm
+     family as the Int Labs mark. */
   --c-success:      #6FBB85;
   --c-success-soft: #D4ECDB;
+  --c-success-ink:  #2B5B39;
   --c-warning:      #DDA655;
   --c-warning-soft: #F3DEB7;
+  --c-warning-ink:  #6E4B16;
   --c-danger:       #CB6356;
   --c-danger-soft:  #F1CCC4;
-  --c-info:         #6892C9;
-  --c-info-soft:    #D5E2F3;
+  --c-danger-ink:   #8C362B;
+  --c-info:         #8E6CAC;
+  --c-info-soft:    #E1D6EB;
+  --c-info-ink:     #614779;
 
-  /* Finance */
+  /* Finance — same three-weight rule as the semantic colours above. The bright
+     values tint chart marks, icon strokes and borders; the -ink values are the
+     only ones that may set a FIGURE, because a P&L is nothing but figures and
+     the bright ones measure ~2.1:1 on cream. */
   --c-fin-revenue:  #6FBB85;
   --c-fin-cost:     #CB6356;
   --c-fin-profit:   #4F9C72;
-  --c-fin-cash:     #6892C9;
+  --c-fin-cash:     #8E6CAC;
   --c-fin-inventory:#B98B5A;
-  --c-fin-demand:   #9B6CD9;
+  --c-fin-demand:   #B98BD4;
+  --c-fin-revenue-ink:   #2B5B39;
+  --c-fin-cost-ink:      #8C362B;
+  --c-fin-profit-ink:    #2E5A42;
+  --c-fin-cash-ink:      #62467C;
+  --c-fin-inventory-ink: #6A4C2D;
+  --c-fin-demand-ink:    #713794;
 }
 
 html, body, #root {
@@ -118,10 +163,83 @@ button {
 }
 
 /* ==========================================================================
-   Typography helpers
+   TYPE SYSTEM — the rules. Read this before writing `text-[13px]`.
+   ==========================================================================
+
+   There are 60+ classes below and they already cover every case. The problem
+   was never a missing scale, it was 346 hardcoded `text-[Npx]` values across
+   31 distinct sizes (7.5, 9.5, 10.5, 11.5, 12.5, 13.5 …) quietly bypassing it.
+   That is what makes screens feel inconsistent and tiring to read.
+
+   RULE 1 — NEVER set a font size, weight or family inline.
+     No `text-[13px]`, no `font-bold`, no `font-hud` in a component. Pick the
+     class whose NAME matches the ROLE of the text. If nothing fits, add a
+     class here rather than a one-off number.
+
+   RULE 2 — pick by role, not by how big you want it:
+     .h1 / .h2 / .h3        headings, in that order of importance
+     .section-title         a titled container's own title
+     .panel-title           a panel header
+     .eyebrow (+ -sm/-md/-lg)   ALL-CAPS kicker that OPENS a section
+     .stat-label            the caption naming a value ("REACH" over "35%")
+     .item-name             the name of a thing in a row (a line, a hire)
+     .field-label           the label of a form row ("Paper", "Size")
+     .body-xs … .body-lg    sentences and paragraphs
+     .strong                inline emphasis INSIDE a sentence
+     .hint                  the explanatory line under a title
+     .num-xs … .num-hero    EVERY numeral, always (tabular, aligns in columns)
+     .btn-label / .chip-label / .tab-label-sm   interactive controls
+
+   RULE 2b — in a readout, the LABEL RECEDES AND THE VALUE LEADS.
+     Pair .stat-label with .num-sm or larger, never .eyebrow-* with .num-xs.
+     An eyebrow introduces a section and is entitled to be loud; a stat label
+     only says which number this is. If you can read the caption before the
+     figure, the pair is wrong — that is the single most common way this UI
+     has drifted, so check it every time you build a chip.
+
+   RULE 3 — weight carries meaning, so spend it sparingly.
+     Bold is for VALUES and the ACTIVE item only. It is already baked into
+     .num-* and .eyebrow. Body copy stays regular. When almost everything is
+     bold, nothing reads as important — which is exactly what happened here
+     (95 × font-bold vs 1 × font-normal).
+
+   RULE 4 — numerals are never set in a pixel face.
+     Press Start 2P and VT323 mangle digits (9,752 turns to mush). Pixel fonts
+     are for TITLES and short labels at 14px+. Everything numeric is Inter via
+     .num-*, which also gives tabular figures so columns line up.
+
+   RULE 5 — border weight is hierarchy, not decoration.
+     `border-2 border-ink-900`  → a section/panel container edge. Only.
+     `border border-border-soft` → controls, tiles, rows, table cells.
+     Selection is shown with COLOUR and background, never by adding weight.
+     (655 plain `border` vs 122 `border-2` today — the heavy ones should be
+     the rare case, and they are not.)
+
+   RULE 6 — spacing comes from one ladder:
+     gap-2 inside a group · gap-4 between groups · gap-6 between sections
+     p-3.5 inside panels · px-3 py-2 inside controls.
    ========================================================================== */
 
 @layer components {
+  /* The label of a form row, sitting beside its control. Regular weight — the
+     VALUE in the control is the thing worth emphasising, not its name. */
+  .field-label {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.3;
+    color: var(--c-text-2);
+  }
+
+  /* The explanatory line under a title. Never bold, never coloured. */
+  .hint {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--c-text-3);
+  }
+
   .eyebrow {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 700;
@@ -137,6 +255,85 @@ button {
   .eyebrow-sm     { font-size: 13px; letter-spacing: 0.11em; }
   .eyebrow-md     { font-size: 15px; letter-spacing: 0.08em; }
   .eyebrow-lg     { font-size: 17px; letter-spacing: 0.06em; }
+
+  /* The caption that names a value: "REACH" over "35%", "PER DAY" over "$12".
+     A distinct role from .eyebrow, which kicks off a SECTION and is allowed to
+     be assertive. This one must recede — it labels, the number speaks.
+
+     It exists because the scale had no quiet tier. Readouts were built from
+     .eyebrow-sm (13px/700) over .num-xs (15px/700): two pixels and no weight
+     difference, while the label's uppercase letter-spacing made it physically
+     the wider mark. Every chip read label-first. Against .num-sm (17px/700)
+     this is 1.55x smaller, a weight lighter and two steps down in colour, so
+     the ordering is never in question. */
+  .stat-label {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1.15;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c-text-3);
+  }
+  /* On a coloured chip the muted grey goes muddy — inherit the chip's ink. */
+  .stat-label-on-tint { color: currentColor; opacity: 0.72; }
+
+  /* The NAME of a thing in a row or list: a product line, a hire, a market, a
+     channel. Not a heading (it doesn't open a section) and not body copy (it's
+     a label for the row it sits in), which is why it kept getting written as
+     `body-xs font-bold` — the same two classes in fifteen places, each one a
+     RULE 1 violation and each free to drift. Same face and size as .body-xs so
+     nothing reflows; it just has a name now. */
+  .item-name {
+    font-family: 'Jura', 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  /* Inline emphasis INSIDE a sentence - the one legitimate use of bold in body
+     copy, for naming a control the reader has to find ("open Notebook Items").
+     It inherits size and family from the sentence it sits in and only lifts the
+     weight, so it never becomes a second type size hiding in a paragraph.
+     `strong` is styled to match, so semantic markup and the class agree. */
+  .strong, strong { font-weight: 700; }
+
+  /* Chart furniture. Two classes, and the split is the whole point:
+
+     .chart-label  a category name on an axis or in a legend. Text, so the
+                   pixel face is welcome and reinforces the arcade look.
+     .chart-value  a plotted figure. Inter tabular, because RULE 4 is not
+                   decorative - Press Start 2P has no tabular figures and
+                   turns "9,752" to mush, which at an 8px axis label is
+                   simply unreadable.
+
+     These exist because `font-hud` was being applied inline, and a Tailwind
+     family utility BEATS the family baked into .num-*: `font-hud num-lg`
+     silently rendered the simulation's big day counter and every P&L money
+     cell in the pixel face. Naming the two roles makes the wrong one hard to
+     reach for. */
+  .chart-label {
+    font-family: 'Press Start 2P', 'Pixelify Sans', system-ui, sans-serif;
+    font-size: 8px;
+    letter-spacing: 0.02em;
+  }
+  .chart-value {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A short ALL-CAPS caption that genuinely wants the arcade face: a meter's
+     name, a mode banner, a corner stamp. The pixel font is the point here, so
+     unlike .chart-label this is UI chrome rather than chart furniture. Never
+     put a figure in it - pair it with .num-xs for the value. */
+  .pixel-caption {
+    font-family: 'Press Start 2P', 'Pixelify Sans', system-ui, sans-serif;
+    font-size: 10px;
+    line-height: 1.4;
+    letter-spacing: 0.04em;
+  }
 
   /* Body copy uses Jura 500 — a pixel-adjacent geometric sans that
      keeps paragraphs readable while reinforcing the gamey theme.
@@ -386,8 +583,11 @@ button {
     gap: 8px;
     padding: 0 16px;
     height: 40px;
-    border: 1px solid #4F9C72;
-    background-color: var(--c-primary);
+    border: 1px solid #2B5B39;
+    /* The strong fill, not the pastel: this is the game's primary call to
+       action and cream on --c-primary measured 2.14:1, making the single most
+       important button the hardest text on screen to read. */
+    background-color: var(--c-primary-strong);
     color: #FAF7E8;
     font-weight: 800;
     letter-spacing: 0.04em;

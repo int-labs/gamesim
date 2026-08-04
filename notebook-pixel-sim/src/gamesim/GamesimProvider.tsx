@@ -4,11 +4,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import * as gamesim from './client';
+import { hydratePlayerConfig } from './configHydrator';
 import { PassKeyScreen } from '@/components/passkey/PassKeyScreen';
+import { GamesimStatusScreen } from '@/components/gamesim/GamesimStatusScreen';
 import {
   fetchOfficialFinancials,
   fetchOfficialResults,
@@ -59,8 +62,10 @@ interface GamesimSessionValue {
   latestFinancials: OfficialFinancials | null;
   /** productId → productName, for labelling server numbers. */
   productNames: Record<Id, string>;
-  /** Round is Active and this team has not submitted yet. */
-  canPlay: boolean;
+  /** May this team POST a decision now? Once per round, Active only. */
+  canSubmit: boolean;
+  /** May the player run their own phase locally? */
+  canAdvance: boolean;
   refetchBootstrap: () => void;
   /** Re-read official results/financials for the current round. */
   refreshOfficial: () => Promise<void>;
@@ -73,6 +78,21 @@ export function useGamesimSession(): GamesimSessionValue {
   const ctx = useContext(GamesimContext);
   if (!ctx) throw new Error('useGamesimSession must be used within GamesimProvider');
   return ctx;
+}
+
+/**
+ * Raw network errors are not player-facing copy. `fetch` rejects with the
+ * literal string "Failed to fetch" when the API is unreachable, which told a
+ * student nothing and looked like a crash. Anything we don't recognise is
+ * dropped rather than shown verbatim.
+ */
+function playerFacingError(raw: string | null): string {
+  if (!raw) return 'The simulation server is not responding right now.';
+  if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+    return 'The simulation server is not responding. It may be starting up, or your connection dropped.';
+  }
+  // Server-authored messages are written for humans; pass those through.
+  return raw;
 }
 
 const pickCurrentRound = (rounds: RoundDto[]): RoundDto | null => {
@@ -99,11 +119,23 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   const [financialsByRound, setFinancialsByRound] = useState<Record<number, OfficialFinancials>>({});
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  /**
+   * True once a bootstrap has succeeded. The 20s poll calls refetchBootstrap()
+   * to notice an operator opening/closing a round, which re-runs the bootstrap
+   * effect below — but that effect BLOCKS the whole app while `status` is
+   * 'loading' (see the early return near the bottom of this file). Without
+   * this flag every poll tore the running game down to the loading screen and
+   * remounted it, which read as the simulation reloading itself every 20s and
+   * wiped all component-local state (in-progress form input, the Amelia intro
+   * guard, open panels). Background refreshes must stay silent.
+   */
+  const hasLoadedRef = useRef(false);
 
   const refetchBootstrap = useCallback(() => setReloadToken((n) => n + 1), []);
 
   const logout = useCallback(() => {
     gamesim.clearGamesimSession();
+    hasLoadedRef.current = false;
     setBootstrap(null);
     setSubmittedDecision(null);
     setResultsByRound({});
@@ -137,9 +169,23 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
         setStatus('login');
         return;
       }
-      setStatus('loading');
+      // Only the FIRST load may block the app. A background refetch keeps the
+      // game mounted and swaps the context in underneath it.
+      if (!hasLoadedRef.current) setStatus('loading');
       try {
         const simulation = await gamesim.getSimulation(session.simulationId);
+
+        // Overlay the operator's published game content before the app
+        // un-blocks — while `status` is 'loading' nothing below this provider
+        // is mounted, so no component can render bundled values and then see
+        // them change. Never throws and never rejects the bootstrap: with no
+        // config, an unreachable server, or a payload it won't accept, the
+        // bundled data stands and the game plays exactly as it shipped.
+        if (!hasLoadedRef.current) {
+          const report = await hydratePlayerConfig(simulation.simulationTypeId);
+          if ((import.meta as any).env?.DEV) console.info('[gamesim] player config', report);
+        }
+
         const rounds = await gamesim.getRounds(session.simulationId);
         const [products, baseData, globalInputs] = await Promise.all([
           gamesim.getProducts(simulation.simulationTypeId),
@@ -157,20 +203,29 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
           baseData: baseData[0] ?? null,
           globalInputs,
         });
+        hasLoadedRef.current = true;
         setStatus('ready');
       } catch (err) {
         if (cancelled) return;
         if (err instanceof gamesim.GamesimApiError) {
           if (err.status === 401 || err.status === 403) {
+            // A genuinely expired/revoked team token — re-auth is the only
+            // way forward, so this one does evict, first load or not.
             gamesim.clearGamesimSession();
+            hasLoadedRef.current = false;
             setStatus('login');
             return;
           }
-          if (err.status === 404) {
-            setError(err.message);
-            setStatus('no-simulation');
-            return;
-          }
+        }
+        // Past the first load, a failed BACKGROUND refresh must not throw the
+        // player out of a run they're mid-way through: one flaky poll would
+        // otherwise replace the game with a full-screen error. Keep the last
+        // good context and let the next poll recover.
+        if (hasLoadedRef.current) return;
+        if (err instanceof gamesim.GamesimApiError && err.status === 404) {
+          setError(err.message);
+          setStatus('no-simulation');
+          return;
         }
         setError(err instanceof Error ? err.message : 'Failed to load simulation context.');
         setStatus('error');
@@ -223,7 +278,22 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   const latestResults = useMemo(() => latestOf(resultsByRound), [resultsByRound]);
   const latestFinancials = useMemo(() => latestOf(financialsByRound), [financialsByRound]);
 
-  const canPlay = !!bootstrap?.round && bootstrap.round.status === 'Active' && !submittedDecision;
+  // Two DIFFERENT questions, previously answered by one flag:
+  //
+  //   canSubmit  — may this team POST a decision right now? Once per round,
+  //                only while the round is Active. `/decisions` is insert-only
+  //                and 409s on a resubmit, so this has to stay strict.
+  //   canAdvance — may the player run their own phase? The local FinLit engine
+  //                drives gameplay; the server is authoritative for scoring,
+  //                not for whether the player is allowed to keep playing.
+  //
+  // Conflating them meant that the moment a decision was sent, Confirm went
+  // permanently disabled: the player sat at the phase boundary with a greyed
+  // button and no way to reach their own evaluation. Sending the decision has
+  // to stop the POST, not the game.
+  const roundIsActive = !!bootstrap?.round && bootstrap.round.status === 'Active';
+  const canSubmit = roundIsActive && !submittedDecision;
+  const canAdvance = roundIsActive || !!submittedDecision;
 
   const value: GamesimSessionValue = {
     status,
@@ -236,14 +306,20 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     latestResults,
     latestFinancials,
     productNames,
-    canPlay,
+    canSubmit,
+    canAdvance,
     refetchBootstrap,
     refreshOfficial,
     logout,
   };
 
   if (status === 'checking' || status === 'loading') {
-    return <FullScreenMessage title="Loading your team's simulation..." />;
+    return (
+      <GamesimStatusScreen
+        title="Opening your studio"
+        subtitle="Fetching your team, your round and the market data."
+      />
+    );
   }
   if (status === 'login') {
     // The V3 Academy gate IS the login: PassKeyPanel calls verifyPassKey
@@ -253,7 +329,8 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   }
   if (status === 'no-simulation') {
     return (
-      <FullScreenMessage
+      <GamesimStatusScreen
+        tone="waiting"
         title="No active simulation"
         subtitle={error ?? 'Ask your facilitator to set up a simulation for your team.'}
         retry={refetchBootstrap}
@@ -262,9 +339,10 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   }
   if (status === 'error') {
     return (
-      <FullScreenMessage
-        title="Couldn't reach the simulation server"
-        subtitle={error ?? undefined}
+      <GamesimStatusScreen
+        tone="error"
+        title="Can't reach the server"
+        subtitle={playerFacingError(error)}
         retry={refetchBootstrap}
       />
     );
@@ -272,11 +350,12 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
 
   // No round yet, or the only round is still Pending — block gameplay until an
   // operator activates a round. Completed rounds still render the app so
-  // official results stay visible; submit is gated on `canPlay` separately.
+  // official results stay visible; submit is gated on `canSubmit` separately.
   if (!bootstrap?.round || bootstrap.round.status === 'Pending') {
     return (
       <GamesimContext.Provider value={value}>
-        <FullScreenMessage
+        <GamesimStatusScreen
+          tone="waiting"
           title="Waiting for round"
           subtitle={
             !bootstrap?.round
@@ -290,18 +369,4 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   }
 
   return <GamesimContext.Provider value={value}>{children}</GamesimContext.Provider>;
-}
-
-function FullScreenMessage({ title, subtitle, retry }: { title: string; subtitle?: string; retry?: () => void }) {
-  return (
-    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, fontFamily: 'sans-serif', padding: 24, textAlign: 'center', background: '#fdf6ec', color: '#241c12' }}>
-      <h2>{title}</h2>
-      {subtitle && <p style={{ opacity: 0.7 }}>{subtitle}</p>}
-      {retry && (
-        <button onClick={retry} style={{ padding: '8px 16px', cursor: 'pointer' }}>
-          Retry
-        </button>
-      )}
-    </div>
-  );
 }

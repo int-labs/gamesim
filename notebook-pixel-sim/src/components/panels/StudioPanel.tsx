@@ -15,10 +15,31 @@ import { fmt$ } from '@/utils/format';
 import { playSfx } from '@/audio/audioManager';
 import { PixelModal } from '@/components/primitives/PixelModal';
 import { CostTiles, ImpactList, type CostTile } from '@/components/primitives/CostTiles';
+import { PixelBadge, PixelButton } from '@/components/primitives';
 import { SafeImage } from '@/components/primitives/SafeImage';
 import { A } from '@/assets';
 import { studyFor, type CaseStudy } from '@/content/finlitCaseStudies';
+import { OpsSection, StatChip, EnergyTag, OperationsDetailModal } from './OperationsKit';
+import { channelDetail, budgetDetail, hiringDetail, vendorDetail, type SectionDetail } from './operationsDetails';
+import { motion } from 'framer-motion';
 import clsx from 'clsx';
+import { EnergyValue } from '@/components/primitives/EnergyValue';
+
+/** Section header art. Each decision gets a distinct pixel mark. */
+const SECTION_ICON = {
+  shop: A.ui.sidebar.product,
+  channels: A.ui.commercial.social_media,
+  budget: A.ui.commercial.campaign,
+  hiring: A.ui.studioOps.staff_training,
+  vendor: A.ui.studioOps.supplier,
+};
+
+/** Per-channel art. Closest existing marks; purpose-built ones would be better. */
+const CHANNEL_ICON: Record<ChannelId, string> = {
+  offline: A.ui.commercial.bulk_order,
+  online: A.ui.commercial.social_media,
+  retail: A.ui.studioOps.inventory_shelf,
+};
 
 // A distinct studio-operations portrait per candidate, so each hire reads at a
 // glance (the visual hook for the hiring cards).
@@ -42,7 +63,7 @@ function engageSummary(
   vendorLevel: 1 | 2,
   genre: GenreId | undefined,
 ): { tiles: CostTile[]; effects: string[] } {
-  const tiles: CostTile[] = [{ label: 'Energy to unlock', value: `${p.energy}⚡`, tone: 'energy', icon: 'energy' }];
+  const tiles: CostTile[] = [{ label: 'Energy to unlock', value: `${p.energy}`, tone: 'energy', icon: 'energy' }];
   const effects: string[] = [];
   if (p.kind === 'candidate') {
     const lv = hireLevel(p.id, p.level);
@@ -91,6 +112,8 @@ export function StudioPanel() {
   const [pending, setPending] = useState<Pending | null>(null);
   // null = not editing; the input falls back to the store value.
   const [shopDraft, setShopDraft] = useState<string | null>(null);
+  // Which section's reference sheet is open, if any.
+  const [detail, setDetail] = useState<SectionDetail | null>(null);
 
   const vendorLevel = phase >= 2 ? 2 : 1;
   const hireRefund = hire ? hireLevel(hire.candidate, hire.level).energy : 0;
@@ -109,14 +132,14 @@ export function StudioPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between text-[16px]">
+      <div className="flex items-center justify-between body-xs">
         <span className="text-text-2">Company decisions · reversible (clearing refunds energy)</span>
-        <span className="font-bold text-warning tabular-nums">⚡ {energy} energy</span>
+        <span className="num-xs text-warning inline-flex items-baseline gap-1"><EnergyValue amount={energy} /> energy</span>
       </div>
 
       {/* ── Your shop — the company's name. Also renameable from the shop sign
            on the desk (Product page); both write through setShopName. ── */}
-      <Section title="Your Shop" hint="Your business name. Costs nothing, change it whenever you like.">
+      <OpsSection icon={SECTION_ICON.shop} title="Your Shop" hint="Your business name. Costs nothing, change it whenever you like.">
         <input
           // Local draft while typing, committed on blur/Enter. Writing straight
           // through on every keystroke would fight setShopName's empty-fallback:
@@ -128,14 +151,19 @@ export function StudioPanel() {
           maxLength={MAX_SHOP_NAME}
           aria-label="Shop name"
           placeholder={DEFAULT_SHOP_NAME}
-          className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text font-hud text-[15px] uppercase outline-none focus:border-primary px-3 py-2"
+          className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text section-title outline-none focus:border-primary px-3 py-2"
         />
-      </Section>
+      </OpsSection>
 
       {/* ── Sales channels — WHERE you sell. Company-wide: every notebook ships
            through the same channels, so this is one decision, not one per SKU. ── */}
-      <Section title="Sales Channels" hint="Where you sell. Applies to every notebook. Each channel adds reach at a daily overhead.">
-        <div className="flex flex-col gap-2">
+      <OpsSection
+        icon={SECTION_ICON.channels}
+        title="Sales Channels"
+        hint="Where you sell. Applies to every notebook."
+        onDetails={() => setDetail(channelDetail())}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {(Object.keys(CHANNEL_META) as ChannelId[]).map((ch) => {
             const on = companyChannels.has(ch);
             const isLastOn = on && companyChannels.size <= 1;
@@ -146,7 +174,7 @@ export function StudioPanel() {
             const hi = reaches.length ? Math.round(Math.max(...reaches) * 100) : 0;
             const row = channelRow(genresInPlay[0] ?? 'indie', ch);
             return (
-              <button
+              <motion.button
                 key={ch}
                 onClick={() => {
                   if (isLastOn) { playSfx('fail'); return; }
@@ -154,42 +182,65 @@ export function StudioPanel() {
                   apply((s) => toggleFinlitChannelAll(s, ch));
                 }}
                 title={isLastOn ? 'You need at least one channel to sell through.' : undefined}
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 20 }}
                 className={clsx(
-                  'ctl-btn flex items-center justify-between gap-2 px-3 py-2.5 border-2 text-left transition-all active:scale-[0.99]',
-                  on ? 'border-success bg-success-soft' : 'border-border-soft bg-surface hover:border-border',
+                  'ctl-btn flex flex-col gap-2 p-3 border-2 text-left cursor-pointer',
+                  on ? 'border-success bg-success-soft shadow-pixel-1' : 'border-border-soft bg-surface hover:border-border',
                 )}
               >
-                <div className="min-w-0">
-                  <div className="text-[17px] font-bold text-text leading-tight">{CHANNEL_META[ch].name}</div>
-                  <div className="text-[13px] font-medium text-text-3 leading-tight mt-0.5">{CHANNEL_META[ch].blurb}</div>
-                  <div className="text-[14px] text-text-3 leading-tight mt-1">
-                    reach <span className="font-bold text-info">{lo === hi ? `${lo}%` : `${lo}-${hi}%`}</span>
-                    {' · '}<span className="text-warning font-bold">{fmt$(row.maintenance)}/day</span>
-                    {row.consignment > 0 && <> · <span className="text-warning font-bold">{fmt$(row.consignment)}/sale</span></>}
-                  </div>
+                <div className="flex items-start justify-between gap-2">
+                  <img
+                    src={CHANNEL_ICON[ch]}
+                    alt=""
+                    className="w-10 h-10 object-contain shrink-0"
+                    style={{ imageRendering: 'pixelated' }}
+                    draggable={false}
+                  />
+                  <span className={clsx(
+                    'shrink-0 border-2 px-2 py-1',
+                    on ? 'border-success bg-surface' : 'border-border-soft',
+                  )}>
+                    <span className={clsx('eyebrow eyebrow-sm', on ? 'text-success' : 'eyebrow-muted')}>
+                      {on ? 'On' : 'Off'}
+                    </span>
+                  </span>
                 </div>
-                <span className={clsx(
-                  'shrink-0 text-[14px] font-bold px-2 py-1 border tabular-nums',
-                  on ? 'border-success text-success bg-surface' : 'border-border-soft text-text-3',
-                )}>
-                  {on ? 'ON' : 'OFF'}
-                </span>
-              </button>
+
+                <div className="min-w-0">
+                  <div className="h3 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
+                  <p className="body-xs text-text-2 mt-1">{CHANNEL_META[ch].blurb}</p>
+                </div>
+
+                {/* The numbers you're actually choosing between get to look
+                    like values, not footnotes. */}
+                <div className="grid grid-cols-2 gap-2 mt-auto">
+                  <StatChip label="Reach" value={lo === hi ? `${lo}%` : `${lo}-${hi}%`} tone="reach" />
+                  <StatChip label="Per day" value={fmt$(row.maintenance)} tone="money" />
+                  {row.consignment > 0 && (
+                    <StatChip label="Per sale" value={fmt$(row.consignment)} tone="money" className="col-span-2" />
+                  )}
+                </div>
+              </motion.button>
             );
           })}
         </div>
-      </Section>
+      </OpsSection>
 
       {/* ── Marketing & Sales budgets ── */}
-      <Section title="Marketing & Sales Budget" hint="Spend $/day to grow the business. Each lever costs energy to switch on; drag to $0 to switch off (energy refunded).">
-        <div className="flex flex-col gap-2">
+      <OpsSection
+        icon={SECTION_ICON.budget}
+        title="Marketing & Sales Budget"
+        hint="Spend $/day to grow. Set back to $0 to switch off and refund the energy."
+        onDetails={() => setDetail(budgetDetail(BUDGET_LEVER_ENERGY, BUDGET_MAX, marketingDemandMult, salesSellBonus))}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <BudgetLever
             label="Marketing budget"
             hint="Awareness - lifts DEMAND (more people want it)."
             value={marketingBudget}
             energy={BUDGET_LEVER_ENERGY}
-            effectLabel={`+${Math.round((marketingDemandMult(marketingBudget) - 1) * 100)}% demand`}
-            effectTone="text-info"
             canActivate={marketingBudget > 0 || energy >= BUDGET_LEVER_ENERGY}
             onChange={(v) => { playSfx('tick'); apply((s) => setFinlitMarketingBudget(s, v)); }}
           />
@@ -198,39 +249,44 @@ export function StudioPanel() {
             hint="Conversion - lifts SELL-RATE (more of them buy)."
             value={salesBudget}
             energy={BUDGET_LEVER_ENERGY}
-            effectLabel={`+${(salesSellBonus(salesBudget) * 100).toFixed(1)}% sell-rate`}
-            effectTone="text-success"
             canActivate={salesBudget > 0 || energy >= BUDGET_LEVER_ENERGY}
             onChange={(v) => { playSfx('tick'); apply((s) => setFinlitSalesBudget(s, v)); }}
           />
         </div>
-      </Section>
+      </OpsSection>
 
       {/* ── Hiring ── */}
-      <Section title="Hiring" hint="Adds production + sell-rate. Higher levels cost more energy to unlock.">
-        <div className="flex flex-col gap-2">
+      <OpsSection
+        icon={SECTION_ICON.hiring}
+        title="Hiring"
+        hint="One hire at a time. Adds production and sell-rate."
+        onDetails={() => setDetail(hiringDetail())}
+      >
+        <div className="flex flex-col gap-2.5">
           {CANDIDATES.map((c) => {
             const engaged = hire?.candidate === c.id;
             const curLevel = engaged ? hire!.level : 0;
             return (
               <div key={c.id} className={clsx('border-2 px-2.5 py-2 flex gap-2.5', engaged ? 'border-primary bg-primary-soft' : 'border-border-soft bg-surface')}>
-                {/* Candidate portrait — a big visual hook, sized to the card. */}
-                <div className={clsx('shrink-0 self-stretch flex items-center justify-center w-14 border-2 bg-surface-2', engaged ? 'border-primary' : 'border-border-soft')}>
-                  <SafeImage
-                    src={CANDIDATE_ICON[c.id]}
-                    alt=""
-                    className="w-11 h-11 object-contain"
-                    fallbackIcon="hire"
-                    fallbackSize={30}
-                  />
-                </div>
+                {/* Candidate portrait. No frame: a box around a transparent
+                    pixel sprite added a second border inside a bordered card
+                    and boxed the art into a narrow column. Unframed it reads as
+                    a character standing in the row, and the space that the
+                    frame's padding was eating goes to the art instead. */}
+                <SafeImage
+                  src={CANDIDATE_ICON[c.id]}
+                  alt=""
+                  className="shrink-0 w-20 h-20 object-contain self-start"
+                  fallbackIcon="hire"
+                  fallbackSize={56}
+                />
                 <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-[17px] font-bold text-text">{c.name}</span>
-                  {engaged && <span className="text-[15px] font-bold text-primary">L{curLevel} hired</span>}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="h3 uppercase text-ink-900">{c.name}</span>
+                  {engaged && <PixelBadge tone="success">L{curLevel} hired</PixelBadge>}
                 </div>
-                <div className="text-[14px] text-text-3 leading-tight mb-1.5">{c.blurb}</div>
-                <div className="flex gap-1">
+                <p className="body-xs text-text-2 mt-1 mb-2">{c.blurb}</p>
+                <div className="grid grid-cols-4 gap-1.5">
                   {c.levels.map((lv) => {
                     const affordable = energy >= lv.energy;
                     const isCur = engaged && curLevel === lv.level;
@@ -240,14 +296,24 @@ export function StudioPanel() {
                         disabled={!affordable || isCur}
                         onClick={() => { playSfx('click-soft'); setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! }); }}
                         className={clsx(
-                          'ctl-btn flex-1 text-[15px] py-1 border-2 font-bold transition-all leading-tight',
-                          isCur ? 'border-primary bg-primary text-white'
+                          'ctl-btn flex flex-col items-center gap-1 py-2 px-1 border-2 transition-all',
+                          isCur ? 'border-primary bg-primary-strong text-white'
                           : affordable ? 'border-border-soft bg-surface hover:border-primary text-text active:scale-95'
                           : 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed',
                         )}
                         title={`L${lv.level}: +${lv.prodBonus.toFixed(2)} prod, +${(lv.sellBonus * 100).toFixed(1)}% sell · ${lv.energy}⚡ to unlock · ${fmt$(lv.cost)}/day`}
                       >
-                        L{lv.level}<br /><span className="text-warning">{lv.energy}⚡</span> · {fmt$(lv.cost)}
+                        {/* Level is the IDENTITY of the button, so it leads at
+                            numeral scale. Wage and energy are what it costs —
+                            quiet, and captioned so "$5" and "2" can't be
+                            confused for each other. */}
+                        <span className={clsx('num-md leading-none', isCur ? 'text-white' : 'text-ink-900')}>
+                          L{lv.level}
+                        </span>
+                        <span className={clsx('stat-label stat-label-on-tint', isCur && 'text-white')}>
+                          {fmt$(lv.cost)}/day
+                        </span>
+                        {!isCur && <EnergyTag amount={lv.energy} />}
                       </button>
                     );
                   })}
@@ -257,15 +323,20 @@ export function StudioPanel() {
             );
           })}
           {hire && (
-            <button onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitHire(s)); }} className="text-[15px] font-bold text-text-3 hover:text-danger self-start">
-              ✕ Clear hire · refund {hireRefund}⚡
+            <button onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitHire(s)); }} className="item-name text-text-3 hover:text-danger self-start">
+              Clear hire · refund <EnergyValue amount={hireRefund} className="ml-1" />
             </button>
           )}
         </div>
-      </Section>
+      </OpsSection>
 
       {/* ── Shipping vendor (active line) ── */}
-      <Section title="Shipping Vendor" hint={activeLine ? `For ${activeLine.name} (${activeLine.genre ?? 'indie'}). Adds sell + production if it stocks the genre.` : 'Add a notebook first.'}>
+      <OpsSection
+        icon={SECTION_ICON.vendor}
+        title="Shipping Vendor"
+        hint={activeLine ? `For ${activeLine.name}. Only helps if it stocks that market.` : 'Add a notebook first.'}
+        onDetails={() => setDetail(vendorDetail(vendorLevel))}
+      >
         {activeLine ? (
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
@@ -286,26 +357,42 @@ export function StudioPanel() {
                     )}
                     title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(cov.cost)}/day` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
                   >
-                    <div className="text-[16px] font-bold text-text leading-tight">{v.name}</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="h3 uppercase text-ink-900 truncate">{v.name}</span>
+                      {stocks && <PixelBadge tone={cov.quality === 'perfect' ? 'success' : 'neutral'}>{cov.quality}</PixelBadge>}
+                    </div>
                     {stocks ? (
-                      <div className="text-[14px] text-text-3 mt-0.5">
-                        {cov.quality} · +{(cov.sellBonus * 100).toFixed(1)}% · <span className="text-warning font-bold">{cost}⚡</span> · {fmt$(cov.cost)}/d
+                      <div className="grid grid-cols-3 gap-1.5 mt-2">
+                        <StatChip label="Sell" value={`+${(cov.sellBonus * 100).toFixed(1)}%`} tone="good" />
+                        <StatChip label="Per day" value={fmt$(cov.cost)} tone="money" />
+                        <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone="energy" />
                       </div>
                     ) : (
-                      <div className="text-[14px] text-text-3 mt-0.5">- no coverage</div>
+                      <p className="body-xs text-text-3 mt-2">Doesn't stock this market.</p>
                     )}
                   </button>
                 );
               })}
             </div>
             {activeLine.vendor && (
-              <button onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitVendor(s)); }} className="text-[15px] font-bold text-text-3 hover:text-danger self-start">
-                ✕ Clear vendor · refund {vendorRefund}⚡
+              <button onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitVendor(s)); }} className="item-name text-text-3 hover:text-danger self-start">
+                Clear vendor · refund <EnergyValue amount={vendorRefund} className="ml-1" />
               </button>
             )}
           </div>
         ) : null}
-      </Section>
+      </OpsSection>
+
+      {/* Per-section reference sheet: cost/energy/impact on the left, the
+          market numbers behind it on the right. */}
+      <OperationsDetailModal
+        open={detail !== null}
+        onClose={() => setDetail(null)}
+        title={detail?.title ?? ''}
+        intro={detail?.intro}
+        inputs={detail?.inputs ?? []}
+        tables={detail?.tables ?? []}
+      />
 
       {/* Case-study gate — the PDF's "read before choosing". */}
       <PixelModal
@@ -318,31 +405,53 @@ export function StudioPanel() {
           const short = pending.energy > energy;
           const { tiles, effects } = engageSummary(pending, vendorLevel, activeLine?.genre);
           return (
-          <div className="flex flex-col gap-3 p-1">
-            <p className="text-[18px] text-text leading-relaxed">{pending.study.brief}</p>
-            <div className="border-l-4 border-success pl-3 py-1 bg-success-soft/40">
-              <div className="text-[10.5px] uppercase tracking-[0.09em] font-bold text-text-2">Best when</div>
-              <div className="text-[15px] text-text">{pending.study.bestWhen}</div>
+          <div className="flex flex-col gap-4">
+            {/* Who this is about. A case study with no face was just a wall of
+                prose; the portrait anchors the brief and matches the roster row
+                the player clicked to get here. */}
+            <div className="flex items-start gap-3.5">
+              {pending.kind === 'candidate' && (
+                <SafeImage
+                  src={CANDIDATE_ICON[pending.id]}
+                  alt=""
+                  className="shrink-0 w-20 h-20 object-contain"
+                  fallbackIcon="hire"
+                  fallbackSize={56}
+                />
+              )}
+              <p className="body-sm text-text leading-relaxed min-w-0">{pending.study.brief}</p>
             </div>
-            <div className="border-l-4 border-warning pl-3 py-1 bg-warning-soft/40">
-              <div className="text-[10.5px] uppercase tracking-[0.09em] font-bold text-text-2">Watch out</div>
-              <div className="text-[15px] text-text">{pending.study.watchOut}</div>
+
+            {/* The trade-off, as a matched pair — same shape, opposite colour,
+                so "when this wins" and "when it hurts" weigh the same. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="border-2 border-success/45 bg-success-soft/40 px-3 py-2.5">
+                <div className="stat-label text-success">Best when</div>
+                <div className="body-xs text-text mt-1.5">{pending.study.bestWhen}</div>
+              </div>
+              <div className="border-2 border-warning/45 bg-warning-soft/40 px-3 py-2.5">
+                <div className="stat-label text-warning">Watch out</div>
+                <div className="body-xs text-text mt-1.5">{pending.study.watchOut}</div>
+              </div>
             </div>
 
             {/* Prominent cost + impact — the numbers the player is committing to. */}
             <CostTiles tiles={tiles} />
             {effects.length > 0 && <ImpactList items={effects} />}
 
-            <div className="flex items-center justify-end gap-2 pt-1">
-              {short && <span className="text-[16px] font-bold text-danger mr-auto self-center">Not enough energy</span>}
-              <button onClick={() => setPending(null)} className="px-3 py-1.5 text-[17px] border-2 border-border-soft bg-surface text-text-2 hover:text-text">Back</button>
-              <button
-                onClick={commit}
-                disabled={short}
-                className={clsx('px-3 py-1.5 text-[17px] font-bold border-2', short ? 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed' : 'border-primary bg-primary text-white hover:brightness-105 active:scale-95')}
-              >
-                Engage · {pending.energy}⚡
-              </button>
+            {/* Actions use PixelButton like every other commit in the game —
+                the hand-rolled body-xs buttons here were the only ones in the
+                app set in the body face, which is why they read as foreign. */}
+            <div className="flex items-center justify-end gap-2 pt-1 border-t-2 border-border-soft mt-1 -mx-1 px-1 pt-3.5">
+              {short && (
+                <span className="mr-auto self-center inline-flex items-center gap-1.5 border-2 border-danger bg-danger-soft/50 px-2.5 py-1.5">
+                  <span className="stat-label text-danger">Not enough energy</span>
+                </span>
+              )}
+              <PixelButton variant="ghost" size="md" onClick={() => setPending(null)}>Back</PixelButton>
+              <PixelButton variant="primary" size="md" disabled={short} onClick={commit}>
+                Engage · <EnergyValue amount={pending.energy} className="ml-1" />
+              </PixelButton>
             </div>
           </div>
           );
@@ -360,8 +469,6 @@ function BudgetLever({
   hint,
   value,
   energy,
-  effectLabel,
-  effectTone,
   canActivate,
   onChange,
 }: {
@@ -369,19 +476,26 @@ function BudgetLever({
   hint: string;
   value: number;
   energy: number;
-  effectLabel: string;
-  effectTone: string;
   canActivate: boolean;
   onChange: (v: number) => void;
 }) {
   const active = value > 0;
   return (
-    <div className={clsx('border-2 px-2.5 py-2', active ? 'border-success bg-success-soft' : 'border-border-soft bg-surface')}>
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[17px] font-bold text-text">{label}</span>
-        <span className="text-[18px] font-bold tabular-nums text-text">{fmt$(value)}<span className="text-text-3 text-[15px]">/day</span></span>
+    <div className={clsx('border-2 p-3 flex flex-col gap-2', active ? 'border-success bg-success-soft shadow-pixel-1' : 'border-border-soft bg-surface')}>
+      <div>
+        <div className="h3 uppercase text-ink-900">{label}</div>
+        <p className="body-xs text-text-2 mt-1">{hint}</p>
       </div>
-      <div className="text-[14px] text-text-3 leading-tight mb-1.5">{hint}</div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <StatChip label="Spend" value={`${fmt$(value)}/day`} tone={active ? 'money' : 'muted'} />
+        <StatChip
+          label={active ? 'Running on' : 'To activate'}
+          value={<EnergyValue amount={energy} size={13} />}
+          tone="energy"
+        />
+      </div>
+
       <input
         type="range"
         min={0}
@@ -392,22 +506,6 @@ function BudgetLever({
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
         className="w-full accent-ui-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
       />
-      <div className="flex items-center justify-between mt-1 text-[15px]">
-        <span className={clsx('font-bold', active ? effectTone : 'text-text-3')}>{active ? effectLabel : 'Off'}</span>
-        <span className="text-text-3">
-          {active ? <>Active · <span className="text-warning font-bold">{energy}⚡</span> to run</> : <><span className="text-warning font-bold">{energy}⚡</span> to activate</>}
-        </span>
-      </div>
     </div>
-  );
-}
-
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <div className="text-[11px] uppercase tracking-[0.09em] font-bold text-text-2 mb-1">{title}</div>
-      {hint && <div className="text-[12px] font-medium text-text-3 mb-1.5 leading-tight">{hint}</div>}
-      {children}
-    </section>
   );
 }

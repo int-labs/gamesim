@@ -13,6 +13,7 @@ import { A } from '@/assets';
 import { FINAL } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
 import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { DebriefCard } from '@/gamesim/OperatorContent';
 
 /**
  * FinalResultsScreen — Day 90, reworked as a CELEBRATION instead of a report.
@@ -92,7 +93,7 @@ export function FinalResultsScreen() {
   if (state.inventory.overstockDays > 3) hurt.push(FINAL.hurt.overstock);
   if (!state.market.targetSegment) hurt.push(FINAL.hurt.noSegment);
   if (state.player.cash < 0) hurt.push(FINAL.hurt.cashNegative);
-  if (state.portfolio.productLines.every((line) => Object.values(line.addOnsByArchetype).every((arr) => arr.length === 0)))
+  if (state.portfolio.productLines.every((line) => Object.values(line.addOnsByArchetype).every((arr) => (arr ?? []).length === 0)))
     hurt.push(FINAL.hurt.noDifferentiation);
 
   const takeaway =
@@ -123,10 +124,10 @@ export function FinalResultsScreen() {
         >
           <img src={A.logo} alt="int labs" className="h-10" />
           <div className="min-w-0">
-            <div className="font-hud text-[10px] uppercase tracking-wider text-brand-500">Day 90 · Final</div>
+            <div className="eyebrow eyebrow-sm text-brand-500">Day 90 · Final</div>
             {/* The run belongs to the player's shop - name it in the payoff. */}
-            <h2 className="font-hud text-[22px] uppercase truncate">{shopName}</h2>
-            <div className="font-hud text-[10px] uppercase tracking-wider text-ink-500 mt-0.5">Final Results</div>
+            <h2 className="h2 uppercase truncate">{shopName}</h2>
+            <div className="stat-label mt-0.5">Final Results</div>
           </div>
         </motion.div>
 
@@ -151,23 +152,23 @@ export function FinalResultsScreen() {
             <div className="flex items-center gap-3 md:w-[300px] shrink-0">
               <MascotAvatar size={88} />
               <div className="min-w-0">
-                <div className="font-hud text-[9px] uppercase tracking-wider text-brand-500">Amelia's takeaway</div>
-                <p className="text-[12.5px] font-body text-ink-900 leading-snug mt-1">{takeaway}</p>
+                <div className="eyebrow eyebrow-sm text-brand-500">Amelia's takeaway</div>
+                <p className="body-xs text-ink-900 mt-1">{takeaway}</p>
               </div>
             </div>
 
             {/* The number */}
             <div className="flex-1 text-center py-1">
-              <div className="inline-flex items-center gap-1.5 font-hud text-[10px] uppercase tracking-[0.18em] text-ink-700">
+              <div className="inline-flex items-center gap-1.5 stat-label">
                 <img src={A.ui.pixel.trophy} alt="" className="w-[16px] h-[16px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
                 Final score
               </div>
-              <div className="font-hud text-[58px] sm:text-[66px] leading-none mt-1 text-ink-900 tabular-nums">
+              <div className="num-hero text-[58px] sm:text-[66px] leading-none mt-1 text-ink-900">
                 {shownScore}
-                <span className="text-[22px] sm:text-[26px] text-ink-700">/100</span>
+                <span className="num-lg text-ink-700">/100</span>
               </div>
-              <div className="text-[12px] font-body text-ink-800 mt-1.5">
-                Net profit projected from ledger: <span className="font-bold">{fmt$(score.netDollar)}</span>
+              <div className="body-xs text-ink-800 mt-1.5">
+                Net profit projected from ledger: <span className="num-xs">{fmt$(score.netDollar)}</span>
               </div>
             </div>
 
@@ -196,16 +197,16 @@ export function FinalResultsScreen() {
               <PixelPanel title="The full 90 days" tone="paper">
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
-                    <div className="font-hud text-[10px] uppercase text-ink-700 mb-1">Cash trend</div>
+                    <div className="stat-label mb-1">Cash trend</div>
                     <PixelStepLine data={state.series.cash} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" width={420} height={120} />
                   </div>
                   <div>
-                    <div className="font-hud text-[10px] uppercase text-ink-700 mb-1">Profit trend</div>
+                    <div className="stat-label mb-1">Profit trend</div>
                     <PixelStepLine data={state.series.profit} stroke="#5b86c2" fill="rgba(91,134,194,0.15)" width={420} height={120} />
                   </div>
                 </div>
                 <div className="mt-3">
-                  <div className="font-hud text-[10px] uppercase text-ink-700 mb-1">Cost mix</div>
+                  <div className="stat-label mb-1">Cost mix</div>
                   <PixelStackedBar
                     data={[
                       { label: 'Material (COGS)', value: matCost, color: '#e07a6a' },
@@ -222,7 +223,7 @@ export function FinalResultsScreen() {
             {/* Did well / hurt - items stamp in one by one */}
             <motion.div {...sec(2)}>
               <PixelPanel title="What you did well / What hurt">
-                <div className="grid md:grid-cols-2 gap-3 text-[12px] font-body">
+                <div className="grid md:grid-cols-2 gap-3 body-xs">
                   <StampList
                     title={FINAL.panels.didWell}
                     items={didWell}
@@ -254,7 +255,7 @@ export function FinalResultsScreen() {
                   })}
             >
               <PixelPanel title="Decision Timeline">
-                <div className="max-h-[420px] overflow-y-auto pr-2 text-[12px] font-body">
+                <div className="max-h-[420px] overflow-y-auto pr-2 body-xs">
                   {[...state.history].reverse().map((h, i) => (
                     <div key={i} className="flex items-start gap-2 py-0.5 border-b border-ink-700/15">
                       <PixelBadge tone="neutral">D{h.day}</PixelBadge>
@@ -278,38 +279,38 @@ export function FinalResultsScreen() {
                 <PixelPanel title="Official Result">
                   <div className="flex items-center gap-2 mb-2">
                     <PixelBadge tone="info">From the simulation server</PixelBadge>
-                    <span className="text-[11px] font-body text-ink-700">
+                    <span className="hint">
                       Round {latestResults?.roundNumber ?? latestFinancials?.roundNumber}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[12px] font-body">
+                  <div className="grid grid-cols-2 gap-2 body-xs">
                     <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Revenue</div>
-                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.revenue ?? 0)}</div>
+                      <div className="stat-label">Revenue</div>
+                      <div className="num-sm text-ink-900">{fmt$(latestFinancials?.revenue ?? 0)}</div>
                     </div>
                     <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Gross Profit</div>
-                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.grossProfit ?? 0)}</div>
+                      <div className="stat-label">Gross Profit</div>
+                      <div className="num-sm text-ink-900">{fmt$(latestFinancials?.grossProfit ?? 0)}</div>
                     </div>
                     <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">COGS</div>
-                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.cogs ?? 0)}</div>
+                      <div className="stat-label">COGS</div>
+                      <div className="num-sm text-ink-900">{fmt$(latestFinancials?.cogs ?? 0)}</div>
                     </div>
                     <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Customers</div>
-                      <div className="font-hud text-[16px]">{Math.round(latestFinancials?.customersObtained ?? 0)}</div>
+                      <div className="stat-label">Customers</div>
+                      <div className="num-sm text-ink-900">{Math.round(latestFinancials?.customersObtained ?? 0)}</div>
                     </div>
                     <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Market Share</div>
-                      <div className="font-hud text-[16px]">
+                      <div className="stat-label">Market Share</div>
+                      <div className="num-sm text-ink-900">
                         {latestResults
                           ? `${(latestResults.averageMarketShare * 100).toFixed(1)}%`
                           : 'Pending'}
                       </div>
                     </div>
                     <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Rank</div>
-                      <div className="font-hud text-[16px]">
+                      <div className="stat-label">Rank</div>
+                      <div className="num-sm text-ink-900">
                         {latestResults && teamId
                           ? `#${
                               latestResults.leaderboard.findIndex((t) => t.teamId === teamId) + 1
@@ -321,8 +322,8 @@ export function FinalResultsScreen() {
 
                   {latestResults && (
                     <div className="mt-3">
-                      <div className="font-hud text-[9px] uppercase text-ink-700 mb-1">Leaderboard</div>
-                      <div className="text-[12px] font-body">
+                      <div className="stat-label mb-1">Leaderboard</div>
+                      <div className="body-xs">
                         {latestResults.leaderboard.map((t, i) => (
                           <div
                             key={t.teamId}
@@ -334,7 +335,7 @@ export function FinalResultsScreen() {
                             <div className="flex-1">
                               {t.teamId === teamId ? 'Your team' : `Team ${t.teamId.slice(-6)}`}
                             </div>
-                            <div className="font-hud text-[11px]">
+                            <div className="stat-label">
                               {(t.averageMarketShare * 100).toFixed(1)}%
                             </div>
                           </div>
@@ -344,7 +345,7 @@ export function FinalResultsScreen() {
                   )}
 
                   {!latestResults && (
-                    <p className="text-[11px] font-body text-ink-700 mt-2">
+                    <p className="hint mt-2">
                       Market share and ranking appear once your facilitator has run this round's
                       calculation for every team.
                     </p>
@@ -352,6 +353,10 @@ export function FinalResultsScreen() {
                 </PixelPanel>
               </motion.div>
             )}
+
+            {/* Facilitator's debrief — renders nothing until it is published
+                AND the simulation is Completed. */}
+            <DebriefCard />
 
             {/* CTAs */}
             <motion.div {...sec(3)} className="flex gap-2">
@@ -391,10 +396,10 @@ function ScoreCell({
   const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
   return (
     <div className={`${bg} border-2 border-ink-900 p-2 text-center`}>
-      <div className="font-hud text-[10px] uppercase text-ink-700">{label}</div>
-      <div className="font-hud text-[22px] leading-none mt-1 tabular-nums">
+      <div className="stat-label">{label}</div>
+      <div className="num-lg mt-1">
         {value}
-        <span className="text-[13px] text-ink-700">/{max}</span>
+        <span className="body-xs text-ink-700">/{max}</span>
       </div>
       <div className="mt-2 h-[7px] border border-ink-900/60 bg-cream-50 overflow-hidden">
         <motion.div
@@ -425,7 +430,7 @@ function StampList({
 }) {
   return (
     <div className={`${boxClass} border-2 border-ink-900 p-2`}>
-      <div className="font-hud text-[10px] uppercase">{title}</div>
+      <div className="stat-label">{title}</div>
       <ul className="list-disc pl-5 mt-1">
         {items.map((text, i) => (
           <motion.li

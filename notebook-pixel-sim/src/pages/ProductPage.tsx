@@ -31,8 +31,15 @@ const LEFT_META: Record<string, { title: string; icon: string }> = {
   items: { title: 'Notebook Items', icon: A.ui.sidebar.product },
   design: { title: 'Design', icon: A.ui.config.notebook_type },
   addons: { title: 'Add-ons', icon: A.ui.sidebar.addons },
-  details: { title: 'Notebook Details', icon: A.ui.config.page_count },
 };
+
+/**
+ * `details` shares the left-drawer slot in state (the canvas/gallery Details
+ * buttons still call `openDrawer('left', 'details')`) but renders as a
+ * near-fullscreen modal rather than a 384px drawer — it's a reference sheet
+ * with hero art, not a control panel.
+ */
+const DETAILS_ID = 'details';
 
 export function ProductPage() {
   const leftDrawer = useGame((s) => s.ui.leftDrawer);
@@ -72,7 +79,7 @@ export function ProductPage() {
 
       <Drawer
         side="left"
-        open={!!leftDrawer}
+        open={!!leftDrawer && leftDrawer !== DETAILS_ID}
         title={leftDrawer ? LEFT_META[leftDrawer]?.title : ''}
         icon={leftDrawer ? LEFT_META[leftDrawer]?.icon : undefined}
         onClose={() => closeDrawer('left')}
@@ -92,9 +99,13 @@ export function ProductPage() {
           {leftDrawer === 'items' && <ProductLineList />}
           {leftDrawer === 'design' && <FinlitDesignControls />}
           {leftDrawer === 'addons' && <AddOnGallery />}
-          {leftDrawer === 'details' && <ArchetypeDetailModal inline hideViews />}
         </motion.div>
       </Drawer>
+
+      <ArchetypeDetailModal
+        open={leftDrawer === DETAILS_ID}
+        onClose={() => closeDrawer('left')}
+      />
     </div>
   );
 }

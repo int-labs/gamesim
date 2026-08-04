@@ -37,11 +37,11 @@ export function PhaseBanner() {
       role="status"
       aria-live="polite"
     >
-      <div className="phase-badge bg-primary text-white border-border" style={{ color: '#FAF7E8' }}>
+      <div className="phase-badge bg-primary-strong text-white border-border" style={{ color: '#FAF7E8' }}>
         <PixelIcon kind="phase" size={11} color="#FAF7E8" />
-        <span className="text-[11px]">{info.title}</span>
+        <span className="hint">{info.title}</span>
       </div>
-      <div className="text-center mt-1.5 text-[10px] uppercase tracking-wider font-semibold text-text-3 bg-surface/80 px-2 py-0.5 border border-border-soft">
+      <div className="text-center mt-1.5 stat-label bg-surface/80 px-2 py-0.5 border border-border-soft">
         {info.sub}
       </div>
     </div>

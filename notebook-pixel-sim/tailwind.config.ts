@@ -9,6 +9,23 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // `text-success` / `text-warning` / `text-danger` / `text-info` resolve to
+      // the darker -ink weights, while `border-*` and `bg-*` keep the bright
+      // pastels from `colors` below. Same class names, correct value for the
+      // property — so no call site has to remember which weight to reach for,
+      // and a green number is readable without stopping being green.
+      textColor: {
+        success: 'var(--c-success-ink)',
+        warning: 'var(--c-warning-ink)',
+        danger: 'var(--c-danger-ink)',
+        info: 'var(--c-info-ink)',
+        'fin-revenue': 'var(--c-fin-revenue-ink)',
+        'fin-cost': 'var(--c-fin-cost-ink)',
+        'fin-profit': 'var(--c-fin-profit-ink)',
+        'fin-cash': 'var(--c-fin-cash-ink)',
+        'fin-inventory': 'var(--c-fin-inventory-ink)',
+        'fin-demand': 'var(--c-fin-demand-ink)',
+      },
       fontFamily: {
         body: ['Inter', 'system-ui', 'sans-serif'],
         pixel: ['"Pixelify Sans"', 'system-ui', 'sans-serif'],
@@ -30,8 +47,10 @@ export default {
         // Brand / actions
         primary: 'var(--c-primary)',
         'primary-soft': 'var(--c-primary-soft)',
+        'primary-strong': 'var(--c-primary-strong)',
         secondary: 'var(--c-secondary)',
         'secondary-soft': 'var(--c-secondary-soft)',
+        'secondary-strong': 'var(--c-secondary-strong)',
         // Semantic
         success: 'var(--c-success)',
         'success-soft': 'var(--c-success-soft)',
@@ -39,6 +58,7 @@ export default {
         'warning-soft': 'var(--c-warning-soft)',
         danger: 'var(--c-danger)',
         'danger-soft': 'var(--c-danger-soft)',
+        'danger-strong': 'var(--c-danger-strong)',
         info: 'var(--c-info)',
         'info-soft': 'var(--c-info-soft)',
         // Finance

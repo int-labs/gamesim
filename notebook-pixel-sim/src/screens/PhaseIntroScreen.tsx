@@ -26,7 +26,7 @@ const PHASE_POSE = {
 // the SPACED separator (" - ", or an em/en dash) so the un-spaced days range
 // ("1-30") is never mistaken for the divider.
 function splitTitle(title: string): [string, string] {
-  const m = title.match(/\s[-–—]\s/);
+  const m = title.match(/\s[---]\s/);
   if (!m || m.index === undefined) return ['', title];
   return [title.slice(0, m.index).trim(), title.slice(m.index + m[0].length).trim()];
 }
@@ -181,11 +181,11 @@ export function PhaseIntroScreen() {
                 initial={reduced ? false : { scale: 1.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.34, duration: 0.4, ease: [0.2, 1.7, 0.3, 1] }}
-                className="inline-block bg-brand-500 px-2 py-1 font-hud text-[11px] uppercase tracking-wider text-cream-50"
+                className="inline-block bg-brand-500 px-2 py-1 eyebrow eyebrow-sm text-cream-50"
               >
                 Round {phase}
               </motion.span>
-              <span className="font-hud text-[10px] uppercase tracking-[0.16em] text-ink-500">{eyebrow}</span>
+              <span className="eyebrow eyebrow-sm text-ink-500">{eyebrow}</span>
             </motion.div>
 
             {/* Big theme title — punches in from the left. */}
@@ -193,7 +193,7 @@ export function PhaseIntroScreen() {
               initial={reduced ? false : { scale: 1.14, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               transition={{ delay: 0.42, duration: 0.5, ease: [0.2, 1.5, 0.3, 1] }}
-              className="origin-left font-hud text-[27px] uppercase leading-[1.05] text-ink-900 sm:text-[33px]"
+              className="origin-left h2 uppercase leading-[1.05] text-ink-900 sm:text-[33px]"
             >
               {theme}
             </motion.h1>
@@ -203,7 +203,7 @@ export function PhaseIntroScreen() {
               initial={reduced ? false : { y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.42, duration: 0.45 }}
-              className="mt-3 font-body text-[15px] leading-relaxed text-ink-800"
+              className="mt-3 font-body body-xs leading-relaxed text-ink-800"
             >
               {info.body}
             </motion.p>
@@ -215,19 +215,19 @@ export function PhaseIntroScreen() {
               transition={{ delay: 0.5, duration: 0.45 }}
               className="mt-4 flex items-start gap-2.5 border-2 border-primary bg-primary-soft px-3 py-2.5"
             >
-              <span className="shrink-0 bg-primary px-1.5 py-0.5 font-hud text-[10px] uppercase leading-none text-cream-50">
+              <span className="shrink-0 bg-primary px-1.5 py-0.5 eyebrow eyebrow-sm leading-none text-cream-50">
                 {info.learningFocus}
               </span>
               <div className="min-w-0">
-                <div className="text-[13px] font-bold text-text">{lp.title}</div>
-                <div className="text-[12px] leading-snug text-text-2">{lp.blurb}</div>
+                <div className="item-name text-text">{lp.title}</div>
+                <div className="hint leading-snug text-text-2">{lp.blurb}</div>
               </div>
             </motion.div>
           </div>
 
           {/* Footer — big CTA */}
           <div className="flex items-center justify-between gap-3 border-t-2 border-ink-900 bg-cream-200 p-4 sm:px-6">
-            <span className="font-hud text-[10px] uppercase tracking-wider text-ink-500">
+            <span className="eyebrow eyebrow-sm text-ink-500">
               Round {phase} of 3
             </span>
             <motion.button
@@ -238,7 +238,7 @@ export function PhaseIntroScreen() {
               transition={{ delay: 0.6, duration: 0.4, ease: [0.2, 1.5, 0.4, 1] }}
               whileHover={reduced ? undefined : { y: -2, filter: 'brightness(1.06)' }}
               whileTap={{ scale: 0.97 }}
-              className="group relative inline-flex items-center gap-2 overflow-hidden border-2 border-ink-900 bg-primary px-5 py-3 font-hud text-[13px] uppercase tracking-wider text-ink-900 shadow-[3px_3px_0_0_var(--c-shadow)] sm:text-[14px]"
+              className="group relative inline-flex items-center gap-2 overflow-hidden border-2 border-ink-900 bg-primary px-5 py-3 eyebrow eyebrow-sm text-ink-900 shadow-[3px_3px_0_0_var(--c-shadow)] sm:body-xs"
             >
               {/* gentle "ready" pulse behind the label */}
               {!reduced && (

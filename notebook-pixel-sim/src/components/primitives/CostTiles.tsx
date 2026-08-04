@@ -25,7 +25,9 @@ const TONE: Record<CostTone, { text: string; border: string; bg: string; icon: s
  * cost/energy/impact reads at a glance instead of as faint list text.
  */
 export function CostTiles({ tiles, className }: { tiles: CostTile[]; className?: string }) {
-  const cols = Math.min(tiles.length, 3);
+  // 4 tiles in 3 columns leaves the fourth stranded alone on a second row with
+  // two empty cells beside it. Pair them 2x2 instead; 1-3 stay on one row.
+  const cols = tiles.length === 4 ? 2 : Math.min(tiles.length, 3);
   return (
     <div
       className={clsx('grid gap-2', className)}
@@ -34,12 +36,15 @@ export function CostTiles({ tiles, className }: { tiles: CostTile[]; className?:
       {tiles.map((t) => {
         const tone = TONE[t.tone ?? 'neutral'];
         return (
-          <div key={t.label} className={clsx('readout flex flex-col items-center justify-center gap-1 border-2 px-2 py-2.5 text-center', tone.border, tone.bg)}>
-            <span className="inline-flex items-center gap-1 text-[14px] uppercase tracking-wider font-bold text-text-3">
+          <div key={t.label} className={clsx('readout flex flex-col items-center justify-center gap-1.5 border-2 px-2 py-3 text-center', tone.border, tone.bg)}>
+            <span className="inline-flex items-center gap-1 stat-label">
               {t.icon && <PixelIcon kind={t.icon} size={10} color={tone.icon} />}
               {t.label}
             </span>
-            <span className={clsx('font-hud text-[19px] leading-none tabular-nums', tone.text)}>{t.value}</span>
+            {/* .num-md, not .h3 — these are figures. A heading class put them in
+                the pixel face, which mangles digits and rendered the value
+                SMALLER than the caption above it. */}
+            <span className={clsx('num-md leading-none', tone.text)}>{t.value}</span>
           </div>
         );
       })}
@@ -54,11 +59,11 @@ export function CostTiles({ tiles, className }: { tiles: CostTile[]; className?:
 export function ImpactList({ label = 'Effects', items }: { label?: string; items: string[] }) {
   if (items.length === 0) return null;
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[14px] uppercase tracking-wider font-bold text-text-3">{label}</span>
+    <div className="flex flex-col gap-1.5">
+      <span className="stat-label">{label}</span>
       <div className="flex flex-wrap gap-1.5">
         {items.map((it, i) => (
-          <span key={i} className="inline-flex items-center px-2 py-1 border border-border-soft bg-surface-2/60 text-[16px] text-text leading-none">
+          <span key={i} className="inline-flex items-center px-2.5 py-1.5 border-2 border-success/40 bg-success-soft/40 num-xs text-text leading-none">
             {it}
           </span>
         ))}
