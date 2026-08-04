@@ -195,7 +195,7 @@ function PnLRow({ row }: { row: PnLRowData }) {
       className={clsx(
         'border-b border-ink-900/15 align-middle cursor-help',
         row.emphasis === 'subtotal' && 'bg-cream-50',
-        row.emphasis === 'highlight' && 'bg-cream-200 font-semibold',
+        row.emphasis === 'highlight' && 'bg-cream-200 item-name',
       )}
     >
       <td className="py-1.5 px-2 align-middle">

@@ -27,8 +27,20 @@ import {
   SelectValue,
 } from "@/components/ui/overlays";
 import { Label, Skeleton, StatusDot } from "@/components/ui/primitives";
-import { useSimulations, useTeams } from "@/lib/api-hooks";
-import { relativeTime } from "@/lib/format";
+import {
+  useCohortProjections,
+  useResults,
+  useSimulations,
+  useTeams,
+} from "@/lib/api-hooks";
+import {
+  cohortMoney,
+  cohortStrength,
+  headlineSpread,
+  revenueLooksMisconfigured,
+} from "./cohort-data";
+import { RevenueVsProfit, StandingsBump } from "./cohort-charts";
+import { money as fmtMoney, relativeTime } from "@/lib/format";
 import { useScope } from "@/lib/scope-store";
 
 type Section = {
@@ -70,6 +82,24 @@ function DebriefEditor() {
   const [title, setTitle] = React.useState("Debrief");
   const [intro, setIntro] = React.useState("");
   const [sections, setSections] = React.useState<Section[]>([]);
+
+  // ── What actually happened ────────────────────────────────────────────
+  // Computed live from the scored rounds rather than stored on the debrief:
+  // the facilitator writes prose, the data stays true on its own.
+  const cohortProjections = useCohortProjections(simulationId ?? undefined);
+  const cohortResults = useResults(simulationId ?? undefined);
+
+  const teamRefs = React.useMemo(() => teams, [teams]);
+  const moneyRows = React.useMemo(
+    () => cohortMoney(cohortProjections.data ?? [], teamRefs),
+    [cohortProjections.data, teamRefs]
+  );
+  const strengthRows = React.useMemo(
+    () => cohortStrength(cohortResults.data ?? [], teamRefs),
+    [cohortResults.data, teamRefs]
+  );
+  const spread = React.useMemo(() => headlineSpread(moneyRows), [moneyRows]);
+  const revenueBroken = React.useMemo(() => revenueLooksMisconfigured(moneyRows), [moneyRows]);
 
   React.useEffect(() => {
     if (debrief.data) {
@@ -178,6 +208,90 @@ function DebriefEditor() {
           <Button size="sm" loading={publish.isPending} onClick={() => publish.mutate()}>
             <CloudUpload /> Publish
           </Button>
+        </div>
+      </Card>
+
+      {/* ── What the rounds actually showed ──────────────────────────────
+          Above the prose on purpose: this is the material a facilitator writes
+          FROM. A debrief that leads with an opinion and never shows the
+          numbers asks a room to take it on trust. */}
+      <Card className="mb-5 space-y-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="font-display text-[18px] font-semibold text-foreground">
+              What the rounds showed
+            </h2>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">
+              Computed live from every scored round — it stays true as you run more.
+            </p>
+          </div>
+          {moneyRows.length > 0 && (
+            <Badge tone="outline" size="sm">
+              {moneyRows.length} team{moneyRows.length === 1 ? "" : "s"} scored
+            </Badge>
+          )}
+        </div>
+
+        {/* Never let a facilitator read a misconfiguration as a room full of
+            bad decisions. This is the one case where the honest headline is
+            "these numbers are not about the teams". */}
+        {revenueBroken && (
+          <div className="rounded-lg bg-warning-tint p-4">
+            <p className="text-[13.5px] font-semibold leading-5 text-foreground">
+              Every team shows zero revenue — this is a product setup problem, not a result.
+            </p>
+            <p className="mt-1 text-[12.5px] leading-4 text-body">
+              The engine prices demand by comparing a team's selling price against a reference
+              built from the product's other <span className="font-semibold">money</span> fields
+              (those with a competitive weight above zero). This product has none, so there is
+              nothing to compare against: no customers convert, while unit costs are still
+              charged. Add a money field that represents what a team invests per unit — or give an
+              existing one a weight above zero — on{" "}
+              <span className="font-semibold">Decision fields</span>, then recalculate the round.
+            </p>
+          </div>
+        )}
+
+        {/* The single sentence worth opening a debrief with. It is about the
+            SPREAD, not the winner: two teams on near-identical revenue keeping
+            very different amounts is the lesson the room is there for. */}
+        {!revenueBroken && spread.comparable && (
+          <div className="rounded-lg bg-brand-tint p-4">
+            <p className="text-[13.5px] leading-5 text-foreground">
+              <span className="font-semibold">{spread.comparable[0].teamName}</span> and{" "}
+              <span className="font-semibold">{spread.comparable[1].teamName}</span> earned about
+              the same revenue — {fmtMoney(spread.comparable[0].revenue)} against{" "}
+              {fmtMoney(spread.comparable[1].revenue)} — and kept{" "}
+              <span className="font-semibold text-success">
+                {fmtMoney(spread.comparable[0].grossProfit)}
+              </span>{" "}
+              versus{" "}
+              <span className="font-semibold text-warning">
+                {fmtMoney(spread.comparable[1].grossProfit)}
+              </span>
+              . That gap is the whole point of the round.
+            </p>
+          </div>
+        )}
+
+        <div>
+          <h3 className="mb-2 text-[13px] font-semibold text-foreground">
+            Revenue, and what each team kept
+          </h3>
+          <p className="mb-3 text-[12px] text-muted-foreground">
+            The pale bar is revenue; the solid bar is the gross profit inside it. Sorted by what
+            they kept, not what they billed.
+          </p>
+          <RevenueVsProfit money={moneyRows} />
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <h3 className="mb-2 text-[13px] font-semibold text-foreground">Where the lead moved</h3>
+          <p className="mb-3 text-[12px] text-muted-foreground">
+            Rank by round. Plotted as position rather than share, because the engine's share
+            figures do not partition the market and would read as percentages if drawn.
+          </p>
+          <StandingsBump strength={strengthRows} />
         </div>
       </Card>
 

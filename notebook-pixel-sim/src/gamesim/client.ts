@@ -234,6 +234,37 @@ export interface TeamProgressBody {
  * call able to interrupt a day-tick, which is the one place in the app that
  * must not be able to fail.
  */
+export interface RunReportBody {
+  roundNumber: number;
+  total: number;
+  netProfit: number;
+  inventory: number;
+  insight: number;
+  netDollar: number;
+  cleanliness: number;
+  route?: string | null;
+  obligationMet?: boolean | null;
+  insightsCorrect: number;
+  insightsTotal: number;
+  shopName?: string | null;
+}
+
+/**
+ * PUT /run-reports — file how this team's own 90-day run finished.
+ *
+ * NOT the competitive score. `Results` (rank/share) and `Projections` (the
+ * server's financials) stay authoritative for anything teams are compared on;
+ * this is the player's own rubric — Net Profit 50 · Inventory 25 · Insight 25 —
+ * so the debrief can show what a team actually experienced rather than only
+ * how it placed. Fire and forget, like the progress heartbeat.
+ */
+export function reportRunResult(body: RunReportBody): Promise<void> {
+  return request<void>('/run-reports', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  }).catch(() => undefined);
+}
+
 export function reportTeamProgress(body: TeamProgressBody): Promise<void> {
   return request<void>('/team-progress', {
     method: 'PUT',

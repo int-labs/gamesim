@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/primitives";
 import { AttentionList } from "@/features/dashboard/attention-list";
 import { buildAttention, standings, submissionState } from "@/features/dashboard/attention";
 import { LiveRoundStrip } from "@/features/dashboard/live-round";
+import { LiveTeams } from "@/features/dashboard/live-teams";
 import { StandingsTable } from "@/features/dashboard/standings";
 import {
   useActiveSimulationTypeId,
@@ -22,6 +23,7 @@ import {
   useEndRound,
   useProducts,
   useResults,
+  useTeamProgress,
   useRounds,
   useSimulations,
   useStorageStatus,
@@ -78,6 +80,10 @@ export default function DashboardPage() {
     activeRound?.roundNumber ?? nextPending?.roundNumber
   );
   const results = useResults(simulationId ?? undefined);
+  const liveProgress = useTeamProgress(
+    simulationId ?? undefined,
+    activeRound?.roundNumber ?? nextPending?.roundNumber
+  );
 
   const endRound = useEndRound();
   const setStatus = useUpdateRoundStatus();
@@ -211,6 +217,30 @@ export default function DashboardPage() {
           onActivateRound={doActivate}
         />
       </section>
+
+      {/* 3 ── Who is actually playing */}
+      <div className="mt-6">
+        <Card>
+          <CardHeader
+            title="In the room"
+            subtitle={
+              activeRound
+                ? `Round ${activeRound.roundNumber} · live progress, newest first`
+                : "Live progress appears once a round is open"
+            }
+            action={<CardArrow label="Open teams" onClick={() => navigate("/teams")} />}
+          />
+          <div className="mt-3">
+            <LiveTeams teams={teamList} progress={liveProgress.data ?? []} />
+          </div>
+          <p className="mt-3 border-t border-border pt-3 text-[11.5px] leading-4 text-muted-foreground">
+            Teams report this while they play. <span className="font-semibold text-foreground">Idle</span>{" "}
+            means the app is open but the day hasn't moved for a couple of minutes;{" "}
+            <span className="font-semibold text-foreground">Not started</span> means they haven't
+            signed in for this round at all.
+          </p>
+        </Card>
+      </div>
 
       {/* 3 ── How is the cohort doing */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -22,6 +22,7 @@ import playerConfigRoutes   from "./playerConfigRoutes";
 import avatarRoutes         from "./avatarRoutes";
 import roundNoteRoutes      from "./roundNoteRoutes";
 import teamProgressRoutes  from "./teamProgressRoutes";
+import teamRunReportRoutes from "./teamRunReportRoutes";
 import debriefRoutes        from "./debriefRoutes";
 
 const router = Router();
@@ -44,6 +45,7 @@ router.use("/global-inputs", globalInputRoutes);
 router.use("/player-config", playerConfigRoutes);
 router.use("/avatars", avatarRoutes);
 router.use("/team-progress", teamProgressRoutes);
+router.use("/run-reports", teamRunReportRoutes);
 router.use("/round-notes", roundNoteRoutes);
 router.use("/debriefs", debriefRoutes);
 // router.use("/upload", uploadRoutes);

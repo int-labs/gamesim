@@ -37,14 +37,19 @@ if (!EMAIL || !PASSWORD) {
 
 let TOKEN = null;
 
-async function call(method, path, body, { raw = false } = {}) {
+/**
+ * `token` overrides the admin token for calls that must be made AS a team —
+ * the progress heartbeat takes its identity from the caller's own JWT, so
+ * posting one on a team's behalf with the admin token is refused (correctly).
+ */
+async function call(method, path, body, { raw = false, token } = {}) {
   let res;
   try {
     res = await fetch(`${API}${path}`, {
       method,
       headers: {
         "Content-Type": "application/json",
-        ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
+        ...((token ?? TOKEN) ? { Authorization: `Bearer ${token ?? TOKEN}` } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
@@ -271,6 +276,53 @@ async function main() {
       console.log(`  round ${round}: ${teams.length} decisions · left Active for the console`);
     }
   }
+
+  // ── Live progress for the open round ──────────────────────────────────
+  //
+  // The console's "In the room" band reads this. Without it a freshly seeded
+  // cohort shows twelve teams that have supposedly never opened the app, which
+  // makes the one panel a facilitator uses during a session look broken.
+  //
+  // The spread is deliberate: a couple racing ahead, a couple mid-run, one
+  // barely started and nearly out of energy, one finished, and the rest left
+  // absent — because "not started" is a real state and the panel exists to
+  // make it visible.
+  const PROGRESS = [
+    { day: 82, phase: 3, cash: 5210, energy: 46, lines: 3 },
+    { day: 74, phase: 3, cash: 3860, energy: 38, lines: 3 },
+    { day: 63, phase: 3, cash: 2480, energy: 27, lines: 2 },
+    { day: 55, phase: 2, cash: 1740, energy: 22, lines: 2 },
+    { day: 41, phase: 2, cash: 980, energy: 14, lines: 2 },
+    { day: 34, phase: 2, cash: 720, energy: 11, lines: 1 },
+    { day: 11, phase: 1, cash: 210, energy: 5, lines: 0 },
+    { day: 90, phase: 3, cash: 6390, energy: 52, lines: 4, ended: true },
+  ];
+
+  let beats = 0;
+  for (let i = 0; i < PROGRESS.length && i < teams.length; i++) {
+    const t = teams[i];
+    if (!t.passkey) continue;
+
+    // The heartbeat route takes the team's identity from its own token, so we
+    // have to sign in as each team rather than posting on their behalf.
+    const login = await call(
+      "POST",
+      "/users/login-passkey",
+      { passkey: t.passkey },
+      { raw: true }
+    );
+    const teamToken = login.data?.token;
+    if (!teamToken) continue;
+
+    const beat = await call(
+      "PUT",
+      "/team-progress",
+      { roundNumber: 3, shopName: t.spec.name, ...PROGRESS[i] },
+      { raw: true, token: teamToken }
+    );
+    if (beat.ok) beats++;
+  }
+  console.log(`  live progress: ${beats} of ${teams.length} teams reporting`);
 
   // ── Facilitator content ───────────────────────────────────────────────
   const notes = [

@@ -20,9 +20,9 @@ import { NavIcon } from '@/components/icons/NavIcon';
 import { SafeImage } from '@/components/primitives/SafeImage';
 import { CountUp } from '@/components/primitives/CountUp';
 import { A } from '@/assets';
-import { StatsDrawer } from '@/components/hud/StatsDrawer';
+import { HudMenu } from '@/components/hud/HudMenu';
 import { HistoryDropdown } from '@/components/hud/HistoryDropdown';
-import { AccessMenu } from '@/components/AccessMenu';
+import { StatsDrawer } from '@/components/hud/StatsDrawer';
 import clsx from 'clsx';
 import { HUD_TOOLTIPS } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
@@ -109,7 +109,6 @@ export function TopHUD() {
   const [phasePulse, setPhasePulse] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const historyBtnRef = useRef<HTMLButtonElement | null>(null);
   const lastPhase = useRef(phase);
   useEffect(() => {
     if (lastPhase.current !== phase) {
@@ -253,93 +252,25 @@ export function TopHUD() {
         <div className="flex-1 min-w-0 lg:hidden" />
 
         {/* === Utility — Help + Stats (compact only) + Mascot toggle === */}
-        <div className="shrink-0 inline-flex items-center gap-1" role="toolbar" aria-label="Utilities">
-          {/* Stats drawer trigger — visible at ALL widths. The KPI chips
-              (Op Profit / Revenue / Stock / Demand / Fit) were removed from
-              this bar entirely, and the Metrics dock only exists on the
-              Product page — this button is the universal way to see those
-              numbers (crucially on the Business page at desktop widths). */}
-          <Tooltip content="View all KPIs (Cash, Energy, Stock, Demand, Fit, Profit, Revenue)" placement="bottom">
-            <button
-              type="button"
-              onClick={() => { playSfx('click-soft'); setStatsOpen(true); }}
-              aria-label="Open all KPIs"
-              className="inline-flex items-center justify-center h-[30px] w-[30px] bg-surface border border-border text-text-2 hover:bg-surface-2 hover:text-text cursor-pointer"
-            >
-              <NavIcon icon={Package} size={14} />
-            </button>
-          </Tooltip>
-          {/* Audio toggles + History — hidden below md to save horizontal
-              space (sm = 640, md = 768; tablet portrait at 768 still
-              overflows with all icons present). They remain reachable
-              from the Stats drawer's Settings row, which always renders. */}
-          <Tooltip content={sfxEnabled ? 'Sound effects on - click to mute' : 'Sound effects muted - click to enable'} placement="bottom">
-            <button
-              type="button"
-              onClick={() => {
-                const next = !sfxEnabled;
-                audio.setSfxEnabled(next);
-                toggleSfx();
-                if (next) playSfx('click-soft');
-              }}
-              aria-label={sfxEnabled ? 'Mute sound effects' : 'Enable sound effects'}
-              aria-pressed={sfxEnabled}
-              className="hidden lg:inline-flex game-hud-iconbtn"
-            >
-              <NavIcon icon={sfxEnabled ? Volume2 : VolumeX} size={15} color="currentColor" />
-            </button>
-          </Tooltip>
-          <Tooltip content={musicEnabled ? 'Background music playing - click to stop' : 'Background music off - click to play lo-fi'} placement="bottom">
-            <button
-              type="button"
-              onClick={() => {
-                // Drive AudioManager DIRECTLY inside the click handler so
-                // Safari's autoplay-policy gesture propagation works. The
-                // store update + useEffect mirror happens after; if we
-                // only relied on useEffect the gesture would be lost.
-                const next = !musicEnabled;
-                audio.setMusicEnabled(next);
-                toggleMusic();
-              }}
-              aria-label={musicEnabled ? 'Stop music' : 'Play music'}
-              aria-pressed={musicEnabled}
-              className="hidden lg:inline-flex game-hud-iconbtn"
-            >
-              {musicEnabled
-                ? <NavIcon icon={Music} size={15} color="currentColor" />
-                : <MusicOffIcon size={15} color="currentColor" />}
-            </button>
-          </Tooltip>
-          <Tooltip content="Decision timeline - review every choice you've made this run" placement="bottom">
-            <button
-              type="button"
-              onClick={() => { playSfx('click-soft'); setHistoryOpen((v) => !v); }}
-              ref={historyBtnRef}
-              aria-label="Open decision history"
-              aria-haspopup="menu"
-              aria-expanded={historyOpen}
-              className="hidden lg:inline-flex game-hud-iconbtn"
-            >
-              <NavIcon icon={HistoryIcon} size={15} color="currentColor" />
-            </button>
-          </Tooltip>
-          <Tooltip content="Open Amelia's quick refresher" placement="bottom">
-            <UtilityIconButton title="Help" onClick={() => { playSfx('click-soft'); helpClick(); }} icon={CircleHelp} />
-          </Tooltip>
-          {/* Global logout — lives here in-game so it never overlaps the bottom
-              phase bar (the floating pill only shows on non-game screens). */}
-          <AccessMenu inline />
-        </div>
+        {/* Utility controls. Six separate icons (stats, sfx, music, history,
+            help, logout) crowded the bar's right edge and pushed the KPI chips
+            at common laptop widths, so several were hidden below `lg` and
+            simply unreachable there. HudMenu keeps the two run-work icons on
+            the bar and folds the settings-type controls — shop rename, sound,
+            music, help, log out — into one "More" menu that fits at every
+            width. Its log out calls the gamesim provider, which is what
+            actually ends the session. */}
+        <HudMenu onOpenStats={() => setStatsOpen(true)} onHelp={helpClick} />
       </div>
+      {/* StatsDrawer's History row opens this. HudMenu owns its own copy for
+          the bar/menu path; both are the same self-contained modal. */}
+      {historyOpen && <HistoryDropdown onClose={() => setHistoryOpen(false)} />}
       {statsOpen && (
         <StatsDrawer
           open={statsOpen}
           onClose={() => setStatsOpen(false)}
           onOpenHistory={() => setHistoryOpen(true)}
         />
-      )}
-      {historyOpen && historyBtnRef.current && (
-        <HistoryDropdown anchor={historyBtnRef.current} onClose={() => setHistoryOpen(false)} />
       )}
     </header>
   );
@@ -448,7 +379,7 @@ function Chip({
           <NavIcon icon={icon} size={14} color={variant === 'success' ? successChipInk[tone] : toneIcon[tone]} />
           <span
             className={clsx(
-              'font-semibold uppercase tracking-[0.14em] hint',
+              'stat-label',
               variant === 'success' ? 'text-ink-900/80' : 'text-text-3',
               compact && 'hidden xl:inline',
             )}

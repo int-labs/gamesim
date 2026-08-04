@@ -1125,7 +1125,14 @@ button {
 .vn-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  /* 60, not 9999. The layer order the rest of the app documents (see
+     PixelModal) is: canvas < 10, sticky HUD 30, mascot 60, modals 100+,
+     drawers/menus 130-150. At 9999 this dim, blurred backdrop sat above ALL of
+     them, so the More menu, the Stats drawer, the decision history and the
+     log-out confirm were all unreadable and unclickable whenever Amelia
+     happened to be mid-sentence. She belongs above the page and below anything
+     the player deliberately opened. */
+  z-index: 60;
   background: rgba(0, 0, 0, 0.82);
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);

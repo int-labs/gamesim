@@ -138,7 +138,7 @@ export function LiveTeams({
                   thin
                   value={p?.day ?? 0}
                   total={totalDays}
-                  tone={state === "idle" ? "warning" : state === "done" ? "success" : "brand"}
+                  tone={state === "idle" ? "warning" : state === "done" ? "success" : "primary"}
                 />
               </div>
             </div>

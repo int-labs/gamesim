@@ -274,7 +274,7 @@ function Chip({ children, tone }: { children: ReactNode; tone: 'neutral' | 'succ
     : tone === 'info' ? 'border-border-soft text-text-2 bg-surface-2'
     : 'border-border-soft text-text-3 bg-surface-2';
   return (
-    <span className={clsx('inline-flex items-center px-1.5 py-0.5 border hint font-semibold leading-none tabular-nums', cls)}>
+    <span className={clsx('inline-flex items-center px-1.5 py-0.5 border stat-label leading-none', cls)}>
       {children}
     </span>
   );

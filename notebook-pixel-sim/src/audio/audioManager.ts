@@ -61,15 +61,25 @@ class AudioManager {
 
   setMusicEnabled(on: boolean) {
     // Idempotent — calling with the current state is a no-op. This
-    // matters because the click handler in TopHUD calls this directly
+    // matters because the click handler in the HUD calls this directly
     // (for Safari gesture compliance) AND a useEffect mirrors the
     // store; without the guard music starts twice on toggle.
     if (this.musicEnabled === on) return;
     this.musicEnabled = on;
-    if (on) {
-      this.startMusic();
-    } else {
-      this.stopMusic();
+    // start/stop must not throw out of here. Creating or resuming an
+    // AudioContext can fail — an autoplay policy, a browser with the Web Audio
+    // API unavailable, a device with no output. If that exception escaped, the
+    // caller's `toggleMusic()` never ran, so the manager believed music was on
+    // while the store still said off: the toggle looked dead and stayed dead,
+    // because the idempotent guard above then matched on every later attempt.
+    try {
+      if (on) this.startMusic();
+      else this.stopMusic();
+    } catch {
+      // Roll the flag back so the guard doesn't wedge the toggle, and let the
+      // caller's state update proceed — silence is recoverable, a stuck control
+      // is not.
+      this.musicEnabled = !on;
     }
   }
 

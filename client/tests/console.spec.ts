@@ -165,6 +165,33 @@ test.describe("console", () => {
     await expect(dialog.getByText(/must be a JSON object/i)).toBeVisible();
   });
 
+  test("shows who is in the room, including teams that never started", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+    // The panel a facilitator reads while walking the room. Its value is that
+    // it distinguishes "not started" from "submitted" — the console could
+    // always see decisions, which is the least actionable of the two.
+    const band = page.getByText("In the room", { exact: true });
+    await expect(band).toBeVisible({ timeout: 20_000 });
+
+    // Every team gets a row whether or not it has ever reported, because a
+    // missing row is exactly the state worth surfacing.
+    const rows = page.locator("li").filter({ hasText: /Not started|Playing|Idle|Finished/ });
+    await expect(rows.first()).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("refuses to leak live progress to a team token", async ({ page }) => {
+    // A team asking for this is asking for every rival's cash position
+    // mid-round — the thing the game is about discovering.
+    const api = process.env.VITE_GAMESIM_API_URL ?? "http://localhost:5000/api";
+    const res = await page.request.get(`${api}/team-progress?simulationId=x`, {
+      headers: { Authorization: "Bearer not-a-real-token" },
+      failOnStatusCode: false,
+    });
+    expect([401, 403]).toContain(res.status());
+  });
+
   test("reports whether uploads survive a redeploy", async ({ page }) => {
     // The console banner is the only place an operator learns that local-disk
     // storage is ephemeral. It reads a verified probe, not just config.

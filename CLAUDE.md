@@ -82,11 +82,44 @@ Two spreadsheets define the game's numbers — `FinLit Calc` (market demand per 
 
 Two calibration facts worth knowing: the model assumes **12 teams** (`BASE_MARKET_SHARE = 8.125%`, noted in the sheet as "divided by 12 teams"), and the V2 `STARTING_CASH`/`STARTING_DEBT` constants are legacy — the live route economics are V3's `ROUTE_START` ($1000 self-funded, $5000 investor opening at −$4000), which matches the spec exactly.
 
+### A product with no price reference earns nothing
+
+`calcFinancials` derives a reference price (`dynamicPrice`) by summing the product's **money** fields with `direction > 0`, *excluding* `selling_price` ([calcFinancials.ts:280](server/src/sim/calcFinancials.ts:280)). That reference is what a team's selling price is judged against.
+
+The Notebook product ships four fields — `score`, `selling_price` (direction 0), `unit_cost` (direction 0) and `projected_market_share` — so **no field feeds `dynamicPrice`**. It is therefore 0, `calcPricingScore` returns 0 on its `dynamicPrice <= 0` guard, no customers convert, and revenue is 0 while COGS is still charged. Every team in a scored round posts a pure loss of roughly $40,000 regardless of what they decided.
+
+Standings are unaffected — `calcMarketModel` doesn't use `dynamicPrice` — which is exactly why this went unnoticed: the console's rankings look completely healthy while every financial figure underneath them is meaningless.
+
+This is a **provisioning** problem, not an engine bug: `provision-notebook.mjs` creates a field set the financial model can't price. Fixing it means giving the product a money field that represents per-unit investment (or a competitive weight above zero on an existing one) and recalculating. That is a game-design decision, so it has deliberately not been made here — the console now **detects and explains it** on the Debrief instead of letting a facilitator read a misconfiguration as twelve bad teams.
+
+### The debrief shows the data, not just the write-up
+
+`client/src/features/debrief/` computes its figures live from scored rounds rather than storing them, so the prose can go stale but the numbers can't. `cohort-data.ts` is pure and holds the derivations; `cohort-charts.tsx` draws them as hand-built SVG, matching the rest of the console.
+
+Two things worth knowing before extending it:
+
+- **The money is per-product.** `Projection.pnl` / `.bizperf` / `.cashflow` / `.balanceSheet` are all null in practice — the round close writes into `projections.<productId>` — so revenue and COGS have to be aggregated across a team's products. A chart built against `pnl` renders nothing and looks like a data problem.
+- **Standings are drawn as RANK, not share.** Plotting the share values invites "we had 18% of the market", which they are not (see below).
+
 ### Market share does not sum to 100%
 
 `calcMarketModel` computes a proper competed share (`weightedScore / totalScore`, which does sum to 1) and then multiplies it by each team's **own declared `projected_market_share`**, itself scaled by a diminishing-returns factor inside `getInput` ([calcMarketModel.ts:174](server/src/sim/calcMarketModel.ts:174)). A twelve-team round with everyone declaring 1/12 comes out summing to ~175%.
 
 The values rank teams correctly, so they are fine for standings — but they are **not** a partition of the market and must never be labelled "x% of the market" anywhere an operator might repeat it to a room. The console's standings table calls the column "Strength" and says so in a footnote.
+
+### Live progress: what the operator can finally see
+
+The console could see submitted `Decision`s and nothing else — which answers "who is finished" and not the question a facilitator actually has mid-round: **who is stuck**. A team on day 12 with no product lines and $180 left looked, from the console, exactly like a team that never opened the app.
+
+`TeamProgress` (`server/src/models/TeamProgress.ts`) is a small per-`simulation × team × round` upsert carrying day, phase, cash, energy, line count, shop name and `lastSeenAt`. The player heartbeats it from `GamesimProvider` on every day change and on the poll interval; the dashboard's **In the room** band renders four states — *Playing*, *Idle*, *Finished*, and *Not started* for a team with no row at all, which is the most actionable of the four.
+
+Three things it is deliberately not:
+
+- **Not authoritative.** Nothing scores from it and nothing is restored from it. The player's Zustand store remains the single source of truth for a run; making this authoritative would put a network call inside the day-tick, which is the last place that should be able to fail. The heartbeat is fire-and-forget and its promise never rejects.
+- **Not a time series.** One row per team per round, overwritten in place. The history a debrief needs already lives in `Results` / `Projections`.
+- **Not readable by teams.** `GET` is staff-only — a team asking for it is asking for every rival's cash position mid-round. The `PUT` is team-only and takes `teamId`/`simulationId` **from the token**, never the body, so one team cannot write or fake another's row. All four cases are covered by the e2e suite.
+
+"Idle" is derived from staleness (two minutes), and the band re-renders on its own timer so a team that closed their laptop decays from green on screen without waiting for a refetch.
 
 ### The console shows the player's art
 

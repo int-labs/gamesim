@@ -373,6 +373,22 @@ export function useTeamProgress(simulationId?: string, roundNumber?: number) {
   });
 }
 
+/**
+ * Every team's projections for a simulation.
+ *
+ * `teamId` is deliberately omitted: the route now scopes a TEAM token to its
+ * own row and lets staff read the whole cohort, which is what the debrief's
+ * charts are built from. (It previously took `teamId` straight from the query
+ * with no role check, so any team could read a rival's P&L.)
+ */
+export function useCohortProjections(simulationId?: string) {
+  return useQuery({
+    queryKey: ["projections", "cohort", simulationId],
+    queryFn: () => list<any>(api.getProjections(simulationId!)),
+    enabled: !!simulationId,
+  });
+}
+
 export function useGlobalInputs(simulationTypeId?: string) {
   const fallback = useActiveSimulationTypeId();
   const typeId = simulationTypeId ?? fallback;

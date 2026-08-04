@@ -220,7 +220,7 @@ function KVTable({ groups }: { groups: KVGroup[] }) {
                   )}
                 >
                   <td className="pl-10 pr-2.5 py-2 align-middle">
-                    <div className={clsx('leading-tight truncate body-xs', r.emphasis ? 'strong text-text' : 'font-semibold text-text-2')}>
+                    <div className={clsx('leading-tight truncate body-xs', r.emphasis ? 'item-name text-text' : 'text-text-2')}>
                       {r.label}
                     </div>
                     {r.sub && <div className="hint font-medium text-text-3 leading-tight truncate mt-0.5">{r.sub}</div>}
@@ -428,7 +428,7 @@ export function FinanceTable() {
                 total: computeRow(r, 'total'),
               };
               const emphasisCls =
-                r.emphasis === 'highlight' ? 'bg-surface-2 font-semibold'
+                r.emphasis === 'highlight' ? 'bg-surface-2 item-name'
                 : r.emphasis === 'subtotal' ? 'bg-surface-2/40'
                 : '';
               // Group-based divider: heavier line where the group changes

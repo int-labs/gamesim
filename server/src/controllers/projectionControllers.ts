@@ -2,20 +2,42 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Product from "../models/Products";
 import Projection from "../models/Projections";
+import { ROLES } from "../constants/roles";
 import BaseData from "../models/BaseData";
 import { calcFinancials, ProductField, BaseVariables } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
 export const getProjectionsByTeam = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { simulationId, teamId, roundNumber } = req.query;
+    const { simulationId, roundNumber } = req.query;
+    const caller = (req as any).user ?? {};
 
-    if (!simulationId || !teamId) {
-      res.status(400).json({ message: "simulationId and teamId are required." });
+    if (!simulationId) {
+      res.status(400).json({ message: "simulationId is required." });
       return;
     }
 
-    const filter: Record<string, any> = { simulationId, teamId };
+    /**
+     * ── A TEAM MAY ONLY EVER READ ITSELF ────────────────────────────────
+     * This route took `teamId` straight from the query with no role check,
+     * so any team token could read any other team's P&L, cash and cost
+     * breakdown — mid-round, while they were still competing. Scoping to the
+     * token closes that; a team asking for someone else now silently gets its
+     * own row rather than an error, because the request is not one a correct
+     * client can make.
+     */
+    const isTeam = caller.role === ROLES.TEAM;
+    const teamId = isTeam ? caller.teamId : req.query.teamId;
+
+    // Staff may omit teamId entirely to read the whole cohort — that is what
+    // the debrief's charts are built from. A team may not.
+    if (!teamId && isTeam) {
+      res.status(403).json({ message: "This token can only read its own projections." });
+      return;
+    }
+
+    const filter: Record<string, any> = { simulationId };
+    if (teamId) filter.teamId = teamId;
     if (roundNumber !== undefined) filter.roundNumber = Number(roundNumber);
 
     const projections = await Projection.find(filter).sort({ roundNumber: 1 });
