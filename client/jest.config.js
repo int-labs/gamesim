@@ -11,7 +11,4 @@ module.exports = {
     "^axios$": "axios/dist/node/axios.cjs",
   },
   testPathIgnorePatterns: ["/node_modules/", "/tests/"], // ignore Playwright
-  moduleNameMapper: {
-    "^axios$": "axios/dist/node/axios.cjs"
-  }
 };

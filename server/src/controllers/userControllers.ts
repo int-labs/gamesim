@@ -1,11 +1,103 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import mongoose from "mongoose";
+import { randomBytes } from "crypto";
 import User from "../models/users";
 import Team from "../models/teams";
 import jwt from "jsonwebtoken";
+import { ROLES } from "../constants/roles";
 
 const SALT_ROUNDS = 10;
+
+/**
+ * POST /users/login — staff sign-in for the operator console.
+ * Body: { email, password }
+ *
+ * Teams sign in with a passkey (below); admins, operators and clients sign in
+ * with an email and password. This is the route that replaces the console's
+ * hard-coded development token — with no login there was no way for the
+ * dashboard to authenticate at all, so the token shipped inside the JS bundle.
+ *
+ * Deliberate choices:
+ *  - `role: "team"` is refused here even with the right password. Team accounts
+ *    exist per simulation and are addressed by passkey; letting one through
+ *    this route would hand a team a staff-shaped session.
+ *  - A wrong email and a wrong password return the identical 401, and the
+ *    lookup runs a bcrypt compare against a dummy hash when no user matches,
+ *    so response timing doesn't reveal which addresses exist.
+ */
+export const loginUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+
+    if (!email || !password) {
+      res.status(400).json({ message: "email and password are required." });
+      return;
+    }
+
+    const user = await User.findOne({ email });
+
+    // Same work whether or not the account exists — see the timing note above.
+    const hash = user?.password ?? DUMMY_HASH;
+    const ok = await bcrypt.compare(password, hash);
+
+    if (!user || !ok || user.role === ROLES.TEAM) {
+      res.status(401).json({ message: "Incorrect email or password." });
+      return;
+    }
+
+    const token = jwt.sign(
+      { role: user.role, userId: user._id },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "12h" }
+    );
+
+    res.status(200).json({
+      token,
+      user: { _id: user._id, email: user.email, role: user.role },
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to log in." });
+  }
+};
+
+/** A real bcrypt hash of a value nothing can supply, used only to keep the
+ *  failure path's timing indistinguishable from the success path's. */
+const DUMMY_HASH = "$2b$10$CwTycUXWue0Thq9StjUM0uJ8.PjPMHUq0Q7ImV8YOZ5Yh6Ub4dGYS";
+
+/**
+ * GET /users/me — who the caller's token says they are.
+ *
+ * `authenticate` only verifies the JWT signature; it never touches the
+ * database, so a validly signed token for a since-deleted account still passes
+ * it. This route does the lookup, which is what lets the console tell a stale
+ * session from a live one on boot instead of discovering it on the first write.
+ */
+export const getMe = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId, role, teamId } = (req as any).user ?? {};
+
+    if (!userId) {
+      // Team tokens carry teamId, not userId — answer from the token itself.
+      if (role === ROLES.TEAM) {
+        res.status(200).json({ role, teamId: teamId ?? null });
+        return;
+      }
+      res.status(401).json({ message: "Token carries no user." });
+      return;
+    }
+
+    const user = await User.findById(userId).select("email role");
+    if (!user) {
+      res.status(401).json({ message: "This account no longer exists." });
+      return;
+    }
+
+    res.status(200).json({ _id: user._id, email: user.email, role: user.role });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to load account." });
+  }
+};
 
 // POST /users/login-passkey
 // Body: { passkey }
@@ -77,8 +169,20 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
   try {
     const { password, role, teamId } = req.body;
 
-    if (!password || !role) {
-      res.status(400).json({ message: "password and role are required." });
+    if (!role) {
+      res.status(400).json({ message: "role is required." });
+      return;
+    }
+
+    // Team users sign in by passkey only — `loginWithPasskey` never consults
+    // the password — so requiring one just forced callers to invent a throwaway
+    // value. Generate an unguessable one server-side instead, which keeps the
+    // password login path permanently closed for these accounts.
+    const effectivePassword =
+      password ?? (role === ROLES.TEAM ? randomBytes(32).toString("hex") : null);
+
+    if (!effectivePassword) {
+      res.status(400).json({ message: "password is required for this role." });
       return;
     }
 
@@ -95,7 +199,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       passkey      = await generateUniquePasskey(simulationId);
     }
 
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(effectivePassword, SALT_ROUNDS);
 
     const user = await User.create({
       password: hashedPassword,

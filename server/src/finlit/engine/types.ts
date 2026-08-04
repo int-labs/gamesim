@@ -2,9 +2,9 @@
 // the simulator can be unit-verified in isolation.
 
 import type { GenreId, ProductionSpec, ChannelId, CandidateId, MarketingId, VendorId } from '../data';
-import type { Route } from './route';
 
-export type { Route };
+/** 'self' = bootstrapped/self-funded, 'investor' = took outside investment. Ported verbatim from notebook-pixel-sim src/types/index.ts. */
+export type Route = 'self' | 'investor';
 
 /** One notebook line the player produces + sells. */
 export interface FinlitLine {

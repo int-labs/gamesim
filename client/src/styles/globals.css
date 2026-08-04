@@ -1,0 +1,518 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ============================================================================
+   INT LABS CONSOLE — design tokens
+   ----------------------------------------------------------------------------
+   Architecture follows notes/DASHBOARD-UIUX-SPEC.md (surface hierarchy, motion,
+   component inventory). The SKIN is Int Labs per Intlabs-Brand-Guidelines.md §4,
+   §5, §11 — the spec's forest/lime palette and Inter/Jakarta pairing are
+   deliberately NOT used.
+
+   Brand canon:  Pink #F9137D · Navy #2E2D7E · Yellow #FEE606
+                 Periwinkle #525CA9 · Grey #EBEBEB · Poppins only
+   Role mapping: brand §7.3 "in-product UI" — pink CTAs, yellow chips,
+                 navy headers/nav, periwinkle secondary.
+
+   ACCESSIBILITY NOTE (measured, not assumed):
+   white-on-#F9137D is 3.88:1 and fails WCAG AA for 14px UI text. So pink is a
+   RAMP: --pink-500 stays the canonical brand hex for chips, accents, data marks
+   and large display type; --pink-600 (#D80E68, 5.02:1 on white) carries every
+   fill that hosts small white text. Never swap them.
+   ========================================================================= */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ---- brand primitives (verbatim from the brand guide) ------------------ */
+  --il-pink: #f9137d;
+  --il-navy: #2e2d7e;
+  --il-yellow: #fee606;
+  --il-periwinkle: #525ca9;
+  --il-grey: #ebebeb;
+  --il-logo-gradient: linear-gradient(90deg, #e14673 0%, #7651b3 100%);
+
+  /* ---- pink ramp -------------------------------------------------------- */
+  --pink-50: #fee8f1;
+  --pink-100: #fdd0e4;
+  --pink-200: #fca9cd;
+  --pink-300: #fb74ae;
+  --pink-500: #f9137d; /* BRAND — chips, accents, marks, display type */
+  --pink-600: #d80e68; /* interactive fills carrying small white text */
+  --pink-700: #a8094f; /* hover / pressed */
+  --pink-900: #6b0533;
+
+  /* ---- navy ramp -------------------------------------------------------- */
+  --navy-50: #eaeaf5;
+  --navy-100: #d5d5eb;
+  --navy-200: #b4b3dc;
+  --navy-300: #8a89c4;
+  --navy-500: #4a48a8;
+  --navy-600: #3a3990;
+  --navy-700: #2e2d7e; /* BRAND */
+  --navy-800: #23225f;
+  --navy-900: #171640;
+
+  /* ---- accent ramps ----------------------------------------------------- */
+  --yellow-100: #fffad1;
+  --yellow-300: #fff27a;
+  --yellow-500: #fee606; /* BRAND — never as text on white */
+  --yellow-700: #b3a000;
+  --peri-50: #e7e9f5;
+  --peri-100: #d3d7ec;
+  --peri-500: #525ca9; /* BRAND */
+  --peri-600: #414a8c;
+
+  /* ---- neutral ramp (faint navy tint so greys sit with the brand ink) ---- */
+  --n-0: #f7f7f9; /* canvas */
+  --n-25: #fcfcfd; /* surface-2: wells, group bands, hovers */
+  --n-50: #ffffff; /* cards, popovers */
+  --n-100: #f1f1f4; /* pressed wells, skeleton base */
+  --n-200: #e4e4ea; /* borders / hairlines (≈ brand grey #EBEBEB) */
+  --n-300: #c7c7d1; /* disabled text, faint icons */
+  --n-400: #9a9aa8; /* placeholder */
+  --n-500: #6b6b7b; /* muted text — 4.91:1 on canvas */
+  --n-700: #3d3d50; /* body text */
+  --n-900: #16162b; /* headings, numerals, ink */
+
+  /* ---- semantic surfaces ------------------------------------------------ */
+  --background: var(--n-0);
+  --foreground: var(--n-900);
+  --card: var(--n-50);
+  --card-foreground: var(--n-900);
+  --popover: var(--n-50);
+  --popover-foreground: var(--n-900);
+  --muted: var(--n-25);
+  --muted-foreground: var(--n-500);
+  --body: var(--n-700);
+  --border: var(--n-200);
+  --input: var(--n-200);
+
+  /* ---- interactive ------------------------------------------------------ */
+  --primary: var(--pink-600);
+  --primary-foreground: #ffffff;
+  --primary-hover: var(--pink-700);
+  --secondary: var(--navy-700);
+  --secondary-foreground: #ffffff;
+  --accent: var(--pink-50); /* tinted fills: active nav, icon tiles */
+  --accent-foreground: var(--pink-700);
+  --ring: color-mix(in srgb, var(--pink-600) 45%, transparent);
+  --signal: var(--yellow-500); /* highlight accent (brand yellow) */
+  --signal-ink: var(--n-900); /* text that sits ON yellow */
+
+  /* ---- status (scoped extension — chips/dots/deltas/marks ONLY) ---------
+     Brand has no semantic red/green. info reuses brand periwinkle, warning
+     leans to brand yellow's hue, danger leans toward brand pink. Only
+     `success` is a genuinely new hue and it is unavoidable for Active /
+     Completed states. These never appear as page furniture. */
+  --success: #0e8a5f;
+  --success-tint: #e3f5ee;
+  --warning: #b3760a;
+  --warning-tint: #fdf2dc;
+  --destructive: #c62b45; /* text / icons / chip label */
+  --destructive-solid: #c62b45; /* FILL behind white text — 5.48:1 */
+  --destructive-foreground: #ffffff;
+  --destructive-tint: #fbe7ea;
+  --info: var(--peri-500);
+  --info-tint: var(--peri-50);
+  --neutral: var(--n-500);
+  --neutral-tint: var(--n-100);
+
+  /* ---- charts ----------------------------------------------------------- */
+  --chart-1: #2e2d7e; /* navy */
+  --chart-2: #f9137d; /* pink */
+  --chart-3: #525ca9; /* periwinkle */
+  --chart-4: #e5b800; /* gold — readable stand-in for brand yellow on white */
+  --chart-5: #fb74ae; /* pink-300 */
+  --chart-6: #8a89c4; /* navy-300 */
+
+  /* ---- hero cards (theme-stable — identical in light & dark) ------------ */
+  --hero-from: #23225f; /* navy-800 */
+  --hero-to: #171640; /* navy-900 */
+  --hero-fg: #ffffff;
+  --hero-muted: #a9a8d4;
+  --hero-accent: var(--yellow-500); /* yellow on navy = 9.22:1 ✅ brand-approved */
+
+  /* ---- geometry (brand §11: card radius 20, pill 999) ------------------- */
+  --radius: 0.75rem; /* 12px — buttons, inputs, menu items */
+  --radius-card: 1.25rem; /* 20px — BRAND card radius */
+  --shadow-card: 0 1px 2px rgb(22 22 43 / 0.04), 0 8px 24px -12px rgb(22 22 43 / 0.1);
+  --shadow-hover: 0 2px 4px rgb(22 22 43 / 0.05), 0 16px 32px -12px rgb(22 22 43 / 0.14);
+  --shadow-pop: 0 4px 8px rgb(22 22 43 / 0.06), 0 24px 48px -12px rgb(22 22 43 / 0.18);
+  --shadow-modal: 0 8px 16px rgb(22 22 43 / 0.08), 0 32px 64px -16px rgb(22 22 43 / 0.24);
+}
+
+.dark {
+  --background: #0e0e1c;
+  --foreground: #ececf5;
+  --card: #17172b;
+  --card-foreground: #ececf5;
+  --popover: #17172b;
+  --popover-foreground: #ececf5;
+  --muted: #1e1e36;
+  --muted-foreground: #9a9ab4;
+  --body: #c8c8da;
+  --border: #2a2a47;
+  --input: #2a2a47;
+
+  /* pink-600 keeps its 5.02:1 against white labels in both themes */
+  --primary: var(--pink-600);
+  --primary-foreground: #ffffff;
+  --primary-hover: var(--pink-500);
+  --secondary: var(--navy-500);
+  --secondary-foreground: #ffffff;
+  --accent: #2d1526; /* pink @ ~18% over the dark canvas */
+  --accent-foreground: var(--pink-300);
+  --ring: color-mix(in srgb, var(--pink-500) 50%, transparent);
+
+  --success: #35c98d;
+  --success-tint: #10312a;
+  --warning: #e0aa3c;
+  --warning-tint: #33280f;
+  /* Lightened so it reads as TEXT on a dark card (6.16:1). It must NOT become
+     a fill — white-on-#ef7183 is 2.85:1 — so the solid keeps the deep red. */
+  --destructive: #ef7183;
+  --destructive-solid: #c62b45;
+  --destructive-tint: #38151d;
+  --info: #9aa2e0;
+  --info-tint: #1e2144;
+  --neutral: #9a9ab4;
+  --neutral-tint: #232340;
+
+  --chart-1: #8a89c4;
+  --chart-2: #fb74ae;
+  --chart-3: #7f88cc;
+  --chart-4: #f2ca3f;
+  --chart-5: #fca9cd;
+  --chart-6: #b4b3dc;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+  --shadow-hover: 0 2px 4px rgb(0 0 0 / 0.35), 0 16px 32px -12px rgb(0 0 0 / 0.55);
+  --shadow-pop: 0 4px 8px rgb(0 0 0 / 0.4), 0 24px 48px -12px rgb(0 0 0 / 0.6);
+  --shadow-modal: 0 8px 16px rgb(0 0 0 / 0.45), 0 32px 64px -16px rgb(0 0 0 / 0.65);
+}
+
+/* ============================================================================
+   Tailwind v4 theme mapping — components consume ONLY these.
+   A raw hex inside a component file is a review-blocker.
+   ========================================================================= */
+@theme inline {
+  --font-sans: "Poppins", "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-display: "Poppins", "Segoe UI", Helvetica, Arial, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-body: var(--body);
+  --color-border: var(--border);
+  --color-input: var(--input);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-destructive: var(--destructive);
+  --color-destructive-solid: var(--destructive-solid);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-tint: var(--destructive-tint);
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
+  --color-neutral: var(--neutral);
+  --color-neutral-tint: var(--neutral-tint);
+
+  --color-hero-from: var(--hero-from);
+  --color-hero-to: var(--hero-to);
+  --color-hero-fg: var(--hero-fg);
+  --color-hero-muted: var(--hero-muted);
+  --color-hero-accent: var(--hero-accent);
+
+  --color-pink-50: var(--pink-50);
+  --color-pink-100: var(--pink-100);
+  --color-pink-200: var(--pink-200);
+  --color-pink-300: var(--pink-300);
+  --color-pink-500: var(--pink-500);
+  --color-pink-600: var(--pink-600);
+  --color-pink-700: var(--pink-700);
+  --color-navy-50: var(--navy-50);
+  --color-navy-100: var(--navy-100);
+  --color-navy-300: var(--navy-300);
+  --color-navy-500: var(--navy-500);
+  --color-navy-700: var(--navy-700);
+  --color-navy-800: var(--navy-800);
+  --color-navy-900: var(--navy-900);
+  --color-yellow-100: var(--yellow-100);
+  --color-yellow-300: var(--yellow-300);
+  --color-yellow-500: var(--yellow-500);
+  --color-peri-50: var(--peri-50);
+  --color-peri-100: var(--peri-100);
+  --color-peri-500: var(--peri-500);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+
+  --radius-xs: 0.375rem; /* 6px  — kbd, tags */
+  --radius-sm: 0.5rem; /* 8px  — menu items, small controls */
+  --radius-md: var(--radius); /* 12px — buttons, inputs, popovers */
+  --radius-lg: 1rem; /* 16px — banners, small cards */
+  --radius-xl: var(--radius-card); /* 20px — CARDS (brand) */
+  /* The brand guide calls 20px "the card radius", so `rounded-card` is the name
+     people reach for. Without this line it is not a utility at all: the variable
+     above lives in :root, and Tailwind only generates classes from @theme — so
+     `rounded-card` silently rendered square corners next to `rounded-xl`'s
+     rounded ones. */
+  --radius-card: var(--radius-card);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-hover: var(--shadow-hover);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-modal: var(--shadow-modal);
+}
+
+/* ============================================================================
+   Base
+   ========================================================================= */
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    scrollbar-gutter: stable;
+    background: var(--color-background);
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--pink-500) 28%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-foreground) 18%, transparent) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-foreground) 15%, transparent);
+    border-radius: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* ============================================================================
+   Utilities
+   ========================================================================= */
+@utility card-surface {
+  background: var(--color-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+}
+
+/* Navy hero — the "dark card". Max 2 per screen (spec §2.8 r3).
+   Texture = layered radial washes, echoing the brand's flat-but-alive feel. */
+@utility hero-surface {
+  color: var(--color-hero-fg);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgb(255 255 255 / 0.07) 0%, transparent 55%),
+    radial-gradient(90% 90% at 100% 100%, rgb(249 19 125 / 0.16) 0%, transparent 55%),
+    linear-gradient(150deg, var(--color-hero-from), var(--color-hero-to));
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+
+/* "Not real yet" texture — projections, future days, pending remainders.
+   Never a colour, always this pattern (spec §2.8 r7). */
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 4px,
+    var(--color-border) 4px 6px
+  );
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The wordmark: "int labs." set in Poppins Bold with the official gradient
+   (brand §3.3). Rendering as text rather than shipping the 8245px PNG keeps it
+   crisp at every size and theme-switchable. */
+@utility wordmark-gradient {
+  background: var(--il-logo-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility eyebrow {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ============================================================================
+   Keyframes
+   ========================================================================= */
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.35;
+  }
+}
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+/* Checkbox tick draws itself on check (spec §4.3 #21). */
+@keyframes checkdraw {
+  from {
+    stroke-dashoffset: 16;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── Sign-in screen ────────────────────────────────────────────────────────
+   Plain CSS rather than Motion. Sign-in is the one screen where a stalled
+   animation locks the user out entirely, so it leans on as little machinery as
+   possible. `animation-fill-mode: both` throughout, so the end state is what
+   persists. */
+
+/* Staggered rise. `both` matters: it holds the from-state before the delay
+   elapses and the to-state forever after. */
+@keyframes auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.auth-rise {
+  animation: auth-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* A wrong password should feel wrong. Small amplitude — this is a nudge, not
+   a tantrum, and it is suppressed entirely under reduced-motion below. */
+@keyframes auth-shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(3px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-5px);
+  }
+  40%,
+  60% {
+    transform: translateX(5px);
+  }
+}
+.auth-shake {
+  animation: auth-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* Slow drift on the hero so the panel never feels like a dead screenshot. */
+@keyframes auth-kenburns {
+  from {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.08) translate3d(0, -1.2%, 0);
+  }
+}
+.auth-kenburns {
+  animation: auth-kenburns 26s ease-in-out infinite alternate;
+}
+
+.animate-shimmer {
+  animation: shimmer 1.6s linear infinite;
+}
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+.animate-float-y {
+  animation: float-y 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,118 +1,97 @@
-import { useState } from "react";
-import SimulationsPage from "./pages/SimulationsPage";
-import SimulationTypesPage from "./pages/SimulationTypesPage";
-import RoundsPage from "./pages/RoundsPage";
-import TeamsPage from "./pages/TeamsPage";
-import UsersPage from "./pages/UsersPage";
-import SegmentsPage from "./pages/SegmentsPage";
-import ProductsPage from "./pages/ProductsPage";
-import DriversPage from "./pages/DriversPage";
-import InitiativesPage from "./pages/InitiativesPage";
-import DecisionsPage from "./pages/DecisionsPage";
-import ParamListPage from "./pages/ParamListPage";
-import ProjectionsPage from "./pages/ProjectionsPage";
-import ResultsPage from "./pages/ResultsPage";
-import BaseDataPage from "./pages/BaseDataPage";
-import ImageAssetsPage from "./pages/ImageAssetsPage";
-import ProductFieldsPage from "./pages/ProductFieldsPage";
-import GlobalInputsPage from "./pages/GlobalInputsPage";
-import MainSimPage from "./pages/MainSimPage";
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { AppShell } from "@/components/layout/app-shell";
+import { Providers } from "@/providers";
+import { RouteFallback } from "@/components/app/route-fallback";
+import { AuthGate } from "@/features/auth/auth-gate";
 
-type View =
-  | "simulations"
-  | "simulation-types"
-  | "rounds"
-  | "teams"
-  | "users"
-  | "segments"
-  | "products"
-  | "product-fields"
-  | "drivers"
-  | "global-inputs"
-  | "initiatives"
-  | "decisions"
-  | "param-list"
-  | "projections"
-  | "results"
-  | "base-data"
-  | "sim-page"
-  | "image-assets";
-
-const NAV: { label: string; view: View }[] = [
-  { label: "Simulations", view: "simulations" },
-  { label: "Simulation Types", view: "simulation-types" },
-  { label: "Rounds", view: "rounds" },
-  { label: "Teams", view: "teams" },
-  { label: "Users", view: "users" },
-  { label: "Segments", view: "segments" },
-  { label: "Products", view: "products" },
-  { label: "Product Fields", view: "product-fields" },
-  { label: "Drivers", view: "drivers" },
-  { label: "Global Inputs", view: "global-inputs" },
-  { label: "Initiatives", view: "initiatives" },
-  { label: "Decisions", view: "decisions" },
-  { label: "Param List", view: "param-list" },
-  { label: "Projections", view: "projections" },
-  { label: "Results", view: "results" },
-  { label: "Base Data", view: "base-data" },
-  { label: "Image Assets", view: "image-assets" },
-  { label: "Sim Page (Preview)", view: "sim-page" },
-];
+const DashboardPage = lazy(() => import("@/features/dashboard/page"));
+const SimulationsPage = lazy(() => import("@/features/simulations/page"));
+const RoundsPage = lazy(() => import("@/features/rounds/page"));
+const TeamsPage = lazy(() => import("@/features/teams/page"));
+const UsersPage = lazy(() => import("@/features/users/page"));
+const DecisionsPage = lazy(() => import("@/features/decisions/page"));
+const ResultsPage = lazy(() => import("@/features/results/page"));
+const DebriefPage = lazy(() => import("@/features/debrief/page"));
+const GameContentPage = lazy(() => import("@/features/game-content/page"));
+const SimulationTypesPage = lazy(() => import("@/features/simulation-types/page"));
+const ProductsPage = lazy(() => import("@/features/products/page"));
+const SegmentsPage = lazy(() => import("@/features/segments/page"));
+const InitiativesPage = lazy(() => import("@/features/initiatives/page"));
+const SimPreviewPage = lazy(() => import("@/features/sim-preview/page"));
+const ProductFieldsPage = lazy(() => import("@/features/product-fields/page"));
+const DriversPage = lazy(() => import("@/features/drivers/page"));
+const GlobalInputsPage = lazy(() => import("@/features/global-inputs/page"));
+const ParamListPage = lazy(() => import("@/features/param-list/page"));
+const ProjectionsPage = lazy(() => import("@/features/projections/page"));
+const BaseDataPage = lazy(() => import("@/features/base-data/page"));
+const ImageAssetsPage = lazy(() => import("@/features/image-assets/page"));
+const KitchenSinkPage = lazy(() => import("@/features/kitchen-sink/page"));
+const PlaceholderPage = lazy(() => import("@/features/placeholder/page"));
 
 export default function App() {
-  const [view, setView] = useState<View>("simulations");
-
-  const renderView = () => {
-    switch (view) {
-      case "simulations": return <SimulationsPage />;
-      case "simulation-types": return <SimulationTypesPage />;
-      case "rounds": return <RoundsPage />;
-      case "teams": return <TeamsPage />;
-      case "users": return <UsersPage />;
-      case "segments": return <SegmentsPage />;
-      case "products": return <ProductsPage />;
-      case "drivers": return <DriversPage />;
-      case "initiatives": return <InitiativesPage />;
-      case "decisions": return <DecisionsPage />;
-      case "param-list": return <ParamListPage />;
-      case "projections": return <ProjectionsPage />;
-      case "results": return <ResultsPage />;
-      case "base-data": return <BaseDataPage />;
-      case "image-assets": return <ImageAssetsPage />;
-      case "product-fields": return <ProductFieldsPage />;
-      case "global-inputs": return <GlobalInputsPage />;
-      case "sim-page": return <MainSimPage />;
-    }
-  };
-
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <nav style={{ width: 200, borderRight: "1px solid #ccc", padding: 8, flexShrink: 0 }}>
-        <strong>Admin Dashboard</strong>
-        <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
-          {NAV.map(({ label, view: v }) => (
-            <li key={v} style={{ marginBottom: 4 }}>
-              <button
-                onClick={() => setView(v)}
-                style={{
-                  background: view === v ? "#eee" : "none",
-                  border: "none",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  width: "100%",
-                  padding: "4px 6px",
-                  fontWeight: view === v ? "bold" : "normal",
-                }}
-              >
-                {label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <main style={{ padding: 16, flex: 1, overflow: "auto" }}>
-        {renderView()}
-      </main>
-    </div>
+    <Providers>
+      {/* Nothing below this renders — and no query fires — without a session. */}
+      <AuthGate>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route
+              path="/"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <DashboardPage />
+                </Suspense>
+              }
+            />
+            {(
+              [
+                ["/simulations", SimulationsPage],
+                ["/rounds", RoundsPage],
+                ["/teams", TeamsPage],
+                ["/users", UsersPage],
+                ["/decisions", DecisionsPage],
+                ["/results", ResultsPage],
+                ["/debrief", DebriefPage],
+                ["/game-content", GameContentPage],
+                ["/simulation-types", SimulationTypesPage],
+                ["/products", ProductsPage],
+                ["/segments", SegmentsPage],
+                ["/initiatives", InitiativesPage],
+                ["/sim-preview", SimPreviewPage],
+                ["/product-fields", ProductFieldsPage],
+                ["/drivers", DriversPage],
+                ["/global-inputs", GlobalInputsPage],
+                ["/param-list", ParamListPage],
+                ["/projections", ProjectionsPage],
+                ["/base-data", BaseDataPage],
+                ["/image-assets", ImageAssetsPage],
+                ["/kitchen-sink", KitchenSinkPage],
+              ] as const
+            ).map(([path, Page]) => (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <Suspense fallback={<RouteFallback />}>
+                    <Page />
+                  </Suspense>
+                }
+              />
+            ))}
+            <Route
+              path="*"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <PlaceholderPage />
+                </Suspense>
+              }
+            />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+      </AuthGate>
+    </Providers>
   );
 }

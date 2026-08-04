@@ -10,7 +10,7 @@ import {
 import { authenticate } from "../middleware/authentication";
 import { authorize } from "../middleware/authorization";
 import { ROLES } from "../constants/roles";
-import { calculateRound } from "../controllers/roundControllers";
+import { calculateRound, endRound } from "../controllers/roundControllers";
 
 
 const router = Router();
@@ -25,6 +25,8 @@ router.use(authenticate);
 router.delete("/", authenticate, authorize([ROLES.ADMIN]), deleteResultsByRound);
 router.get("/", getRoundsBySimulation);
 router.post("/:id/calculate", authenticate, authorize([ROLES.ADMIN, ROLES.OPERATOR]), calculateRound);
+// Atomic close + calculate + advance — the normal operator flow.
+router.post("/:id/end", authenticate, authorize([ROLES.ADMIN, ROLES.OPERATOR]), endRound);
 router.post("/", authorize([ROLES.ADMIN, ROLES.OPERATOR]), createRound);
 router.get("/:id", getRoundById);
 router.patch("/:id/status", authorize([ROLES.ADMIN, ROLES.OPERATOR]), updateRoundStatus);

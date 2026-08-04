@@ -18,6 +18,10 @@ import paramRoutes          from "./paramRoutes";
 import teamRoutes           from "./teamRoutes";
 import segmentRoutes        from "./segmentRoutes";
 import globalInputRoutes    from "./globalInputRoutes";
+import playerConfigRoutes   from "./playerConfigRoutes";
+import avatarRoutes         from "./avatarRoutes";
+import roundNoteRoutes      from "./roundNoteRoutes";
+import debriefRoutes        from "./debriefRoutes";
 
 const router = Router();
 
@@ -36,6 +40,10 @@ router.use("/param-list", paramRoutes);
 router.use("/teams", teamRoutes);
 router.use("/segments", segmentRoutes);
 router.use("/global-inputs", globalInputRoutes);
+router.use("/player-config", playerConfigRoutes);
+router.use("/avatars", avatarRoutes);
+router.use("/round-notes", roundNoteRoutes);
+router.use("/debriefs", debriefRoutes);
 // router.use("/upload", uploadRoutes);
 router.use("/image-assets", imageAssetsRoutes);
 router.use("/initiatives", initiativeRoutes);

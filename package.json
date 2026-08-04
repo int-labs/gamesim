@@ -4,6 +4,9 @@
   "description": "Stratagem - Freelancer Management Platform",
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:sim": "concurrently \"npm run dev:server\" \"npm run dev:notebook\"",
+    "dev:notebook": "cd notebook-pixel-sim && npm run dev",
+    "dev:notebook:alt": "cd notebook-pixel-sim && npm run dev -- --port 5174 --strictPort",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm start",
     "build": "npm run build:server && npm run build:client",
@@ -19,7 +22,15 @@
     "start:server:ci": "cd server && PORT=5001 npm run dev",
     "start:client:ci": "cd client && npm start",
     "dev:player": "cd notebook-pixel-sim && npm run dev",
-    "build:player": "cd notebook-pixel-sim && npm run build"
+    "build:player": "cd notebook-pixel-sim && npm run build",
+    "dev:client:alt": "cd client && npm start -- --port 3002 --strictPort",
+    "lint": "npm run lint:server && npm run lint:client",
+    "lint:server": "cd server && npm run lint",
+    "lint:client": "cd client && npm run lint",
+    "typecheck": "npm run typecheck:server && npm run typecheck:client && npm run typecheck:player",
+    "typecheck:server": "cd server && npx tsc --noEmit",
+    "typecheck:client": "cd client && npx tsc --noEmit",
+    "typecheck:player": "cd notebook-pixel-sim && npx tsc -b"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

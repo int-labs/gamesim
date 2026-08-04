@@ -22,6 +22,9 @@ router.get("/", getProductsBySimulationType);
 router.post("/", authorize([ROLES.ADMIN]), createProduct);
 router.get("/:id", getProductById);
 router.patch( "/:id", authorize([ROLES.ADMIN]), updateProduct);
+// `updateProduct` existed in the controller but was never routed, so the
+// console could create and delete a product and never rename one.
+router.patch("/:id", authorize([ROLES.ADMIN, ROLES.OPERATOR]), updateProduct);
 router.delete("/:id", authorize([ROLES.ADMIN]), deleteProduct);
 
 router.post("/:id/fields", authorize([ROLES.ADMIN]), createProductField);

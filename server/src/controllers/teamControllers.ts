@@ -30,9 +30,17 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
 };
 
 // GET ALL — no filter, returns every team across all simulations
+// GET /teams  ·  GET /teams?simulationId=
+// The simulationId filter is OPTIONAL here — callers that need every team
+// (the admin console's user↔team join) omit it, callers scoped to one
+// simulation pass it. `getTeams` below requires it; this one doesn't, which is
+// why this is the handler the router mounts.
 export const getAllTeams = async (req: Request, res: Response): Promise<void> => {
   try {
-    const teams = await Team.find();
+    const { simulationId } = req.query;
+    const filter = simulationId ? { simulationId } : {};
+
+    const teams = await Team.find(filter);
     res.status(200).json({ data: teams });
   } catch (err: any) {
     res.status(500).json({ message: err.message });

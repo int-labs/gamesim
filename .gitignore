@@ -89,3 +89,9 @@ bower_components/
 
 # Claude Code runtime cache (worktrees, settings, launch configs, sessions)
 .claude/
+
+# Local development notes / rules (session docs, not for the public repo)
+notes/
+
+# Locally-stored image uploads (see server/src/services/storage.ts)
+server/uploads/

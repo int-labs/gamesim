@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import Product from "../models/Products";
 import Projection from "../models/Projections";
 import BaseData from "../models/BaseData";
-import { calcFinancials, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
+import { calcFinancials, ProductField, BaseVariables } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
 export const getProjectionsByTeam = async (req: Request, res: Response): Promise<void> => {

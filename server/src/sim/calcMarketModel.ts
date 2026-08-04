@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { erf, mean, calcStdDev, directionOffset, normalCDF, DEFAULT_TIGHTENING } from "../utils/calcMathUtilities";
+import { mean, calcStdDev, directionOffset, normalCDF, DEFAULT_TIGHTENING } from "../utils/calcMathUtilities";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

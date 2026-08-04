@@ -1,14 +1,9 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import Round      from "../models/rounds";
+import Round from "../models/rounds";
 import Simulation from "../models/simulations";
-import BaseData   from "../models/BaseData";
-import Decision   from "../models/decisions";
-import Product    from "../models/Products";
-import Results    from "../models/Results";
-import Projections from "../models/Projections";
-import { calcMarketModel, DecisionDocument, MarketModelProduct } from "../sim/calcMarketModel";
-import { calcFinancials, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
+import Results from "../models/Results";
+import { runRoundCalculation } from "../services/roundCalculation";
 
 // GET /rounds?simulationId=
 export const getRoundsBySimulation = async (req: Request, res: Response): Promise<void> => {
@@ -105,7 +100,10 @@ export const deleteRound = async (req: Request, res: Response): Promise<void> =>
 // Admin-only — fires after all teams have submitted for this round.
 // Runs calcMarketModel across all teams × all products × all segments,
 // then runs a final calcFinancials with real competitive market shares,
-// saves Results and updates Projections.
+// saving Results and updating Projections.
+//
+// Leaves the round Active so it can be recalculated. To close the round in the
+// same breath (the normal operator flow) use POST /rounds/:id/end instead.
 export const calculateRound = async (req: Request, res: Response): Promise<void> => {
   try {
     const round = await Round.findById(req.params.id);
@@ -119,191 +117,128 @@ export const calculateRound = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { simulationId, roundNumber } = round;
-
-    // ── Fetch simulation to get simulationTypeId ──────────────────────────
-    const simulation = await Simulation.findById(simulationId);
-    if (!simulation) {
-      res.status(404).json({ message: "Simulation not found." });
+    const outcome = await runRoundCalculation(round as any);
+    if (!outcome.ok) {
+      res.status(outcome.status).json({ message: outcome.message });
       return;
     }
 
-    const { simulationTypeId } = simulation as any;
-
-    // ── Fetch baseData for this simulation type ───────────────────────────
-    const baseData = await BaseData.findOne({ simulationTypeId });
-    if (!baseData) {
-      res.status(404).json({ message: "Base data not found." });
-      return;
-    }
-
-    // ── Fetch all decisions for this round ────────────────────────────────
-    const decisionDocs = await Decision.find({ simulationId, roundNumber });
-    if (decisionDocs.length === 0) {
-      res.status(400).json({ message: "No decisions found for this round." });
-      return;
-    }
-
-    // ── Map decisions to DecisionDocument shape ───────────────────────────
-    const decisions: DecisionDocument[] = decisionDocs.map((d: any) => ({
-      teamId: d.teamId,
-      inputs: d.inputs,
-    }));
-
-    const yearKey = String(roundNumber);
-
-    // ── Iterate segments → products ───────────────────────────────────────
-    const resultsToWrite: any[] = [];
-    const projectionsToUpdate: Record<string, any> = {};
-    // keyed by teamId string → { productKey: projectionData }
-
-    for (const mmSegment of baseData.marketModel.segments) {
-      const segmentId = mmSegment.segmentId;
-
-      // console.log(mmSegment);
-
-      for (const mmProduct of mmSegment.products) {
-        const productId = mmProduct.productId;
-        
-        console.log(mmProduct);
-        // fetch product config for productFields
-        const product = await Product.findById(productId);
-        if (!product) continue;
-
-        const productFields: ProductField[] = product.fields as unknown as ProductField[];
-
-        // get availableMarket from baseData.marketData for this year
-        const mdSegment = baseData.marketData.segments.find((s: any) =>
-          s.segmentId.equals(segmentId)
-        );
-        const mdProduct = mdSegment?.products.find((p: any) =>
-          p.productId.equals(productId)
-        );
-        const availableMarket = mdProduct?.yearlyData?.[yearKey]?.marketSize ?? 0;
-
-        // ── Run calcMarketModel for this product across all teams ─────────
-        const mmOutput = calcMarketModel({
-          marketModelProduct: mmProduct as MarketModelProduct,
-          productFields,
-          decisions,
-          year: roundNumber,
-        });
-
-        // ── Save Results document ─────────────────────────────────────────
-        const weightedScoresMap: Record<string, number> = {};
-        const marketSharesMap:   Record<string, number> = {};
-
-        mmOutput.sharesNormalCDF.forEach(({ teamId, value }) => {
-          marketSharesMap[teamId.toString()] = value;
-        });
-
-        mmOutput.weightedScores.forEach((fc) => {
-          fc.teamValues.forEach(({ teamId, score }) => {
-            const tidStr = teamId.toString();
-            weightedScoresMap[tidStr] = (weightedScoresMap[tidStr] ?? 0) + score;
-          });
-        });
-
-        resultsToWrite.push({
-          simulationId,
-          roundNumber,
-          productId,
-          segmentId,
-          weightedScores: weightedScoresMap,
-          marketShares:   marketSharesMap,
-        });
-
-        // ── Run final calcFinancials per team with real market shares ─────
-        for (const { teamId, value: marketShare } of mmOutput.sharesNormalCDF) {
-          const teamDecision = decisionDocs.find((d: any) =>
-            d.teamId.equals(teamId)
-          );
-          if (!teamDecision) continue;
-
-          const globalInputEntries: DecisionGlobalInputEntry[] =
-            (teamDecision as any).globalInputs ?? [];
-
-          const baseVariables: BaseVariables = {
-            ...(product.baseVariables as BaseVariables ?? {}),
-            availableMarket,
-          };
-
-          const { results } = calcFinancials({
-            productId: new mongoose.Types.ObjectId(productId.toString()),
-            marketShares:  [{ teamId, value: marketShare }],
-            productFields,
-            decisions: [{
-              teamId,
-              inputs: (teamDecision as any).inputs.map((inp: any) => ({
-                ...inp,
-                productId: new mongoose.Types.ObjectId(inp.productId?.$oid ?? inp.productId),
-                fields: (inp.fields ?? []).map((f: any) => ({
-                  fieldId: new mongoose.Types.ObjectId(f.fieldId?.$oid ?? f.fieldId),
-                  value:   f.value,
-                })),
-              })),
-              globalInputs: globalInputEntries,
-            }],
-            globalInputs:  globalInputEntries,
-            baseVariables,
-          });
-
-          const financials    = results[0];
-          const tidStr        = teamId.toString();
-          const productKey    = productId.toString();
-
-          if (!projectionsToUpdate[tidStr]) {
-            projectionsToUpdate[tidStr] = {};
-          }
-
-          projectionsToUpdate[tidStr][productKey] = {
-            customersObtained:    financials.customersObtained,
-            sellingPrice:         financials.sellingPrice,
-            dynamicPrice:         financials.dynamicPrice,
-            productScore:         financials.productScore,
-            dynamicCost:          financials.dynamicCost,
-            revenue:              financials.revenue,
-            COGS:                 financials.COGS,
-            grossProfit:          financials.grossProfit,
-            productCostBreakdown: financials.productCostBreakdown,
-            incurredCosts:        financials.incurredCosts,
-            marketShare,
-          };
-        }
-      }
-    }
-
-    // ── Upsert Results documents ──────────────────────────────────────────
-    await Promise.all(
-      resultsToWrite.map((r) =>
-        Results.findOneAndUpdate(
-          { simulationId: r.simulationId, roundNumber: r.roundNumber, productId: r.productId, segmentId: r.segmentId },
-          r,
-          { upsert: true, new: true }
-        )
-      )
-    );
-
-    // ── Update Projections per team with final competitive calc ───────────
-    await Promise.all(
-      Object.entries(projectionsToUpdate).map(([tidStr, productMap]) =>
-        Projections.findOneAndUpdate(
-          { simulationId, teamId: tidStr, roundNumber },
-          { $set: Object.fromEntries(
-              Object.entries(productMap).map(([productKey, data]) => [
-                `projections.${productKey}`, data
-              ])
-            )
-          },
-          { upsert: true, new: true }
-        )
-      )
-    );
-
-    res.status(200).json({ message: "Round calculated successfully.", roundNumber });
+    res.status(200).json({
+      message: "Round calculated successfully.",
+      roundNumber: round.roundNumber,
+      resultsWritten: outcome.resultsWritten,
+      teamsUpdated: outcome.teamsUpdated,
+    });
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to calculate round." });
   }
+};
+
+// POST /rounds/:id/end
+// The normal operator flow: close the round, calculate it, and advance the
+// simulation — atomically.
+//
+// Splitting these was a trap: `calculateRound` refuses to run unless the round
+// is Active, so an operator who closed a round first could never calculate it
+// and its results were stranded with no way back. Doing all three in one
+// transaction means either the round is closed AND scored AND the simulation
+// advanced, or nothing changed at all.
+//
+// Body: { skipCalculation?: boolean } — closes a round nobody submitted to.
+export const endRound = async (req: Request, res: Response): Promise<void> => {
+  const skipCalculation = req.body?.skipCalculation === true;
+  const session = await mongoose.startSession();
+
+  // Guard failures abort the transaction by throwing ABORT; the details travel
+  // out in `failure` rather than in the error, so the rollback and the HTTP
+  // response can't disagree about what happened.
+  const ABORT = "__end_round_abort__";
+  const state: {
+    failure: { status: number; message: string } | null;
+    payload: Record<string, unknown> | null;
+  } = { failure: null, payload: null };
+
+  try {
+    await session.withTransaction(async () => {
+      const round = await Round.findById(req.params.id, null, { session });
+      if (!round) {
+        state.failure = { status: 404, message: "Round not found." };
+        throw new Error(ABORT);
+      }
+
+      if (round.status !== "Active") {
+        state.failure = {
+          status: 400,
+          message: `Round ${round.roundNumber} is ${round.status}. Only an Active round can be ended.`,
+        };
+        throw new Error(ABORT);
+      }
+
+      const simulation = await Simulation.findById(round.simulationId, null, { session });
+      if (!simulation) {
+        state.failure = { status: 404, message: "Simulation not found." };
+        throw new Error(ABORT);
+      }
+
+      let calc: { resultsWritten: number; teamsUpdated: number } | null = null;
+
+      if (!skipCalculation) {
+        const outcome = await runRoundCalculation(round as any, session);
+        if (!outcome.ok) {
+          state.failure = { status: outcome.status, message: outcome.message };
+          throw new Error(ABORT);
+        }
+        calc = {
+          resultsWritten: outcome.resultsWritten,
+          teamsUpdated: outcome.teamsUpdated,
+        };
+      }
+
+      round.status = "Completed";
+      await round.save({ session });
+
+      // Advance the simulation, or complete it when this was the last round.
+      const config = (simulation.config ?? {}) as {
+        totalRounds?: number;
+        currRounds?: number;
+      };
+      const totalRounds = config.totalRounds ?? 0;
+      const isLastRound = totalRounds > 0 && round.roundNumber >= totalRounds;
+
+      if (isLastRound) {
+        simulation.status = "Completed";
+      } else {
+        simulation.config = {
+          ...config,
+          currRounds: Math.max(config.currRounds ?? 0, round.roundNumber + 1),
+        };
+      }
+      await simulation.save({ session });
+
+      state.payload = {
+        message: `Round ${round.roundNumber} ended.`,
+        roundNumber: round.roundNumber,
+        calculated: !skipCalculation,
+        isLastRound,
+        simulationStatus: simulation.status,
+        ...(calc ?? {}),
+      };
+    });
+  } catch (err: any) {
+    if (err?.message !== ABORT) {
+      await session.endSession();
+      res.status(500).json({ message: err?.message ?? "Failed to end the round." });
+      return;
+    }
+  }
+
+  await session.endSession();
+
+  if (state.failure) {
+    res.status(state.failure.status).json({ message: state.failure.message });
+    return;
+  }
+  res.status(200).json(state.payload ?? { message: "Round ended." });
 };
 
 // DELETE /results?simulationId=&roundNumber=

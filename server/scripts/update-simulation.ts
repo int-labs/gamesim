@@ -41,7 +41,7 @@ async function main() {
   let simTypeId: ObjectId;
   try {
     simTypeId = new ObjectId(simulationTypeIdArg);
-  } catch (err) {
+  } catch {
     console.error("\x1b[31mERROR: Invalid MongoDB ObjectId.\x1b[0m");
     process.exit(1);
     return;

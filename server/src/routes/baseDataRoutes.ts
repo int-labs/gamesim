@@ -4,6 +4,7 @@ import {
   getBaseDataById,
   createBaseData,
   updateBaseData,
+  patchBaseDataSection,
   deleteBaseData,
 } from "../controllers/baseDataControllers";
 import { authenticate } from "../middleware/authentication";
@@ -23,6 +24,9 @@ router.get("/", getBaseDataBySimulationType);
 router.post("/", authorize([ROLES.ADMIN]), createBaseData);
 router.get("/:id", getBaseDataById);
 router.patch( "/:id", authorize([ROLES.ADMIN]), updateBaseData);
+// Section-scoped and validated, with the calculated-round guard. The console
+// writes through this; the blunt PATCH above is left untouched.
+router.patch("/:id/section/:section", authorize([ROLES.ADMIN, ROLES.OPERATOR]), patchBaseDataSection);
 router.delete("/:id", authorize([ROLES.ADMIN]), deleteBaseData);
 
 export default router;

@@ -2,23 +2,24 @@ import { Router } from "express";
 import {
   createTeam,
   getAllTeams,
-  getTeams,
   getTeamById,
   updateTeam,
   deleteTeam,
 } from "../controllers/teamControllers"; // adjust path to match your controllers folder
+import {
+  getTeamMembers,
+  putTeamAvatar,
+  putTeamMembers,
+} from "../controllers/teamMemberControllers";
 import { authenticate } from "../middleware/authentication";
 import { authorize } from "../middleware/authorization";
 import { ROLES } from "../constants/roles";
 
 const router = Router();
 
-// TODO(auth): write routes below require a JWT (ROLES.ADMIN).
-// api.ts does not attach an auth header yet (no auth page in the admin
-// dashboard as of this handoff). Once login + token storage are wired
-// into api.ts on the frontend, these routes should work as-is —
-// no backend change needed then, just confirming the header arrives.
-
+// Auth is live: `authenticate` guards every route on this router and the
+// write routes add `authorize([ROLES.ADMIN])`. The console attaches its JWT
+// from src/lib/auth.ts; teams sign in by passkey and get their own token.
 router.use(authenticate);
 
 router.post("/", authenticate, authorize([ROLES.ADMIN]), createTeam);
@@ -27,5 +28,12 @@ router.get("/", getAllTeams);
 router.get("/:id", getTeamById);
 router.patch("/:id", authenticate, authorize([ROLES.ADMIN]), updateTeam);
 router.delete("/:id", authenticate, authorize([ROLES.ADMIN]), deleteTeam);
+
+// Roster + avatars. Deliberately NOT gated by authorize([ADMIN]): a team may
+// edit its own roster, so the ownership check lives in the controller
+// (`canEditTeam`), which admins and operators also satisfy.
+router.get("/:id/members", getTeamMembers);
+router.put("/:id/members", putTeamMembers);
+router.put("/:id/avatar", putTeamAvatar);
 
 export default router;
