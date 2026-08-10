@@ -251,7 +251,7 @@ export function StudioPanel() {
 
                 <div className="min-w-0">
                   <div className="h2 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
-                  <p className="body-xs text-text-2 mt-1">{CHANNEL_META[ch].blurb}</p>
+                  <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
                 </div>
 
                 {/* The numbers you're actually choosing between get to look
@@ -355,7 +355,7 @@ export function StudioPanel() {
                   <span className="h2 uppercase text-ink-900">{c.name}</span>
                   {engaged && <PixelBadge tone="success">L{curLevel} hired</PixelBadge>}
                 </div>
-                <p className="body-xs text-text-2 mt-1 mb-2">{c.blurb}</p>
+                <p className="body-xs text-text-2 mt-1 mb-2 measure">{c.blurb}</p>
                 <div className="flex flex-wrap items-start gap-3">
                 {/* Capped. Four tier buttons stretched across the full card
                     width gave each one ~330px of box around ~50px of content —

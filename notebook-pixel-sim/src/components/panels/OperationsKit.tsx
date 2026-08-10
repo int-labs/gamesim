@@ -120,7 +120,7 @@ export function OpsSection({
         />
         <div className="min-w-0 flex-1">
           <h3 className="section-heading text-ink-900">{title}</h3>
-          {hint && <p className="body-xs text-text-2 mt-1">{hint}</p>}
+          {hint && <p className="body-xs text-text-2 mt-1 measure">{hint}</p>}
         </div>
         {onDetails && (
           <motion.button
@@ -194,7 +194,7 @@ function PaneHeader({ icon, title, blurb }: { icon: string; title: string; blurb
       />
       <div className="min-w-0">
         <h4 className="h3 uppercase text-ink-900 leading-none">{title}</h4>
-        <p className="hint text-text-3 mt-1">{blurb}</p>
+        <p className="hint text-text-3 mt-1 measure">{blurb}</p>
       </div>
     </div>
   );

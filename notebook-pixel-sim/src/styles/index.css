@@ -212,6 +212,18 @@ button {
      figure, the pair is wrong — that is the single most common way this UI
      has drifted, so check it every time you build a chip.
 
+   RULE 7 — prose gets a MEASURE. Add `.measure` to any sentence.
+     Typographic measure — characters per line — is a readability constant,
+     not a matter of taste: comfortable is 45-75, and past ~90 the eye loses
+     the line return. On a 1440px screen this UI was running explanatory text
+     at up to 172 CHARACTERS PER LINE, with half of all prose blocks over 90.
+     That alone makes a screen feel messy no matter how clean the type scale
+     is, because every hint became a full-bleed ribbon of text.
+
+     `.measure` caps at 68ch. Put it on hints, blurbs and explainers — any
+     text meant to be READ as a sentence. Do NOT put it on labels, values or
+     table cells, which are scanned, not read.
+
    RULE 6 — the type classes PAINT, so mind light-on-dark.
      .eyebrow, .stat-label and .hint each set a colour. That colour beats a
      colour inherited from a parent, so a label inside a dark button renders in
@@ -379,12 +391,19 @@ button {
   /* Body copy uses Jura 500 — a pixel-adjacent geometric sans that
      keeps paragraphs readable while reinforcing the gamey theme.
      Jura reads slightly wider than Inter at the same px size, so
-     existing sizes work without bumping. Inter is the fallback. */
-  .body-xs  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 14px; line-height: 1.5; }
-  .body-sm  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 15px; line-height: 1.55; }
-  .body     { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 16px; line-height: 1.55; }
-  .body-md  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 18px; line-height: 1.55; }
-  .body-lg  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 20px; line-height: 1.6; }
+     existing sizes work without bumping. Inter is the fallback.
+
+     These shipped at 600 while this comment said 500 and RULE 3 says body
+     copy stays REGULAR. Semibold paragraphs are why whole screens read as
+     shouted: with .eyebrow (700), .num-* (700-800) and .item-name (700)
+     already bold by design, body at 600 left almost nothing set in a light
+     weight, so no emphasis could register. 500 restores the contrast the
+     rest of the scale depends on. */
+  .body-xs  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 14px; line-height: 1.5; }
+  .body-sm  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 15px; line-height: 1.55; }
+  .body     { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 16px; line-height: 1.55; }
+  .body-md  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 18px; line-height: 1.55; }
+  .body-lg  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 20px; line-height: 1.6; }
 
   .num-xs   { font-family: 'Inter'; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; line-height: 1; }
   .num-sm   { font-family: 'Inter'; font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -533,6 +552,12 @@ button {
   .panel-hoverable:hover {
     box-shadow: 2px 2px 0 0 var(--c-shadow);
   }
+
+  /* Prose measure — see RULE 7. 68ch is inside the comfortable 45-75 band
+     for the sizes used here, and keeps a hint readable at any viewport
+     without hard-coding a px width per component. Scanned text (labels,
+     values, table cells) must NOT get this. */
+  .measure { max-width: 68ch; }
 
   /* Soft divider */
   .hairline {
