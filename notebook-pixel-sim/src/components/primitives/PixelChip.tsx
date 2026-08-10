@@ -48,7 +48,7 @@ export function PixelChip({
     >
       {icon ? <span className="flex shrink-0">{icon}</span> : null}
       <span className="chip-label text-text capitalize">{label}</span>
-      {meta ? <span className="ml-auto hint text-text-3 font-medium">{meta}</span> : null}
+      {meta ? <span className="ml-auto hint text-text-3">{meta}</span> : null}
       {selected && <span className="ml-1 text-primary hint leading-none strong">✓</span>}
     </button>
   );

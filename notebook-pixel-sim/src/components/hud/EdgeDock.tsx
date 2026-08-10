@@ -125,7 +125,7 @@ export function EdgeDock({ side, items, activeId, onSelect, ariaLabel, anchor = 
               </span>
               <span
                 className={clsx(
-                  'eyebrow eyebrow-sm tracking-wide leading-none text-center',
+                  'eyebrow eyebrow-sm leading-none text-center',
                   active ? 'text-primary' : 'text-text-2 group-hover:text-text',
                 )}
               >

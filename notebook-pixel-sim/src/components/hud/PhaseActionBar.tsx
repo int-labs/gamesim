@@ -239,7 +239,7 @@ export function PhaseActionBar() {
           )}
         >
           <PixelIcon kind="check" size={13} color="#12301C" />
-          <span className="btn-label uppercase tracking-wide">
+          <span className="btn-label uppercase">
             <span className="sm:hidden">Confirm Phase {phase}</span>
             <span className="hidden sm:inline">{phaseTitle}</span>
           </span>

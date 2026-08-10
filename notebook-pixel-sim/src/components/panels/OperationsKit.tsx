@@ -27,10 +27,17 @@ import { EnergyValue } from '@/components/primitives/EnergyValue';
 
 type ChipTone = 'money' | 'energy' | 'reach' | 'good' | 'muted';
 
+// Chip tints stay inside the warm palette — walnut, caramel, cream, sage,
+// amber. `reach` used to be `bg-info-soft`, the plum tint, and it repeats on
+// every channel card and every vendor row: three lavender boxes sitting in a
+// row of caramel and sage on a cream card was the one cold colour on screen
+// and read as an accident. Reach is a neutral descriptor — not good, not bad,
+// not money — so it takes the deeper caramel, which separates it from
+// `money`'s pale amber without introducing a fourth hue.
 const CHIP_TONE: Record<ChipTone, string> = {
   money: 'bg-warning-soft text-text',
   energy: 'bg-warning-soft text-text',
-  reach: 'bg-info-soft text-text',
+  reach: 'bg-surface-muted text-text',
   good: 'bg-success-soft text-text',
   muted: 'bg-surface-2 text-text-2',
 };

@@ -330,7 +330,12 @@ export function StudioPanel() {
         }
         onDetails={() => setDetail(hiringDetail())}
       >
-        <div className="flex flex-col gap-2.5">
+        {/* Two columns from xl. Four candidates stacked full-width left each
+            row ~1330px wide around ~500px of content, so every card carried a
+            half-empty right side and the four ran together as one long list.
+            Paired up they read as a roster you compare across, and the whole
+            section fits without scrolling. */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
           {CANDIDATES.map((c) => {
             const engaged = hire?.candidate === c.id;
             const curLevel = engaged ? hire!.level : 0;
@@ -362,7 +367,7 @@ export function StudioPanel() {
                     a row of mostly empty rectangles. At this width they read as
                     a tier selector, and the space left over carries the
                     trade-off the whole choice turns on. */}
-                <div className="grid grid-cols-4 gap-1.5 w-full max-w-[440px]">
+                <div className="grid grid-cols-4 gap-1.5 w-full xl:max-w-none max-w-[440px]">
                   {c.levels.map((lv) => {
                     const affordable = energy >= lv.energy;
                     const isCur = engaged && curLevel === lv.level;
@@ -405,7 +410,7 @@ export function StudioPanel() {
                     hovered — and the blurb's "modest sell lift" gave no way to
                     compare two candidates. L1 → L4 shows both the floor and
                     what the top tier buys. */}
-                <div className="grid grid-cols-2 gap-1.5 flex-1 min-w-[200px]">
+                <div className="grid grid-cols-2 gap-1.5 flex-1 min-w-[200px] xl:w-full xl:flex-none">
                   {/* "+0.49 → +3.92 per day" was the L1→L4 range in the engine's
                       own units, and nobody can picture 0.49 of a notebook. The
                       same range per phase is 15 → 118 units, which is a pile of

@@ -85,7 +85,7 @@ export function BottomStats() {
         </span>
         <div className="min-w-0">
           <div className="pixel-caption text-cream-100">Stats &amp; P&amp;L</div>
-          <div className="body-xs font-medium text-cream-100/80 hidden md:block mt-1">
+          <div className="body-xs text-cream-100/80 hidden md:block mt-1">
             Your paperwork - the active notebook, the whole portfolio, and the run's finances
           </div>
         </div>
@@ -223,7 +223,7 @@ function KVTable({ groups }: { groups: KVGroup[] }) {
                     <div className={clsx('leading-tight truncate body-xs', r.emphasis ? 'item-name text-text' : 'text-text-2')}>
                       {r.label}
                     </div>
-                    {r.sub && <div className="hint font-medium text-text-3 leading-tight truncate mt-0.5">{r.sub}</div>}
+                    {r.sub && <div className="hint text-text-3 leading-tight truncate mt-0.5">{r.sub}</div>}
                   </td>
                   <td className={clsx('px-2.5 py-2 text-right align-middle num-sm whitespace-nowrap w-[120px]', toneText[r.tone ?? 'neutral'])}>
                     {r.num !== undefined && r.format ? <CountUp value={r.num} format={r.format} /> : r.value}

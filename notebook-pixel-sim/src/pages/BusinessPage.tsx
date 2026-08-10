@@ -162,10 +162,10 @@ function FolderTabs({
               <PixelIcon kind={t.icon} size={isActive ? 14 : 12} color="#2a2017" />
             </span>
             <span className="flex flex-col leading-tight min-w-0">
-              <span className={clsx('strong uppercase tracking-wide text-ink-900 truncate', isActive ? 'body-xs' : 'body-xs')}>
+              <span className="tab-label-sm uppercase text-ink-900 truncate">
                 {t.label}
               </span>
-              <span className="hidden md:block hint font-medium text-ink-800 truncate mt-0.5">{t.sub}</span>
+              <span className="hidden md:block hint text-ink-800 truncate mt-0.5">{t.sub}</span>
             </span>
           </motion.button>
         );

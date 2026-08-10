@@ -260,7 +260,7 @@ export function VisualNovelMascot() {
                   {/* Title is ALWAYS dark ink — tone colours (amber/green/…)
                       were unreadable on the caramel header bar; the tone
                       still shows via the icon chip + accent border. */}
-                  <span className="eyebrow eyebrow-sm tracking-[0.16em] truncate text-ink-900">
+                  <span className="eyebrow eyebrow-sm truncate text-ink-900">
                     {current.seqTitle
                       ? `Amelia · ${current.seqTitle}`
                       : `Amelia · ${labels[current.type]}`}

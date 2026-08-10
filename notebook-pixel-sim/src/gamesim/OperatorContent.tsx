@@ -67,7 +67,7 @@ export function RoundNotesCard({ roundNumber }: { roundNumber?: number } = {}) {
         {notes.map((n) => (
           <div key={n._id}>
             <div className="mb-1 flex items-center gap-2">
-              <span className="eyebrow eyebrow-sm tracking-wide text-ink-900">
+              <span className="eyebrow eyebrow-sm text-ink-900">
                 {n.title}
               </span>
               {n.pinned && <PixelBadge tone="warn">PINNED</PixelBadge>}
@@ -119,7 +119,7 @@ export function DebriefCard() {
           .map((s, i) => (
             <div key={i}>
               <div className="mb-1 flex items-center gap-2">
-                <span className="eyebrow eyebrow-sm tracking-wide text-ink-900">
+                <span className="eyebrow eyebrow-sm text-ink-900">
                   {s.title}
                 </span>
                 {s.teamId && <PixelBadge tone="info">YOUR TEAM</PixelBadge>}

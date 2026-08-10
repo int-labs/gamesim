@@ -524,6 +524,30 @@ button {
 
   /* Buttons use Pixelify Sans 600 for arcade/action feel. Slight size
      bump to match Inter's visual weight. */
+  /* The shop sign stamped on the desk — a small VT323 plate, uppercase and
+     widely tracked so it reads as engraved signage rather than a label. Added
+     because RULE 1 says to name a role rather than hard-code a number: this
+     was two `style={{ fontFamily, fontSize, letterSpacing }}` literals, the
+     only inline type left in the app. */
+  /* The hand-written maker's mark ("made with ♥ by Int Labs"). Caveat is a
+     SIXTH family and earns its place only here, once, as a signature — it is
+     not available as a general role. Named so the one use is not an inline
+     `style={{ fontFamily }}`. */
+  .signature {
+    font-family: 'Caveat', cursive;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .stamp {
+    font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
   .btn-label {
     font-family: 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 600;

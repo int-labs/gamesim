@@ -189,7 +189,7 @@ export function TopHUD() {
             <NavIcon icon={Flag} size={14} color="var(--c-primary)" />
             <span className="hidden sm:inline eyebrow eyebrow-sm text-text-2 leading-none">Phase</span>
             <span className="num-sm text-text leading-none">
-              {phase}<span className="text-text-3 font-medium body-xs"> / 3</span>
+              {phase}<span className="body-xs text-text-3"> / 3</span>
             </span>
           </div>
         </Tooltip>
@@ -212,7 +212,7 @@ export function TopHUD() {
             pulseDanger={energy === 0}
             render={
               <span className="num-xs text-text">
-                {energy}<span className="text-text-3 font-medium">/{maxEnergy}</span>
+                {energy}<span className="body-xs text-text-3">/{maxEnergy}</span>
               </span>
             }
           />

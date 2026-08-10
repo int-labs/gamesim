@@ -113,7 +113,7 @@ export function InventoryPanel() {
 
       {/* ── Production Plan — the decisions: units/day per notebook ── */}
       <PixelPanel title="Production Plan">
-        <div className="hint font-medium text-text-3 -mt-1 mb-2 leading-tight">
+        <div className="hint text-text-3 -mt-1 mb-2 leading-tight">
           Set how many of each notebook to make per day. Aim near demand - over-make and stock piles up, under-make and you sell out.
         </div>
         <div className="flex flex-col gap-2">
@@ -215,7 +215,7 @@ function ProductionRow({
 
 function Box({ label, value, tone, hint }: { label: string; value: string; tone: 'info' | 'success' | 'neutral'; hint?: string }) {
   const bg =
-    tone === 'info' ? 'bg-info-soft/60' : tone === 'success' ? 'bg-success-soft/60' : 'bg-surface-2';
+    tone === 'info' ? 'bg-surface-muted/60' : tone === 'success' ? 'bg-success-soft/60' : 'bg-surface-2';
   const inner = (
     <div className={`readout ${bg} border border-border-soft p-2`}>
       <div className="eyebrow eyebrow-sm">{label}</div>

@@ -242,9 +242,8 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
             overlaps. */}
         <span
           aria-hidden
-          style={{ fontFamily: "'Caveat', cursive" }}
           className={clsx(
-            'pointer-events-none -rotate-3 select-none body-sm font-semibold leading-none text-ink-800/40',
+            'pointer-events-none -rotate-3 select-none signature leading-none text-ink-800/40',
             fill === 'top' ? 'absolute bottom-10 right-8' : 'mt-5 ml-auto block w-fit',
           )}
         >

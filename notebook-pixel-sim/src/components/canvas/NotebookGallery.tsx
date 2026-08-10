@@ -85,7 +85,7 @@ export function NotebookGallery() {
             <span className="stat-label leading-none">
               Portfolio
             </span>
-            <span className="eyebrow eyebrow-sm tracking-wide text-text truncate leading-none">
+            <span className="eyebrow eyebrow-sm text-text truncate leading-none">
               Your Shelf
             </span>
           </div>
@@ -181,7 +181,7 @@ function BookCard({
       whileTap={{ scale: 0.98 }}
     >
       {active && (
-        <span className="absolute top-1.5 left-1.5 z-10 bg-primary-strong text-white item-name px-1.5 py-0.5 border border-border tracking-wider">
+        <span className="absolute top-1.5 left-1.5 z-10 bg-primary-strong text-white item-name px-1.5 py-0.5 border border-border">
           ACTIVE
         </span>
       )}

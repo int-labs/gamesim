@@ -234,7 +234,7 @@ export function Tooltip({
                 zIndex: 1000,
                 pointerEvents: 'none',
               }}
-              className="px-2.5 py-1.5 border border-border bg-[#221710] text-[#FAF7E8] hint leading-snug font-medium shadow-[2px_2px_0_0_rgba(0,0,0,0.55)]"
+              className="px-2.5 py-1.5 border border-border bg-[#221710] text-[#FAF7E8] hint leading-snug shadow-[2px_2px_0_0_rgba(0,0,0,0.55)]"
             >
               {content}
             </motion.div>

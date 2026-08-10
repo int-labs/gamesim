@@ -95,7 +95,7 @@ export function AccessMenu({ inline = false }: { inline?: boolean }) {
           className="flex cursor-pointer items-center gap-1.5 rounded-pixel border-2 border-ink-900/45 bg-ink-900/35 px-2 py-1 text-cream-50/70 shadow-pixel-press backdrop-blur-sm transition-[background-color,color,box-shadow,transform] hover:bg-ink-900/60 hover:text-cream-50 hover:shadow-pixel-1 active:translate-y-px active:shadow-none"
         >
           <PixelIcon kind="lock" size={11} color="currentColor" />
-          <span className="eyebrow eyebrow-sm tracking-wide text-inherit">Log out</span>
+          <span className="eyebrow eyebrow-sm text-inherit">Log out</span>
         </button>
       )}
     </div>

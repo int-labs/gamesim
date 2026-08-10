@@ -45,7 +45,7 @@ export function DayAdvanceFlash() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 1.05, opacity: 0 }}
             transition={{ duration: 0.32, ease: [0.2, 1.4, 0.4, 1] }}
-            className="absolute top-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-ink-900 border-2 border-warn shadow-pixel-3 eyebrow eyebrow-sm text-cream-50 tracking-wider"
+            className="absolute top-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-ink-900 border-2 border-warn shadow-pixel-3 eyebrow eyebrow-sm text-cream-50"
           >
             Day {pulse.day}
           </motion.div>

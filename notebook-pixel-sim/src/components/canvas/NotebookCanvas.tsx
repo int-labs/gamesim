@@ -347,7 +347,7 @@ export function NotebookCanvas() {
                   initial={reduced ? false : { y: 9, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.2, ease: [0.2, 1, 0.4, 1] }}
-                  className="eyebrow eyebrow-sm tracking-wide text-text truncate leading-none"
+                  className="eyebrow eyebrow-sm text-text truncate leading-none"
                 >
                   {product.name}
                 </motion.span>
@@ -446,20 +446,18 @@ export function NotebookCanvas() {
             }}
             maxLength={MAX_SHOP_NAME}
             aria-label="Shop name"
-            className="w-[200px] bg-cream-50 border-2 border-primary text-ink-900 uppercase outline-none px-2 py-0.5"
-            style={{ fontFamily: "'VT323', sans-serif", fontSize: '12px', letterSpacing: '0.1em' }}
+            className="w-[200px] bg-cream-50 border-2 border-primary text-ink-900 stamp outline-none px-2 py-0.5"
           />
         ) : (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); startShopRename(); }}
             aria-label={`Shop name: ${shopName}. Click to rename.`}
-            className="group inline-flex items-center gap-1.5 px-2 py-0.5 bg-surface border-2 border-border text-text shadow-[1px_1px_0_0_var(--c-shadow)] select-none cursor-text hover:border-primary transition-colors"
-            style={{ fontFamily: "'VT323', sans-serif", fontSize: '12px', letterSpacing: '0.1em' }}
+            className="group inline-flex items-center gap-1.5 px-2 py-0.5 bg-surface border-2 border-border text-text stamp shadow-[1px_1px_0_0_var(--c-shadow)] select-none cursor-text hover:border-primary transition-colors"
           >
             <span className="w-1 h-1 bg-primary" aria-hidden />
-            <span className="uppercase">{shopName}</span>
-            <span aria-hidden className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <span>{shopName}</span>
+            <span aria-hidden className="opacity-60 group-hover:opacity-100 transition-opacity">
               <NavIcon icon={Pencil} size={9} color="var(--c-text-3)" />
             </span>
           </button>
