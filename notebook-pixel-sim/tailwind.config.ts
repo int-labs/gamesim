@@ -118,7 +118,11 @@ export default {
         brand: { 500: '#954CC5', 400: '#c87bd9', 300: '#e29bd2' },
       },
       boxShadow: {
-        // Softer, more restrained pixel shadows
+        // Softer, more restrained pixel shadows.
+        // `pixel-press` is the :active step of the interactive token
+        // (rest pixel-1 → hover pixel-2 → active pixel-press). See the
+        // affordance rule block in styles/index.css.
+        'pixel-press': '1px 1px 0 0 var(--c-shadow)',
         'pixel-1': '2px 2px 0 0 var(--c-shadow)',
         'pixel-2': '3px 3px 0 0 var(--c-shadow)',
         'pixel-3': '4px 4px 0 0 var(--c-shadow)',

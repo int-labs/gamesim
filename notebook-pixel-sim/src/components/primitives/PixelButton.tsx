@@ -12,15 +12,23 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * Minimal pixel button. Default state has a soft border with no shadow;
- * shadow appears on hover/active to reduce visual noise.
+ * Minimal pixel button.
+ *
+ * The resting `shadow-pixel-1` IS the affordance — see the affordance rule
+ * block in `styles/index.css`. It used to appear only on :hover, which meant
+ * that on the tablets this game is played on it never appeared at all, and a
+ * button sat flatter than the `.panel-frame` containers around it.
+ *
+ * Geometry here must stay identical to `.pbtn` / `.ctl-btn` / `.game-btn`:
+ * rest 2px → hover 3px → active 1px → disabled none. Only the fill differs.
  */
 const base =
   'relative inline-flex items-center justify-center gap-2 ' +
-  'border-2 border-border select-none cursor-pointer ' +
+  'border-2 border-border select-none cursor-pointer shadow-pixel-1 ' +
   'transition-[transform,box-shadow,background-color,border-color,color] duration-150 ' +
-  'hover:-translate-y-px hover:shadow-pixel-1 active:translate-y-0 active:shadow-none ' +
-  'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:shadow-none';
+  'hover:-translate-y-px hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press ' +
+  'disabled:cursor-not-allowed disabled:opacity-55 disabled:border-border-soft disabled:shadow-none ' +
+  'disabled:hover:translate-y-0 disabled:hover:shadow-none';
 
 // `primary` is the bright pastel with a DEEP ink label — see the long note on
 // `.game-btn` in index.css. Dark-fill + cream-label passed contrast by exactly

@@ -46,6 +46,12 @@
   --c-border:       #2A1E12;   /* default ink border */
   --c-border-soft:  #9A7B4F;   /* warm brown — was washed amber */
   --c-shadow:       rgba(42, 30, 18, 0.65);
+  /* Container depth, deliberately a DIFFERENT grammar from --c-shadow.
+     --c-shadow is used at a diagonal offset and means "pressable"; this one
+     is only ever used straight down (`0 Npx 0`) on genuinely elevated
+     STATIC surfaces — modals, popovers. Direction alone keeps the two
+     readable apart while both stay pixel-crisp. See the affordance rule. */
+  --c-shadow-cast:  rgba(20, 12, 6, 0.55);
 
   /* Action colors */
   --c-primary:      #6FBB85;   /* confirm green - borders, tints, active states */
@@ -549,7 +555,40 @@ button {
     line-height: 1;
   }
 
-  /* Pixel button base — soft default, shadow appears on hover */
+  /* ==========================================================================
+     AFFORDANCE — three states, and the one rule that separates them
+     ==========================================================================
+
+     THE RULE: a DIAGONAL offset shadow (`Npx Npx 0`) means "you can press
+     this", and it means nothing else. If an element has a click handler it
+     carries one AT REST; if it has no handler it must never carry one.
+
+     This was previously inverted. `.panel-frame` — a container — rendered
+     with a 2px border AND a resting drop shadow, while `.pbtn` and
+     `.game-btn` had no shadow until :hover. A container therefore had more
+     visual lift than a button, which is exactly the confusion the client
+     reported ("which ones can be clicked isn't obvious").
+
+     Two reasons the shadow lives at REST and not on :hover:
+       1. `SmallScreenGate` targets >=768px — this is a tablet classroom
+          tool, and TABLETS HAVE NO HOVER. A hover-only affordance is
+          permanently in its "off" state for a large share of players.
+       2. An affordance you have to probe for is not an affordance.
+
+       | state       | border                        | shadow              |
+       |-------------|-------------------------------|---------------------|
+       | interactive | 2px solid var(--c-border)     | 2px 2px 0 at rest   |
+       | static      | 1px solid var(--c-border-soft)| none                |
+       | recessed    | inherit                       | inset 1.5px 1.5px 0 |
+
+     `.pbtn` / `.ctl-btn` / `.game-btn` are the interactive token and MUST
+     stay geometrically identical — only their fill differs. `.panel`,
+     `.panel-frame`, `.panel-muted`, `.kpi-chip` are static. `.readout` is
+     recessed: an inset shadow reads as sunken, the opposite of pressable,
+     which is why it is safe on a non-interactive value display.
+     ========================================================================== */
+
+  /* Pixel button base — resting shadow IS the affordance. See the rule above. */
   .pbtn {
     display: inline-flex;
     align-items: center;
@@ -560,20 +599,24 @@ button {
     color: var(--c-text);
     cursor: pointer;
     user-select: none;
+    box-shadow: 2px 2px 0 0 var(--c-shadow);
     transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
   }
-  .pbtn:hover {
+  .pbtn:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 2px 2px 0 0 var(--c-shadow);
+    box-shadow: 3px 3px 0 0 var(--c-shadow);
   }
-  .pbtn:active {
-    transform: translateY(0);
+  .pbtn:active:not(:disabled) {
+    transform: translateY(1px);
     box-shadow: 1px 1px 0 0 var(--c-shadow);
   }
+  /* Disabled drops the shadow AND softens the border: with no shadow the
+     2px ink border alone still reads as a live control. */
   .pbtn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
     transform: none;
+    border-color: var(--c-border-soft);
     box-shadow: none;
   }
 
@@ -582,23 +625,34 @@ button {
      ========================================================================== */
 
   /* Calm default panel — used for major sections (P&L, Effect Preview,
-     Product Configuration). 1px soft border, no default shadow.
-     Shadow is reserved for hover / selected / modal — never default. */
+     Product Configuration). STATIC: thin border, no shadow.
+
+     This used to carry `2px solid --c-border` + a `2px 2px` drop shadow so
+     cream panels would float on the dark walnut scene bg. That is the
+     interactive grammar, and 22 usages of it across 13 files were the main
+     reason buttons and containers looked alike. Cream (#FBF6E9) on walnut
+     (#3A2818) is already an enormous value gap — the fill does the floating
+     on its own and the shadow was doing far less work than it claimed.
+     If a surface genuinely needs elevation, use --lifted below; never
+     re-add a diagonal shadow here. */
   .panel-frame {
     background-color: var(--c-surface);
-    /* Stronger border + drop shadow so cream panels visually float on
-       the dark walnut scene background. The shadow is dark + warm so
-       it reads as a real cast shadow on wood, not a UI dropshadow. */
-    border: 2px solid var(--c-border);
+    border: 1px solid var(--c-border-soft);
     border-radius: 2px;
-    box-shadow: 2px 2px 0 0 rgba(20, 12, 6, 0.55);
     position: relative;
   }
-  /* Optional emphasis variant — only use for genuinely lifted surfaces
-     (modals, popovers, the active selection). */
+  /* Genuinely lifted STATIC surfaces — modals, popovers. Keeps depth, but
+     straight DOWN (`0 3px 0`), never diagonal, so it cannot be mistaken for
+     something you can press. Border stays thin. */
   .panel-frame--lifted {
-    border: 2px solid var(--c-border);
-    box-shadow: 2px 2px 0 0 var(--c-shadow);
+    border: 1px solid var(--c-border-soft);
+    box-shadow: 0 3px 0 0 var(--c-shadow-cast);
+  }
+  /* Same grammar, more of it — for surfaces that float over a dimmed
+     backdrop (modals, the mascot dialogue box) and need to clear it. */
+  .panel-frame--lifted-lg {
+    border: 1px solid var(--c-border-soft);
+    box-shadow: 0 6px 0 0 var(--c-shadow-cast);
   }
 
   /* Subtle paper-grain texture — apply to panel-frame to feel like
@@ -640,20 +694,27 @@ button {
     letter-spacing: 0.04em;
     cursor: pointer;
     user-select: none;
+    /* The game's single most important button had NO resting shadow and got
+       one only on :hover — which on a tablet is never. It now carries the
+       same interactive geometry as .pbtn / .ctl-btn. */
+    box-shadow: 2px 2px 0 0 var(--c-shadow);
     transition: transform 100ms ease, box-shadow 100ms ease, filter 100ms ease;
   }
-  .game-btn:hover {
+  .game-btn:hover:not(:disabled) {
     transform: translateY(-1px);
+    box-shadow: 3px 3px 0 0 var(--c-shadow);
     filter: brightness(1.05);
   }
-  .game-btn:active {
+  .game-btn:active:not(:disabled) {
     transform: translateY(1px);
+    box-shadow: 1px 1px 0 0 var(--c-shadow);
     filter: brightness(0.95);
   }
   .game-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+    box-shadow: none;
     filter: grayscale(0.3);
   }
   /* "Looks disabled but still clickable" variant. Used on the Confirm
@@ -804,17 +865,21 @@ button {
      active-press → clearly pressable). Any value/readout tile gets
      `.readout` (RECESSED — inset shadow → clearly a display, not a
      button). Apply on top of a component's own border/bg/colour. */
+  /* Already the correct pattern before this pass — the rest of the
+     interactive token was aligned TO it. Only the shadow colour changed,
+     from a cold rgba(0,0,0,.22) to the shared warm --c-shadow, so every
+     pressable thing casts the same shadow. */
   .ctl-btn {
-    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.22);
+    box-shadow: 2px 2px 0 0 var(--c-shadow);
     transition: transform 90ms ease, box-shadow 90ms ease, background-color 120ms ease, border-color 120ms ease, filter 120ms ease;
   }
   .ctl-btn:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.22);
+    box-shadow: 3px 3px 0 0 var(--c-shadow);
   }
   .ctl-btn:active:not(:disabled) {
     transform: translateY(1px);
-    box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.22);
+    box-shadow: 1px 1px 0 0 var(--c-shadow);
   }
   .ctl-btn:disabled {
     box-shadow: none;
