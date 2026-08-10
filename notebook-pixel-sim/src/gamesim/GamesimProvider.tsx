@@ -13,6 +13,7 @@ import { hydratePlayerConfig } from './configHydrator';
 import { useGame } from '@/state/store';
 import { computeFinalScore } from '@/engine/mockEngine';
 import { PassKeyScreen } from '@/components/passkey/PassKeyScreen';
+import { devSkip } from '@/access/passkey';
 import { GamesimStatusScreen } from '@/components/gamesim/GamesimStatusScreen';
 import {
   fetchOfficialFinancials,
@@ -32,7 +33,7 @@ import type {
   SimulationDto,
 } from './types';
 
-type Status = 'checking' | 'login' | 'loading' | 'no-simulation' | 'ready' | 'error';
+type Status = 'checking' | 'login' | 'loading' | 'no-simulation' | 'ready' | 'error' | 'standalone';
 
 /** Everything the player needs about its simulation, assembled from main's
  *  generic routes (main has no single /player/bootstrap endpoint). */
@@ -169,6 +170,17 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function load() {
+      // Dev escape hatch, and the ONLY place it is honoured besides
+      // <PassKeyGate>. `VITE_SKIP_PASSKEY=1` used to clear the outer gate and
+      // then land here with no session, where `setStatus('login')` rendered
+      // the very same <PassKeyScreen> the flag had just dismissed — so the
+      // documented bypass looked completely broken. There is no session to
+      // bootstrap from in that mode, so drop straight to standalone play:
+      // bundled game data, no server, no team context.
+      if (devSkip() && !gamesim.getStoredSession()) {
+        setStatus('standalone');
+        return;
+      }
       const session = gamesim.getStoredSession();
       if (!session) {
         setStatus('login');
@@ -435,7 +447,12 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   // No round yet, or the only round is still Pending — block gameplay until an
   // operator activates a round. Completed rounds still render the app so
   // official results stay visible; submit is gated on `canSubmit` separately.
-  if (!bootstrap?.round || bootstrap.round.status === 'Pending') {
+  //
+  // `standalone` bypasses this too — it has no bootstrap by definition, and
+  // gating it here would just swap the pass-key wall for a "waiting for
+  // round" one. Every consumer already tolerates a null bootstrap (that is
+  // what makes demo play work), so the app renders on bundled data alone.
+  if (status !== 'standalone' && (!bootstrap?.round || bootstrap.round.status === 'Pending')) {
     return (
       <GamesimContext.Provider value={value}>
         <GamesimStatusScreen
