@@ -129,7 +129,7 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
           />
         )}
 
-        <h1 className="mb-1 eyebrow eyebrow-sm text-ink-900 sm:body-xs">
+        <h1 className="mb-1 section-heading text-ink-900">
           {PASSKEY.title}
         </h1>
         <p className="mb-4 font-body body-xs leading-relaxed text-ink-700">{PASSKEY.subtitle}</p>
@@ -207,7 +207,7 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
           disabled={busy || unlocked}
           aria-busy={busy}
           className={clsx(
-            'mt-2 w-full border-2 border-ink-900 py-3 eyebrow eyebrow-sm sm:body-xs',
+            'mt-2 w-full border-2 border-ink-900 py-3 btn-label uppercase',
             'cursor-pointer transition-[box-shadow,filter] duration-150 hover:shadow-pixel-2',
             'disabled:cursor-wait',
             unlocked ? 'bg-success text-ink-900' : 'bg-primary text-ink-900 hover:brightness-105',

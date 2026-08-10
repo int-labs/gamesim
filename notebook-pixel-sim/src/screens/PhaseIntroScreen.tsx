@@ -265,7 +265,7 @@ export function PhaseIntroScreen() {
               transition={{ delay: 0.6, duration: 0.4, ease: [0.2, 1.5, 0.4, 1] }}
               whileHover={reduced ? undefined : { y: -2, filter: 'brightness(1.06)' }}
               whileTap={{ scale: 0.97 }}
-              className="group relative inline-flex items-center gap-2 overflow-hidden border-2 border-ink-900 bg-primary px-5 py-3 eyebrow eyebrow-sm text-inherit text-ink-900 shadow-[3px_3px_0_0_var(--c-shadow)] sm:body-xs"
+              className="group relative inline-flex items-center gap-2 overflow-hidden border-2 border-ink-900 bg-primary px-5 py-3 btn-label uppercase text-inherit text-ink-900 shadow-[3px_3px_0_0_var(--c-shadow)]"
             >
               {/* gentle "ready" pulse behind the label */}
               {!reduced && (

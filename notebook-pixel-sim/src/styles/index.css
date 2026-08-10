@@ -212,6 +212,21 @@ button {
      figure, the pair is wrong — that is the single most common way this UI
      has drifted, so check it every time you build a chip.
 
+   RULE 2c — ONE role class per element. Never two, never a responsive swap.
+     `class="eyebrow eyebrow-sm sm:body-xs"` does NOT mean "eyebrow on mobile,
+     body on desktop". Both classes set font-family, size and weight, so at
+     >=640px `.body-xs` wins those three while `.eyebrow`'s `uppercase` and
+     letter-spacing leak through — producing uppercase Jura at weight 500,
+     which is neither role and is LIGHTER than the paragraph beside it. That
+     shipped on the pass-key screen's <h1> and its submit button, which is why
+     the login title read as body copy. `h2 sm:eyebrow eyebrow-sm` was the
+     same bug reversed: a 24px heading that SHRANK to 14px on wider screens.
+
+     Which class wins is decided by their order in this file, not by intent.
+     If a role genuinely needs a different size at a breakpoint, add that
+     breakpoint INSIDE the role class here — do not stack a second role on the
+     element.
+
    RULE 7 — prose gets a MEASURE. Add `.measure` to any sentence.
      Typographic measure — characters per line — is a readability constant,
      not a matter of taste: comfortable is 45-75, and past ~90 the eye loses

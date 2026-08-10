@@ -80,7 +80,7 @@ export function StartScreen() {
               initial={reduced ? false : { scale: 0.7, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.18 }}
-              className="h2 sm:eyebrow eyebrow-sm tracking-wide text-ink-900 leading-tight"
+              className="h2 text-ink-900 leading-tight"
             >
               {HOME.title}
             </motion.h1>
