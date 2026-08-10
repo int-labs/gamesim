@@ -38,7 +38,8 @@ export function selectKpis(s: GameState): KpiSet {
   const tools = -sumKind(s, 'opex-tool');
   const packaging = -sumKind(s, 'cogs-packaging');
   const fulfill = -sumKind(s, 'cogs-fulfillment');
-  const opProfit = grossRevenue - matCost - labor - marketing - tools - packaging - fulfill;
+  const channel = -sumKind(s, 'opex-rent'); // V3 channel + holding
+  const opProfit = grossRevenue - matCost - labor - marketing - tools - packaging - fulfill - channel;
   const rand = mulberry32(seedFrom(`${s.meta.seed}:preview:${s.meta.day + 1}`));
   const dem = calcDemandToday(s, rand);
   // Best fit across the portfolio for the currently-set lead segment.
@@ -86,9 +87,10 @@ export function selectPnL(s: GameState): PnLRowData[] {
   const labor = -sumKind(s, 'cogs-labor');
   const marketing = -sumKind(s, 'opex-marketing');
   const tools = -sumKind(s, 'opex-tool');
+  const channel = -sumKind(s, 'opex-rent'); // V3 channel + holding
   const totalCogs = matCost + packaging + fulfill + labor;
   const grossProfit = grossRevenue - totalCogs;
-  const totalOpex = marketing + tools;
+  const totalOpex = marketing + tools + channel;
   const opProfit = grossProfit - totalOpex;
 
   return [
@@ -99,6 +101,7 @@ export function selectPnL(s: GameState): PnLRowData[] {
     { key: 'lab', label: 'Labor Cost', amount: -labor, cause: 'Daily wage × helpers.' },
     { key: 'gross', label: 'Gross Profit', amount: grossProfit, emphasis: 'subtotal', positive: grossProfit >= 0, cause: 'Revenue − COGS.' },
     { key: 'mkt', label: 'Marketing Spend', amount: -marketing, cause: 'Active campaigns + channel daily cost.' },
+    { key: 'chan', label: 'Channel & Holding', amount: -channel, cause: 'Channel maintenance, consignment fees, carrying cost on unsold stock.' },
     { key: 'tool', label: 'Tools / Upgrades', amount: -tools, cause: 'One-off upgrades, supplier deals, processes.' },
     { key: 'op', label: 'Operating Profit', amount: opProfit, emphasis: 'highlight', positive: opProfit >= 0, cause: 'Gross profit − operating expenses.' },
     { key: 'cash', label: 'Cash Balance', amount: s.player.cash, emphasis: 'highlight', positive: s.player.cash >= 0, cause: 'Cash on hand right now (excludes pending receivables).' },
@@ -173,6 +176,15 @@ export function selectPhasePnL(s: GameState): PhasePnL {
   const fulfill = make(['cogs-fulfillment'], true);
   const marketing = make(['opex-marketing'], true);
   const tools = make(['opex-tool'], true);
+  // Channel maintenance + consignment + holding cost on unsold stock. The
+  // FinLit bridge books all three as `opex-rent` (engine/finlit/bridge.ts),
+  // and this selector used to omit it entirely — so Operating Profit was
+  // OVERSTATED by what is very likely the largest cost in the game
+  // ($36.50/day of maintenance alone with all three channels stocked,
+  // ~$1,095 per phase, against $1,000 of starting cash on the self-funded
+  // route). scoring.ts and FinalResultsScreen always counted it, so the
+  // phase P&L disagreed with the score the player was actually graded on.
+  const channel = make(['opex-rent'], true);
 
   const totalOf = (r: Record<Phase, number>) => r[1] + r[2] + r[3];
 
@@ -182,9 +194,9 @@ export function selectPhasePnL(s: GameState): PhasePnL {
     3: revenue[3] - material[3] - labor[3] - packaging[3] - fulfill[3],
   };
   const opProfit: Record<Phase, number> = {
-    1: grossProfit[1] - marketing[1] - tools[1],
-    2: grossProfit[2] - marketing[2] - tools[2],
-    3: grossProfit[3] - marketing[3] - tools[3],
+    1: grossProfit[1] - marketing[1] - tools[1] - channel[1],
+    2: grossProfit[2] - marketing[2] - tools[2] - channel[2],
+    3: grossProfit[3] - marketing[3] - tools[3] - channel[3],
   };
 
   const phaseReached = (p: Phase) => s.meta.day >= PHASE_RANGE[p][1];
@@ -211,7 +223,8 @@ export function selectPhasePnL(s: GameState): PhasePnL {
     { key: 'pkg',  label: 'Packaging Cost',         group: 'cogs',    byPhase: packaging,  total: totalOf(packaging),  cause: 'Per-unit packaging on each sale.' },
     { key: 'ful',  label: 'Fulfillment Cost',       group: 'cogs',    byPhase: fulfill,    total: totalOf(fulfill),    cause: 'Per-unit shipping on each sale.' },
     { key: 'gp',   label: 'Gross Profit',           group: 'subtotal', emphasis: 'subtotal',  byPhase: grossProfit, total: totalOf(grossProfit), cause: 'Revenue − all COGS.' },
-    { key: 'mkt',  label: 'Marketing Spend',        group: 'opex',    byPhase: marketing,  total: totalOf(marketing),  cause: 'Channel daily cost + active campaigns.' },
+    { key: 'mkt',  label: 'Marketing / Ops',        group: 'opex',    byPhase: marketing,  total: totalOf(marketing),  cause: 'Marketing team, sales spend and hiring daily cost.' },
+    { key: 'chan', label: 'Channel & Holding',      group: 'opex',    byPhase: channel,    total: totalOf(channel),    cause: 'Channel maintenance + consignment fees + carrying cost on unsold stock.' },
     { key: 'tool', label: 'Tools / Upgrades',       group: 'opex',    byPhase: tools,      total: totalOf(tools),      cause: 'One-off upgrades & supplier deals.' },
     { key: 'op',   label: 'Operating Profit',       group: 'subtotal', emphasis: 'highlight', byPhase: opProfit, total: totalOf(opProfit), cause: 'Gross profit − OpEx.' },
   ];
@@ -230,6 +243,8 @@ export interface EvaluationSummary {
   fulfillment: number;
   marketing: number;
   tools: number;
+  /** V3 channel maintenance + consignment + holding on unsold stock. */
+  channel: number;
   cogs: number;
   opex: number;
   grossProfit: number;
@@ -255,8 +270,13 @@ export function selectEvaluationSummary(s: GameState, phase: Phase): EvaluationS
   const fulfill = -sumIn(['cogs-fulfillment']);
   const marketing = -sumIn(['opex-marketing']);
   const tools = -sumIn(['opex-tool']);
+  // See the note in selectPhasePnL: `opex-rent` is the V3 channel/holding
+  // cost and was missing here too, so the Evaluation screen — the one place
+  // the game stops to TEACH why profit moved — reported an Operating Profit
+  // that excluded the biggest cost line, then the final score included it.
+  const channel = -sumIn(['opex-rent']);
   const cogs = matCost + labor + packaging + fulfill;
-  const opex = marketing + tools;
+  const opex = marketing + tools + channel;
   const grossProfit = revenue - cogs;
   const opProfit = grossProfit - opex;
 
@@ -292,6 +312,7 @@ export function selectEvaluationSummary(s: GameState, phase: Phase): EvaluationS
     fulfillment: fulfill,
     marketing,
     tools,
+    channel,
     cogs,
     opex,
     grossProfit,

@@ -37,6 +37,7 @@ export function EvaluationScreen() {
   const labor = summary.labor;
   const marketing = summary.marketing;
   const tools = summary.tools;
+  const channel = summary.channel;
   const opProfit = summary.opProfit;
 
   const onSubmit = () => {
@@ -122,14 +123,25 @@ export function EvaluationScreen() {
                 <PixelStepLine data={trend.profit} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.16)" width={420} height={120} />
               </PixelPanel>
             </div>
-            <PixelPanel title="Cost mix this run">
+            {/* Cost mix for THIS PHASE, and only the lines that can be
+                non-zero in the V3 economy. It used to plot Material · Labor ·
+                Marketing · Tools — of which Labor and Tools are structurally
+                always $0 (the FinLit bridge never emits `cogs-labor` or
+                `opex-tool`), while Channel & Holding, usually the LARGEST
+                cost, was not plotted at all. Amelia's debrief one panel over
+                tells the player to "open the cost mix to see which line ate
+                the margin", so the chart has to be able to show it. Legacy V2
+                rows are still rendered when they carry a value, so an older
+                saved run does not silently lose them. */}
+            <PixelPanel title={`Cost mix · Phase ${phase}`}>
               <PixelStackedBar
                 data={[
                   { label: 'Material', value: matCost, color: '#e07a6a' },
+                  { label: 'Channel & holding', value: channel, color: '#6c93d9' },
+                  { label: 'Marketing / ops', value: marketing, color: '#e6b54a' },
                   { label: 'Labor', value: labor, color: '#9b6cd9' },
-                  { label: 'Marketing', value: marketing, color: '#e6b54a' },
                   { label: 'Tools / upgrades', value: tools, color: 'var(--c-fin-cash)' },
-                ]}
+                ].filter((d) => Math.abs(d.value) > 0.005)}
                 width={520}
                 height={26}
               />

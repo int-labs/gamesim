@@ -61,7 +61,10 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
   const fulfillment = -sum('cogs-fulfillment');
   const marketing = -sum('opex-marketing');
   const tools = -sum('opex-tool');
-  const opProfit = grossRevenue - matCost - labor - packaging - fulfillment - marketing - tools;
+  // V3 channel maintenance + consignment + holding, booked as `opex-rent`.
+  // Omitting it overstated Operating Profit here while scoring.ts counted it.
+  const channel = -sum('opex-rent');
+  const opProfit = grossRevenue - matCost - labor - packaging - fulfillment - marketing - tools - channel;
 
   const rand = mulberry32(seedFrom(useGame.getState().meta.seed + ':drawer:' + (day + 1)));
   const demand = Math.round(calcDemandToday(useGame.getState(), rand).total);
