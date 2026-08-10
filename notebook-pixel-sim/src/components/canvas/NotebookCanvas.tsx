@@ -308,7 +308,7 @@ export function NotebookCanvas() {
       <div className="absolute left-3 top-3 z-20 max-w-[calc(50%-120px)]">
         <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 w-fit max-w-full">
           {/* accent chip */}
-          <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border-2 border-primary bg-primary-soft shrink-0">
+          <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border border-primary bg-primary-soft shrink-0">
             <PixelIcon kind="product" size={15} color="var(--c-primary)" />
           </span>
           <div className="flex flex-col justify-center gap-[3px] leading-none min-w-0">

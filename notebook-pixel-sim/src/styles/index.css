@@ -663,6 +663,22 @@ button {
      `.panel-frame`, `.panel-muted`, `.kpi-chip` are static. `.readout` is
      recessed: an inset shadow reads as sunken, the opposite of pressable,
      which is why it is safe on a non-interactive value display.
+
+     THREE EXEMPTIONS. These are clickable and deliberately carry NO lift,
+     because applying the rule literally makes them worse. Do not "fix" them:
+
+       1. SEGMENTED CONTROLS / TAB STRIPS (Product/Business, Focus/Shelf/
+          Details, Operations/Inventory/Performance). The GROUP is one
+          control; shadows stacked inside a tight strip read as broken. The
+          group is a flat strip and the active segment is marked by FILL.
+       2. MENU / LIST ROWS inside a popover or drawer (the HUD menu's Sound,
+          Music, Help, Log out). Full-bleed rows marked by `hover:bg-*`; a
+          stack of floating boxes inside a dropdown is not a menu.
+       3. CLICK-TO-EDIT TEXT (the notebook name, the shop sign). These carry
+          `cursor-text` and a pencil icon — the icon IS the affordance, so it
+          must stay visible at rest (>= 60% opacity), never hover-only.
+
+     Everything else with a handler gets the lift.
      ========================================================================== */
 
   /* Pixel button base — resting shadow IS the affordance. See the rule above. */

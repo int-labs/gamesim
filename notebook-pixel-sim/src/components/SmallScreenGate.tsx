@@ -46,7 +46,7 @@ export function SmallScreenGate({ children }: { children: React.ReactNode }) {
               </div>
               <button
                 onClick={dismiss}
-                className="shrink-0 border-2 border-ink-900 bg-cream-100 hover:bg-cream-200 btn-label-sm uppercase px-2 py-1 cursor-pointer"
+                className="shrink-0 border-2 border-ink-900 bg-cream-100 hover:bg-cream-200 btn-label-sm uppercase px-2 py-1 cursor-pointer shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press transition-[box-shadow,transform,background-color]"
                 aria-label="Dismiss"
               >
                 Got it

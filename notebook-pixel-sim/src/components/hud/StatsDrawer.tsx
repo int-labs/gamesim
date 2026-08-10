@@ -97,7 +97,7 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ duration: 0.24, ease: [0.2, 1.4, 0.4, 1] }}
-            className="fixed inset-x-0 bottom-0 z-[150] panel-frame bg-surface border-t-2 border-border shadow-[0_-3px_0_0_var(--c-shadow)]"
+            className="fixed inset-x-0 bottom-0 z-[150] panel-frame bg-surface border-t border-border-soft shadow-[0_-3px_0_0_var(--c-shadow-cast)]"
             style={{ maxHeight: '78vh', paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             {/* Drag handle */}
@@ -108,14 +108,14 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
               <div className="flex flex-col leading-tight">
                 <span className="stat-label">All stats</span>
                 <span className="hint text-text">
-                  Phase <span className="strong">{phase}</span> · Day <span className="num-xs">{day}</span>
+                  Phase <span className="num-xs">{phase}</span> · Day <span className="num-xs">{day}</span>
                 </span>
               </div>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close stats"
-                className="inline-flex items-center justify-center w-9 h-9 border border-border-soft hover:bg-surface-2 cursor-pointer"
+                className="inline-flex items-center justify-center w-9 h-9 border-2 border-border bg-surface hover:bg-surface-2 cursor-pointer shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press transition-[box-shadow,transform,background-color]"
               >
                 <PixelIcon kind="close" size={11} />
               </button>
@@ -217,7 +217,7 @@ const toneIconColor: Record<Tone, string> = {
 
 function Stat({ icon, label, value, tone }: { icon: PixelIconKind; label: string; value: string; tone: Tone }) {
   return (
-    <div className={clsx('flex items-center gap-2.5 px-2.5 py-2 border-2', toneRing[tone])}>
+    <div className={clsx('flex items-center gap-2.5 px-2.5 py-2 border', toneRing[tone])}>
       <span className="inline-flex items-center justify-center w-9 h-9 border border-border-soft bg-surface shrink-0">
         <PixelIcon kind={icon} size={13} color={toneIconColor[tone]} />
       </span>
@@ -294,7 +294,7 @@ function AmeliaVoicePicker({ open }: { open: boolean }) {
               mood: 'happy',
             });
           }}
-          className="h-[30px] px-3 border border-border bg-primary-soft text-text hover:bg-primary hover:text-[#12301C] cursor-pointer eyebrow eyebrow-sm"
+          className="h-[30px] px-3 border-2 border-border bg-primary-soft text-text hover:bg-primary hover:text-[#12301C] cursor-pointer btn-label-sm uppercase shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press transition-[box-shadow,transform,background-color]"
         >
           Test
         </button>
@@ -314,7 +314,7 @@ function UtilButton({ icon, iconNode, label, active, onClick }: { icon?: any; ic
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
-        'flex flex-col items-center justify-center gap-1 px-2 py-2.5 border-2 transition-colors cursor-pointer',
+        'flex flex-col items-center justify-center gap-1 px-2 py-2.5 border-2 cursor-pointer shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press transition-[box-shadow,transform,background-color,border-color]',
         active
           ? 'border-primary bg-primary-soft text-text'
           : 'border-border-soft bg-surface-2 text-text-2 hover:border-border hover:text-text',
