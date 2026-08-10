@@ -118,7 +118,7 @@ export function ArchetypeDetailModal({ open, onClose, inline, hideViews }: Props
 
         <div className="flex-1 min-w-0 flex flex-col">
           {/* ── Tab bar ── */}
-          <div className="shrink-0 flex items-end gap-1 px-2 pt-2 border-b-2 border-ink-900 bg-cream-200">
+          <div className="shrink-0 flex items-end gap-1 px-2 pt-2 border-b border-border-soft bg-cream-200">
             {TABS.map((t) => {
               const active = t.id === tab;
               return (
@@ -182,7 +182,7 @@ export function ArchetypeDetailModal({ open, onClose, inline, hideViews }: Props
           {/* ── Footer — the only action this modal offers. Always visible so
                it never hides below a long scroll. ── */}
           {arch !== product.archetype && (
-            <div className="shrink-0 flex items-center justify-between gap-3 px-3.5 py-2.5 border-t-2 border-ink-900 bg-cream-200">
+            <div className="shrink-0 flex items-center justify-between gap-3 px-3.5 py-2.5 border-t border-border-soft bg-cream-200">
               <div className="hint text-text-2 leading-snug min-w-0 truncate">
                 Currently making <span className="strong text-text">{ARCHETYPE_INFO[product.archetype].title}</span>
               </div>

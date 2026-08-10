@@ -64,7 +64,7 @@ export function MascotAvatar({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       className={clsx(
-        'relative shrink-0 overflow-hidden rounded-xl border-2 border-ink-900 bg-cream-100 shadow-pixel-soft',
+        'relative shrink-0 overflow-hidden rounded-xl border border-border-soft bg-cream-100',
         className,
       )}
       style={{ width: size, height: size }}

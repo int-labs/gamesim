@@ -81,7 +81,7 @@ export function InventoryPanel() {
 
   if (lines.length === 0) {
     return (
-      <div className="border-2 border-border-soft bg-surface p-6 text-center body-sm text-text-2">
+      <div className="border border-border-soft bg-surface p-6 text-center body-sm text-text-2">
         No notebooks yet - add one in Notebook Items to plan its production.
       </div>
     );
@@ -159,7 +159,7 @@ function ProductionRow({
   const hintColor = tone === 'warn' ? 'text-warning' : tone === 'over' ? 'text-info' : 'text-success';
 
   return (
-    <div className="border-2 border-border-soft bg-surface px-3 py-2.5">
+    <div className="border border-border-soft bg-surface px-3 py-2.5">
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
           {/* TITLE = line name; genre is a quiet tag before it */}

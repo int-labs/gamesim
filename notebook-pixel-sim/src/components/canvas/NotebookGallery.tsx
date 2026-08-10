@@ -249,7 +249,7 @@ function BookCard({
       </div>
 
       {/* Insight caption */}
-      <div className="flex flex-col gap-1.5 px-2.5 py-2 border-t-2 border-border-soft bg-surface">
+      <div className="flex flex-col gap-1.5 px-2.5 py-2 border-t border-border-soft bg-surface">
         <div className="flex items-center justify-between gap-2 min-w-0">
           <span className="item-name text-text truncate">{line.name}</span>
           <span className="num-xs text-text shrink-0">{fmt$(line.price)}</span>

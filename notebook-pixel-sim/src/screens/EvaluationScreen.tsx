@@ -246,7 +246,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: 'suc
     tone === 'info' ? 'bg-info-soft' :
     tone === 'error' ? 'bg-error-soft' : 'bg-cream-100';
   return (
-    <div className={`${bg} border-2 border-ink-900 p-2`}>
+    <div className={`${bg} border border-border-soft p-2`}>
       <div className="eyebrow eyebrow-sm text-ink-700">{label}</div>
       <div className="h3">{value}</div>
     </div>

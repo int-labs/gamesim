@@ -141,7 +141,7 @@ function ProgressBar({ value }: { value: number }) {
       aria-valuenow={Math.round(clamped)}
       aria-valuemin={0}
       aria-valuemax={100}
-      className="relative h-3 w-full bg-cream-200 border-2 border-ink-900"
+      className="relative h-3 w-full bg-cream-200 border border-border-soft"
     >
       <div
         className="absolute inset-y-0 left-0"

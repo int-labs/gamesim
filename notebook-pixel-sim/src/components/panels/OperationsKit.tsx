@@ -104,13 +104,13 @@ export function OpsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="border-2 border-ink-900 bg-cream-50">
+    <section className="border border-border-soft bg-cream-50">
       {/* The masthead carries the section's weight. It used to be a 32px mark
           beside a 16px caption — smaller than the card titles underneath it —
           so five stacked sections read as one undifferentiated column. Bigger
           art, a heading that outranks its children, and a caramel band that is
           tall enough to register as a header rather than a divider. */}
-      <header className="flex items-center gap-3.5 px-4 py-3 border-b-2 border-ink-900 bg-cream-200">
+      <header className="flex items-center gap-3.5 px-4 py-3 border-b border-border-soft bg-cream-200">
         <img
           src={icon}
           alt=""
@@ -184,7 +184,7 @@ export interface DetailTable {
  */
 function PaneHeader({ icon, title, blurb }: { icon: string; title: string; blurb: string }) {
   return (
-    <div className="flex items-center gap-3 pb-3 border-b-2 border-ink-900">
+    <div className="flex items-center gap-3 pb-3 border-b border-border-soft">
       <img
         src={icon}
         alt=""
@@ -248,7 +248,7 @@ export function OperationsDetailModal({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04, type: 'spring', stiffness: 280, damping: 22 }}
               >
-                <div className="px-3 py-2 border-b-2 border-ink-900 bg-cream-200 flex items-center justify-between gap-2">
+                <div className="px-3 py-2 border-b border-border-soft bg-cream-200 flex items-center justify-between gap-2">
                   <span className="item-name text-text truncate">{inp.name}</span>
                   <PixelBadge tone="neutral">{inp.impacts}</PixelBadge>
                 </div>
@@ -289,13 +289,13 @@ export function OperationsDetailModal({
                 transition={{ delay: 0.08 + i * 0.04, type: 'spring', stiffness: 280, damping: 22 }}
               >
                 {t.caption && (
-                  <div className="px-3 py-2 border-b-2 border-ink-900 bg-cream-200">
+                  <div className="px-3 py-2 border-b border-border-soft bg-cream-200">
                     <span className="stat-label text-text">{t.caption}</span>
                   </div>
                 )}
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-cream-100 border-b-2 border-ink-900">
+                    <tr className="bg-cream-100 border-b border-border-soft">
                       {t.columns.map((c, j) => (
                         <th
                           key={c}

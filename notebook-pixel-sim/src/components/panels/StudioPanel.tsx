@@ -127,7 +127,11 @@ export function StudioPanel() {
   const [detail, setDetail] = useState<SectionDetail | null>(null);
 
   // Days remaining in the current phase — see the Hiring hint for why the
-  // per-phase figures need this qualifier.
+  // per-phase figures need this qualifier. Derived from a PRIMITIVE read on
+  // purpose: `selectCurrentPhase` carries the same figure but returns a fresh
+  // object, so `useGame(selectCurrentPhase)` would fail Zustand's referential
+  // check and re-render this panel every tick — the same trap the channel/genre
+  // selectors above avoid by returning joined strings.
   const day = useGame((s) => s.meta.day);
   const daysLeftInPhase = Math.max(0, phase * DAYS_PER_PHASE - day + 1);
 
@@ -573,7 +577,7 @@ export function StudioPanel() {
             {/* Actions use PixelButton like every other commit in the game —
                 the hand-rolled body-xs buttons here were the only ones in the
                 app set in the body face, which is why they read as foreign. */}
-            <div className="flex items-center justify-end gap-2 pt-1 border-t-2 border-border-soft mt-1 -mx-1 px-1 pt-3.5">
+            <div className="flex items-center justify-end gap-2 pt-1 border-t border-border-soft mt-1 -mx-1 px-1 pt-3.5">
               {short && (
                 <span className="mr-auto self-center inline-flex items-center gap-1.5 border-2 border-danger bg-danger-soft/50 px-2.5 py-1.5">
                   <span className="stat-label text-danger">Not enough energy</span>

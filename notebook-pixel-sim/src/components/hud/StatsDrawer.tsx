@@ -218,7 +218,7 @@ const toneIconColor: Record<Tone, string> = {
 function Stat({ icon, label, value, tone }: { icon: PixelIconKind; label: string; value: string; tone: Tone }) {
   return (
     <div className={clsx('flex items-center gap-2.5 px-2.5 py-2 border-2', toneRing[tone])}>
-      <span className="inline-flex items-center justify-center w-9 h-9 border-2 border-border-soft bg-surface shrink-0">
+      <span className="inline-flex items-center justify-center w-9 h-9 border border-border-soft bg-surface shrink-0">
         <PixelIcon kind={icon} size={13} color={toneIconColor[tone]} />
       </span>
       <div className="min-w-0 flex-1">

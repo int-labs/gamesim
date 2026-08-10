@@ -415,7 +415,7 @@ function ScoreCell({
   const reduced = useReducedMotion();
   const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
   return (
-    <div className={`${bg} border-2 border-ink-900 p-2 text-center`}>
+    <div className={`${bg} border border-border-soft p-2 text-center`}>
       <div className="stat-label">{label}</div>
       <div className="num-lg mt-1">
         {value}
@@ -449,7 +449,7 @@ function StampList({
   reduced: boolean;
 }) {
   return (
-    <div className={`${boxClass} border-2 border-ink-900 p-2`}>
+    <div className={`${boxClass} border border-border-soft p-2`}>
       <div className="stat-label">{title}</div>
       <ul className="list-disc pl-5 mt-1">
         {items.map((text, i) => (

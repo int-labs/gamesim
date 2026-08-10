@@ -251,7 +251,7 @@ export function PhaseIntroScreen() {
           </div>
 
           {/* Footer — big CTA */}
-          <div className="flex items-center justify-between gap-3 border-t-2 border-ink-900 bg-cream-200 p-4 sm:px-6">
+          <div className="flex items-center justify-between gap-3 border-t border-border-soft bg-cream-200 p-4 sm:px-6">
             {/* eyebrow-muted, not ink-500: the legacy ink ramp bottoms out at
                 2.74:1 on cream, below the 3:1 floor even for a label. */}
             <span className="eyebrow eyebrow-sm eyebrow-muted">

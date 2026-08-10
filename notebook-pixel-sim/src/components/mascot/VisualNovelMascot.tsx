@@ -290,7 +290,7 @@ export function VisualNovelMascot() {
                    not waste space or look broken. */}
               <div
                 className={clsx(
-                  'flex items-center gap-2 px-5 py-3 border-t-2 border-border-soft bg-surface-2/70 shrink-0',
+                  'flex items-center gap-2 px-5 py-3 border-t border-border-soft bg-surface-2/70 shrink-0',
                   canGoPrev ? 'justify-between' : 'justify-end',
                 )}
               >

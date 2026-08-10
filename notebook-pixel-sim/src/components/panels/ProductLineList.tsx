@@ -281,7 +281,7 @@ export function ProductLineList() {
            drawer's bottom edge so it stays reachable however long the list
            grows. Bleeds over the drawer body's p-3.5 with negative margins.
            Always enabled (until the soft 20-line sanity ceiling). */}
-      <div className="sticky bottom-0 z-10 -mx-3.5 -mb-3.5 mt-1 px-3.5 pt-2 pb-3 bg-surface border-t-2 border-border-soft">
+      <div className="sticky bottom-0 z-10 -mx-3.5 -mb-3.5 mt-1 px-3.5 pt-2 pb-3 bg-surface border-t border-border-soft">
         <button
           ref={addBtnRef}
           type="button"
@@ -393,7 +393,7 @@ export function ProductLineList() {
                   add-ons, and inventory. This cannot be undone.
                 </p>
               </div>
-              <footer className="flex items-center justify-end gap-2 px-4 py-3 border-t-2 border-border-soft bg-surface-2/70">
+              <footer className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border-soft bg-surface-2/70">
                 <button
                   type="button"
                   onClick={cancelDelete}

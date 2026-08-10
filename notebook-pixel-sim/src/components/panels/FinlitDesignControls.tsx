@@ -143,8 +143,8 @@ export function FinlitDesignControls() {
  */
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1">
-      <header className="px-3.5 py-2.5 border-b-2 border-ink-900 bg-cream-200">
+    <section className="border border-border-soft bg-cream-50">
+      <header className="px-3.5 py-2.5 border-b border-border-soft bg-cream-200">
         <div className="section-title text-ink-900">{title}</div>
         {hint && <div className="hint mt-0.5">{hint}</div>}
       </header>

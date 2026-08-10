@@ -97,7 +97,7 @@ export function AudiencePickerModal() {
                   : 'border-border-soft bg-surface hover:border-primary',
               )}
             >
-              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center border-2 border-border-soft bg-surface-2">
+              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center border border-border-soft bg-surface-2">
                 <img src={seg.imgPath} alt={seg.name} className="h-12 w-12 object-contain" />
               </span>
               <div className="min-w-0 flex-1">
@@ -116,7 +116,7 @@ export function AudiencePickerModal() {
           single click used to commit outright. The audience drives demand for
           the whole run, so a mis-tap changed the economics of all 90 days with
           no confirmation. The label echoes the pick back as a last check. */}
-      <div className="mt-4 flex items-center justify-between gap-3 border-t-2 border-border-soft pt-3">
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border-soft pt-3">
         <button
           type="button"
           onClick={() => setOpen(false)}

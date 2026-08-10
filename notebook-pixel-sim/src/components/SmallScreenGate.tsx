@@ -35,7 +35,7 @@ export function SmallScreenGate({ children }: { children: React.ReactNode }) {
       {children}
       {showTip && (
         <div className="fixed inset-x-0 bottom-0 z-[60] p-3 pointer-events-none">
-          <div className="pixel-frame bg-cream-50 border-2 border-ink-900 max-w-[420px] mx-auto p-3 shadow-pixel-2 pointer-events-auto">
+          <div className="pixel-frame bg-cream-50 border border-border-soft max-w-[420px] mx-auto p-3 pointer-events-auto">
             <div className="flex items-start gap-2.5">
               <div className="flex-1">
                 <div className="pixel-caption uppercase mb-1 text-ink-900">Compact mode</div>

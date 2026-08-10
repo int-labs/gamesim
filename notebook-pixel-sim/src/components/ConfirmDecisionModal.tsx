@@ -114,7 +114,7 @@ export function ConfirmDecisionModal({
             onClick={(e) => e.stopPropagation()}
           >
             <header className="px-4 py-3 border-b-2 border-border-soft bg-surface-2 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-border bg-surface">
+              <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface">
                 <PixelIcon kind="warning" size={11} color="var(--c-warning)" />
               </span>
               <h2 id="confirm-decision-title" className="panel-title text-text">{title}</h2>
@@ -139,7 +139,7 @@ export function ConfirmDecisionModal({
               )}
             </div>
 
-            <div className="px-4 py-3 border-t-2 border-border-soft bg-surface-2/70 flex items-center justify-end gap-2">
+            <div className="px-4 py-3 border-t border-border-soft bg-surface-2/70 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => { playSfx('click-soft'); onCancel(); }}

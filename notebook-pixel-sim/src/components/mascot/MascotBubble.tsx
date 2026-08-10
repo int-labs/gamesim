@@ -72,7 +72,7 @@ export function MascotBubble({ open, type = 'hint', text, side = 'left', onClose
               toneByType[type].split(' ').find((c) => c.startsWith('bg-')),
             )}
           />
-          <div className="px-3 pt-2 pb-1 flex justify-between items-center border-b-2 border-ink-900 bg-cream-200">
+          <div className="px-3 pt-2 pb-1 flex justify-between items-center border-b border-border-soft bg-cream-200">
             <div className="eyebrow eyebrow-sm">
               {speakerName} · {labelByType[type]}
             </div>

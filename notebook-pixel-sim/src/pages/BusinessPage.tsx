@@ -59,7 +59,7 @@ export function BusinessPage() {
       {/* The document sheet — the active folder's contents. */}
       <section className="relative min-w-0 flex flex-col panel-frame bg-surface">
         <header className="px-4 py-3 border-b border-border-soft bg-surface-2 shrink-0 flex items-center gap-2.5">
-          <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-border bg-surface">
+          <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface">
             {activeTab && <PixelIcon kind={activeTab.icon} size={13} color="var(--c-primary)" />}
           </span>
           <div className="min-w-0 flex-1">

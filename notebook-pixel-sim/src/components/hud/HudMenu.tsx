@@ -239,7 +239,7 @@ export function HudMenu({ onOpenStats, onHelp }: Props) {
               <div className="px-4 py-4 body-sm text-text-2 leading-relaxed">
                 Log out and re-enter your pass key? Your progress is saved.
               </div>
-              <footer className="flex items-center justify-end gap-2 px-4 py-3 border-t-2 border-border-soft bg-surface-2/70">
+              <footer className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border-soft bg-surface-2/70">
                 <button
                   type="button"
                   onClick={() => setConfirmLogout(false)}

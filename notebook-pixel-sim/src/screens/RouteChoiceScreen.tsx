@@ -109,7 +109,7 @@ export function RouteChoiceScreen() {
           </div>
 
           <div className="flex justify-center">
-            <div className="flex items-center gap-3 bg-cream-50 border-2 border-ink-900 px-3 py-2 shadow-pixel-2">
+            <div className="flex items-center gap-3 bg-cream-50 border border-border-soft px-3 py-2">
               <MascotAvatar mood="thinking_side" size={60} />
               <div className="body-xs font-body">{ROUTE.footer}</div>
             </div>
@@ -148,7 +148,7 @@ function RouteCard({
       </div>
       <div className="body-xs text-text-2 mb-3">{tagline}</div>
       <div className="grid grid-cols-2 gap-2.5">
-        <div className="bg-surface-2 border-2 border-border-soft p-2.5">
+        <div className="bg-surface-2 border border-border-soft p-2.5">
           <div className="stat-label">Perks</div>
           <div className="body-xs text-text mt-1">{perks}</div>
         </div>

@@ -56,7 +56,7 @@ export function ResultsPanel() {
           ) : (
             <div className="flex flex-col gap-1.5">
               {evals.map((e, i) => (
-                <div key={i} className="flex items-center justify-between bg-cream-50 border-2 border-ink-900 px-3 py-2">
+                <div key={i} className="flex items-center justify-between bg-cream-50 border border-border-soft px-3 py-2">
                   <span className="eyebrow eyebrow-sm">Phase {e.phase}</span>
                   <span className="body-xs text-ink-800">Day {e.day}</span>
                   {e.insightCorrect === true && <PixelBadge tone="success">Insight ✓</PixelBadge>}

@@ -231,12 +231,25 @@ button {
      are for TITLES and short labels at 14px+. Everything numeric is Inter via
      .num-*, which also gives tabular figures so columns line up.
 
-   RULE 5 — border weight is hierarchy, not decoration.
-     `border-2 border-ink-900`  → a section/panel container edge. Only.
-     `border border-border-soft` → controls, tiles, rows, table cells.
+   RULE 5 — border weight signals CLICKABILITY, not hierarchy.
+     `border-2 border-border` → things you can PRESS: buttons, clickable
+       tiles/rows/cards, inputs and selects. Pairs with the resting diagonal
+       shadow (see the affordance rule further down).
+     `border border-border-soft` (or none) → everything you CANNOT press:
+       sections, panels, cards, wrappers, modals, drawers, headers, footers,
+       dividers, table chrome, icon chips, readouts.
      Selection is shown with COLOUR and background, never by adding weight.
-     (655 plain `border` vs 122 `border-2` today — the heavy ones should be
-     the rare case, and they are not.)
+
+     This rule was INVERTED until 2026-08-10. It read "`border-2 border-ink-900`
+     → a section/panel container edge. Only." — so the heaviest border in the
+     palette was reserved for the things you can least interact with, and five
+     stacked 1372px-wide Operations sections each carried a 2px ink box while
+     the buttons inside them had the same weight or less. Clients could not
+     tell what was clickable, which is precisely what that produces.
+
+     If a container needs to separate itself from its surroundings, use fill
+     (`bg-surface` / `bg-surface-2`) and spacing. Cream on walnut is already a
+     huge value gap; weight is not the tool.
 
    RULE 6 — spacing comes from one ladder:
      gap-2 inside a group · gap-4 between groups · gap-6 between sections

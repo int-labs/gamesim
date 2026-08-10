@@ -125,7 +125,7 @@ export function PixelModal({ open, onClose, title, width, size = 'md', playful, 
               {title && (
                 // Dark textured title bar: it reads as a window chrome rather
                 // than another cream panel competing with the content below.
-                <div className="panel-textured flex items-center justify-between gap-3 px-4 py-2.5 border-b-2 border-ink-900 bg-ink-800 shrink-0">
+                <div className="panel-textured flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border-soft bg-ink-800 shrink-0">
                   <div className="section-title text-cream-50">{title}</div>
                   {!hideClose && onClose && (
                     <button

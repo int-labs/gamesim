@@ -105,7 +105,7 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
               <PreviewRow icon="stock" label="Finished stock" value={fmtInt(finished)} hint="available to sell" />
             </div>
 
-            <div className="bg-cream-100 border-2 border-ink-900 px-3 py-2.5 shadow-pixel-1">
+            <div className="bg-cream-100 border border-border-soft px-3 py-2.5">
               <div className="eyebrow eyebrow-sm text-ink-700 mb-1.5">Estimated next-day impact</div>
               <ul className="body-xs text-ink-900 leading-snug space-y-0.5">
                 <li>· Likely sold: <strong>{expectedSold}</strong> units</li>
@@ -170,7 +170,7 @@ function PreviewRow({
   hint?: string;
 }) {
   return (
-    <div className="flex items-center gap-2 bg-cream-50 border-2 border-ink-900 px-2.5 py-2">
+    <div className="flex items-center gap-2 bg-cream-50 border border-border-soft px-2.5 py-2">
       <MetricIcon kind={icon} size={26} tone="cream" />
       <div className="flex-1 leading-tight">
         <div className="eyebrow eyebrow-sm text-ink-700">{label}</div>

@@ -154,7 +154,7 @@ function Kpi({
   return (
     <Tooltip content={tip} placement="bottom">
       {/* READOUT card — recessed (inset shadow), not a button. */}
-      <div className="inline-flex items-center gap-2 border-2 border-border-soft bg-surface px-3 py-1.5 leading-none shadow-[inset_1.5px_1.5px_0_rgba(0,0,0,0.09)] min-w-0">
+      <div className="inline-flex items-center gap-2 border border-border-soft bg-surface px-3 py-1.5 leading-none shadow-[inset_1.5px_1.5px_0_rgba(0,0,0,0.09)] min-w-0">
         <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2 shrink-0">
           <PixelIcon kind={icon} size={14} color={t.icon} />
         </span>

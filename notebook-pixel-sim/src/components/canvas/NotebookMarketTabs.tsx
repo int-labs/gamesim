@@ -129,7 +129,7 @@ function MarketCard({ genre, arch, index }: { genre: GenreDef; arch: Archetype; 
           ))}
         </div>
 
-        <div className="body-xs text-text-2 border-t-2 border-border-soft pt-2.5">
+        <div className="body-xs text-text-2 border-t border-border-soft pt-2.5">
           <span className="strong text-text">{seg.name}.</span> {seg.description}
         </div>
       </div>
@@ -140,7 +140,7 @@ function MarketCard({ genre, arch, index }: { genre: GenreDef; arch: Archetype; 
 function Stat({ label, value, note, delay = 0 }: { label: string; value: string; note: string; delay?: number }) {
   return (
     <motion.div
-      className="bg-surface-2 border-2 border-border-soft px-2.5 py-2.5 min-w-0"
+      className="bg-surface-2 border border-border-soft px-2.5 py-2.5 min-w-0"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, type: 'spring', stiffness: 300, damping: 22 }}
@@ -278,7 +278,7 @@ function DemandTable({ arch }: { arch: Archetype }) {
     <div className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1 overflow-x-auto">
       <table className="w-full border-collapse min-w-[520px]">
         <thead>
-          <tr className="bg-cream-200 border-b-2 border-ink-900">
+          <tr className="bg-cream-200 border-b border-border-soft">
             <th className="stat-label text-left px-3.5 py-3">Market</th>
             {PHASES.map((p) => (
               <th key={p.key} className="stat-label text-right px-3.5 py-3">

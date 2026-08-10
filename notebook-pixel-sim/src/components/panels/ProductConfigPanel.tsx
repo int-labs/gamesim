@@ -120,7 +120,7 @@ export function ProductConfigPanel() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between bg-cream-50 border-2 border-ink-900 px-2 py-1">
+    <div className="flex items-center justify-between bg-cream-50 border border-border-soft px-2 py-1">
       <span className="eyebrow eyebrow-sm text-ink-700">{label}</span>
       <span className="eyebrow eyebrow-sm">{value}</span>
     </div>

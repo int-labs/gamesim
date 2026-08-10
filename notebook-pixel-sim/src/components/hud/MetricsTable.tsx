@@ -80,7 +80,7 @@ export function BottomStats() {
       </div>
 
       <header className="relative flex items-center gap-2.5 mb-6">
-        <span className="inline-flex items-center justify-center w-9 h-9 border-2 border-cream-100/25 bg-black/25">
+        <span className="inline-flex items-center justify-center w-9 h-9 border border-cream-100/25 bg-black/25">
           <img src={A.ui.sidebar.metrics} alt="" className="w-6 h-6 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
         </span>
         <div className="min-w-0">
@@ -144,7 +144,7 @@ function PaperSheet({
 
       <div className="panel-frame bg-surface px-3 pt-3 pb-3">
         <div className="flex items-center gap-2 pb-2.5">
-          <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-border-soft bg-surface-2 shrink-0">
+          <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2 shrink-0">
             <img src={icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
           </span>
           <span className="eyebrow eyebrow-sm text-text truncate">{title}</span>
@@ -183,17 +183,17 @@ function KVTable({ groups }: { groups: KVGroup[] }) {
   let rowIdx = 0;
   return (
     // Thin border only - the PaperSheet wrapper provides the heavy frame.
-    <div className="border-2 border-border-soft bg-surface overflow-hidden">
+    <div className="border border-border-soft bg-surface overflow-hidden">
       <table className="w-full border-collapse body-xs">
         {groups.map((g, gi) => (
-          <tbody key={g.key} className={clsx(gi > 0 && 'border-t-2 border-border-soft')}>
+          <tbody key={g.key} className={clsx(gi > 0 && 'border-t border-border-soft')}>
             {/* GROUP header - a clear SECTION divider: small caps, heavy,
                 strong ink. Deliberately smaller than the row values below it
                 so the data reads as the loudest thing. */}
             <tr className="bg-surface-2/80">
               <th className="text-left stat-label text-text-2 px-2.5 py-1.5">
                 <span className="inline-flex items-center gap-2">
-                  <span className="inline-flex items-center justify-center w-6 h-6 border-2 border-border-soft bg-surface shrink-0">
+                  <span className="inline-flex items-center justify-center w-6 h-6 border border-border-soft bg-surface shrink-0">
                     <img src={g.icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
                   </span>
                   {g.title}
@@ -240,7 +240,7 @@ function KVTable({ groups }: { groups: KVGroup[] }) {
 
 function EmptyMetrics({ text }: { text: string }) {
   return (
-    <div className="border-2 border-border-soft bg-surface p-6 text-center">
+    <div className="border border-border-soft bg-surface p-6 text-center">
       <div className="body-xs text-text-2">{text}</div>
     </div>
   );
@@ -393,13 +393,13 @@ export function FinanceTable() {
 
   return (
     // Thin border only - the PaperSheet wrapper provides the heavy frame.
-    <div className="border-2 border-border-soft bg-surface overflow-hidden">
+    <div className="border border-border-soft bg-surface overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse min-w-[520px]">
           <thead>
             {/* The live phase column is marked in the header rather than left
                 to the reader to work out from the day counter. */}
-            <tr className="bg-cream-200 border-b-2 border-ink-900">
+            <tr className="bg-cream-200 border-b border-border-soft">
               <th className="stat-label text-left py-2.5 pl-3 pr-2">Line item</th>
               {([1, 2, 3] as const).map((p) => (
                 // "You are here" is a COLUMN marker, so it reads as a rule
@@ -459,7 +459,7 @@ export function FinanceTable() {
                 >
                   <td className={clsx('py-2 pl-3 pr-2', r.group === 'cost' ? 'text-text-2' : 'text-text')}>
                     <span className="inline-flex items-center gap-2.5 min-w-0">
-                      <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-border-soft bg-surface-2/60 shrink-0">
+                      <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2/60 shrink-0">
                         <img src={r.icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
                       </span>
                       <span className={clsx('truncate', r.emphasis ? 'item-name' : 'body-xs')}>{r.label}</span>
