@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Nothing about a specific game is hard-coded. A "game" is data — a `SimulationType` row plus its `Product`s (whose `fields[]` *are* the decision form schema), `Segment`s, `GlobalInput`s and a `BaseData` document. That is why the admin client is mostly CRUD screens over each collection.
 
-Three nested npm projects (no workspace tool — separate `node_modules` and lockfiles; the root `package.json` only shells out with `cd <dir> && npm run …`):
+Three nested npm projects (no workspace tool — separate `node_modules` and lockfiles; the root `package.json` only shells out with `cd <dir> && npm run …`, and the only root dependency that does any work is `concurrently`. The runtime packages listed beside it — `mongodb`, `bcryptjs`, `@supabase/supabase-js`, `random-words` — are vestigial: nothing at the root imports them, because there is no root-level source file at all. Add a dependency to the package that uses it, never here. The root `name`/`description` fields still say "Stratagem — Freelancer Management Platform" and mean nothing):
 
 | Piece | Path | Stack | Dev URL |
 |---|---|---|---|
@@ -16,7 +16,7 @@ Three nested npm projects (no workspace tool — separate `node_modules` and loc
 | Admin/operator dashboard | `client/` | Vite + React 18 + MUI | http://localhost:3001 |
 | Notebook pixel sim (player) | `notebook-pixel-sim/` | Vite + React 18 + Zustand + Tailwind | http://localhost:5173 |
 
-**Branch note:** `notebook-pixel-sim/` and `server/src/finlit/` exist only on the `notebook-sim` branch, not on `main`. The root `README.md` describes an older backend-only state and is stale — prefer this file.
+**Branch note:** `notebook-pixel-sim/` and `server/src/finlit/` exist only on the `notebook-sim` branch — `main` carries **zero** files from either path. `rido-branch` is the working branch and is `main` + `notebook-sim` merged, so everything this file describes is present there. Check which branch you are on before concluding a path is missing. The root `README.md` describes an older backend-only state and is stale — prefer this file.
 
 ## Commands
 
@@ -37,7 +37,9 @@ cd client            && npm start        # vite --port 3001
 cd notebook-pixel-sim && npm run dev     # vite (5173); npm run typecheck = tsc -b
 ```
 
-Single server test: `cd server && npx jest src/test/calculateScoresForAllTeams.test.ts -t "<test name>"`.
+**Never start a dev server with Bash** — `.claude/launch.json` already names all six, so use the preview tooling by name: `api` (5000), `admin-client` (3001), `notebook-player` (5173), `notebook-sim-full` (API + player together), and the `-alt` pair `admin-client-alt` (3002) / `notebook-sim` (5174) for when a port is already taken. `api` and `notebook-sim-full` launch through `env PORT=5000` deliberately — see the `PORT` trap under **Environment** for why that is not redundant.
+
+Single server test: `cd server && npx jest src/test/calcMarketModel.test.ts -t "<test name>"`. The three suites are `src/test/calcMarketModel.test.ts`, `src/test/finlitEngineParity.test.ts` and `src/validators/playerConfig.test.ts` — note the last one sits beside the code it tests, not under `src/test/`.
 
 ### Testing and linting
 
@@ -47,19 +49,31 @@ npm run typecheck   # server + client + player
 npm test            # server jest, then the console's Playwright suite
 ```
 
+**`npm test` fails the moment `server/dist/` exists — and it is not your change that broke it.** `server/jest.config.js` sets only `testEnvironment` and the ts-jest transform: no `roots`, no `testPathIgnorePatterns`. So jest collects `src/**/*.test.ts` *and* the compiled `dist/**/*.test.js` left behind by any `npm run build`. The `dist` copy of `finlitEngineParity.test.ts` resolves its fixture paths relative to itself and reaches for `dist/finlit/**/*.ts`, which contains only `.js` — 15 ENOENT failures against 111 passes, all of them phantom. `dist/` is git-ignored, so CI on a clean checkout passes and only local runs break, which makes it read as "my change broke parity".
+
+Until the config is narrowed, scope the run and it is clean at **63 passed / 3 suites**:
+
+```bash
+cd server && npx jest src/
+```
+
+The one-line fix is `roots: ["<rootDir>/src"]` in `server/jest.config.js`; `rm -rf server/dist` also clears it until the next build.
+
 **Type-checking is still the primary gate** — `cd server && npx tsc --noEmit`, `cd client && npx tsc --noEmit`, `cd notebook-pixel-sim && npx tsc -b`, all clean.
 
 **ESLint had never run.** Both configs lived in `eslintrc.js` — no leading dot — so nothing discovered them, and they listed `import`/`simple-import-sort` plugins that were never installed. They are now `eslint.config.js` (server) and `eslint.config.mjs` (client), and both trees are clean. Two rules worth knowing: `src/finlit/**` is exempt from unused-import checks (it is a vendored copy that must stay byte-comparable — tidying it is drift, and the parity test will say so), and `react-hooks/exhaustive-deps` is on, which is what surfaced the dashboard's `?? []` fallbacks silently defeating every `useMemo` below them.
 
 **The server suite tested nothing.** `calculateScoresForAllTeams.test.ts` was the entire suite: eight cases that built elaborate fixtures, never imported any production code, and asserted `expect(expectedScores[0].totalScore).toBe(100)` against a literal three lines above. The function it named does not exist anywhere in the repo. It passed on every run and would have kept passing if `src/sim/` were deleted. It has been replaced by 63 real tests across three files — `calcMarketModel.test.ts` (the competitive scorer, including the market-share quirk), `playerConfig.test.ts` (the config validators) and `finlitEngineParity.test.ts` (below).
 
-**The console has a Playwright suite** in `client/tests/`, which `playwright.config.ts` had pointed at for a long time without it existing. Login, a full CRUD round-trip, a walk of all eighteen collection pages checking for uncaught errors, and a check that malformed JSON never reaches the API. Credentials come from `E2E_EMAIL` / `E2E_PASSWORD` and the suite skips itself with an explanation when they are absent — **never inline an account, the repo is public**:
+**The console has a Playwright suite** in `client/tests/`, which `playwright.config.ts` had pointed at for a long time without it existing. It has since grown well past a smoke test — `auth.spec.ts` covers sign-in, session persistence, token expiry and the refusal of a team passkey at the console login; `console.spec.ts` covers the nav grouping, a walk of every collection page checking for uncaught errors, a full CRUD round-trip on initiatives, param-list editing, the malformed-JSON guard, the **In the room** band, the debrief's evidence, a detail view opening from a row on every collection that has one, the "never render Unknown when the record exists" regression, the storage-durability banner, and two authorization checks that a team token cannot read a rival's run report or live progress. Credentials come from `E2E_EMAIL` / `E2E_PASSWORD` and the suite skips itself with an explanation when they are absent — **never inline an account, the repo is public**:
 
 ```bash
 cd client && E2E_EMAIL=you@intlabs.io E2E_PASSWORD='…' npm run test:e2e
 ```
 
-Cypress has support files but zero specs; it is configured and unused.
+`npm run test:ci` swaps in `client/playwright.ci.config.ts`, which drives `start:ci` — and that harness runs the API on **PORT=5001**, the one place in the repo that deliberately moves it off 5000 (see the `PORT` trap under **Environment**).
+
+Two dead test configs, both of which look like coverage and are not: Cypress has support files but zero specs, and `client/jest.config.js` + `jest.setup.js` back a `test:unit` script whose `testMatch` (`src/**/*.test.tsx?`) matches **no file in the tree** — the console's only real tests are the Playwright ones under `client/tests/`, which that config explicitly ignores.
 
 ### The vendored FinLit engine
 
@@ -313,7 +327,9 @@ Both are reached two ways:
 
 ### Conventions and gaps
 
-- Controllers are `(req, res) => Promise<void>` with a local `try/catch` returning `res.status(n).json({ message })`. There is no error middleware and no request-validation layer (`zod` is a server dependency but is **not** used anywhere in `server/src`).
+- Controllers are `(req, res) => Promise<void>` with a local `try/catch` returning `res.status(n).json({ message })`. There is no error middleware.
+- **Validation is zod, but only on the routes that earned it** — not a global layer, and *(historically this file claimed zod was unused in `server/src`, which is no longer true — don't hand-roll a checker on that basis)*. `src/validators/` holds the two big schemas, `playerConfig.ts` (the operator content overlay, with a helper that flattens zod issues into the console's inline-error shape) and `baseData.ts`; `debriefControllers.ts`, `roundNoteControllers.ts` and `teamMemberControllers.ts` define theirs inline. Everything else destructures `req.body` raw. When adding validation to a route, follow whichever of those two shapes the neighbours use rather than introducing a third.
+- `src/db-migrations/` holds one-off dated scripts (`202501300949.convert-token-to-passkey.ts`); there is no migration runner, they are run by hand.
 - Routes mount `authenticate` at the router level and add `authorize([ROLES.…])` per write route. `authenticate` only verifies the JWT signature — it does no DB lookup, so a validly signed token works against an empty `users` collection.
 - Socket.io is initialised (`server/src/utils/socket.ts`) and tracks sessions, but **no domain events are emitted** — clients poll.
 
@@ -384,6 +400,10 @@ cd server && npm run create-admin -- --email you@intlabs.io --password 'your-pas
 - Team login is `POST /users/login-passkey` → 12 h team JWT + `teamId` + `simulationId`, **plus `teamName` and the team's generated avatar**. The player had no idea who it was before that: `teamId` alone meant the game could never name a team or show the face the console made for it.
 - **The HUD shows the room, not just the run** (`components/hud/SessionChip.tsx`): which round is open, the facilitator's countdown, and the team's own name and avatar. The timer existed end to end — console sets `durationMinutes`, server stores `startDate`/`endDate`, `RoundDto` typed it — and no component ever read it, so a facilitator would say "you have 25 minutes" and the room had no clock. The chip renders nothing without a gamesim session, so standalone/demo play is untouched. It shows a **pixel** team mark rather than the server's DiceBear avatar — that avatar is abstract geometry in its own bright palette, which is right in the console's roster and completely foreign inside warm pixel art. The mark is still picked deterministically from the team name, so each team keeps a distinct badge from the game's own art set.
 - `server/src/finlit/` is a **hand-vendored copy** of the player's pure engine subset (relative imports instead of the `@/` alias). It is still imported by nothing outside itself, but re-syncing is now `npm run sync-finlit` and `server/src/test/finlitEngineParity.test.ts` fails the build if the two drift. See **The vendored FinLit engine** above.
+
+## `notes/` is history, not specification
+
+Four long documents — `BACKEND-MASTER-PLAN.md`, `INTEGRATION-PLAN.md`, `DASHBOARD-UIUX-SPEC.md`, `HANDOVER.md`. They are worth reading for *why* something is shaped the way it is, and they are **not** a description of the current tree. Their own status lines are the giveaway and disagree with each other: the backend master plan still says "PLAN — awaiting approval, zero implementation started" for work that has since shipped, while the integration plan says "Rev 3 — all phases complete". Treat every one of them as a snapshot of the day it was written, and confirm against the code before acting on anything in them. This file is the current-state doc.
 
 ## Deployment
 
