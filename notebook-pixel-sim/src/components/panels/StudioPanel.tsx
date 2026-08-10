@@ -11,7 +11,8 @@ import {
   CHANNEL_META, channelRow,
   type CandidateId, type VendorId, type GenreId, type ChannelId,
 } from '@/data/finlit';
-import { fmt$ } from '@/utils/format';
+import { fmt$, perPhase, fmtUnitsPerPhase } from '@/utils/format';
+import { DAYS_PER_PHASE } from '@/engine/config';
 import { playSfx } from '@/audio/audioManager';
 import { PixelModal } from '@/components/primitives/PixelModal';
 import { CostTiles, ImpactList, type CostTile } from '@/components/primitives/CostTiles';
@@ -124,6 +125,11 @@ export function StudioPanel() {
   const [shopDraft, setShopDraft] = useState<string | null>(null);
   // Which section's reference sheet is open, if any.
   const [detail, setDetail] = useState<SectionDetail | null>(null);
+
+  // Days remaining in the current phase — see the Hiring hint for why the
+  // per-phase figures need this qualifier.
+  const day = useGame((s) => s.meta.day);
+  const daysLeftInPhase = Math.max(0, phase * DAYS_PER_PHASE - day + 1);
 
   const vendorLevel = phase >= 2 ? 2 : 1;
   const hireRefund = hire ? hireLevel(hire.candidate, hire.level).energy : 0;
@@ -254,7 +260,7 @@ export function StudioPanel() {
                     reason to pick offline, so it says so. */}
                 <div className="grid grid-cols-2 gap-2 mt-auto">
                   <StatChip label="Reach" value={lo === hi ? `${lo}%` : `${lo}-${hi}%`} tone="reach" />
-                  <StatChip label="Per day" value={fmt$(row.maintenance)} tone="money" />
+                  <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone="money" />
                   <StatChip
                     label="Per sale"
                     value={row.consignment > 0 ? fmt$(row.consignment) : 'None'}
@@ -272,7 +278,7 @@ export function StudioPanel() {
       <OpsSection
         icon={SECTION_ICON.budget}
         title="Marketing & Sales Budget"
-        hint="Spend $/day to grow. Set back to $0 to switch off and refund the energy."
+        hint="Budget to grow, shown per phase. Set back to $0 to switch off and refund the energy."
         onDetails={() => setDetail(budgetDetail(BUDGET_LEVER_ENERGY, BUDGET_MAX, marketingDemandMult, salesSellBonus))}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -303,7 +309,21 @@ export function StudioPanel() {
       <OpsSection
         icon={SECTION_ICON.hiring}
         title="Hiring"
-        hint="One hire at a time. Adds production and sell-rate."
+        hint={
+          // Two things the per-phase figures do not say on their own, and both
+          // change what the number means:
+          //   1. a hire is NOT one-off — nothing clears `finlit.hire` at phase
+          //      rollover, so a Phase 1 hire keeps charging through 2 and 3.
+          //      "$150" read as one-time understates the commitment 3x.
+          //   2. the figures assume a whole 30-day phase. Hire on day 25 and
+          //      you buy 6 days of it, so surface the shortfall rather than
+          //      quietly overstating what the money buys.
+          // Kept short: the section header scrolls under the floating
+          // PRODUCT/BUSINESS nav, which clips a long second line.
+          daysLeftInPhase < DAYS_PER_PHASE
+            ? `Costs are per phase and recur while engaged — ${daysLeftInPhase}d left, figures show a full phase.`
+            : 'One at a time. Costs are per phase and recur while engaged.'
+        }
         onDetails={() => setDetail(hiringDetail())}
       >
         <div className="flex flex-col gap-2.5">
@@ -353,7 +373,7 @@ export function StudioPanel() {
                           : affordable ? 'border-ink-900 bg-surface hover:bg-cream-100 text-text active:scale-95'
                           : 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed',
                         )}
-                        title={`L${lv.level}: +${lv.prodBonus.toFixed(2)} prod, +${(lv.sellBonus * 100).toFixed(1)}% sell · ${lv.energy}⚡ to unlock · ${fmt$(lv.cost)}/day`}
+                        title={`L${lv.level}: ${fmt$(perPhase(lv.cost))} per phase (${fmt$(lv.cost)}/day) · +${fmtUnitsPerPhase(lv.prodBonus)} units per phase · +${(lv.sellBonus * 100).toFixed(1)}% sell-rate · ${lv.energy}⚡ to unlock`}
                       >
                         {/* Level leads because it is the button's identity, but
                             at .num-sm, not .num-md: "L1" is a two-character tag,
@@ -362,8 +382,12 @@ export function StudioPanel() {
                         <span className={clsx('num-sm leading-none', isCur ? 'text-ink-900' : 'text-ink-900')}>
                           L{lv.level}
                         </span>
+                        {/* Per PHASE, not per day. $5/day is not a number you
+                            can weigh against a notebook's margin without doing
+                            the ×30 yourself; $150 is. The per-day rate is still
+                            in the button's title for anyone who wants it. */}
                         <span className="stat-label stat-label-on-tint">
-                          {fmt$(lv.cost)}/day
+                          {fmt$(perPhase(lv.cost))}
                         </span>
                         {!isCur && <EnergyTag amount={lv.energy} />}
                       </button>
@@ -378,15 +402,29 @@ export function StudioPanel() {
                     compare two candidates. L1 → L4 shows both the floor and
                     what the top tier buys. */}
                 <div className="grid grid-cols-2 gap-1.5 flex-1 min-w-[200px]">
+                  {/* "+0.49 → +3.92 per day" was the L1→L4 range in the engine's
+                      own units, and nobody can picture 0.49 of a notebook. The
+                      same range per phase is 15 → 118 units, which is a pile of
+                      notebooks you can weigh against a price. */}
                   <StatChip
-                    label="Output / day"
-                    value={`+${c.levels[0].prodBonus.toFixed(2)} → +${c.levels[c.levels.length - 1].prodBonus.toFixed(2)}`}
+                    label="Output / phase"
+                    value={`+${fmtUnitsPerPhase(c.levels[0].prodBonus)} → +${fmtUnitsPerPhase(c.levels[c.levels.length - 1].prodBonus)} units`}
                     tone="good"
                   />
                   <StatChip
                     label="Sell-rate"
                     value={`+${(c.levels[0].sellBonus * 100).toFixed(1)}% → +${(c.levels[c.levels.length - 1].sellBonus * 100).toFixed(1)}%`}
                     tone="reach"
+                  />
+                  {/* The number the decision actually turns on, and the one
+                      step of the mental arithmetic nobody should have to do:
+                      cost ÷ extra units = the margin each new unit must clear
+                      for the hire to pay for itself. */}
+                  <StatChip
+                    label="Breakeven margin"
+                    value={`${fmt$(c.levels[0].cost / c.levels[0].prodBonus)} / unit`}
+                    tone="money"
+                    className="col-span-2"
                   />
                 </div>
                 </div>
@@ -436,7 +474,7 @@ export function StudioPanel() {
                       : stocks && affordable ? 'border-ink-900 bg-surface hover:bg-cream-100'
                       : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed',
                     )}
-                    title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(cov.cost)}/day` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
+                    title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(perPhase(cov.cost))} per phase (${fmt$(cov.cost)}/day)` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
                   >
                     <div className="flex items-center gap-2.5">
                       <SafeImage
@@ -452,7 +490,7 @@ export function StudioPanel() {
                     {stocks ? (
                       <div className="grid grid-cols-3 gap-1.5 mt-2">
                         <StatChip label="Sell" value={`+${(cov.sellBonus * 100).toFixed(1)}%`} tone="good" />
-                        <StatChip label="Per day" value={fmt$(cov.cost)} tone="money" />
+                        <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone="money" />
                         <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone="energy" />
                       </div>
                     ) : (
@@ -554,7 +592,10 @@ export function StudioPanel() {
   );
 }
 
-/* A budget lever — a $/day slider with its live effect and activation energy.
+/* A budget lever. The slider's underlying unit is $/DAY (that is what the
+   engine charges and what the design sheet specifies), but the chip reports the
+   PER-PHASE total, because that is the figure a player weighs against revenue.
+   The raw per-day value is never surfaced, so there is no unit to confuse.
    $0 = off; moving above 0 charges the flat activation energy (refunded when
    set back to 0). Money spend flows through the phase P&L. */
 function BudgetLever({
@@ -591,7 +632,7 @@ function BudgetLever({
           number — the spend — and say nothing about what that money bought.
           The effect chip is the whole point of the lever. */}
       <div className="grid grid-cols-3 gap-2">
-        <StatChip label="Spend" value={`${fmt$(value)}/day`} tone={active ? 'money' : 'muted'} />
+        <StatChip label="Spend / phase" value={fmt$(perPhase(value))} tone={active ? 'money' : 'muted'} />
         <StatChip label={effectLabel} value={effect} tone={active ? 'good' : 'muted'} />
         <StatChip
           label={active ? 'Running on' : 'To activate'}

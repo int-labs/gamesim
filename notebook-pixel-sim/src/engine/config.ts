@@ -81,6 +81,18 @@ export const MAX_EXPECTED_NET_PROFIT = 4500;
 // Active Days for cleanliness rate calculation
 export const ACTIVE_DAYS_TOTAL = 90;
 
+/**
+ * Days in one phase. The run is three of these (`ACTIVE_DAYS_TOTAL`).
+ *
+ * This is the multiplier behind every "per phase" figure the operations
+ * screens show. Company decisions — hiring, vendors, channels, marketing and
+ * sales budgets — are all priced per DAY in the design sheets, which is the
+ * right unit for the engine and the wrong one for a player: choosing a hire
+ * tier meant multiplying a $/day cost and a fractional units/day bonus by 30
+ * in your head, sixteen times over, before you could compare two candidates.
+ */
+export const DAYS_PER_PHASE = 30;
+
 // Defect rate cap so it never goes wild
 export const MAX_DEFECT_RATE = 0.5;
 
