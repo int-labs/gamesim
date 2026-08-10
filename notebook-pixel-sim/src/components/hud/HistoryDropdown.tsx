@@ -43,7 +43,7 @@ export function HistoryDropdown({ onClose }: Props) {
         animate={{ y: 0, opacity: 1, scale: 1 }}
         transition={{ duration: 0.18, ease: [0.2, 1.4, 0.4, 1] }}
         onClick={(e) => e.stopPropagation()}
-        className="panel-frame bg-surface border-2 border-border shadow-[5px_5px_0_0_var(--c-shadow)] flex flex-col w-full max-w-[520px] max-h-[80vh]"
+        className="panel-frame panel-frame--lifted-lg bg-surface flex flex-col w-full max-w-[520px] max-h-[80vh]"
       >
         <header className="flex items-center justify-between px-4 py-3 border-b-2 border-border-soft bg-surface-2 shrink-0">
           <div className="flex items-center gap-2">

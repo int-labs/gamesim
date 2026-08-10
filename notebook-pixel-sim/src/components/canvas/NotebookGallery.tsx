@@ -75,7 +75,7 @@ export function NotebookGallery() {
           view's title card + view controls, so toggling Focus ⇄ Shelf keeps
           every control exactly in place. */}
       <div className="absolute left-3 top-3 z-20 max-w-[calc(50%-120px)]">
-        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 shadow-[3px_3px_0_0_var(--c-shadow)] w-fit max-w-full">
+        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 w-fit max-w-full">
           {/* accent chip + eyebrow + arcade-font name — same title-plate
               anatomy as the focus view's notebook title. */}
           <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border-2 border-primary bg-primary-soft shrink-0">
@@ -95,7 +95,7 @@ export function NotebookGallery() {
           </span>
         </div>
       </div>
-      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame bg-surface px-1.5 shadow-[3px_3px_0_0_var(--c-shadow)]">
+      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
         <ViewToggle />
         {/* Same Details affordance as the focus view, in the same slot, so
             the toggle itself never shifts when switching views. */}

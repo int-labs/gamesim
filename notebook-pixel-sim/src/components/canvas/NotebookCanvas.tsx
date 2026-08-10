@@ -306,7 +306,7 @@ export function NotebookCanvas() {
            accent icon chip + tiny eyebrow + chunky arcade-font name. Still a
            single 48px row on the shared top band. ─────────────────────── */}
       <div className="absolute left-3 top-3 z-20 max-w-[calc(50%-120px)]">
-        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 shadow-[3px_3px_0_0_var(--c-shadow)] w-fit max-w-full">
+        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 w-fit max-w-full">
           {/* accent chip */}
           <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border-2 border-primary bg-primary-soft shrink-0">
             <PixelIcon kind="product" size={15} color="var(--c-primary)" />
@@ -351,7 +351,12 @@ export function NotebookCanvas() {
                 >
                   {product.name}
                 </motion.span>
-                <span aria-hidden className="opacity-35 group-hover:opacity-100 transition-opacity shrink-0">
+                {/* Was opacity-35 until :hover — the only hint that this label is
+                      editable, and invisible on the tablets this is played on.
+                      Click-to-edit text is exempt from the button grammar (see the
+                      affordance rule), so the icon IS the affordance and must be
+                      legible at rest. */}
+                <span aria-hidden className="opacity-70 group-hover:opacity-100 transition-opacity shrink-0">
                   <NavIcon icon={Pencil} size={11} color="var(--c-text-3)" />
                 </span>
               </button>
@@ -365,7 +370,7 @@ export function NotebookCanvas() {
       </div>
 
       {/* ── Floating view controls (top-right, same 48px band) ─────────── */}
-      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame bg-surface px-1.5 shadow-[3px_3px_0_0_var(--c-shadow)]">
+      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
         <ViewToggle />
         {/* h matches the ViewToggle's OUTER height (26px buttons + p-0.5 +
             border = 32px) so the row reads as one aligned control strip. */}

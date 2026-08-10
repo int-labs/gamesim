@@ -318,7 +318,7 @@ export function ProductLineList() {
           <div
             id="add-notebook-menu"
             role="menu"
-            className="z-[120] panel-frame bg-surface border-2 border-border shadow-[3px_3px_0_0_var(--c-shadow)]"
+            className="z-[120] panel-frame panel-frame--lifted bg-surface"
             style={{
               position: 'fixed',
               left: addRect.left,
@@ -375,7 +375,7 @@ export function ProductLineList() {
               role="alertdialog"
               aria-modal="true"
               aria-label="Delete notebook"
-              className="panel-frame bg-surface border-2 border-border shadow-[5px_5px_0_0_var(--c-shadow)] w-full max-w-[420px]"
+              className="panel-frame panel-frame--lifted-lg bg-surface w-full max-w-[420px]"
               onClick={(e) => e.stopPropagation()}
             >
               <header className="flex items-center gap-2 px-4 py-3 border-b-2 border-border-soft bg-surface-2">

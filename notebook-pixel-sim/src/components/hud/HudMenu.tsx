@@ -158,7 +158,7 @@ export function HudMenu({ onOpenStats, onHelp }: Props) {
           <div
             id="hud-menu"
             role="menu"
-            className="fixed z-[130] w-[248px] panel-frame bg-surface border-2 border-border shadow-[3px_4px_0_0_var(--c-shadow)]"
+            className="fixed z-[130] w-[248px] panel-frame panel-frame--lifted bg-surface"
             style={{ top: rect.bottom + 8, right: Math.max(8, window.innerWidth - rect.right) }}
           >
             {/* This is the OVERFLOW menu: it only holds controls that aren't
@@ -230,7 +230,7 @@ export function HudMenu({ onOpenStats, onHelp }: Props) {
               aria-modal="true"
               aria-label="Log out"
               onClick={(e) => e.stopPropagation()}
-              className="panel-frame bg-surface border-2 border-border shadow-[5px_5px_0_0_var(--c-shadow)] w-full max-w-[360px]"
+              className="panel-frame panel-frame--lifted-lg bg-surface w-full max-w-[360px]"
             >
               <header className="px-4 py-3 border-b-2 border-border-soft bg-surface-2 flex items-center gap-2">
                 <NavIcon icon={LogOut} size={14} color="var(--c-danger)" />

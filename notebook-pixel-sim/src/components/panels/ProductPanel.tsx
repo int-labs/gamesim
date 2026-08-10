@@ -442,7 +442,7 @@ function ArchetypeDropdown({
         <div
           id="archetype-menu"
           role="menu"
-          className="z-[120] panel-frame bg-surface border-2 border-border shadow-[3px_3px_0_0_var(--c-shadow)]"
+          className="z-[120] panel-frame panel-frame--lifted bg-surface"
           style={{ position: 'fixed', left: rect.left, top: rect.bottom + 6, width: rect.width }}
         >
           {archOptions().map((a) => {

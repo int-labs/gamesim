@@ -240,7 +240,7 @@ export function VisualNovelMascot() {
           >
             <div
               className={clsx(
-                'panel-frame bg-surface border-2 shadow-[6px_6px_0_0_rgba(0,0,0,0.6)] flex flex-col',
+                'panel-frame panel-frame--lifted-lg bg-surface flex flex-col',
                 tone.accent,
               )}
               style={{ minHeight: 220, maxHeight: 320 }}

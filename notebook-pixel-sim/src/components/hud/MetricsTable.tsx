@@ -142,7 +142,7 @@ function PaperSheet({
       <span aria-hidden className="absolute -top-2 left-7 w-14 h-4 -rotate-3 bg-[#E9E0C8]/90 border border-black/20 shadow-[1px_1px_0_0_rgba(0,0,0,0.25)] z-10" />
       <span aria-hidden className="absolute -top-2 right-7 w-14 h-4 rotate-2 bg-[#E9E0C8]/90 border border-black/20 shadow-[1px_1px_0_0_rgba(0,0,0,0.25)] z-10" />
 
-      <div className="panel-frame bg-surface px-3 pt-3 pb-3 shadow-[7px_9px_0_0_rgba(0,0,0,0.35)]">
+      <div className="panel-frame bg-surface px-3 pt-3 pb-3">
         <div className="flex items-center gap-2 pb-2.5">
           <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-border-soft bg-surface-2 shrink-0">
             <img src={icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />

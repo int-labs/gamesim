@@ -94,7 +94,7 @@ export function PixelSelect({
         <div
           id={menuId}
           role="listbox"
-          className="z-[130] panel-frame bg-surface border border-border shadow-[3px_3px_0_0_var(--c-shadow)] max-h-[240px] overflow-y-auto"
+          className="z-[130] panel-frame panel-frame--lifted bg-surface max-h-[240px] overflow-y-auto"
           style={{
             position: 'fixed',
             left: rect.left,
