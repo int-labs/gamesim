@@ -80,17 +80,17 @@ export function StartScreen() {
               initial={reduced ? false : { scale: 0.7, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.18 }}
-              className="font-hud text-[24px] sm:text-[28px] uppercase tracking-wide text-ink-900 leading-tight"
+              className="h2 text-ink-900 leading-tight"
             >
               {HOME.title}
             </motion.h1>
-            <p className="font-body text-[16px] text-ink-800 mt-3 max-w-[560px] mx-auto leading-relaxed">
+            <p className="font-body body-xs text-ink-800 mt-3 max-w-[560px] mx-auto leading-relaxed">
               {HOME.tagline}
             </p>
 
             {/* "What you'll learn" — labelled divider over the LP grid. */}
             <div className="mt-5 flex items-center gap-2">
-              <span className="font-hud text-[9px] uppercase tracking-[0.18em] text-ink-500 whitespace-nowrap">
+              <span className="eyebrow eyebrow-sm eyebrow-muted whitespace-nowrap">
                 What you'll learn
               </span>
               <span aria-hidden className="h-px flex-1 bg-ink-900/15" />
@@ -106,11 +106,11 @@ export function StartScreen() {
               transition={{ delay: 0.6, duration: 0.4 }}
               className="mt-3 flex items-center justify-center gap-1.5 text-ink-600"
             >
-              <span aria-hidden className="text-[13px] leading-none">🏆</span>
-              <span className="font-body text-[12px]">Graded out of 100 on Day 90</span>
+              <span aria-hidden className="body-xs leading-none">🏆</span>
+              <span className="font-body hint">Graded out of 100 on Day 90</span>
             </motion.div>
           </div>
-          <div className="border-t-2 border-ink-900 bg-cream-200 p-4 flex flex-col gap-3 items-center">
+          <div className="border-t border-border-soft bg-cream-200 p-4 flex flex-col gap-3 items-center">
             <div className="flex w-full max-w-[470px] items-center gap-3">
               {/* Head-cropped avatar (shared) - framing just her head/shoulders
                   reads far better than a full-body sprite in a small box. */}
@@ -121,9 +121,9 @@ export function StartScreen() {
                   aria-hidden
                   className="absolute -left-[7px] top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 border-b-2 border-l-2 border-ink-900 bg-cream-50"
                 />
-                <div className="rounded-lg border-2 border-ink-900 bg-cream-50 px-3 py-2 shadow-pixel-soft">
-                  <div className="font-hud text-[8px] uppercase tracking-wider text-brand-500">Amelia</div>
-                  <div className="mt-0.5 font-body text-[12.5px] leading-snug text-ink-900">
+                <div className="rounded-lg border border-border-soft bg-cream-50 px-3 py-2">
+                  <div className="eyebrow eyebrow-sm text-brand-500">Amelia</div>
+                  <div className="mt-0.5 font-body hint leading-snug text-ink-900">
                     {hasSavedRun
                       ? HOME.ameliaIntroReturning(day, phase, route!)
                       : ended
@@ -140,7 +140,11 @@ export function StartScreen() {
                     {HOME.cta.continue(day)}
                   </PixelButton>
                 </CtaPulse>
-                <PixelButton variant="secondary" size="lg" onClick={onStartNew}>
+                {/* Ghost, not a second filled button. This one WIPES the saved
+                    run, and sitting it beside Continue as an equally solid,
+                    equally coloured CTA invited exactly the misclick you can't
+                    undo. Continue is the only filled button here. */}
+                <PixelButton variant="ghost" size="lg" onClick={onStartNew}>
                   {HOME.cta.startNew}
                 </PixelButton>
               </div>
@@ -173,12 +177,12 @@ function Lp({ t, body, index }: { t: string; body: string; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -3 }}
       transition={{ duration: 0.35, delay: 0.3 + index * 0.07, ease: 'easeOut' }}
-      className="flex items-center gap-2 border-2 border-ink-900 bg-cream-100 px-2.5 py-2 text-left shadow-pixel-soft cursor-default"
+      className="flex items-center gap-2 border border-border-soft bg-cream-100 px-2.5 py-2 text-left cursor-default"
     >
-      <span className="shrink-0 bg-brand-500 px-1.5 py-0.5 font-hud text-[9px] uppercase leading-none text-cream-50">
+      <span className="shrink-0 bg-brand-500 px-1.5 py-0.5 eyebrow eyebrow-sm leading-none text-cream-50">
         {t}
       </span>
-      <span className="font-body text-[12.5px] leading-tight text-ink-900">{body}</span>
+      <span className="font-body hint leading-tight text-ink-900">{body}</span>
     </motion.div>
   );
 }

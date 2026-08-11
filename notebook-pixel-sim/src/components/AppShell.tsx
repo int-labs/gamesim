@@ -117,10 +117,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 style={{ imageRendering: 'pixelated' }}
                 draggable={false}
               />
-              <div className="font-hud text-[10px] uppercase tracking-wider text-ink-700 mb-2">
+              <div className="eyebrow eyebrow-sm text-ink-700 mb-2">
                 Int Labs Academy
               </div>
-              <div className="text-[13px] font-body text-ink-800 mb-3 min-h-[18px]">
+              <div className="body-xs font-body text-ink-800 mb-3 min-h-[18px]">
                 {LOADING_LINES[line]}
               </div>
               <ProgressBar value={progress} />
@@ -141,7 +141,7 @@ function ProgressBar({ value }: { value: number }) {
       aria-valuenow={Math.round(clamped)}
       aria-valuemin={0}
       aria-valuemax={100}
-      className="relative h-3 w-full bg-cream-200 border-2 border-ink-900"
+      className="relative h-3 w-full bg-cream-200 border border-border-soft"
     >
       <div
         className="absolute inset-y-0 left-0"

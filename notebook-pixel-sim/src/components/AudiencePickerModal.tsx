@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { Segment } from '@/types';
 import { useGame } from '@/state/store';
 import { SEGMENTS } from '@/data/segments';
 import { setSegment } from '@/engine/mockEngine';
@@ -6,6 +7,8 @@ import { PixelModal } from '@/components/primitives/PixelModal';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
 import { fmt$ } from '@/utils/format';
 import { playSfx } from '@/audio/audioManager';
+import clsx from 'clsx';
+import { PixelButton } from '@/components/primitives';
 
 const PREF_LABELS: Record<string, string> = {
   paperQuality: 'paper quality',
@@ -42,14 +45,24 @@ export function AudiencePickerModal() {
   const apply = useGame((s) => s.apply);
 
   const [open, setOpen] = useState(false);
+  // The highlighted card, not the committed choice — committing happens on
+  // Confirm below.
+  const [selectedId, setSelectedId] = useState<Segment | null>(null);
+  const selectedSeg = SEGMENTS.find((x) => x.id === selectedId) ?? null;
   const lastScreen = useRef(screen);
 
+  // Fires at most once per mount, on ANY render where the player is in the
+  // simulation without an audience — not only on the transition into it.
+  // Keying it to the transition meant a reload that lands straight on the
+  // simulation screen never triggered it, which is precisely the case the
+  // picker exists for: the run cannot proceed sensibly with no audience, and
+  // that state survives a refresh.
+  const nagged = useRef(false);
   useEffect(() => {
-    const prev = lastScreen.current;
     lastScreen.current = screen;
-    if (screen === 'simulation' && prev !== 'simulation' && target === null && !sequenceActive) {
-      setOpen(true);
-    }
+    if (nagged.current || screen !== 'simulation' || target !== null || sequenceActive) return;
+    nagged.current = true;
+    setOpen(true);
   }, [screen, target, sequenceActive]);
 
   return (
@@ -61,46 +74,69 @@ export function AudiencePickerModal() {
     >
       <div className="mb-4 flex items-start gap-3">
         <MascotAvatar mood="presenting" size={60} />
-        <p className="text-[13.5px] leading-snug text-text">
-          First things first: pick who you're making notebooks for. Your audience drives demand and
-          decides which design choices land. You can switch anytime on the Business page.
+        <p className="body-xs text-text">
+          First things first: pick who you're making notebooks for, then hit Confirm. Your audience
+          drives demand and decides which design choices land. You can switch anytime on the
+          Business page.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {SEGMENTS.map((seg) => (
-          <button
-            key={seg.id}
-            type="button"
-            onClick={() => {
-              playSfx('select');
-              apply((s) => setSegment(s, seg.id));
-              setOpen(false);
-            }}
-            className="flex items-start gap-3 border-2 border-border-soft bg-surface p-3 text-left transition-all hover:-translate-y-px hover:border-primary hover:shadow-[2px_2px_0_0_var(--c-shadow)]"
-          >
-            <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center border-2 border-border-soft bg-surface-2">
-              <img src={seg.imgPath} alt={seg.name} className="h-12 w-12 object-contain" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-bold uppercase tracking-wider text-text">{seg.name}</div>
-              <div className="mt-0.5 text-[11.5px] leading-snug text-text-2">{seg.description}</div>
-              <div className="mt-1.5 text-[10.5px] text-text-3">
-                Anchor ~{fmt$(seg.preferredPriceRef)} · Cares about {topPrefs(seg.preference).join(', ')}
+        {SEGMENTS.map((seg) => {
+          const picked = selectedId === seg.id;
+          return (
+            <button
+              key={seg.id}
+              type="button"
+              aria-pressed={picked}
+              onClick={() => { playSfx('select'); setSelectedId(seg.id); }}
+              className={clsx(
+                'flex items-start gap-3 border-2 p-3 text-left transition-all hover:-translate-y-px hover:shadow-[2px_2px_0_0_var(--c-shadow)]',
+                picked
+                  ? 'border-primary bg-primary-soft shadow-[2px_2px_0_0_var(--c-shadow)]'
+                  : 'border-border-soft bg-surface hover:border-primary',
+              )}
+            >
+              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center border border-border-soft bg-surface-2">
+                <img src={seg.imgPath} alt={seg.name} className="h-12 w-12 object-contain" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="eyebrow eyebrow-sm text-text">{seg.name}</div>
+                <div className="mt-0.5 hint leading-snug text-text-2">{seg.description}</div>
+                <div className="mt-1.5 hint text-text-3">
+                  Anchor ~{fmt$(seg.preferredPriceRef)} · Cares about {topPrefs(seg.preference).join(', ')}
+                </div>
               </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="mt-3 text-center">
+      {/* Two-step, because this modal opens over the game unprompted and a
+          single click used to commit outright. The audience drives demand for
+          the whole run, so a mis-tap changed the economics of all 90 days with
+          no confirmation. The label echoes the pick back as a last check. */}
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border-soft pt-3">
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-[12px] text-text-3 underline underline-offset-2 hover:text-text"
+          className="hint text-text-3 underline underline-offset-2 hover:text-text"
         >
           I'll choose on the Business page
         </button>
+        <PixelButton
+          variant="primary"
+          size="md"
+          disabled={!selectedSeg}
+          onClick={() => {
+            if (!selectedSeg) return;
+            playSfx('confirm');
+            apply((s) => setSegment(s, selectedSeg.id));
+            setOpen(false);
+          }}
+        >
+          {selectedSeg ? `Confirm · ${selectedSeg.name}` : 'Pick an audience above'}
+        </PixelButton>
       </div>
     </PixelModal>
   );

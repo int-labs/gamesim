@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Decision from "../models/decisions"; // adjust import path to match your models folder
+import Results from "../models/Results";
 
 // POST /decisions
 export const createDecision = async (req: Request, res: Response): Promise<void> => {
@@ -33,13 +34,38 @@ export const createDecision = async (req: Request, res: Response): Promise<void>
 // DELETE /decisions?simulationId=&roundNumber=
 export const deleteDecisionsByRound = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { simulationId, roundNumber } = req.query;
+    const { simulationId, roundNumber, force } = req.query;
     if (!simulationId || roundNumber === undefined) {
       res.status(400).json({ message: "simulationId and roundNumber are required." });
       return;
     }
-    await Decision.deleteMany({ simulationId, roundNumber: Number(roundNumber) });
-    res.status(200).json({ message: "Decisions deleted." });
+
+    const round = Number(roundNumber);
+
+    // Deleting the decisions behind an already-calculated round leaves Results
+    // and Projections that nothing can reproduce. Refuse unless the caller says
+    // so explicitly.
+    if (force !== "true") {
+      const existingResults = await Results.countDocuments({
+        simulationId,
+        roundNumber: round,
+      });
+      if (existingResults > 0) {
+        res.status(409).json({
+          message:
+            `Round ${round} has already been calculated (${existingResults} result ` +
+            `documents). Deleting its decisions would orphan those results. ` +
+            `Delete the results first, or retry with ?force=true.`,
+        });
+        return;
+      }
+    }
+
+    const { deletedCount } = await Decision.deleteMany({
+      simulationId,
+      roundNumber: round,
+    });
+    res.status(200).json({ message: "Decisions deleted.", deletedCount });
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to delete decisions." });
   }

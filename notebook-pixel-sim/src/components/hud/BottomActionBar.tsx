@@ -46,11 +46,11 @@ export function BottomActionBar() {
       <div className="pixel-frame bg-leather text-cream-50 px-3 py-2 flex flex-wrap items-center gap-2 shrink-0">
         <div className="flex items-center gap-2 xl:gap-3 mr-auto min-w-0">
           <div className="leading-tight">
-            <div className="font-hud text-[11px] uppercase tracking-wider text-cream-50">Day {day} / 90</div>
-            <div className="text-[12px] text-cream-50/85">Energy {energy}</div>
+            <div className="eyebrow eyebrow-sm text-cream-50">Day {day} / 90</div>
+            <div className="hint text-cream-50/85">Energy {energy}</div>
           </div>
           {blockReason && (
-            <span className="font-hud text-[9px] xl:text-[10px] uppercase tracking-wider text-warn px-1.5 py-1 bg-ink-900/40 border-2 border-warn max-w-[230px] xl:max-w-none truncate">
+            <span className="pixel-caption text-warn px-1.5 py-1 bg-ink-900/40 border-2 border-warn max-w-[230px] xl:max-w-none truncate">
               {blockReason}
             </span>
           )}

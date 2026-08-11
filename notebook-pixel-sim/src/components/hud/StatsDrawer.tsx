@@ -61,7 +61,10 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
   const fulfillment = -sum('cogs-fulfillment');
   const marketing = -sum('opex-marketing');
   const tools = -sum('opex-tool');
-  const opProfit = grossRevenue - matCost - labor - packaging - fulfillment - marketing - tools;
+  // V3 channel maintenance + consignment + holding, booked as `opex-rent`.
+  // Omitting it overstated Operating Profit here while scoring.ts counted it.
+  const channel = -sum('opex-rent');
+  const opProfit = grossRevenue - matCost - labor - packaging - fulfillment - marketing - tools - channel;
 
   const rand = mulberry32(seedFrom(useGame.getState().meta.seed + ':drawer:' + (day + 1)));
   const demand = Math.round(calcDemandToday(useGame.getState(), rand).total);
@@ -94,7 +97,7 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ duration: 0.24, ease: [0.2, 1.4, 0.4, 1] }}
-            className="fixed inset-x-0 bottom-0 z-[150] panel-frame bg-surface border-t-2 border-border shadow-[0_-3px_0_0_var(--c-shadow)]"
+            className="fixed inset-x-0 bottom-0 z-[150] panel-frame bg-surface border-t border-border-soft shadow-[0_-3px_0_0_var(--c-shadow-cast)]"
             style={{ maxHeight: '78vh', paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             {/* Drag handle */}
@@ -103,16 +106,16 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
             </div>
             <header className="flex items-center justify-between px-4 py-2 border-b border-border-soft">
               <div className="flex flex-col leading-tight">
-                <span className="text-[10px] uppercase tracking-wider text-text-3 font-bold">All stats</span>
-                <span className="text-[12px] text-text">
-                  Phase <span className="font-bold">{phase}</span> · Day <span className="font-bold tabular-nums">{day}</span>
+                <span className="stat-label">All stats</span>
+                <span className="hint text-text">
+                  Phase <span className="num-xs">{phase}</span> · Day <span className="num-xs">{day}</span>
                 </span>
               </div>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close stats"
-                className="inline-flex items-center justify-center w-9 h-9 border border-border-soft hover:bg-surface-2 cursor-pointer"
+                className="inline-flex items-center justify-center w-9 h-9 border-2 border-border bg-surface hover:bg-surface-2 cursor-pointer shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press transition-[box-shadow,transform,background-color]"
               >
                 <PixelIcon kind="close" size={11} />
               </button>
@@ -140,7 +143,7 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
                   drawer they always render so the player can manage
                   audio + history from one place. */}
               <div className="px-3 pb-3 pt-1 border-t border-border-soft">
-                <div className="text-[9.5px] uppercase tracking-wider font-semibold text-text-3 leading-tight mb-2">Settings</div>
+                <div className="stat-label leading-tight mb-2">Settings</div>
                 {!VOICE_DISABLED && <AmeliaVoicePicker open={open} />}
                 <div className="grid grid-cols-3 gap-2">
                   <UtilButton
@@ -214,13 +217,13 @@ const toneIconColor: Record<Tone, string> = {
 
 function Stat({ icon, label, value, tone }: { icon: PixelIconKind; label: string; value: string; tone: Tone }) {
   return (
-    <div className={clsx('flex items-center gap-2.5 px-2.5 py-2 border-2', toneRing[tone])}>
-      <span className="inline-flex items-center justify-center w-9 h-9 border-2 border-border-soft bg-surface shrink-0">
+    <div className={clsx('flex items-center gap-2.5 px-2.5 py-2 border', toneRing[tone])}>
+      <span className="inline-flex items-center justify-center w-9 h-9 border border-border-soft bg-surface shrink-0">
         <PixelIcon kind={icon} size={13} color={toneIconColor[tone]} />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="text-[9.5px] uppercase tracking-wider font-semibold text-text-3 leading-tight">{label}</div>
-        <div className={clsx('text-[15px] font-bold tabular-nums leading-tight', toneText[tone])}>{value}</div>
+        <div className="stat-label leading-tight">{label}</div>
+        <div className={clsx('num-xs leading-tight', toneText[tone])}>{value}</div>
       </div>
     </div>
   );
@@ -254,14 +257,14 @@ function AmeliaVoicePicker({ open }: { open: boolean }) {
 
   if (voices.length === 0) {
     return (
-      <div className="text-[10.5px] text-text-3 italic mb-2">
+      <div className="hint text-text-3 italic mb-2">
         Amelia voice: no system voices detected yet.
       </div>
     );
   }
   return (
     <div className="mb-3 flex flex-col gap-1.5">
-      <label className="text-[10px] uppercase tracking-wider font-semibold text-text-3">
+      <label className="stat-label">
         Amelia voice
       </label>
       <div className="flex items-center gap-1.5">
@@ -272,7 +275,7 @@ function AmeliaVoicePicker({ open }: { open: boolean }) {
             setPicked(v);
             ameliaVoice.setVoice(v || null);
           }}
-          className="flex-1 min-w-0 h-[30px] border border-border bg-surface text-[12px] px-2 cursor-pointer"
+          className="flex-1 min-w-0 h-[30px] border border-border bg-surface hint px-2 cursor-pointer"
           aria-label="Choose Amelia voice"
         >
           {voices.map((v) => (
@@ -291,12 +294,12 @@ function AmeliaVoicePicker({ open }: { open: boolean }) {
               mood: 'happy',
             });
           }}
-          className="h-[30px] px-3 border border-border bg-primary-soft text-text hover:bg-primary hover:text-[#FAF7E8] cursor-pointer text-[10px] uppercase tracking-wider font-bold"
+          className="h-[30px] px-3 border-2 border-border bg-primary-soft text-text hover:bg-primary hover:text-[#12301C] cursor-pointer btn-label-sm uppercase shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press transition-[box-shadow,transform,background-color]"
         >
           Test
         </button>
       </div>
-      <div className="text-[10px] text-text-3 leading-snug">
+      <div className="hint text-text-3 leading-snug">
         Tip: voices labelled "Natural", "Premium", or "Enhanced" sound the cleanest. Local voices have zero delay.
       </div>
     </div>
@@ -311,14 +314,14 @@ function UtilButton({ icon, iconNode, label, active, onClick }: { icon?: any; ic
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
-        'flex flex-col items-center justify-center gap-1 px-2 py-2.5 border-2 transition-colors cursor-pointer',
+        'flex flex-col items-center justify-center gap-1 px-2 py-2.5 border-2 cursor-pointer shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press transition-[box-shadow,transform,background-color,border-color]',
         active
           ? 'border-primary bg-primary-soft text-text'
           : 'border-border-soft bg-surface-2 text-text-2 hover:border-border hover:text-text',
       )}
     >
       {iconNode ?? <NavIcon icon={icon} size={16} color="currentColor" />}
-      <span className="text-[10px] uppercase tracking-wider font-bold leading-none">{label}</span>
+      <span className="eyebrow eyebrow-sm leading-none">{label}</span>
     </button>
   );
 }

@@ -9,6 +9,28 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // `text-success` / `text-warning` / `text-danger` / `text-info` resolve to
+      // the darker -ink weights, while `border-*` and `bg-*` keep the bright
+      // pastels from `colors` below. Same class names, correct value for the
+      // property — so no call site has to remember which weight to reach for,
+      // and a green number is readable without stopping being green.
+      textColor: {
+        // Restores Tailwind's own `text-inherit`, which the wholesale `colors`
+        // override below removes. It is the escape hatch for the trap in RULE 6:
+        // the type classes paint, so a label inside a light-on-dark button needs
+        // an explicit way to yield to its parent.
+        inherit: 'inherit',
+        success: 'var(--c-success-ink)',
+        warning: 'var(--c-warning-ink)',
+        danger: 'var(--c-danger-ink)',
+        info: 'var(--c-info-ink)',
+        'fin-revenue': 'var(--c-fin-revenue-ink)',
+        'fin-cost': 'var(--c-fin-cost-ink)',
+        'fin-profit': 'var(--c-fin-profit-ink)',
+        'fin-cash': 'var(--c-fin-cash-ink)',
+        'fin-inventory': 'var(--c-fin-inventory-ink)',
+        'fin-demand': 'var(--c-fin-demand-ink)',
+      },
       fontFamily: {
         body: ['Inter', 'system-ui', 'sans-serif'],
         pixel: ['"Pixelify Sans"', 'system-ui', 'sans-serif'],
@@ -30,8 +52,10 @@ export default {
         // Brand / actions
         primary: 'var(--c-primary)',
         'primary-soft': 'var(--c-primary-soft)',
+        'primary-strong': 'var(--c-primary-strong)',
         secondary: 'var(--c-secondary)',
         'secondary-soft': 'var(--c-secondary-soft)',
+        'secondary-strong': 'var(--c-secondary-strong)',
         // Semantic
         success: 'var(--c-success)',
         'success-soft': 'var(--c-success-soft)',
@@ -39,6 +63,7 @@ export default {
         'warning-soft': 'var(--c-warning-soft)',
         danger: 'var(--c-danger)',
         'danger-soft': 'var(--c-danger-soft)',
+        'danger-strong': 'var(--c-danger-strong)',
         info: 'var(--c-info)',
         'info-soft': 'var(--c-info-soft)',
         // Finance
@@ -90,10 +115,14 @@ export default {
           5: 'var(--c-fin-profit)',
           6: 'var(--c-secondary)',
         },
-        brand: { 500: '#9b56c8', 400: '#c87bd9', 300: '#e29bd2' },
+        brand: { 500: '#954CC5', 400: '#c87bd9', 300: '#e29bd2' },
       },
       boxShadow: {
-        // Softer, more restrained pixel shadows
+        // Softer, more restrained pixel shadows.
+        // `pixel-press` is the :active step of the interactive token
+        // (rest pixel-1 → hover pixel-2 → active pixel-press). See the
+        // affordance rule block in styles/index.css.
+        'pixel-press': '1px 1px 0 0 var(--c-shadow)',
         'pixel-1': '2px 2px 0 0 var(--c-shadow)',
         'pixel-2': '3px 3px 0 0 var(--c-shadow)',
         'pixel-3': '4px 4px 0 0 var(--c-shadow)',

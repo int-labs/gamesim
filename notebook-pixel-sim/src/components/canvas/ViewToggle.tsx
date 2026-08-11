@@ -33,8 +33,10 @@ export function ViewToggle() {
               onClick={() => { if (!active) { playSfx('click-soft'); setViewMode(o.id); } }}
               aria-pressed={active}
               className={clsx(
-                'inline-flex items-center gap-1.5 px-2 h-[26px] text-[10px] uppercase tracking-wider font-bold border transition-all duration-150 active:scale-95 cursor-pointer',
-                active ? 'border-primary bg-primary-soft text-text' : 'border-transparent text-text-3 hover:text-text-2 hover:bg-surface',
+                'inline-flex items-center gap-1.5 px-2 h-[26px] eyebrow eyebrow-sm border transition-all duration-150 active:scale-95 cursor-pointer',
+                active
+                  ? 'border-ink-900 bg-primary-soft text-text'
+                  : 'border-border-soft bg-surface text-text-2 hover:bg-cream-100',
               )}
             >
               <img

@@ -42,7 +42,7 @@ export function EventModal() {
           <PixelBadge tone="warn">EVENT</PixelBadge>
         </div>
         <div className="flex-1">
-          <p className="font-body text-[14px] text-ink-900 mb-3">{ev.body}</p>
+          <p className="font-body body-xs text-ink-900 mb-3">{ev.body}</p>
           <div className="flex flex-wrap gap-2 mb-3">
             <PixelBadge tone="neutral">Cash {fmt$(cash)}</PixelBadge>
             <PixelBadge tone="neutral">Energy {energy}</PixelBadge>
@@ -62,10 +62,10 @@ export function EventModal() {
                     : 'border-ink-900 bg-cream-50 shadow-pixel-1 hover:-translate-y-0.5',
                 )}
               >
-                <div className={clsx('font-hud text-[12px] uppercase mb-0.5', isPicked ? 'text-[#FAF7E8]' : 'text-ink-900')}>
+                <div className={clsx('eyebrow eyebrow-sm mb-0.5', isPicked ? 'text-[#FAF7E8]' : 'text-ink-900')}>
                   {o.id}. {o.label}
                 </div>
-                <div className={clsx('text-[12px] font-body mb-1', isPicked ? 'text-[#FAF7E8]/85' : 'text-ink-800')}>{o.description}</div>
+                <div className={clsx('hint font-body mb-1', isPicked ? 'text-[#FAF7E8]/85' : 'text-ink-800')}>{o.description}</div>
                 <div className="flex flex-wrap gap-1">
                   <PixelBadge tone="warn">E−{o.cost.energy}</PixelBadge>
                   {o.cost.cash ? <PixelBadge tone="error">{fmt$(-o.cost.cash)}</PixelBadge> : null}

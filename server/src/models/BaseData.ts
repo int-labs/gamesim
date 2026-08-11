@@ -59,6 +59,8 @@ export interface CSATMarketModel {
 export interface BaseDataInterface extends Document {
   simulationTypeId: Types.ObjectId;
   constants?:       Record<string, unknown>;
+  /** roundNumber (as a string) → tweaks applied on top of the base numbers. */
+  perRoundOverrides?: Record<string, { constants?: Record<string, number>; demandMultiplier?: number }>;
   marketData:       MarketData;
   marketModel:      MarketModel;
   csatMarketModel:  CSATMarketModel;
@@ -218,6 +220,10 @@ const baseDataSchema = new Schema<BaseDataInterface>(
     marketData:       { segments: { type: [marketDataSegmentSchema], required: true, default: [] } },
     marketModel:      { segments: { type: [marketModelSegmentSchema], required: true, default: [] } },
     csatMarketModel:  { segments: { type: [csatSegmentSchema], required: true, default: [] } },
+    // Per-round tweaks layered over the base numbers. Keyed by round number as
+    // a string, matching how marketData.yearlyData is already keyed. Additive
+    // and optional — a document without it behaves exactly as before.
+    perRoundOverrides: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );

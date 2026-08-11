@@ -60,7 +60,7 @@ export function PixelImage({
         {...rest}
       />
       {state === 'locked' && (
-        <span className="absolute -bottom-1 -right-1 bg-ink-900 text-cream-50 text-[10px] px-1 py-0.5 font-hud">🔒</span>
+        <span className="absolute -bottom-1 -right-1 bg-ink-900 text-cream-50 pixel-caption px-1 py-0.5">🔒</span>
       )}
     </div>
   );

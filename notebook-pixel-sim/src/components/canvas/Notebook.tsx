@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
-import { A } from '@/assets';
+import { ARCHETYPE_INFO } from '@/data/notebookArchetypes';
 import type { Archetype, Binding, Cover, Size } from '@/types';
 
 interface Props {
@@ -10,11 +10,17 @@ interface Props {
   size: Size;
 }
 
-const SIZE_SCALE: Record<Size, number> = { s: 0.45, m: 0.75, l: 1.0 };
+// A5 / B5 / B4. Exaggerated past the real paper ratios so the change is
+// obvious at a glance, but floored well above zero: an A5 at 0.45 read as a
+// broken sprite rather than a small notebook.
+const SIZE_SCALE: Record<Size, number> = { s: 0.62, m: 0.80, l: 1.0 };
 
 export function Notebook({ archetype, cover, binding, size }: Props) {
-  const key = (cover === 'hardcover' ? 'hardcover_' : 'leather_') + (binding === 'ring' ? 'ring' : 'staple');
-  const src = (A.notebook as any)[archetype][key] as string;
+  // Each notebook ships ONE cover image, so cover/binding no longer select a
+  // sprite variant — they still drive cost and time in the engine. Size does
+  // still change the drawn notebook, via SIZE_SCALE below.
+  void cover; void binding;
+  const src = ARCHETYPE_INFO[archetype]?.art ?? '';
   const scale = SIZE_SCALE[size];
   return (
     <motion.div

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import Result from "../models/results";
+import Result from "../models/Results";
 
 // GET /results?simulationId=&roundNumber=&productId=&segmentId=
 export const getResults = async (req: Request, res: Response): Promise<void> => {

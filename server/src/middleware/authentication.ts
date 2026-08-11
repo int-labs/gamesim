@@ -21,7 +21,7 @@ export const authenticate = async (
 
     (req as any).user = decoded;
     next();
-  } catch (error) {
+  } catch {
     res.status(403).json({ message: "Forbidden." });
   }
 };

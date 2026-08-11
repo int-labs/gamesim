@@ -128,7 +128,7 @@ function FloatingPageTabs({ page, onChange }: { page: MainPage; onChange: (p: Ma
               aria-selected={active}
               onClick={() => { if (!active) playSfx('click-soft'); onChange(t.id); }}
               className={clsx(
-                'inline-flex items-center gap-1.5 h-[36px] px-2.5 sm:px-4 border text-[11px] uppercase tracking-wider font-bold transition-all duration-150 active:scale-95 cursor-pointer',
+                'inline-flex items-center gap-1.5 h-[36px] px-2.5 sm:px-4 border eyebrow eyebrow-sm transition-all duration-150 active:scale-95 cursor-pointer',
                 active
                   ? 'bg-surface border-primary text-text'
                   : 'border-transparent text-[#D9B57A] hover:bg-white/5 hover:text-cream-100',

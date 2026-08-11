@@ -114,14 +114,14 @@ export function ConfirmDecisionModal({
             onClick={(e) => e.stopPropagation()}
           >
             <header className="px-4 py-3 border-b-2 border-border-soft bg-surface-2 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-border bg-surface">
+              <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface">
                 <PixelIcon kind="warning" size={11} color="var(--c-warning)" />
               </span>
               <h2 id="confirm-decision-title" className="panel-title text-text">{title}</h2>
             </header>
 
             <div className="px-4 py-3 flex flex-col gap-2.5">
-              <p className="text-[18px] text-text leading-relaxed">{summary}</p>
+              <p className="body-sm text-text leading-relaxed">{summary}</p>
 
               {lines && lines.length > 0 && (
                 <CostTiles
@@ -135,17 +135,17 @@ export function ConfirmDecisionModal({
               )}
 
               {reversibility && (
-                <p className="text-[16px] text-text-3 italic leading-relaxed">{reversibility}</p>
+                <p className="body-xs text-text-3 italic leading-relaxed">{reversibility}</p>
               )}
             </div>
 
-            <div className="px-4 py-3 border-t-2 border-border-soft bg-surface-2/70 flex items-center justify-end gap-2">
+            <div className="px-4 py-3 border-t border-border-soft bg-surface-2/70 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => { playSfx('click-soft'); onCancel(); }}
                 className="inline-flex items-center gap-1.5 h-[36px] px-4 border-2 border-border-soft bg-surface text-text-2 hover:bg-surface-2 hover:text-text cursor-pointer"
               >
-                <span className="text-[17px] uppercase tracking-wider font-bold">{cancelLabel}</span>
+                <span className="eyebrow eyebrow-sm">{cancelLabel}</span>
               </button>
               <button
                 type="button"
@@ -153,13 +153,16 @@ export function ConfirmDecisionModal({
                 className={
                   'inline-flex items-center gap-2 h-[36px] px-5 border-2 cursor-pointer ' +
                   (tone === 'danger'
-                    ? 'border-danger bg-danger text-[#FAF7E8]'
-                    : 'border-[#4F9C72] bg-primary text-[#FAF7E8]')
+                    // -strong, not the pastel: cream on --c-danger is 3.5:1.
+                    ? 'border-[#8A1717] bg-danger-strong text-[#FAF7E8]'
+                    // Deep ink on the bright fill: cream on --c-primary is
+                    // 2.14:1, and this is a CONFIRM button.
+                    : 'border-[#1F4A2C] bg-primary text-[#12301C]')
                 }
-                style={{ color: '#FAF7E8' }}
+                style={{ color: tone === 'danger' ? '#FAF7E8' : '#12301C' }}
               >
                 <PixelIcon kind="check" size={11} color="#FAF7E8" />
-                <span className="text-[17px] uppercase tracking-wider font-bold">{confirmLabel}</span>
+                <span className="eyebrow eyebrow-sm text-inherit">{confirmLabel}</span>
               </button>
             </div>
           </motion.div>

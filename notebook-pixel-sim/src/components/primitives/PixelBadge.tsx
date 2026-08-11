@@ -20,7 +20,7 @@ export function PixelBadge({ tone = 'neutral', children, className }: Props) {
   return (
     <span
       className={clsx(
-        'inline-flex items-center gap-1 px-1.5 py-[2px] border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap',
+        'inline-flex items-center gap-1 px-1.5 py-[2px] border eyebrow eyebrow-sm whitespace-nowrap',
         tones[tone],
         className,
       )}

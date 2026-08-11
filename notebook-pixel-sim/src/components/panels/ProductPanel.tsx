@@ -10,12 +10,14 @@ import {
 import { PixelChip, PixelBadge } from '@/components/primitives';
 import { ADDONS, addOnById } from '@/data/addOns';
 import { A } from '@/assets';
+import { notebookCatalogue } from '@/data/notebookArchetypes';
 import type { AddOnDef, Archetype, Binding, Cover, PaperQuality, Size } from '@/types';
 import clsx from 'clsx';
 import { SafeImage } from '@/components/primitives/SafeImage';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
+import { useDraggable } from '@dnd-kit/core';
 
 // Tooltip copy for each material/binding/size/paper option — explains
 // trade-offs so the player learns what each choice DOES, not just
@@ -39,11 +41,14 @@ const PAPER_TIPS: Record<string, string> = {
   premium:  'Premium paper - highest unit cost. Loved by creators and professionals.',
 };
 
-const ARCHS: { id: Archetype; label: string; sample: string }[] = [
-  { id: 'student', label: 'Student',       sample: A.notebook.student.hardcover_ring },
-  { id: 'planner', label: 'Planner',       sample: A.notebook.planner.hardcover_ring },
-  { id: 'daily',   label: 'Daily Journal', sample: A.notebook.daily.hardcover_ring },
-];
+/**
+ * The notebook picker, derived from the live catalogue rather than a hardcoded
+ * list, so a notebook an operator publishes appears here with no code change.
+ * A function, not a const: GENRES is hydrated at boot, and a module-scope
+ * snapshot would freeze the bundled four.
+ */
+const archOptions = (): { id: Archetype; label: string; sample: string }[] =>
+  notebookCatalogue().map((n) => ({ id: n.id, label: n.title, sample: n.art }));
 const COVERS: Cover[] = ['hardcover', 'leather'];
 const BINDINGS: Binding[] = ['ring', 'staple'];
 const SIZES: Size[] = ['s', 'm', 'l'];
@@ -70,9 +75,9 @@ function useActiveLine() {
 function EmptyLine() {
   return (
     <div className="flex flex-col items-center justify-center text-center px-4 py-12 gap-2">
-      <div className="text-[15px] font-bold text-text">No notebook selected</div>
-      <p className="text-[13px] text-text-2 max-w-[28ch]">
-        Open <span className="font-bold text-text">Notebook Items</span> in the left dock to add one.
+      <div className="h3 text-ink-900">No notebook selected</div>
+      <p className="body-xs text-text-2 max-w-[32ch]">
+        Open <span className="strong text-text">Notebook Items</span> in the left dock to add one.
       </p>
     </div>
   );
@@ -97,11 +102,11 @@ export function DesignControls() {
       <Group title="Notebook type" hint="Each type keeps its own add-ons.">
         <ArchetypeDropdown
           value={product.archetype}
-          ownCounts={{
-            student: product.addOnsByArchetype.student.length,
-            planner: product.addOnsByArchetype.planner.length,
-            daily: product.addOnsByArchetype.daily.length,
-          }}
+          // Counts for every notebook this line has decorated, derived from
+          // the map itself — the id set is open-ended.
+          ownCounts={Object.fromEntries(
+            Object.entries(product.addOnsByArchetype).map(([id, list]) => [id, (list ?? []).length]),
+          )}
           onChange={(arch) => set('archetype', arch)}
         />
       </Group>
@@ -221,13 +226,13 @@ export function AddOnGallery() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="text-[15px] text-text-2 leading-snug">
-        <span className="font-bold text-text">{archAddOns.length}/3</span> on · tap to toggle. Decorations appear on the notebook automatically - they're cosmetic and don't change your score.
+      <div className="body-xs text-text-2">
+        <span className="strong text-text">{archAddOns.length}/3</span> on · tap to toggle. Decorations appear on the notebook automatically - they're cosmetic and don't change your score.
       </div>
       <div className="flex flex-col gap-3">
           {ADDON_GROUPS.map((group) => (
             <div key={group.label}>
-              <div className="text-[10px] uppercase tracking-wider font-semibold text-text-3 mb-1.5">
+              <div className="stat-label mb-2">
                 {group.label}
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -270,7 +275,7 @@ function Group({ title, hint, children }: { title: string; hint?: string; childr
     <section>
       <header className="mb-2">
         <div className="panel-title text-text">{title}</div>
-        {hint && <div className="text-[10px] text-text-3 mt-0.5">{hint}</div>}
+        {hint && <div className="hint mt-0.5">{hint}</div>}
       </header>
       {children}
     </section>
@@ -290,16 +295,26 @@ function AddOnTile({
   capReached: boolean;
   onToggle: () => void;
 }) {
-  // Pure toggle button now — no drag. catLocked (same-category sibling) swaps
-  // automatically on click; the only hard block is the 3-add-on cap.
+  // Both gestures at once: a plain click still toggles, and a 4px pointer move
+  // (the DndContext's activationConstraint, set in ProductPage) promotes the
+  // same press into a drag onto the notebook.
   const disabled = !placed && capReached;
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `addon-tile-${def.id}`,
+    data: { defId: def.id },
+    disabled,
+  });
   return (
     <button
+      ref={setNodeRef}
       type="button"
       disabled={disabled}
       onClick={onToggle}
+      {...attributes}
+      {...listeners}
       className={clsx(
-        'ctl-btn group relative border-2 p-2 flex flex-col items-center gap-1 select-none',
+        'ctl-btn group relative border p-2.5 flex flex-col items-center gap-1.5 select-none touch-none',
+        isDragging && 'opacity-60 scale-105 shadow-pixel-2',
         placed
           ? 'bg-success-soft border-success'
           : disabled
@@ -319,14 +334,14 @@ function AddOnTile({
       <SafeImage
         src={def.thumbPath ?? def.imgPath}
         alt={def.name}
-        className="w-10 h-10 object-contain"
+        className="w-16 h-16 object-contain"
         fallbackIcon="sparkle"
         fallbackSize={30}
       />
-      <span className="text-[14px] text-text text-center leading-tight font-semibold">{def.name}</span>
+      <span className="body-xs text-text text-center leading-tight">{def.name}</span>
 
       {placed && (
-        <span className="absolute -top-1.5 -right-1.5 bg-primary text-white border border-border w-5 h-5 flex items-center justify-center text-[14px] leading-none font-bold">
+        <span className="absolute -top-1.5 -right-1.5 bg-primary-strong text-white border border-border w-5 h-5 flex items-center justify-center num-xs leading-none">
           ✓
         </span>
       )}
@@ -395,7 +410,8 @@ function ArchetypeDropdown({
   };
   const pick = (a: Archetype) => { onChange(a); setOpen(false); };
 
-  const current = ARCHS.find((a) => a.id === value) ?? ARCHS[0];
+  const opts = archOptions();
+  const current = opts.find((a) => a.id === value) ?? opts[0];
 
   return (
     <div className="relative">
@@ -414,8 +430,8 @@ function ArchetypeDropdown({
           <SafeImage src={current.sample} alt="" className="h-7 object-contain" fallbackIcon="product" fallbackSize={20} />
         </span>
         <span className="flex flex-col items-start min-w-0 flex-1">
-          <span className="text-[14px] font-bold leading-tight">{current.label} Notebook</span>
-          <span className="text-[10px] text-text-3 leading-tight mt-0.5">
+          <span className="item-name leading-tight">{current.label}</span>
+          <span className="hint leading-tight mt-0.5">
             {ownCounts[value]} add-on{ownCounts[value] === 1 ? '' : 's'} on this type
           </span>
         </span>
@@ -426,10 +442,10 @@ function ArchetypeDropdown({
         <div
           id="archetype-menu"
           role="menu"
-          className="z-[120] panel-frame bg-surface border-2 border-border shadow-[3px_3px_0_0_var(--c-shadow)]"
+          className="z-[120] panel-frame panel-frame--lifted bg-surface"
           style={{ position: 'fixed', left: rect.left, top: rect.bottom + 6, width: rect.width }}
         >
-          {ARCHS.map((a) => {
+          {archOptions().map((a) => {
             const isSel = a.id === value;
             return (
               <button
@@ -445,8 +461,8 @@ function ArchetypeDropdown({
                   <SafeImage src={a.sample} alt="" className="h-7 object-contain" fallbackIcon="product" fallbackSize={20} />
                 </span>
                 <span className="flex flex-col items-start min-w-0 flex-1">
-                  <span className="text-[14px] font-bold text-text leading-tight">{a.label} Notebook</span>
-                  <span className="text-[10px] text-text-3 leading-tight mt-0.5">
+                  <span className="item-name text-text leading-tight">{a.label}</span>
+                  <span className="hint leading-tight mt-0.5">
                     {ownCounts[a.id]} saved add-on{ownCounts[a.id] === 1 ? '' : 's'}
                   </span>
                 </span>

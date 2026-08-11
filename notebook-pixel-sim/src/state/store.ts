@@ -24,7 +24,8 @@ import type {
   FinlitMarketingId,
 } from '@/types';
 import { PHASE_MAX_ENERGY, STARTING_CASH, STARTING_DEBT } from '@/data/balance';
-import { ENERGY_START, ENERGY_CAP } from '@/data/finlit';
+import { ENERGY_START, ENERGY_CAP, GENRES } from '@/data/finlit';
+import { segmentForGenre } from '@/engine/finlit/core/config/genreSegments';
 import type { ActiveModifier } from '@/engine/modifiers';
 import type { PendingCash } from '@/engine/cashflow';
 
@@ -253,6 +254,49 @@ export interface GameState {
   };
 }
 
+const STARTER_LINE_ID = 'line-starter';
+
+/**
+ * The one notebook a fresh run opens with. Every identity field — sprite,
+ * market, legacy segment gate, spec type and name — is read off the same genre
+ * so they can never disagree.
+ */
+/**
+ * The genre a fresh run opens on. Named explicitly rather than taken as
+ * `GENRES[0]`, so the catalogue's display order and the starter choice are
+ * independent decisions. Falls back to the first genre if an operator's
+ * published catalogue somehow lacks this id.
+ */
+const STARTER_GENRE_ID = 'indie';
+
+/** The starter genre's legacy segment — shared by the line and the market slice. */
+const starterSegment = () =>
+  segmentForGenre((GENRES.find((g) => g.id === STARTER_GENRE_ID) ?? GENRES[0]).id);
+
+const starterLine = (): ProductLine => {
+  const genre = GENRES.find((g) => g.id === STARTER_GENRE_ID) ?? GENRES[0];
+  return {
+    id: STARTER_LINE_ID,
+    name: genre.name,
+    archetype: genre.id,
+    genre: genre.id,
+    cover: 'hardcover', binding: 'ring', size: 'm', paperQuality: 'standard',
+    pricePoint: 'balanced',
+    price: 14,
+    isCustomName: false,
+    addOnsByArchetype: { [genre.id]: [] },
+    quantityTarget: 25,
+    targetSegment: starterSegment(),
+    inventory: { raw: 2, finished: 1, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
+    finlitSpec: { type: genre.id, paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
+    channels: ['offline'],
+    // Start producing near demand (not full capacity) so a fresh, untouched run
+    // opens modestly in the black rather than underwater on overstock holding —
+    // the player optimises up from a sane, positive baseline.
+    targetPerDay: 4,
+  };
+};
+
 const startingState = (): GameState => ({
   meta: {
     day: 1,
@@ -279,47 +323,33 @@ const startingState = (): GameState => ({
     maxEnergy: ENERGY_CAP,
     brand: 5,
   },
-  // Default starting state: three starter notebook lines (Student,
-  // Planner, Daily Journal). The complexity formula was loosened
-  // (COMPLEXITY_PER_CAPACITY = 2.0) so this triplet sits at "healthy"
-  // (ratio 0.75) at starter capacity 5 — no auto-overload.
+  // Fresh game starts with a SINGLE notebook — the player grows the portfolio
+  // deliberately. It carries a V3 market + lean spec so the game is immediately
+  // valid (a genre = a target, satisfying the phase-gate).
+  //
+  // Everything about the starter line derives from ONE genre, because writing
+  // these fields independently is what produced the bug this replaces: the line
+  // was drawn as `GENRES[0]` (Cute), scored as `'minimalist'`, and labelled
+  // "Student" — a name from the retired archetype set. Three identities for one
+  // notebook. `startingState` is a factory, so reading GENRES here still picks
+  // up an operator's hydrated catalogue rather than freezing the bundle.
   portfolio: {
-    // Fresh game starts with a SINGLE notebook — the player grows the
-    // portfolio deliberately. It carries a V3 market + lean spec so the game
-    // is immediately valid (a genre = a target, satisfying the phase-gate).
-    productLines: [
-      {
-        id: 'line-student',
-        name: 'Student',
-        archetype: 'student',
-        cover: 'hardcover', binding: 'ring', size: 'm', paperQuality: 'standard',
-        pricePoint: 'balanced',
-        price: 14,
-        isCustomName: false,
-        addOnsByArchetype: { student: [], planner: [], daily: [] },
-        quantityTarget: 25,
-        targetSegment: 'professionals',
-        inventory: { raw: 2, finished: 1, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
-        genre: 'minimalist',
-        finlitSpec: { type: 'minimalist', paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
-        channels: ['offline'],
-        // Start producing near demand (not full capacity) so a fresh, untouched
-        // run opens modestly in the black rather than underwater on overstock
-        // holding — the player optimises up from a sane, positive baseline.
-        targetPerDay: 4,
-      },
-    ],
-    activeLineId: 'line-student',
+    productLines: [starterLine()],
+    activeLineId: STARTER_LINE_ID,
   },
   market: {
-    // Matches the active starter line (Student → minimalist → professionals),
-    // so the phase-gate is satisfied out of the box (starter lines have genres).
-    targetSegment: 'professionals',
+    // Derived from the SAME genre as the starter line, so the global lead
+    // segment and the line's own target cannot disagree on the first frame.
+    // This was hardcoded to 'professionals' — correct only for the retired
+    // "Student → minimalist" starter — while the line targeted students.
+    targetSegment: starterSegment(),
     retention: { students: 0, creators: 0, professionals: 0, gift: 0 },
+    // Keyed on the line that actually exists. The old map was keyed on
+    // 'line-student' / 'line-planner' / 'line-daily', none of which are created
+    // any more, so the starter line opened with no fit entry at all. The engine
+    // recomputes this every tick; these are just the first-frame values.
     fitBySegmentByLineId: {
-      'line-student': { students: 0.55, creators: 0.40, professionals: 0.35, gift: 0.40 },
-      'line-planner': { students: 0.40, creators: 0.55, professionals: 0.55, gift: 0.40 },
-      'line-daily':   { students: 0.30, creators: 0.55, professionals: 0.50, gift: 0.55 },
+      [STARTER_LINE_ID]: { students: 0.55, creators: 0.40, professionals: 0.35, gift: 0.40 },
     },
   },
   ops: {
@@ -450,13 +480,26 @@ export const useGame = create<Store>()(
         }),
       popMascot: () =>
         set((st) => {
+          const done = st.mascot.current;
           // Push current onto history (capped at 20) before advancing.
-          if (st.mascot.current) {
-            st.mascot.history.push(st.mascot.current);
+          if (done) {
+            st.mascot.history.push(done);
             if (st.mascot.history.length > 20) st.mascot.history.shift();
           }
           st.mascot.current = st.mascot.queue.shift() ?? null;
           if (st.mascot.current?.mood) st.mascot.mood = st.mascot.current.mood;
+
+          // A script is SEEN once its last message has been advanced past —
+          // recorded here, not only in clearMascotQueue. Relying on the clear
+          // meant a script that ran to its end through Next was never marked,
+          // so it replayed in full on every reload: the Phase 1 debrief came
+          // back every single time the player refreshed at phase 2. History is
+          // dropped on persist, so nothing else remembers it happened.
+          if (done?.seqId && (done.seqIndex ?? 0) + 1 >= (done.seqLen ?? 1)) {
+            if (!st.mascot.seenScripts.includes(done.seqId)) {
+              st.mascot.seenScripts.push(done.seqId);
+            }
+          }
         }),
       prevMascot: () =>
         set((st) => {
@@ -542,7 +585,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 10,
+      version: 12,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -669,7 +712,7 @@ export const useGame = create<Store>()(
                 id: 'line-1',
                 name: 'Student',
                 isCustomName: false,
-                archetype: 'student',
+                archetype: GENRES[0].id,
                 cover: 'hardcover',
                 binding: 'ring',
                 size: 'm',
@@ -794,6 +837,91 @@ export const useGame = create<Store>()(
           if (typeof persisted.finlit.marketingBudget !== 'number') persisted.finlit.marketingBudget = 0;
           if (typeof persisted.finlit.salesBudget !== 'number') persisted.finlit.salesBudget = 0;
           delete persisted.finlit.marketing;
+        }
+
+        // ── v11: the V2 archetype axis is gone; a notebook IS its market ──
+        //
+        // Saves written before this hold archetype ids ('student' | 'planner' |
+        // 'daily') that no longer exist in the catalogue. `genreById` THROWS on
+        // an unknown id, so leaving one in a line would crash the run on load.
+        // Every line is rewritten to the genre it already carried, and the
+        // per-notebook add-on lists are re-keyed to match.
+        if (fromVersion < 11 && Array.isArray(persisted?.portfolio?.productLines)) {
+          const LEGACY_TO_GENRE: Record<string, string> = {
+            student: 'minimalist', planner: 'indie', daily: 'cute',
+          };
+          const known = new Set(GENRES.map((g) => g.id));
+          const fallback = GENRES[0]?.id ?? 'cute';
+
+          for (const line of persisted.portfolio.productLines) {
+            // The line's own genre wins when it is still valid — it was always
+            // the real identity. Otherwise map the retired archetype, and fall
+            // back to a notebook that definitely exists.
+            const next =
+              (known.has(line.genre) && line.genre) ||
+              LEGACY_TO_GENRE[line.archetype] ||
+              (known.has(line.archetype) && line.archetype) ||
+              fallback;
+
+            const oldKey = line.archetype;
+            line.archetype = next;
+            line.genre = next;
+            if (line.finlitSpec && typeof line.finlitSpec === 'object') line.finlitSpec.type = next;
+
+            // Rename auto-named lines too, or a save shows a "Student" that is
+            // now a Minimalist Notebook — the exact confusion this removes. A
+            // player's own name is theirs and is left alone.
+            if (!line.isCustomName) {
+              const label = GENRES.find((g) => g.id === next)?.name ?? next;
+              const taken = new Set(
+                persisted.portfolio.productLines.filter((l: any) => l !== line).map((l: any) => l.name),
+              );
+              let candidate = label;
+              let n = 2;
+              while (taken.has(candidate)) candidate = `${label}-${n++}`;
+              line.name = candidate;
+            }
+
+            // Carry the decoration across to the new key so switching notebooks
+            // does not silently wipe what the player placed.
+            const lists = line.addOnsByArchetype;
+            if (lists && typeof lists === 'object') {
+              if (oldKey !== next && Array.isArray(lists[oldKey])) {
+                lists[next] = lists[oldKey];
+                delete lists[oldKey];
+              }
+              for (const k of Object.keys(lists)) {
+                if (!known.has(k)) delete lists[k];
+              }
+              if (!Array.isArray(lists[next])) lists[next] = [];
+            } else {
+              line.addOnsByArchetype = { [next]: [] };
+            }
+          }
+        }
+        // ── v12: heal names left behind by an earlier v11 ──
+        //
+        // The first cut of the v11 migration remapped ids but not names, so a
+        // save converted by it still shows "Student" on a Minimalist Notebook.
+        // This runs on every load below v12 and only touches auto-named lines
+        // whose name is exactly a retired archetype label, so a player's own
+        // name and any already-correct name are both left alone.
+        if (fromVersion < 12 && Array.isArray(persisted?.portfolio?.productLines)) {
+          const RETIRED_LABELS = new Set(['Student', 'Planner', 'Daily Journal']);
+          for (const line of persisted.portfolio.productLines) {
+            if (line.isCustomName) continue;
+            const base = String(line.name ?? '').replace(/-\d+$/, '');
+            if (!RETIRED_LABELS.has(base)) continue;
+            const label = GENRES.find((g) => g.id === line.archetype)?.name;
+            if (!label) continue;
+            const taken = new Set(
+              persisted.portfolio.productLines.filter((l: any) => l !== line).map((l: any) => l.name),
+            );
+            let candidate = label;
+            let n = 2;
+            while (taken.has(candidate)) candidate = `${label}-${n++}`;
+            line.name = candidate;
+          }
         }
         return persisted as Store;
       },

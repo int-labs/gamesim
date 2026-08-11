@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import Product from "../models/products";
+import Product from "../models/Products";
 
 // GET /products?simulationTypeId=&segmentId=
 export const getProductsBySimulationType = async (req: Request, res: Response): Promise<void> => {
@@ -132,25 +132,49 @@ export const getProductFields = async (req: Request, res: Response): Promise<voi
 // PATCH /products/:id/fields/:fieldId
 export const updateProductField = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { label, type, order, required, minValue, maxValue, direction, tightening, coefficients, options, unitCost } = req.body;
+    /**
+     * PATCH means PARTIAL — build `$set` from what was actually sent.
+     *
+     * This used to `$set` all eleven properties unconditionally. Mongoose
+     * strips `undefined` from an update, so most absent fields survived by
+     * luck — but `unitCost` was written as `unitCost ?? null`, which turns
+     * "not sent" into an explicit null and defeats that stripping.
+     *
+     * The result: any edit that didn't restate the unit cost SILENTLY ERASED
+     * it. The console's own field editor omits empty values, so renaming a
+     * money field was enough to strip the per-unit cost the financial model
+     * prices COGS from — and nothing surfaced it, because the next round close
+     * simply computed a cost of zero.
+     */
+    const patch: Record<string, unknown> = {};
+    const allowed = [
+      "label",
+      "type",
+      "order",
+      "required",
+      "minValue",
+      "maxValue",
+      "direction",
+      "tightening",
+      "coefficients",
+      "options",
+      "unitCost",
+    ] as const;
+
+    for (const key of allowed) {
+      // `null` is a meaningful value here (it clears a unit cost), so only
+      // genuinely absent keys are skipped.
+      if (key in req.body) patch[`fields.$.${key}`] = req.body[key];
+    }
+
+    if (Object.keys(patch).length === 0) {
+      res.status(400).json({ message: "Nothing to update." });
+      return;
+    }
 
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, "fields._id": req.params.fieldId },
-      {
-        $set: {
-          "fields.$.label":        label,
-          "fields.$.type":         type,
-          "fields.$.order":        order,
-          "fields.$.required":     required,
-          "fields.$.minValue":     minValue,
-          "fields.$.maxValue":     maxValue,
-          "fields.$.direction":    direction,
-          "fields.$.tightening":   tightening,
-          "fields.$.coefficients": coefficients,
-          "fields.$.options":      options,
-          "fields.$.unitCost":     unitCost ?? null,
-        }
-      },
+      { $set: patch },
       { new: true, runValidators: true }
     );
 

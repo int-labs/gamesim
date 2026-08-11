@@ -5,12 +5,11 @@ import { A } from '@/assets';
 import type { Archetype, Binding, Cover, PaperQuality, Size } from '@/types';
 import { fmt$ } from '@/utils/format';
 import { calcUnitCost, calcUnitTime } from '@/engine/mockEngine';
+import { notebookCatalogue } from '@/data/notebookArchetypes';
 
-const ARCHS: { id: Archetype; label: string; sample: string }[] = [
-  { id: 'student', label: 'Student', sample: A.notebook.student.hardcover_ring },
-  { id: 'planner', label: 'Planner', sample: A.notebook.planner.hardcover_ring },
-  { id: 'daily', label: 'Daily Journal', sample: A.notebook.daily.hardcover_ring },
-];
+/** Live catalogue, not a hardcoded list — see notebookArchetypes.ts. */
+const archOptions = (): { id: Archetype; label: string; sample: string }[] =>
+  notebookCatalogue().map((n) => ({ id: n.id, label: n.title, sample: n.art }));
 const COVERS: Cover[] = ['hardcover', 'leather'];
 const BINDINGS: Binding[] = ['ring', 'staple'];
 const SIZES: Size[] = ['s', 'm', 'l'];
@@ -40,7 +39,7 @@ export function ProductConfigPanel() {
     <div className="flex flex-col gap-3">
       <PixelPanel title="Notebook Type" tone="cream">
         <div className="grid grid-cols-3 gap-2">
-          {ARCHS.map((a) => (
+          {archOptions().map((a) => (
             <button
               key={a.id}
               onClick={() => set('archetype', a.id)}
@@ -51,7 +50,7 @@ export function ProductConfigPanel() {
               }`}
             >
               <img src={a.sample} alt={a.label} className="h-16 object-contain pointer-events-none" draggable={false} />
-              <span className="font-hud text-[10px] uppercase">{a.label}</span>
+              <span className="eyebrow eyebrow-sm">{a.label}</span>
             </button>
           ))}
         </div>
@@ -102,7 +101,7 @@ export function ProductConfigPanel() {
       </PixelPanel>
 
       <PixelPanel title="Effect Preview" tone="paper">
-        <div className="grid grid-cols-2 gap-2 text-[12px] font-body">
+        <div className="grid grid-cols-2 gap-2 hint font-body">
           <Row label="Unit cost" value={fmt$(unitCost)} />
           <Row label="Unit time" value={`${unitTime.toFixed(2)}d`} />
           <Row label="Defect rate" value={`${Math.round(8)}%`} />
@@ -121,9 +120,9 @@ export function ProductConfigPanel() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between bg-cream-50 border-2 border-ink-900 px-2 py-1">
-      <span className="font-hud text-[10px] uppercase text-ink-700">{label}</span>
-      <span className="font-hud text-[12px]">{value}</span>
+    <div className="flex items-center justify-between bg-cream-50 border border-border-soft px-2 py-1">
+      <span className="eyebrow eyebrow-sm text-ink-700">{label}</span>
+      <span className="eyebrow eyebrow-sm">{value}</span>
     </div>
   );
 }

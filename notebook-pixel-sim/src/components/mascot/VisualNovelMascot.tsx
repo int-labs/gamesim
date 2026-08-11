@@ -8,6 +8,7 @@ import type { BubbleType, MascotMood } from '@/types';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { playSfx } from '@/audio/audioManager';
+import { HeartRain, patHeartRain, originOf } from '@/components/fx/HeartRain';
 import { ameliaVoice, moodFromMessage } from '@/audio/ameliaVoice';
 
 const tones: Record<BubbleType, { accent: string; tag: string; tagBg: string }> = {
@@ -101,9 +102,29 @@ export function VisualNovelMascot() {
     return (current.seqIndex ?? 0) > 0;
   })();
   const isLastInSequence = !!current?.seqId && (current.seqIndex ?? 0) + 1 >= (current.seqLen ?? 1);
+  // How many messages are queued AFTER this one. The app routinely pushes two
+  // scripts back-to-back — the Phase 1 debrief immediately followed by the
+  // Phase 2 intro, for instance — so "last message of THIS sequence" is not the
+  // same thing as "end of all dialogue".
+  const queueLen = useGame((s) => s.mascot.queue.length);
+  // Only the genuine end: last of its sequence AND nothing waiting behind it.
+  const isFinalMessage = isLastInSequence && queueLen === 0;
 
   const [shown, setShown] = useState('');
   const intervalRef = useRef<number | null>(null);
+
+  // Patting the dialogue portrait: a CSS squash-and-stretch plus an escalating
+  // love bomb behind her. The counter is a ref, not state, so a pat never
+  // re-renders the typewriter mid-line.
+  const [patting, setPatting] = useState(false);
+  const patCount = useRef(0);
+  const spriteRef = useRef<HTMLImageElement>(null);
+  const onPat = () => {
+    patCount.current += 1;
+    playSfx('pop');
+    setPatting(true);
+    patHeartRain(patCount.current, originOf(spriteRef.current));
+  };
 
   // Typewriter + voice narration. Both are driven by `current.id`
   // changes — when the displayed line flips (Next/Prev/auto-promote),
@@ -163,12 +184,16 @@ export function VisualNovelMascot() {
       playSfx('click-soft');
       return;
     }
-    if (isLastInSequence) {
-      // Finish — closes the whole dialogue.
+    if (isFinalMessage) {
+      // Truly the end of all dialogue — safe to clear.
       playSfx('click');
       clearMascotQueue();
       return;
     }
+    // Either mid-sequence, or the last message of this script with a follow-up
+    // still queued. Advance rather than clear: `clearMascotQueue()` here would
+    // discard the queued script outright, so finishing the Phase 1 debrief
+    // silently ate the Phase 2 intro that had been pushed right behind it.
     playSfx('click-soft');
     popMascot();
   };
@@ -215,7 +240,7 @@ export function VisualNovelMascot() {
           >
             <div
               className={clsx(
-                'panel-frame bg-surface border-2 shadow-[6px_6px_0_0_rgba(0,0,0,0.6)] flex flex-col',
+                'panel-frame panel-frame--lifted-lg bg-surface flex flex-col',
                 tone.accent,
               )}
               style={{ minHeight: 220, maxHeight: 320 }}
@@ -235,7 +260,7 @@ export function VisualNovelMascot() {
                   {/* Title is ALWAYS dark ink — tone colours (amber/green/…)
                       were unreadable on the caramel header bar; the tone
                       still shows via the icon chip + accent border. */}
-                  <span className="font-bold text-[12px] uppercase tracking-[0.16em] truncate text-ink-900">
+                  <span className="eyebrow eyebrow-sm truncate text-ink-900">
                     {current.seqTitle
                       ? `Amelia · ${current.seqTitle}`
                       : `Amelia · ${labels[current.type]}`}
@@ -243,7 +268,7 @@ export function VisualNovelMascot() {
                 </div>
                 {current.seqLen && current.seqLen > 1 && (
                   <span
-                    className="font-bold text-[11px] tabular-nums tracking-wider text-text-3 shrink-0"
+                    className="num-xs tracking-wider text-text-3 shrink-0"
                     aria-label={`Message ${(current.seqIndex ?? 0) + 1} of ${current.seqLen}`}
                   >
                     {(current.seqIndex ?? 0) + 1} / {current.seqLen}
@@ -253,7 +278,7 @@ export function VisualNovelMascot() {
 
               {/* Body — typewriter (flex-grow so footer stays pinned) */}
               <div
-                className="px-7 py-6 text-[17px] leading-[1.6] text-text whitespace-pre-wrap flex-1 overflow-auto"
+                className="px-7 py-6 body-xs leading-[1.6] text-text whitespace-pre-wrap flex-1 overflow-auto"
               >
                 {shown}
                 {!fullyTyped && <span className="opacity-60 animate-pulse">▌</span>}
@@ -265,7 +290,7 @@ export function VisualNovelMascot() {
                    not waste space or look broken. */}
               <div
                 className={clsx(
-                  'flex items-center gap-2 px-5 py-3 border-t-2 border-border-soft bg-surface-2/70 shrink-0',
+                  'flex items-center gap-2 px-5 py-3 border-t border-border-soft bg-surface-2/70 shrink-0',
                   canGoPrev ? 'justify-between' : 'justify-end',
                 )}
               >
@@ -276,19 +301,22 @@ export function VisualNovelMascot() {
                     aria-label="Previous message"
                   >
                     <PixelIcon kind="arrow-right" size={11} color="currentColor" className="rotate-180" />
-                    <span className="text-[12px] uppercase tracking-wider font-bold">Previous</span>
+                    <span className="eyebrow eyebrow-sm">Previous</span>
                   </button>
                 )}
                 <button
                   onClick={onNext}
-                  className="vn-continue inline-flex items-center gap-2 h-[36px] px-5 border-2 border-border bg-primary text-white cursor-pointer"
-                  style={{ color: '#FAF7E8' }}
-                  aria-label={isLastInSequence ? 'Finish' : (fullyTyped ? 'Next message' : 'Reveal full message')}
+                  // Matches the game's primary CTA: bright fill, deep ink
+                  // label. The dark-fill/cream-label pairing this used to
+                  // share with `.game-btn` read as a disabled control, and
+                  // this is the button that advances every tutorial line.
+                  className="vn-continue inline-flex items-center gap-2 h-[36px] px-5 border-2 border-border bg-primary text-[#12301C] cursor-pointer"
+                  aria-label={isFinalMessage ? 'Finish' : (fullyTyped ? 'Next message' : 'Reveal full message')}
                 >
-                  <span className="text-[12px] uppercase tracking-wider font-bold">
-                    {!fullyTyped ? 'Reveal' : isLastInSequence ? 'Finish' : 'Next'}
+                  <span className="eyebrow eyebrow-sm text-inherit">
+                    {!fullyTyped ? 'Reveal' : isFinalMessage ? 'Finish' : 'Next'}
                   </span>
-                  <PixelIcon kind="arrow-right" size={11} color="#FAF7E8" />
+                  <PixelIcon kind="arrow-right" size={11} color="currentColor" />
                 </button>
               </div>
             </div>
@@ -296,9 +324,28 @@ export function VisualNovelMascot() {
         </AnimatePresence>
 
         {/* RIGHT — Mascot crop window. Plain DOM (no framer-motion on the
-             crop or the img) so the CSS idle animation runs cleanly. */}
-        <div className="vn-character-crop" aria-hidden>
-          <img className="vn-character" key={current.id + ':sprite'} src={src} alt="" draggable={false} />
+             crop or the img) so the CSS idle animation runs cleanly.
+
+             Pat her and hearts erupt from BEHIND: the canvas sits at z-1, the
+             crop at z-2, so Amelia is never covered by her own love bomb. */}
+        <HeartRain className="pointer-events-none absolute inset-0 z-[1]" />
+        <div
+          className="vn-character-crop"
+          onClick={onPat}
+          role="button"
+          tabIndex={0}
+          aria-label="Pat Amelia"
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPat(); } }}
+        >
+          <img
+            ref={spriteRef}
+            className={clsx('vn-character', patting && 'is-hopping')}
+            onAnimationEnd={(e) => { if (/mascot-pat/.test(e.animationName)) setPatting(false); }}
+            key={current.id + ':sprite'}
+            src={src}
+            alt=""
+            draggable={false}
+          />
         </div>
       </div>
     </div>

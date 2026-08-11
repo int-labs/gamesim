@@ -22,9 +22,9 @@ export function PricingPanel() {
 
   return (
     <PixelPanel title="Pricing">
-      <div className="text-[12px] font-body text-ink-700 mb-2">Set the price customers pay for one notebook. The badge below your price compares it to the reference price for the active audience.</div>
+      <div className="hint font-body text-ink-700 mb-2">Set the price customers pay for one notebook. The badge below your price compares it to the reference price for the active audience.</div>
       <div className="flex items-center gap-2 mb-2">
-        <span className="font-hud text-[18px]">{fmt$(val)}</span>
+        <span className="h3">{fmt$(val)}</span>
         <PixelBadge tone={margin > 0.4 ? 'success' : margin < 0.15 ? 'warn' : 'neutral'}>
           Margin {fmtPct(margin)}
         </PixelBadge>
@@ -45,14 +45,14 @@ export function PricingPanel() {
         onTouchEnd={() => apply((s) => setPrice(s, val))}
         className="w-full accent-ui-primary"
       />
-      <div className="flex justify-between text-[10px] font-hud text-ink-700">
+      <div className="flex justify-between num-xs text-ink-700">
         <span>$1</span>
         {SEGMENTS.map((s) => (
           <span key={s.id} className="text-ink-700">{s.name[0]}{fmt$(s.preferredPriceRef).slice(1)}</span>
         ))}
         <span>$30</span>
       </div>
-      <div className="pt-3 grid grid-cols-2 gap-2 text-[11px] font-body">
+      <div className="pt-3 grid grid-cols-2 gap-2 hint font-body">
         <Stat label="Unit cost" value={fmt$(unitCost)} />
         <Stat label="Per-unit profit" value={fmt$(val - unitCost)} />
       </div>
@@ -63,8 +63,8 @@ export function PricingPanel() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between bg-cream-50 border-2 border-ink-900 px-2 py-1">
-      <span className="font-hud text-[10px] uppercase text-ink-700">{label}</span>
-      <span className="font-hud text-[12px]">{value}</span>
+      <span className="eyebrow eyebrow-sm text-ink-700">{label}</span>
+      <span className="eyebrow eyebrow-sm">{value}</span>
     </div>
   );
 }

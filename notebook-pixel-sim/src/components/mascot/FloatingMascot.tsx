@@ -320,7 +320,7 @@ export function FloatingMascot() {
               <div className="px-3 py-2 flex items-center justify-between border-b border-border-soft bg-surface/80">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <PixelIcon kind="mascot" size={11} color="var(--c-text-2)" />
-                  <span className={clsx('font-bold text-[10px] uppercase tracking-wider truncate', tone.tag)}>
+                  <span className={clsx('eyebrow eyebrow-sm truncate', tone.tag)}>
                     Amelia · {labels[current.type]}
                   </span>
                 </div>
@@ -330,7 +330,7 @@ export function FloatingMascot() {
                     onClick={popMascot}
                     aria-label="Dismiss"
                     title="Got it / next"
-                    className="text-text-2 hover:text-text px-1.5 py-0.5 text-[12px] font-bold cursor-pointer"
+                    className="text-text-2 hover:text-text px-1.5 py-0.5 item-name cursor-pointer"
                   >
                     ✓
                   </button>
@@ -347,7 +347,7 @@ export function FloatingMascot() {
               </div>
 
               {/* Bubble body */}
-              <div className="px-3.5 py-3 text-[14px] leading-snug text-text whitespace-pre-wrap min-h-[44px]">
+              <div className="px-3.5 py-3 body-xs leading-snug text-text whitespace-pre-wrap min-h-[44px]">
                 {shown}
                 {shown.length < current.body.length && (
                   <span className="opacity-60 animate-pulse">▌</span>

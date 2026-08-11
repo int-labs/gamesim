@@ -44,7 +44,7 @@ export function PixelMoneyText({ value, className, animate = true }: Props) {
   return (
     <span
       className={clsx(
-        'font-hud transition-colors',
+        'num-sm transition-colors',
         tint === 'up' && 'text-success',
         tint === 'down' && 'text-error',
         className,

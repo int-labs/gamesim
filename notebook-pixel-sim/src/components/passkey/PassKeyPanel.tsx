@@ -129,10 +129,10 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
           />
         )}
 
-        <h1 className="mb-1 font-hud text-[15px] uppercase tracking-wider text-ink-900 sm:text-[16px]">
+        <h1 className="mb-1 section-heading text-ink-900">
           {PASSKEY.title}
         </h1>
-        <p className="mb-4 font-body text-[13px] leading-relaxed text-ink-700">{PASSKEY.subtitle}</p>
+        <p className="mb-4 font-body body-xs leading-relaxed text-ink-700">{PASSKEY.subtitle}</p>
 
         <label htmlFor={inputId} className="sr-only">
           {PASSKEY.inputLabel}
@@ -180,7 +180,7 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
             aria-invalid={status === 'error'}
             aria-describedby={errId}
             className={clsx(
-              'w-full border-2 bg-cream-100 px-3 py-2.5 pr-10 font-body text-[14px] text-ink-900',
+              'w-full border-2 bg-cream-100 px-3 py-2.5 pr-10 font-body body-xs text-ink-900',
               'outline-none focus:ring-4 focus:ring-[#6FBB85]/40',
               'disabled:opacity-70',
               status === 'error' ? 'border-danger' : 'border-ink-900',
@@ -199,7 +199,7 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
         {/* Live region — announces empty/invalid errors. Reserves height so
             the layout doesn't jump when a message appears. */}
         <div id={errId} role="alert" aria-live="assertive" className="mt-1.5 min-h-[18px]">
-          {error && <span className="font-body text-[12px] text-danger">{error}</span>}
+          {error && <span className="font-body hint text-danger">{error}</span>}
         </div>
 
         <motion.button
@@ -207,7 +207,7 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
           disabled={busy || unlocked}
           aria-busy={busy}
           className={clsx(
-            'mt-2 w-full border-2 border-ink-900 py-3 font-hud text-[12px] uppercase tracking-wider sm:text-[13px]',
+            'mt-2 w-full border-2 border-ink-900 py-3 btn-label uppercase',
             'cursor-pointer transition-[box-shadow,filter] duration-150 hover:shadow-pixel-2',
             'disabled:cursor-wait',
             unlocked ? 'bg-success text-ink-900' : 'bg-primary text-ink-900 hover:brightness-105',
@@ -225,11 +225,11 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
         </motion.button>
 
         <div className="mt-3 text-left">
-          <span className="font-body text-[12px] text-ink-600">{PASSKEY.noKeyPrompt} </span>
+          <span className="font-body hint text-ink-600">{PASSKEY.noKeyPrompt} </span>
           <button
             type="button"
             onClick={() => setLearn(true)}
-            className="cursor-pointer font-body text-[12px] text-secondary underline underline-offset-2 hover:text-ink-900"
+            className="cursor-pointer font-body hint text-secondary underline underline-offset-2 hover:text-ink-900"
           >
             {PASSKEY.learnMoreCta}
           </button>
@@ -242,9 +242,8 @@ export function PassKeyPanel({ onUnlock, fill }: { onUnlock: () => void; fill?: 
             overlaps. */}
         <span
           aria-hidden
-          style={{ fontFamily: "'Caveat', cursive" }}
           className={clsx(
-            'pointer-events-none -rotate-3 select-none text-[20px] font-semibold leading-none text-ink-800/40',
+            'pointer-events-none -rotate-3 select-none signature leading-none text-ink-800/40',
             fill === 'top' ? 'absolute bottom-10 right-8' : 'mt-5 ml-auto block w-fit',
           )}
         >

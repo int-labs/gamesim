@@ -35,7 +35,7 @@ export function Toast() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -10, opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className={clsx('pixel-frame px-3 py-2 font-hud text-[11px] uppercase tracking-wider', tones[toast.kind])}
+            className={clsx('pixel-frame px-3 py-2 eyebrow eyebrow-sm', tones[toast.kind])}
           >
             {toast.text}
           </motion.div>

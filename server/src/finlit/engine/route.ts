@@ -1,9 +1,12 @@
-// The player's funding route. Lifted from notebook-sim/src/types/index.ts,
-// which is the player's global type barrel — the engine only needs this one
-// declaration from it, so it is restated here rather than dragging the whole
-// barrel (and its UI types) into the server.
+// The player's funding route.
 //
-// Kept byte-comparable on purpose: see server/src/test/finlitEngineParity.test.ts,
-// which fails if this drifts from the player's definition.
-
-export type Route = 'self' | 'investor';
+// This used to declare the type itself, restated from the player's global type
+// barrel. That was a structural change on top of the import rewrite, and it
+// broke the invariant the vendored copy rests on — that the copy is a purely
+// MECHANICAL transform of the original. Upstream, `core/types.ts` declares
+// `Route` inline, so the synced `./types` does too, and restating it here
+// would be a second source of truth for one union.
+//
+// Kept as a re-export because other vendored files import the type from this
+// path, and because `npm run sync-finlit` would otherwise need a special case.
+export type { Route } from "./types";

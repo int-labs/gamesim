@@ -7,6 +7,8 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "test": "jest",
     "build": "tsc",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "tsgen": "ts-node scripts/tsgen.ts",
     "cleanup-db": "ts-node scripts/cleanup.ts",
     "seed-db": "ts-node scripts/seed.ts",
@@ -14,9 +16,17 @@
     "randomize-market-size": "ts-node scripts/randomizeMarketSize.ts",
     "sync-sim-type": "ts-node scripts/sync-simulation.ts",
     "update-sim-type": "ts-node scripts/update-simulation.ts",
-    "mall-management:base-data-constants": "ts-node scripts/mallManagement/migrateConstants.ts"
+    "mall-management:base-data-constants": "ts-node scripts/mallManagement/migrateConstants.ts",
+    "create-admin": "ts-node scripts/createStaffUser.ts",
+    "repair-images": "ts-node scripts/repairImageAssetValidator.ts",
+    "backfill-avatars": "ts-node scripts/backfillAvatars.ts",
+    "repair-validators": "ts-node scripts/repairCollectionValidators.ts",
+    "sync-finlit": "ts-node scripts/syncFinlitEngine.ts",
+    "seed-demo": "node scripts/seedDemoCohort.mjs"
   },
   "dependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
     "@supabase/supabase-js": "^2.111.0",
     "axios": "1.14.0",
     "bcrypt": "^5.1.1",

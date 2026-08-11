@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGame } from '@/state/store';
 import { setActiveLine } from '@/engine/mockEngine';
+import { archetypeLabel } from '@/engine/mockEngine';
 import { fmt$ } from '@/utils/format';
 import { SEGMENTS } from '@/data/segments';
 import { playSfx } from '@/audio/audioManager';
@@ -12,6 +13,7 @@ import { PixelIcon } from '@/components/icons/PixelIcon';
 import { A } from '@/assets';
 import { addOnById } from '@/data/addOns';
 import { genreById, configOption, type GenreId, type ProductionSpec, type ChannelId } from '@/data/finlit';
+import { lineSize } from '@/engine/selectors';
 import { vocFit } from '@/engine/finlit/fit';
 
 const GALLERY_DEFAULT_SPEC: ProductionSpec = {
@@ -41,12 +43,13 @@ function segName(s: Segment): string {
   return s === 'students' ? 'Students' : s === 'creators' ? 'Creators' : s === 'professionals' ? 'Professionals' : 'Gift Buyers';
 }
 function archLabel(a: string): string {
-  return a === 'student' ? 'Student' : a === 'planner' ? 'Planner' : 'Daily Journal';
+  // Live catalogue: a published notebook labels itself.
+  return archetypeLabel(a);
 }
 function coverBind(l: ProductLine): string {
   const cover = l.cover === 'leather' ? 'Leather' : 'Hardcover';
   const bind = l.binding === 'ring' ? 'Ring' : 'Staple';
-  const size = l.size === 's' ? 'S' : l.size === 'm' ? 'M' : 'L';
+  const size = configOption('size', l.finlitSpec?.size ?? 'b5').name;
   return `${cover} · ${bind} · ${size}`;
 }
 
@@ -72,34 +75,34 @@ export function NotebookGallery() {
           view's title card + view controls, so toggling Focus ⇄ Shelf keeps
           every control exactly in place. */}
       <div className="absolute left-3 top-3 z-20 max-w-[calc(50%-120px)]">
-        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 shadow-[3px_3px_0_0_var(--c-shadow)] w-fit max-w-full">
+        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 w-fit max-w-full">
           {/* accent chip + eyebrow + arcade-font name — same title-plate
               anatomy as the focus view's notebook title. */}
-          <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border-2 border-primary bg-primary-soft shrink-0">
+          <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border border-primary bg-primary-soft shrink-0">
             <PixelIcon kind="inventory" size={15} color="var(--c-primary)" />
           </span>
           <div className="flex flex-col justify-center gap-[3px] leading-none min-w-0">
-            <span className="text-[8px] uppercase tracking-[0.24em] font-bold text-text-3 leading-none">
+            <span className="stat-label leading-none">
               Portfolio
             </span>
-            <span className="font-hud text-[13px] uppercase tracking-wide text-text truncate leading-none">
+            <span className="eyebrow eyebrow-sm text-text truncate leading-none">
               Your Shelf
             </span>
           </div>
           <span aria-hidden className="hidden md:block w-px h-6 bg-border-soft shrink-0" />
-          <span className="hidden md:block text-[11px] text-text-2 truncate">
+          <span className="hidden md:block hint text-text-2 truncate">
             {lines.length} notebook{lines.length === 1 ? '' : 's'} · click one to focus
           </span>
         </div>
       </div>
-      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame bg-surface px-1.5 shadow-[3px_3px_0_0_var(--c-shadow)]">
+      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
         <ViewToggle />
         {/* Same Details affordance as the focus view, in the same slot, so
             the toggle itself never shifts when switching views. */}
         {/* h matches the ViewToggle's OUTER height so the strip aligns. */}
         <button
           onClick={() => { playSfx('click-soft'); openDrawer('left', 'details'); }}
-          className="pbtn px-2.5 h-[32px] text-[10px] uppercase tracking-wider font-semibold text-text-2 hover:text-text border border-border-soft bg-surface"
+          className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
         >
           <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
           <span className="hidden md:inline">Details</span>
@@ -178,7 +181,7 @@ function BookCard({
       whileTap={{ scale: 0.98 }}
     >
       {active && (
-        <span className="absolute top-1.5 left-1.5 z-10 bg-primary text-white text-[8px] font-bold px-1.5 py-0.5 border border-border tracking-wider">
+        <span className="absolute top-1.5 left-1.5 z-10 bg-primary-strong text-white item-name px-1.5 py-0.5 border border-border">
           ACTIVE
         </span>
       )}
@@ -208,13 +211,13 @@ function BookCard({
                 archetype={line.archetype}
                 cover={line.cover}
                 binding={line.binding}
-                size={line.size}
+                size={lineSize(line)}
               />
               {/* Add-ons scale WITH the notebook (same as focus view) so they
                   sit on the cover identically. */}
               <div
                 className="absolute inset-0"
-                style={{ transform: `scale(${sizeScale(line.size)})`, transformOrigin: 'center center' }}
+                style={{ transform: `scale(${sizeScale(lineSize(line))})`, transformOrigin: 'center center' }}
               >
                 {instances.map((inst) => {
                   const def = addOnById(inst.defId);
@@ -246,12 +249,12 @@ function BookCard({
       </div>
 
       {/* Insight caption */}
-      <div className="flex flex-col gap-1.5 px-2.5 py-2 border-t-2 border-border-soft bg-surface">
+      <div className="flex flex-col gap-1.5 px-2.5 py-2 border-t border-border-soft bg-surface">
         <div className="flex items-center justify-between gap-2 min-w-0">
-          <span className="text-[12px] font-bold text-text truncate">{line.name}</span>
-          <span className="text-[11px] font-bold tabular-nums text-text shrink-0">{fmt$(line.price)}</span>
+          <span className="item-name text-text truncate">{line.name}</span>
+          <span className="num-xs text-text shrink-0">{fmt$(line.price)}</span>
         </div>
-        <div className="text-[9.5px] uppercase tracking-wider text-text-3 truncate">
+        <div className="stat-label truncate">
           {genreById(genre).name} · {specSummary}
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -271,7 +274,7 @@ function Chip({ children, tone }: { children: ReactNode; tone: 'neutral' | 'succ
     : tone === 'info' ? 'border-border-soft text-text-2 bg-surface-2'
     : 'border-border-soft text-text-3 bg-surface-2';
   return (
-    <span className={clsx('inline-flex items-center px-1.5 py-0.5 border text-[9px] font-semibold leading-none tabular-nums', cls)}>
+    <span className={clsx('inline-flex items-center px-1.5 py-0.5 border stat-label leading-none', cls)}>
       {children}
     </span>
   );
@@ -285,8 +288,8 @@ function AddCard({ onClick }: { onClick: () => void }) {
       aria-label="Add a notebook"
       className="group flex flex-col items-center justify-center gap-2 min-h-[190px] border-2 border-dashed border-cream-100/30 bg-ink-900/20 text-cream-100/70 hover:border-primary hover:text-cream-100 hover:bg-ink-900/10 transition-colors cursor-pointer"
     >
-      <span className="inline-flex items-center justify-center w-11 h-11 border-2 border-current text-[22px] leading-none font-bold group-hover:scale-110 transition-transform">+</span>
-      <span className="text-[11px] uppercase tracking-wider font-bold">Add notebook</span>
+      <span className="inline-flex items-center justify-center w-11 h-11 border-2 border-current body-sm leading-none strong group-hover:scale-110 transition-transform">+</span>
+      <span className="eyebrow eyebrow-sm">Add notebook</span>
     </button>
   );
 }

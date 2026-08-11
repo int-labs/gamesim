@@ -31,7 +31,7 @@ export function PixelStackedBar({ data, width = 240, height = 22, showLabels = t
         })}
       </svg>
       {showLabels && (
-        <div className="flex flex-wrap gap-2 text-[10px] font-hud">
+        <div className="flex flex-wrap gap-2 chart-label">
           {data.map((d) => (
             <div key={d.label} className="flex items-center gap-1">
               <span className="inline-block w-2 h-2 border border-ink-900" style={{ background: d.color }} />

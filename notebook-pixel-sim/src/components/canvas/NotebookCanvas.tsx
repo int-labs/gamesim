@@ -11,8 +11,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useGame, MAX_SHOP_NAME } from '@/state/store';
 import { EnvironmentBackground } from './EnvironmentBackground';
 import { Notebook, sizeScale } from './Notebook';
+import { lineSize } from '@/engine/selectors';
 import { AddOnLayer } from './AddOnLayer';
 import { removeAddOn, currentAddOns, setActiveLine, renameProductLine, setShopName } from '@/engine/mockEngine';
+import { archetypeLabel } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { NavIcon } from '@/components/icons/NavIcon';
@@ -22,6 +24,7 @@ import { DismissibleTip } from '@/components/hud/DismissibleTip';
 import { DustMotes } from '@/components/fx/DustMotes';
 import { PixelBurstLayer } from '@/components/fx/PixelBurst';
 import { playSfx } from '@/audio/audioManager';
+import { useDroppable } from '@dnd-kit/core';
 
 /**
  * NotebookCanvas — the FULL-BLEED stage. The desk artwork fills the entire
@@ -43,6 +46,13 @@ export function NotebookCanvas() {
     (s) => s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId)
       ?? s.portfolio.productLines[0],
   );
+  // The drawn size comes from the FinLit spec (the dropdown the player uses),
+  // not `product.size` — that legacy field is written once at line creation and
+  // never updated, so scaling from it meant picking B4 changed nothing.
+  const drawnSize = lineSize(product);
+  // Drop target for tiles dragged out of the Add-ons drawer (ProductPage owns
+  // the DndContext).
+  const { isOver, setNodeRef: setDropRef } = useDroppable({ id: 'notebook-canvas' });
   const hasNotebook = useGame((s) => s.portfolio.productLines.length > 0);
   const apply = useGame((s) => s.apply);
   const segment = useGame((s) => (product?.targetSegment ?? s.market.targetSegment));
@@ -154,13 +164,13 @@ export function NotebookCanvas() {
         <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6 py-10 gap-3">
           <div className="panel-frame bg-surface px-8 py-8 flex flex-col items-center gap-3">
             <PixelIcon kind="product" size={28} color="var(--c-text-3)" />
-            <div className="text-[14px] font-bold text-text">No notebook selected</div>
-            <p className="text-[12px] text-text-2 max-w-[28ch]">
-              Open <span className="font-bold text-text">Notebook Items</span> in the left dock to add your first notebook.
+            <div className="item-name text-text">No notebook selected</div>
+            <p className="hint text-text-2 max-w-[28ch]">
+              Open <span className="strong text-text">Notebook Items</span> in the left dock to add your first notebook.
             </p>
             <button
               onClick={() => openDrawer('left', 'items')}
-              className="pbtn mt-1 px-3 h-[30px] text-[11px] uppercase tracking-wider font-semibold text-text border-2 border-primary bg-primary-soft"
+              className="pbtn mt-1 px-3 h-[30px] eyebrow eyebrow-sm text-text border-2 border-primary bg-primary-soft"
             >
               Open Notebook Items
             </button>
@@ -228,7 +238,7 @@ export function NotebookCanvas() {
           notebooks (scale-fade for config changes), then LIVES: leans toward
           the cursor, bobs in place, and squashes when patted. */}
       <motion.div
-        key={`${product.id}-${product.archetype}-${product.cover}-${product.binding}-${product.size}`}
+        key={`${product.id}-${product.archetype}-${product.cover}-${product.binding}-${drawnSize}`}
         initial={{
           opacity: 0,
           x: slideDir * 72,
@@ -248,12 +258,30 @@ export function NotebookCanvas() {
           >
             {/* pat squash-and-stretch */}
             <motion.div animate={patCtrl} style={{ transformOrigin: '50% 85%' }}>
-              <div className="relative" style={{ width: 'min(48vw, 520px)', maxWidth: '100%', aspectRatio: '1 / 1' }}>
+              <div ref={setDropRef} className="relative" style={{ width: 'min(48vw, 520px)', maxWidth: '100%', aspectRatio: '1 / 1' }}>
+                {/* Drop affordance. TRANSLUCENT on purpose: the notebook IS the
+                    drop target, so an opaque fill covers the very thing the
+                    player is aiming at and reads as the canvas going blank.
+                    The literal rgba() is also deliberate — a Tailwind /alpha
+                    suffix on a hex CSS-var token renders fully transparent in
+                    this codebase. The hint sits at the top, clear of the hero. */}
+                {isOver && (
+                  <div
+                    aria-hidden
+                    className="absolute inset-3 z-10 border-2 border-dashed border-success pointer-events-none flex items-start justify-center pt-5"
+                    style={{ background: 'rgba(111,187,133,0.14)' }}
+                  >
+                    <span className="inline-flex items-center gap-1.5 stat-label text-success bg-surface px-3 py-1.5 border-2 border-success shadow-[2px_2px_0_0_var(--c-shadow)]">
+                      <PixelIcon kind="plus" size={11} color="var(--c-success-ink)" />
+                      Drop to place
+                    </span>
+                  </div>
+                )}
                 <Notebook
                   archetype={product.archetype}
                   cover={product.cover}
                   binding={product.binding}
-                  size={product.size}
+                  size={drawnSize}
                 />
                 {/* Decorations live INSIDE the notebook square AND scale with
                     its size, so their 0..1 placement maps onto the cover and
@@ -261,7 +289,7 @@ export function NotebookCanvas() {
                     of the notebook. */}
                 <div
                   className="absolute inset-0"
-                  style={{ transform: `scale(${sizeScale(product.size)})`, transformOrigin: 'center center' }}
+                  style={{ transform: `scale(${sizeScale(drawnSize)})`, transformOrigin: 'center center' }}
                 >
                   <AddOnLayer addOns={addOns} />
                 </div>
@@ -278,13 +306,13 @@ export function NotebookCanvas() {
            accent icon chip + tiny eyebrow + chunky arcade-font name. Still a
            single 48px row on the shared top band. ─────────────────────── */}
       <div className="absolute left-3 top-3 z-20 max-w-[calc(50%-120px)]">
-        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 shadow-[3px_3px_0_0_var(--c-shadow)] w-fit max-w-full">
+        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 w-fit max-w-full">
           {/* accent chip */}
-          <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border-2 border-primary bg-primary-soft shrink-0">
+          <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border border-primary bg-primary-soft shrink-0">
             <PixelIcon kind="product" size={15} color="var(--c-primary)" />
           </span>
           <div className="flex flex-col justify-center gap-[3px] leading-none min-w-0">
-            <span className="text-[8px] uppercase tracking-[0.24em] font-bold text-text-3 leading-none">
+            <span className="stat-label leading-none">
               Notebook
             </span>
             {editing ? (
@@ -303,7 +331,7 @@ export function NotebookCanvas() {
                 // Shrinks with the viewport so the field never pushes out of
                 // the title card (the card's wrapper is max-w-[calc(50%-120px)]
                 // — the icon + padding eat ~120px, so cap the field to match).
-                className="w-[min(240px,calc(50vw_-_190px))] min-w-[90px] max-w-full bg-cream-50 border-2 border-primary text-ink-900 font-hud text-[12px] uppercase outline-none px-1.5 py-0.5"
+                className="w-[min(240px,calc(50vw_-_190px))] min-w-[90px] max-w-full bg-cream-50 border-2 border-primary text-ink-900 eyebrow eyebrow-sm outline-none px-1.5 py-0.5"
               />
             ) : (
               <button
@@ -319,31 +347,36 @@ export function NotebookCanvas() {
                   initial={reduced ? false : { y: 9, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.2, ease: [0.2, 1, 0.4, 1] }}
-                  className="font-hud text-[13px] uppercase tracking-wide text-text truncate leading-none"
+                  className="eyebrow eyebrow-sm text-text truncate leading-none"
                 >
                   {product.name}
                 </motion.span>
-                <span aria-hidden className="opacity-35 group-hover:opacity-100 transition-opacity shrink-0">
+                {/* Was opacity-35 until :hover — the only hint that this label is
+                      editable, and invisible on the tablets this is played on.
+                      Click-to-edit text is exempt from the button grammar (see the
+                      affordance rule), so the icon IS the affordance and must be
+                      legible at rest. */}
+                <span aria-hidden className="opacity-70 group-hover:opacity-100 transition-opacity shrink-0">
                   <NavIcon icon={Pencil} size={11} color="var(--c-text-3)" />
                 </span>
               </button>
             )}
           </div>
           <span aria-hidden className="hidden md:block w-px h-6 bg-border-soft shrink-0" />
-          <div className="hidden md:block text-[11px] text-text-2 truncate">
-            {labelArch(product.archetype)} · {product.cover === 'leather' ? 'Leather' : 'Hardcover'} · {product.binding === 'ring' ? 'Ring' : 'Staple'} · {sizeLabel(product.size)}
+          <div className="hidden md:block hint text-text-2 truncate">
+            {labelArch(product.archetype)} · {product.cover === 'leather' ? 'Leather' : 'Hardcover'} · {product.binding === 'ring' ? 'Ring' : 'Staple'} · {sizeLabel(drawnSize)}
           </div>
         </div>
       </div>
 
       {/* ── Floating view controls (top-right, same 48px band) ─────────── */}
-      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame bg-surface px-1.5 shadow-[3px_3px_0_0_var(--c-shadow)]">
+      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
         <ViewToggle />
         {/* h matches the ViewToggle's OUTER height (26px buttons + p-0.5 +
             border = 32px) so the row reads as one aligned control strip. */}
         <button
           onClick={() => openDrawer('left', 'details')}
-          className="pbtn px-2.5 h-[32px] text-[10px] uppercase tracking-wider font-semibold text-text-2 hover:text-text border border-border-soft bg-surface"
+          className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
         >
           <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
           <span className="hidden md:inline">Details</span>
@@ -368,7 +401,7 @@ export function NotebookCanvas() {
               draggable={false}
             />
           </button>
-          <div className="pointer-events-none inline-flex items-center gap-1 px-2.5 py-1.5 bg-ink-900/70 text-cream-100 text-[10px] uppercase tracking-wider font-bold border border-black/40 tabular-nums overflow-hidden">
+          <div className="pointer-events-none inline-flex items-center gap-1 px-2.5 py-1.5 bg-ink-900/70 text-cream-100 eyebrow eyebrow-sm border border-black/40 tabular-nums overflow-hidden">
             {/* keyed flip — the counter rolls like an odometer */}
             <motion.span
               key={idx}
@@ -413,20 +446,18 @@ export function NotebookCanvas() {
             }}
             maxLength={MAX_SHOP_NAME}
             aria-label="Shop name"
-            className="w-[200px] bg-cream-50 border-2 border-primary text-ink-900 uppercase outline-none px-2 py-0.5"
-            style={{ fontFamily: "'VT323', sans-serif", fontSize: '12px', letterSpacing: '0.1em' }}
+            className="w-[200px] bg-cream-50 border-2 border-primary text-ink-900 stamp outline-none px-2 py-0.5"
           />
         ) : (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); startShopRename(); }}
             aria-label={`Shop name: ${shopName}. Click to rename.`}
-            className="group inline-flex items-center gap-1.5 px-2 py-0.5 bg-surface border-2 border-border text-text shadow-[1px_1px_0_0_var(--c-shadow)] select-none cursor-text hover:border-primary transition-colors"
-            style={{ fontFamily: "'VT323', sans-serif", fontSize: '12px', letterSpacing: '0.1em' }}
+            className="group inline-flex items-center gap-1.5 px-2 py-0.5 bg-surface border-2 border-border text-text stamp shadow-[1px_1px_0_0_var(--c-shadow)] select-none cursor-text hover:border-primary transition-colors"
           >
             <span className="w-1 h-1 bg-primary" aria-hidden />
-            <span className="uppercase">{shopName}</span>
-            <span aria-hidden className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <span>{shopName}</span>
+            <span aria-hidden className="opacity-60 group-hover:opacity-100 transition-opacity">
               <NavIcon icon={Pencil} size={9} color="var(--c-text-3)" />
             </span>
           </button>
@@ -440,7 +471,7 @@ export function NotebookCanvas() {
           playSfx('click-soft');
           document.getElementById('stats-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }}
-        className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 h-[34px] bg-surface border-2 border-border text-text text-[10px] uppercase tracking-wider font-bold shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:text-primary active:scale-95 transition-all cursor-pointer"
+        className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 h-[34px] bg-surface border-2 border-border text-text eyebrow eyebrow-sm shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:text-primary active:scale-95 transition-all cursor-pointer"
       >
         Stats &amp; P&amp;L
         <NavIcon icon={ChevronDown} size={13} color="currentColor" />
@@ -458,8 +489,13 @@ export function NotebookCanvas() {
 }
 
 function labelArch(a: string) {
-  return a === 'student' ? 'Student' : a === 'planner' ? 'Planner' : 'Daily Journal';
+  // Live catalogue: a published notebook labels itself.
+  return archetypeLabel(a);
 }
+// The caption echoes the player's own choice, so it names the paper the Design
+// dropdown offers (A5/B5/B4). A "Small/Medium/Large" paraphrase would disagree
+// with the control that set it.
+const SIZE_TO_PAPER: Record<'s' | 'm' | 'l', string> = { s: 'A5', m: 'B5', l: 'B4' };
 function sizeLabel(s: 's' | 'm' | 'l') {
-  return s === 's' ? 'Small' : s === 'm' ? 'Medium' : 'Large';
+  return SIZE_TO_PAPER[s];
 }

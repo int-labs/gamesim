@@ -1,4 +1,4 @@
-import { MouseEvent } from 'react';
+import { MouseEvent, useRef, useState } from 'react';
 import {
   motion,
   useMotionValue,
@@ -10,6 +10,8 @@ import { useGame } from '@/state/store';
 import { A } from '@/assets';
 import { PHASE_INTRO, LEARNING_POINTS } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
+import { HeartRain, patHeartRain, originOf } from '@/components/fx/HeartRain';
+import clsx from 'clsx';
 
 const PHASE_BG = { 1: A.env.round1, 2: A.env.round2, 3: A.env.round3 } as const;
 
@@ -26,7 +28,7 @@ const PHASE_POSE = {
 // the SPACED separator (" - ", or an em/en dash) so the un-spaced days range
 // ("1-30") is never mistaken for the divider.
 function splitTitle(title: string): [string, string] {
-  const m = title.match(/\s[-–—]\s/);
+  const m = title.match(/\s[---]\s/);
   if (!m || m.index === undefined) return ['', title];
   return [title.slice(0, m.index).trim(), title.slice(m.index + m[0].length).trim()];
 }
@@ -71,6 +73,18 @@ export function PhaseIntroScreen() {
   const setScreen = useGame((s) => s.setScreen);
   const apply = useGame((s) => s.apply);
   const reduced = useReducedMotion();
+
+  // Pat the hero pose: same squash-and-stretch + escalating love bomb as the
+  // other two Amelias, so the gesture means the same thing everywhere.
+  const [patting, setPatting] = useState(false);
+  const patCount = useRef(0);
+  const heroRef = useRef<HTMLImageElement>(null);
+  const onPat = () => {
+    patCount.current += 1;
+    playSfx('pop');
+    setPatting(true);
+    patHeartRain(patCount.current, originOf(heroRef.current));
+  };
 
   const info = PHASE_INTRO[phase];
   const lp = LEARNING_POINTS[info.learningFocus as keyof typeof LEARNING_POINTS];
@@ -133,6 +147,7 @@ export function PhaseIntroScreen() {
               animate={reduced ? undefined : { opacity: [0.7, 1, 0.7], scale: [1, 1.05, 1] }}
               transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
             />
+            <HeartRain className="pointer-events-none absolute inset-0 z-[9]" />
             <motion.div
               style={{ x: charX, y: charY }}
               className="pointer-events-none absolute inset-x-0 bottom-0 top-[6%] z-[10]"
@@ -148,13 +163,19 @@ export function PhaseIntroScreen() {
                     at the screen bottom and is covered by the bottom bar. Subtle
                     idle "breathing" from the feet keeps her alive. */}
                 <motion.img
+                  ref={heroRef}
                   src={PHASE_POSE[phase]}
                   alt=""
                   draggable={false}
+                  onClick={onPat}
                   style={{ transformOrigin: 'bottom center' }}
                   animate={reduced ? undefined : { scaleY: [1, 1.016, 1], scaleX: [1, 0.994, 1] }}
                   transition={{ duration: 3.9, repeat: Infinity, ease: 'easeInOut' }}
-                  className="h-full w-full object-cover object-top drop-shadow-[8px_12px_0_rgba(0,0,0,0.42)]"
+                  className={clsx(
+                    'h-full w-full object-cover object-top cursor-pointer drop-shadow-[8px_12px_0_rgba(0,0,0,0.42)]',
+                    patting && 'mascot-pat',
+                  )}
+                  onAnimationEnd={(e) => { if (/mascot-pat/.test(e.animationName)) setPatting(false); }}
                 />
               </motion.div>
             </motion.div>
@@ -181,11 +202,11 @@ export function PhaseIntroScreen() {
                 initial={reduced ? false : { scale: 1.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.34, duration: 0.4, ease: [0.2, 1.7, 0.3, 1] }}
-                className="inline-block bg-brand-500 px-2 py-1 font-hud text-[11px] uppercase tracking-wider text-cream-50"
+                className="inline-block bg-brand-500 px-2 py-1 eyebrow eyebrow-sm text-cream-50"
               >
                 Round {phase}
               </motion.span>
-              <span className="font-hud text-[10px] uppercase tracking-[0.16em] text-ink-500">{eyebrow}</span>
+              <span className="eyebrow eyebrow-sm eyebrow-muted">{eyebrow}</span>
             </motion.div>
 
             {/* Big theme title — punches in from the left. */}
@@ -193,7 +214,7 @@ export function PhaseIntroScreen() {
               initial={reduced ? false : { scale: 1.14, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               transition={{ delay: 0.42, duration: 0.5, ease: [0.2, 1.5, 0.3, 1] }}
-              className="origin-left font-hud text-[27px] uppercase leading-[1.05] text-ink-900 sm:text-[33px]"
+              className="origin-left h2 uppercase leading-[1.05] text-ink-900 sm:text-[33px]"
             >
               {theme}
             </motion.h1>
@@ -203,7 +224,7 @@ export function PhaseIntroScreen() {
               initial={reduced ? false : { y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.42, duration: 0.45 }}
-              className="mt-3 font-body text-[15px] leading-relaxed text-ink-800"
+              className="mt-3 font-body body-xs leading-relaxed text-ink-800"
             >
               {info.body}
             </motion.p>
@@ -213,21 +234,27 @@ export function PhaseIntroScreen() {
               initial={reduced ? false : { y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.45 }}
-              className="mt-4 flex items-start gap-2.5 border-2 border-primary bg-primary-soft px-3 py-2.5"
+              className="mt-4 border-2 border-primary bg-primary-soft px-3 py-2.5"
             >
-              <span className="shrink-0 bg-primary px-1.5 py-0.5 font-hud text-[10px] uppercase leading-none text-cream-50">
-                {info.learningFocus}
-              </span>
-              <div className="min-w-0">
-                <div className="text-[13px] font-bold text-text">{lp.title}</div>
-                <div className="text-[12px] leading-snug text-text-2">{lp.blurb}</div>
+              {/* The pill shares one CENTERED row with the title it labels.
+                  `items-start` on the outer flex aligned it to the top of the
+                  whole two-line block, so it floated above the title's cap and
+                  read as detached from the text it belongs to. */}
+              <div className="flex items-center gap-2.5">
+                <span className="shrink-0 bg-primary-strong px-1.5 py-0.5 eyebrow eyebrow-sm leading-none text-cream-50">
+                  {info.learningFocus}
+                </span>
+                <div className="item-name text-text min-w-0 truncate">{lp.title}</div>
               </div>
+              <div className="hint leading-snug text-text-2 mt-1.5">{lp.blurb}</div>
             </motion.div>
           </div>
 
           {/* Footer — big CTA */}
-          <div className="flex items-center justify-between gap-3 border-t-2 border-ink-900 bg-cream-200 p-4 sm:px-6">
-            <span className="font-hud text-[10px] uppercase tracking-wider text-ink-500">
+          <div className="flex items-center justify-between gap-3 border-t border-border-soft bg-cream-200 p-4 sm:px-6">
+            {/* eyebrow-muted, not ink-500: the legacy ink ramp bottoms out at
+                2.74:1 on cream, below the 3:1 floor even for a label. */}
+            <span className="eyebrow eyebrow-sm eyebrow-muted">
               Round {phase} of 3
             </span>
             <motion.button
@@ -238,7 +265,7 @@ export function PhaseIntroScreen() {
               transition={{ delay: 0.6, duration: 0.4, ease: [0.2, 1.5, 0.4, 1] }}
               whileHover={reduced ? undefined : { y: -2, filter: 'brightness(1.06)' }}
               whileTap={{ scale: 0.97 }}
-              className="group relative inline-flex items-center gap-2 overflow-hidden border-2 border-ink-900 bg-primary px-5 py-3 font-hud text-[13px] uppercase tracking-wider text-ink-900 shadow-[3px_3px_0_0_var(--c-shadow)] sm:text-[14px]"
+              className="group relative inline-flex items-center gap-2 overflow-hidden border-2 border-ink-900 bg-primary px-5 py-3 btn-label uppercase text-inherit text-ink-900 shadow-[3px_3px_0_0_var(--c-shadow)]"
             >
               {/* gentle "ready" pulse behind the label */}
               {!reduced && (

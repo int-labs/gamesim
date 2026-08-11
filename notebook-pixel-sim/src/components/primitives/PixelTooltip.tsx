@@ -28,7 +28,7 @@ export function PixelTooltip({ text, side = 'top', children, className }: Props)
       {open && text && (
         <span
           className={clsx(
-            'absolute z-50 max-w-[220px] px-2 py-1 border-2 border-ink-900 bg-cream-50 text-[11px] leading-tight font-body shadow-pixel-2 pointer-events-none',
+            'absolute z-50 max-w-[220px] px-2 py-1 border-2 border-ink-900 bg-cream-50 hint leading-tight font-body shadow-pixel-2 pointer-events-none',
             placement[side],
           )}
         >

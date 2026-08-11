@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { A } from '@/assets';
 import { VideoBackdrop } from './VideoBackdrop';
 import { PassKeyPanel } from './PassKeyPanel';
 import { AcademyMascotStage } from './AcademyMascotStage';
+import { HeartRain } from '@/components/fx/HeartRain';
 import { SceneAmbience } from './SceneAmbience';
 import { PixelWipe } from './PixelWipe';
 import { useStage, projectX, projectY } from './useStage';
@@ -29,10 +30,18 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
   const [leaving, setLeaving] = useState(false);
   const [roamTick, setRoamTick] = useState(0);
 
+  // canvas-confetti draws into a PERSISTENT full-screen canvas that outlives
+  // whatever triggered it. Without this reset the unlock burst kept falling
+  // over the route-choice screen that replaces us, drifting across its heading.
+  // The celebration belongs to the screen that earned it.
+  useEffect(() => () => { confetti.reset(); }, []);
+
   const handleUnlock = () => {
     setLeaving(true);
     playSfx('phase-up');
-    if (!reduced) confetti({ particleCount: 110, spread: 90, origin: { y: 0.6 }, scalar: 0.9 });
+    // `ticks` is tuned to the 720ms exit below so the burst finishes ON this
+    // screen instead of being cut off mid-flight.
+    if (!reduced) confetti({ particleCount: 110, spread: 90, origin: { y: 0.6 }, scalar: 0.9, ticks: 70 });
     window.setTimeout(onEnter, reduced ? 200 : 720);
   };
 
@@ -67,6 +76,11 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
             className="absolute inset-0 z-[2]"
             onClick={() => setRoamTick((t) => t + 1)}
           />
+
+          {/* Hearts erupt from BEHIND Amelia: this canvas sits at z-14, she is
+              at z-15. Mounted per-mascot-context rather than globally so the
+              sprite always stays in front of its own love bomb. */}
+          <HeartRain className="pointer-events-none absolute inset-0 z-[14]" />
 
           {/* Roaming "idle-lobby" mascot — positions itself in the scene. */}
           <AcademyMascotStage stage={stage} reduced={!!reduced} roamTick={roamTick} />

@@ -137,11 +137,10 @@ export const LEARNING_POINTS = {
 
 export const ROUTE = {
   shop: {
-    eyebrow: 'Step 1',
-    title: 'Name your shop',
+    title: 'Name your studio',
     hint: 'This is your business. You can rename it any time from the shop sign on your desk.',
   },
-  eyebrow: 'Step 2',
+  eyebrow: 'Step 1',
   title: 'Choose your funding route',
   subtitle:
     'Each route changes your starting cash, the pressure you feel, and how your final score is weighted. Either route can score 100.',
@@ -175,7 +174,7 @@ export const PHASE_INTRO = {
   },
   2: {
     title: 'Phase 2 · Days 31-60 - Inventory Flow',
-    body: "Demand grows. Now you have to keep stock flowing without trapping cash. Hire helpers, buy raw materials at the right moment, and watch your stockout / overstock days.",
+    body: "Demand grows. Now you have to keep stock flowing without trapping cash. Hire helpers, tune Produce / day, and watch your stockout / overstock days.",
     cta: 'Start Phase 2',
     learningFocus: 'LP2',
   },
@@ -240,7 +239,7 @@ export const PRODUCT_PAGE = {
     },
     weakFit: 'Weak segment fit - design and target are mismatched.',
     strongFit: 'Strong segment fit - your design matches the audience.',
-    noStockYet: 'Buy raw, then confirm phase',
+    noStockYet: 'Set Produce / day, then confirm phase',
     cannibalization: {
       none: 'None',
       low: 'Low',
@@ -258,7 +257,7 @@ export const BUSINESS_PAGE = {
     operations: {
       label: 'Operations',
       sub: 'Sell, market, hire & ship',
-      explainer: 'Your company decisions - where you sell, what you spend on marketing and sales, who you hire, and which vendor ships for you. Most spend energy; read the case study before you commit.',
+      explainer: 'Your company decisions - where you sell, what you spend on marketing and sales, who you hire, and which vendor ships for you. Most spend energy; read the case study before you commit. Everything here is reversible - clearing a decision refunds its energy.',
     },
     inventory: {
       label: 'Inventory',
@@ -272,7 +271,7 @@ export const BUSINESS_PAGE = {
     },
   },
   inventory: {
-    rawHint: 'Raw materials get turned into finished notebooks each day.',
+    rawHint: 'Your Produce / day target is made into finished notebooks each day.',
     finishedHint: 'Finished stock is ready to sell. No stock = no sales.',
     stockoutHint: 'A stockout means a customer wanted to buy but you had nothing to sell - lost demand.',
     overstockHint: 'Overstock means cash is sitting in unsold notebooks. It traps liquidity.',

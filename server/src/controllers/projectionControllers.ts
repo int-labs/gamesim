@@ -1,21 +1,44 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import Product from "../models/products";
-import Projection from "../models/projections";
-import BaseData from "../models/baseData";
-import { calcFinancials, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
+import Product from "../models/Products";
+import Projection from "../models/Projections";
+import { ROLES } from "../constants/roles";
+import BaseData from "../models/BaseData";
+import Round from "../models/rounds";
+import { calcFinancials, ProductField, BaseVariables } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
 export const getProjectionsByTeam = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { simulationId, teamId, roundNumber } = req.query;
+    const { simulationId, roundNumber } = req.query;
+    const caller = (req as any).user ?? {};
 
-    if (!simulationId || !teamId) {
-      res.status(400).json({ message: "simulationId and teamId are required." });
+    if (!simulationId) {
+      res.status(400).json({ message: "simulationId is required." });
       return;
     }
 
-    const filter: Record<string, any> = { simulationId, teamId };
+    /**
+     * ── A TEAM MAY ONLY EVER READ ITSELF ────────────────────────────────
+     * This route took `teamId` straight from the query with no role check,
+     * so any team token could read any other team's P&L, cash and cost
+     * breakdown — mid-round, while they were still competing. Scoping to the
+     * token closes that; a team asking for someone else now silently gets its
+     * own row rather than an error, because the request is not one a correct
+     * client can make.
+     */
+    const isTeam = caller.role === ROLES.TEAM;
+    const teamId = isTeam ? caller.teamId : req.query.teamId;
+
+    // Staff may omit teamId entirely to read the whole cohort — that is what
+    // the debrief's charts are built from. A team may not.
+    if (!teamId && isTeam) {
+      res.status(403).json({ message: "This token can only read its own projections." });
+      return;
+    }
+
+    const filter: Record<string, any> = { simulationId };
+    if (teamId) filter.teamId = teamId;
     if (roundNumber !== undefined) filter.roundNumber = Number(roundNumber);
 
     const projections = await Projection.find(filter).sort({ roundNumber: 1 });
@@ -68,6 +91,34 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
 
     if (!simulationId || !simulationTypeId || !teamId || roundNumber === undefined) {
       res.status(400).json({ message: "simulationId, simulationTypeId, teamId, and roundNumber are required." });
+      return;
+    }
+
+    /**
+     * ── A CALCULATED ROUND IS READ-ONLY ─────────────────────────────────
+     * Despite the name, this route is NOT a read-only what-if: it upserts
+     * `Projections` on the same `{simulationId, teamId, roundNumber}` key and
+     * `$set`s the whole `projections.<productId>` sub-object that the round
+     * close writes.
+     *
+     * Its payload has no `marketShare`, so running it against an already
+     * calculated round silently strips the COMPETED share and replaces the
+     * official financials with the team's own self-declared what-if numbers —
+     * quietly rewriting a scored result with a worse one. The console's
+     * standings would keep working and simply be wrong.
+     *
+     * The round's own status is the authority: a `Completed` round has been
+     * scored, so recalculation is refused rather than allowed to overwrite it.
+     */
+    const round = await Round.findOne({ simulationId, roundNumber });
+    if (round?.status === "Completed") {
+      res.status(409).json({
+        message:
+          "Round " +
+          roundNumber +
+          " has already been scored. Recalculating would overwrite its official " +
+          "results with a what-if projection.",
+      });
       return;
     }
 

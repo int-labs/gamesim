@@ -24,6 +24,8 @@ import type {
 const TOKEN_KEY = 'gamesim:accessToken';
 const TEAM_KEY = 'gamesim:teamId';
 const SIM_KEY = 'gamesim:simulationId';
+const NAME_KEY = 'gamesim:teamName';
+const AVATAR_KEY = 'gamesim:teamAvatarUrl';
 
 export function getGamesimBaseUrl(): string {
   const configured = (import.meta as any).env?.VITE_GAMESIM_API_URL as string | undefined;
@@ -34,6 +36,10 @@ export interface GamesimSession {
   token: string;
   teamId: Id;
   simulationId: Id;
+  /** Stored so the game can greet the team by name after a reload, without a
+   *  second round-trip just to learn who is playing. */
+  teamName?: string;
+  avatarUrl?: string | null;
 }
 
 export function getGamesimToken(): string | null {
@@ -46,19 +52,29 @@ export function getStoredSession(): GamesimSession | null {
   const teamId = localStorage.getItem(TEAM_KEY);
   const simulationId = localStorage.getItem(SIM_KEY);
   if (!token || !teamId || !simulationId) return null;
-  return { token, teamId, simulationId };
+  return {
+    token,
+    teamId,
+    simulationId,
+    // Optional: a session stored before the HUD showed team identity has
+    // neither, and the chip simply doesn't render its name half.
+    teamName: localStorage.getItem(NAME_KEY) ?? undefined,
+    avatarUrl: localStorage.getItem(AVATAR_KEY),
+  };
 }
 
 export function setGamesimSession(session: GamesimSession): void {
   localStorage.setItem(TOKEN_KEY, session.token);
   localStorage.setItem(TEAM_KEY, session.teamId);
   localStorage.setItem(SIM_KEY, session.simulationId);
+  if (session.teamName) localStorage.setItem(NAME_KEY, session.teamName);
+  if (session.avatarUrl) localStorage.setItem(AVATAR_KEY, session.avatarUrl);
 }
 
 export function clearGamesimSession(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(TEAM_KEY);
-  localStorage.removeItem(SIM_KEY);
+  for (const k of [TOKEN_KEY, TEAM_KEY, SIM_KEY, NAME_KEY, AVATAR_KEY]) {
+    localStorage.removeItem(k);
+  }
 }
 
 export class GamesimApiError extends Error {
@@ -170,6 +186,106 @@ export function getDecisions(args: {
  *  empty until that has happened. */
 export function getResults(args: { simulationId: Id; roundNumber?: number }): Promise<ResultDto[]> {
   return request(`/results${qs(args)}`);
+}
+
+// ── Operator-authored content ───────────────────────────────────────────
+export interface RoundNoteDto {
+  _id: Id;
+  roundNumber: number;
+  teamId: Id | null;
+  title: string;
+  body: string;
+  pinned: boolean;
+}
+
+export interface DebriefSectionDto {
+  title: string;
+  body: string;
+  teamId: Id | null;
+  order: number;
+}
+
+export interface DebriefDto {
+  _id: Id;
+  status: 'draft' | 'published';
+  title: string;
+  intro: string;
+  sections: DebriefSectionDto[];
+}
+
+/** GET /round-notes — the server filters to general + this team's notes for a
+ *  team token, whatever we pass, so no teamId param is needed here. */
+export function getRoundNotes(args: {
+  simulationId: Id;
+  roundNumber?: number;
+}): Promise<RoundNoteDto[]> {
+  return request(`/round-notes${qs(args)}`);
+}
+
+/** GET /debrief — 404 until an operator publishes it AND the simulation is
+ *  Completed. Other teams' sections are stripped server-side. */
+export function getDebrief(simulationId: Id): Promise<DebriefDto> {
+  return request(`/debrief${qs({ simulationId })}`);
+}
+
+export interface TeamProgressBody {
+  roundNumber: number;
+  day: number;
+  phase: number;
+  cash: number;
+  energy: number;
+  lines: number;
+  shopName?: string | null;
+  ended?: boolean;
+}
+
+/**
+ * PUT /team-progress — tell the facilitator where this team has got to.
+ *
+ * FIRE AND FORGET, on purpose. This exists so an operator can see who is stuck
+ * mid-round; it is not part of the game and nothing is restored from it. The
+ * server takes the team's identity from the token, so no ids are sent.
+ *
+ * The promise never rejects: a heartbeat that could throw would be a network
+ * call able to interrupt a day-tick, which is the one place in the app that
+ * must not be able to fail.
+ */
+export interface RunReportBody {
+  roundNumber: number;
+  total: number;
+  netProfit: number;
+  inventory: number;
+  insight: number;
+  netDollar: number;
+  cleanliness: number;
+  route?: string | null;
+  obligationMet?: boolean | null;
+  insightsCorrect: number;
+  insightsTotal: number;
+  shopName?: string | null;
+}
+
+/**
+ * PUT /run-reports — file how this team's own 90-day run finished.
+ *
+ * NOT the competitive score. `Results` (rank/share) and `Projections` (the
+ * server's financials) stay authoritative for anything teams are compared on;
+ * this is the player's own rubric — Net Profit 50 · Inventory 25 · Insight 25 —
+ * so the debrief can show what a team actually experienced rather than only
+ * how it placed. Fire and forget, like the progress heartbeat.
+ */
+export function reportRunResult(body: RunReportBody): Promise<void> {
+  return request<void>('/run-reports', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  }).catch(() => undefined);
+}
+
+export function reportTeamProgress(body: TeamProgressBody): Promise<void> {
+  return request<void>('/team-progress', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  }).catch(() => undefined);
 }
 
 export type {

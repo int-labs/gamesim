@@ -11,14 +11,36 @@ import {
   CHANNEL_META, channelRow,
   type CandidateId, type VendorId, type GenreId, type ChannelId,
 } from '@/data/finlit';
-import { fmt$ } from '@/utils/format';
+import { fmt$, perPhase, fmtUnitsPerPhase } from '@/utils/format';
+import { DAYS_PER_PHASE } from '@/engine/config';
 import { playSfx } from '@/audio/audioManager';
 import { PixelModal } from '@/components/primitives/PixelModal';
 import { CostTiles, ImpactList, type CostTile } from '@/components/primitives/CostTiles';
+import { PixelBadge, PixelButton } from '@/components/primitives';
 import { SafeImage } from '@/components/primitives/SafeImage';
 import { A } from '@/assets';
 import { studyFor, type CaseStudy } from '@/content/finlitCaseStudies';
+import { OpsSection, StatChip, EnergyTag, OperationsDetailModal } from './OperationsKit';
+import { channelDetail, budgetDetail, hiringDetail, vendorDetail, type SectionDetail } from './operationsDetails';
+import { motion } from 'framer-motion';
 import clsx from 'clsx';
+import { EnergyValue } from '@/components/primitives/EnergyValue';
+
+/** Section header art. Each decision gets a distinct pixel mark. */
+const SECTION_ICON = {
+  shop: A.ui.sidebar.product,
+  channels: A.ui.commercial.social_media,
+  budget: A.ui.commercial.campaign,
+  hiring: A.ui.studioOps.staff_training,
+  vendor: A.ui.studioOps.supplier,
+};
+
+/** Per-channel art. Closest existing marks; purpose-built ones would be better. */
+const CHANNEL_ICON: Record<ChannelId, string> = {
+  offline: A.ui.commercial.bulk_order,
+  online: A.ui.commercial.social_media,
+  retail: A.ui.studioOps.inventory_shelf,
+};
 
 // A distinct studio-operations portrait per candidate, so each hire reads at a
 // glance (the visual hook for the hiring cards).
@@ -27,6 +49,16 @@ const CANDIDATE_ICON: Record<string, string> = {
   beta: A.ui.studioOps.staff_training,
   chewie: A.ui.studioOps.packaging_station,
   danoct: A.ui.studioOps.binding_machine,
+};
+
+// Storefront art per vendor. Every other option card on this page leads with a
+// pixel mark; the vendor tiles were the one set that was pure text, so a row of
+// four shops read as a table rather than as four places you could ship through.
+const VENDOR_ICON: Record<string, string> = {
+  als: A.ui.studioOps.supplier,
+  emils: A.ui.commercial.bulk_order,
+  phoebes: A.ui.studioOps.inventory_shelf,
+  nines: A.ui.commercial.limited_drop,
 };
 
 // A pending pick — set when the player taps an option; the case-study modal
@@ -42,7 +74,7 @@ function engageSummary(
   vendorLevel: 1 | 2,
   genre: GenreId | undefined,
 ): { tiles: CostTile[]; effects: string[] } {
-  const tiles: CostTile[] = [{ label: 'Energy to unlock', value: `${p.energy}⚡`, tone: 'energy', icon: 'energy' }];
+  const tiles: CostTile[] = [{ label: 'Energy to unlock', value: `${p.energy}`, tone: 'energy', icon: 'energy' }];
   const effects: string[] = [];
   if (p.kind === 'candidate') {
     const lv = hireLevel(p.id, p.level);
@@ -91,6 +123,17 @@ export function StudioPanel() {
   const [pending, setPending] = useState<Pending | null>(null);
   // null = not editing; the input falls back to the store value.
   const [shopDraft, setShopDraft] = useState<string | null>(null);
+  // Which section's reference sheet is open, if any.
+  const [detail, setDetail] = useState<SectionDetail | null>(null);
+
+  // Days remaining in the current phase — see the Hiring hint for why the
+  // per-phase figures need this qualifier. Derived from a PRIMITIVE read on
+  // purpose: `selectCurrentPhase` carries the same figure but returns a fresh
+  // object, so `useGame(selectCurrentPhase)` would fail Zustand's referential
+  // check and re-render this panel every tick — the same trap the channel/genre
+  // selectors above avoid by returning joined strings.
+  const day = useGame((s) => s.meta.day);
+  const daysLeftInPhase = Math.max(0, phase * DAYS_PER_PHASE - day + 1);
 
   const vendorLevel = phase >= 2 ? 2 : 1;
   const hireRefund = hire ? hireLevel(hire.candidate, hire.level).energy : 0;
@@ -109,33 +152,57 @@ export function StudioPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between text-[16px]">
-        <span className="text-text-2">Company decisions · reversible (clearing refunds energy)</span>
-        <span className="font-bold text-warning tabular-nums">⚡ {energy} energy</span>
-      </div>
+      {/* No page-level status strip. The page already opened with THREE
+          stacked bands of meta-text — the panel masthead, the tab explainer,
+          and a "company decisions · reversible" line — before a single
+          decision, and the energy figure in that third band was the same
+          number the persistent HUD shows at the top of the screen. The
+          reversibility note now lives in the tab explainer (copy.ts) and the
+          page starts on its first actual decision. */}
 
       {/* ── Your shop — the company's name. Also renameable from the shop sign
            on the desk (Product page); both write through setShopName. ── */}
-      <Section title="Your Shop" hint="Your business name. Costs nothing, change it whenever you like.">
-        <input
-          // Local draft while typing, committed on blur/Enter. Writing straight
-          // through on every keystroke would fight setShopName's empty-fallback:
-          // clearing the field to retype would snap it back to the default.
-          value={shopDraft ?? shopName}
-          onChange={(e) => setShopDraft(e.target.value)}
-          onBlur={() => { apply((s) => setShopName(s, shopDraft ?? shopName)); setShopDraft(null); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-          maxLength={MAX_SHOP_NAME}
-          aria-label="Shop name"
-          placeholder={DEFAULT_SHOP_NAME}
-          className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text font-hud text-[15px] uppercase outline-none focus:border-primary px-3 py-2"
-        />
-      </Section>
+      <OpsSection icon={SECTION_ICON.shop} title="Your Shop" hint="Your business name. Costs nothing, change it whenever you like.">
+        {/* The field used to sit alone against a full panel width of nothing.
+            The counter and the "where does this show up?" line are what a
+            player actually wants next to a name box, and they earn the space
+            the empty half was wasting. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <input
+            // Local draft while typing, committed on blur/Enter. Writing straight
+            // through on every keystroke would fight setShopName's empty-fallback:
+            // clearing the field to retype would snap it back to the default.
+            value={shopDraft ?? shopName}
+            onChange={(e) => setShopDraft(e.target.value)}
+            onBlur={() => { apply((s) => setShopName(s, shopDraft ?? shopName)); setShopDraft(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            maxLength={MAX_SHOP_NAME}
+            aria-label="Shop name"
+            placeholder={DEFAULT_SHOP_NAME}
+            className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text section-title outline-none focus:border-primary px-3 py-2"
+          />
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="readout shrink-0 bg-surface-2 px-2 py-1">
+              <span className="num-xs text-text-2 tabular-nums">
+                {(shopDraft ?? shopName).length}/{MAX_SHOP_NAME}
+              </span>
+            </span>
+            <span className="body-xs text-text-3 min-w-0">
+              Appears on the shop sign on your desk and in the class standings.
+            </span>
+          </div>
+        </div>
+      </OpsSection>
 
       {/* ── Sales channels — WHERE you sell. Company-wide: every notebook ships
            through the same channels, so this is one decision, not one per SKU. ── */}
-      <Section title="Sales Channels" hint="Where you sell. Applies to every notebook. Each channel adds reach at a daily overhead.">
-        <div className="flex flex-col gap-2">
+      <OpsSection
+        icon={SECTION_ICON.channels}
+        title="Sales Channels"
+        hint="Where you sell. Applies to every notebook."
+        onDetails={() => setDetail(channelDetail())}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {(Object.keys(CHANNEL_META) as ChannelId[]).map((ch) => {
             const on = companyChannels.has(ch);
             const isLastOn = on && companyChannels.size <= 1;
@@ -146,7 +213,7 @@ export function StudioPanel() {
             const hi = reaches.length ? Math.round(Math.max(...reaches) * 100) : 0;
             const row = channelRow(genresInPlay[0] ?? 'indie', ch);
             return (
-              <button
+              <motion.button
                 key={ch}
                 onClick={() => {
                   if (isLastOn) { playSfx('fail'); return; }
@@ -154,42 +221,78 @@ export function StudioPanel() {
                   apply((s) => toggleFinlitChannelAll(s, ch));
                 }}
                 title={isLastOn ? 'You need at least one channel to sell through.' : undefined}
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 20 }}
                 className={clsx(
-                  'ctl-btn flex items-center justify-between gap-2 px-3 py-2.5 border-2 text-left transition-all active:scale-[0.99]',
-                  on ? 'border-success bg-success-soft' : 'border-border-soft bg-surface hover:border-border',
+                  // Ink frame either way — this is a switch, and an "off"
+                  // switch is still a control. State is carried by the FILL.
+                  'ctl-btn flex flex-col gap-2 p-3 border-2 border-ink-900 text-left cursor-pointer',
+                  on ? 'bg-success-soft' : 'bg-surface hover:bg-cream-100',
                 )}
               >
-                <div className="min-w-0">
-                  <div className="text-[17px] font-bold text-text leading-tight">{CHANNEL_META[ch].name}</div>
-                  <div className="text-[13px] font-medium text-text-3 leading-tight mt-0.5">{CHANNEL_META[ch].blurb}</div>
-                  <div className="text-[14px] text-text-3 leading-tight mt-1">
-                    reach <span className="font-bold text-info">{lo === hi ? `${lo}%` : `${lo}-${hi}%`}</span>
-                    {' · '}<span className="text-warning font-bold">{fmt$(row.maintenance)}/day</span>
-                    {row.consignment > 0 && <> · <span className="text-warning font-bold">{fmt$(row.consignment)}/sale</span></>}
-                  </div>
+                <div className="flex items-start justify-between gap-2">
+                  <img
+                    src={CHANNEL_ICON[ch]}
+                    alt=""
+                    className="w-20 h-20 object-contain shrink-0"
+                    style={{ imageRendering: 'pixelated' }}
+                    draggable={false}
+                  />
+                  <span className={clsx(
+                    'shrink-0 px-2 py-1',
+                    on ? 'bg-success text-ink-900' : 'bg-surface-2',
+                  )}>
+                    <span className={clsx('eyebrow eyebrow-sm', on ? 'text-ink-900' : 'eyebrow-muted')}>
+                      {on ? 'On' : 'Off'}
+                    </span>
+                  </span>
                 </div>
-                <span className={clsx(
-                  'shrink-0 text-[14px] font-bold px-2 py-1 border tabular-nums',
-                  on ? 'border-success text-success bg-surface' : 'border-border-soft text-text-3',
-                )}>
-                  {on ? 'ON' : 'OFF'}
-                </span>
-              </button>
+
+                <div className="min-w-0">
+                  <div className="h2 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
+                  <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
+                </div>
+
+                {/* The numbers you're actually choosing between get to look
+                    like values, not footnotes.
+
+                    Offline takes no consignment, and omitting the chip left a
+                    hole in that card where its siblings had a third row — it
+                    read as a rendering fault rather than as "this one is
+                    cheaper". "None" is the actual answer, and it's the whole
+                    reason to pick offline, so it says so. */}
+                <div className="grid grid-cols-2 gap-2 mt-auto">
+                  <StatChip label="Reach" value={lo === hi ? `${lo}%` : `${lo}-${hi}%`} tone="reach" />
+                  <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone="money" />
+                  <StatChip
+                    label="Per sale"
+                    value={row.consignment > 0 ? fmt$(row.consignment) : 'None'}
+                    tone={row.consignment > 0 ? 'money' : 'good'}
+                    className="col-span-2"
+                  />
+                </div>
+              </motion.button>
             );
           })}
         </div>
-      </Section>
+      </OpsSection>
 
       {/* ── Marketing & Sales budgets ── */}
-      <Section title="Marketing & Sales Budget" hint="Spend $/day to grow the business. Each lever costs energy to switch on; drag to $0 to switch off (energy refunded).">
-        <div className="flex flex-col gap-2">
+      <OpsSection
+        icon={SECTION_ICON.budget}
+        title="Marketing & Sales Budget"
+        hint="Budget to grow, shown per phase. Set back to $0 to switch off and refund the energy."
+        onDetails={() => setDetail(budgetDetail(BUDGET_LEVER_ENERGY, BUDGET_MAX, marketingDemandMult, salesSellBonus))}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <BudgetLever
             label="Marketing budget"
             hint="Awareness - lifts DEMAND (more people want it)."
             value={marketingBudget}
             energy={BUDGET_LEVER_ENERGY}
-            effectLabel={`+${Math.round((marketingDemandMult(marketingBudget) - 1) * 100)}% demand`}
-            effectTone="text-info"
+            effectLabel="Demand"
+            effect={`+${((marketingDemandMult(marketingBudget) - 1) * 100).toFixed(0)}%`}
             canActivate={marketingBudget > 0 || energy >= BUDGET_LEVER_ENERGY}
             onChange={(v) => { playSfx('tick'); apply((s) => setFinlitMarketingBudget(s, v)); }}
           />
@@ -198,39 +301,73 @@ export function StudioPanel() {
             hint="Conversion - lifts SELL-RATE (more of them buy)."
             value={salesBudget}
             energy={BUDGET_LEVER_ENERGY}
-            effectLabel={`+${(salesSellBonus(salesBudget) * 100).toFixed(1)}% sell-rate`}
-            effectTone="text-success"
+            effectLabel="Sell-rate"
+            effect={`+${(salesSellBonus(salesBudget) * 100).toFixed(1)}%`}
             canActivate={salesBudget > 0 || energy >= BUDGET_LEVER_ENERGY}
             onChange={(v) => { playSfx('tick'); apply((s) => setFinlitSalesBudget(s, v)); }}
           />
         </div>
-      </Section>
+      </OpsSection>
 
       {/* ── Hiring ── */}
-      <Section title="Hiring" hint="Adds production + sell-rate. Higher levels cost more energy to unlock.">
-        <div className="flex flex-col gap-2">
+      <OpsSection
+        icon={SECTION_ICON.hiring}
+        title="Hiring"
+        hint={
+          // Two things the per-phase figures do not say on their own, and both
+          // change what the number means:
+          //   1. a hire is NOT one-off — nothing clears `finlit.hire` at phase
+          //      rollover, so a Phase 1 hire keeps charging through 2 and 3.
+          //      "$150" read as one-time understates the commitment 3x.
+          //   2. the figures assume a whole 30-day phase. Hire on day 25 and
+          //      you buy 6 days of it, so surface the shortfall rather than
+          //      quietly overstating what the money buys.
+          // Kept short: the section header scrolls under the floating
+          // PRODUCT/BUSINESS nav, which clips a long second line.
+          daysLeftInPhase < DAYS_PER_PHASE
+            ? `Costs are per phase and recur while engaged — ${daysLeftInPhase}d left, figures show a full phase.`
+            : 'One at a time. Costs are per phase and recur while engaged.'
+        }
+        onDetails={() => setDetail(hiringDetail())}
+      >
+        {/* Two columns from xl. Four candidates stacked full-width left each
+            row ~1330px wide around ~500px of content, so every card carried a
+            half-empty right side and the four ran together as one long list.
+            Paired up they read as a roster you compare across, and the whole
+            section fits without scrolling. */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
           {CANDIDATES.map((c) => {
             const engaged = hire?.candidate === c.id;
             const curLevel = engaged ? hire!.level : 0;
             return (
-              <div key={c.id} className={clsx('border-2 px-2.5 py-2 flex gap-2.5', engaged ? 'border-primary bg-primary-soft' : 'border-border-soft bg-surface')}>
-                {/* Candidate portrait — a big visual hook, sized to the card. */}
-                <div className={clsx('shrink-0 self-stretch flex items-center justify-center w-14 border-2 bg-surface-2', engaged ? 'border-primary' : 'border-border-soft')}>
-                  <SafeImage
-                    src={CANDIDATE_ICON[c.id]}
-                    alt=""
-                    className="w-11 h-11 object-contain"
-                    fallbackIcon="hire"
-                    fallbackSize={30}
-                  />
-                </div>
+              // A roster ROW, not a control — you click the tier buttons
+              // inside it, never the row. Fill alone marks the engaged hire.
+              <div key={c.id} className={clsx('readout px-2.5 py-2 flex gap-2.5', engaged ? 'bg-primary-soft' : 'bg-surface')}>
+                {/* Candidate portrait. No frame: a box around a transparent
+                    pixel sprite added a second border inside a bordered card
+                    and boxed the art into a narrow column. Unframed it reads as
+                    a character standing in the row, and the space that the
+                    frame's padding was eating goes to the art instead. */}
+                <SafeImage
+                  src={CANDIDATE_ICON[c.id]}
+                  alt=""
+                  className="shrink-0 w-20 h-20 object-contain self-center"
+                  fallbackIcon="hire"
+                  fallbackSize={56}
+                />
                 <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-[17px] font-bold text-text">{c.name}</span>
-                  {engaged && <span className="text-[15px] font-bold text-primary">L{curLevel} hired</span>}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="h2 uppercase text-ink-900">{c.name}</span>
+                  {engaged && <PixelBadge tone="success">L{curLevel} hired</PixelBadge>}
                 </div>
-                <div className="text-[14px] text-text-3 leading-tight mb-1.5">{c.blurb}</div>
-                <div className="flex gap-1">
+                <p className="body-xs text-text-2 mt-1 mb-2 measure">{c.blurb}</p>
+                <div className="flex flex-wrap items-start gap-3">
+                {/* Capped. Four tier buttons stretched across the full card
+                    width gave each one ~330px of box around ~50px of content —
+                    a row of mostly empty rectangles. At this width they read as
+                    a tier selector, and the space left over carries the
+                    trade-off the whole choice turns on. */}
+                <div className="grid grid-cols-4 gap-1.5 w-full xl:max-w-none max-w-[440px]">
                   {c.levels.map((lv) => {
                     const affordable = energy >= lv.energy;
                     const isCur = engaged && curLevel === lv.level;
@@ -240,32 +377,92 @@ export function StudioPanel() {
                         disabled={!affordable || isCur}
                         onClick={() => { playSfx('click-soft'); setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! }); }}
                         className={clsx(
-                          'ctl-btn flex-1 text-[15px] py-1 border-2 font-bold transition-all leading-tight',
-                          isCur ? 'border-primary bg-primary text-white'
-                          : affordable ? 'border-border-soft bg-surface hover:border-primary text-text active:scale-95'
+                          'ctl-btn flex flex-col items-center gap-0.5 py-1.5 px-1 border-2 transition-all',
+                          isCur ? 'border-ink-900 bg-primary text-ink-900'
+                          : affordable ? 'border-ink-900 bg-surface hover:bg-cream-100 text-text active:scale-95'
                           : 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed',
                         )}
-                        title={`L${lv.level}: +${lv.prodBonus.toFixed(2)} prod, +${(lv.sellBonus * 100).toFixed(1)}% sell · ${lv.energy}⚡ to unlock · ${fmt$(lv.cost)}/day`}
+                        title={`L${lv.level}: ${fmt$(perPhase(lv.cost))} per phase (${fmt$(lv.cost)}/day) · +${fmtUnitsPerPhase(lv.prodBonus)} units per phase · +${(lv.sellBonus * 100).toFixed(1)}% sell-rate · ${lv.energy}⚡ to unlock`}
                       >
-                        L{lv.level}<br /><span className="text-warning">{lv.energy}⚡</span> · {fmt$(lv.cost)}
+                        {/* Level leads because it is the button's identity, but
+                            at .num-sm, not .num-md: "L1" is a two-character tag,
+                            not a headline figure, and at 21px four of them made
+                            the tier row the loudest thing in the section. */}
+                        <span className={clsx('num-sm leading-none', isCur ? 'text-ink-900' : 'text-ink-900')}>
+                          L{lv.level}
+                        </span>
+                        {/* Per PHASE, not per day. $5/day is not a number you
+                            can weigh against a notebook's margin without doing
+                            the ×30 yourself; $150 is. The per-day rate is still
+                            in the button's title for anyone who wants it. */}
+                        <span className="stat-label stat-label-on-tint">
+                          {fmt$(perPhase(lv.cost))}
+                        </span>
+                        {!isCur && <EnergyTag amount={lv.energy} />}
                       </button>
                     );
                   })}
+                </div>
+
+                {/* What separates Ains from Chewie, in numbers. Until now the
+                    per-level bonuses existed only in each button's `title`, so
+                    the actual basis for the choice was invisible unless you
+                    hovered — and the blurb's "modest sell lift" gave no way to
+                    compare two candidates. L1 → L4 shows both the floor and
+                    what the top tier buys. */}
+                <div className="grid grid-cols-2 gap-1.5 flex-1 min-w-[200px] xl:w-full xl:flex-none">
+                  {/* "+0.49 → +3.92 per day" was the L1→L4 range in the engine's
+                      own units, and nobody can picture 0.49 of a notebook. The
+                      same range per phase is 15 → 118 units, which is a pile of
+                      notebooks you can weigh against a price. */}
+                  <StatChip
+                    label="Output / phase"
+                    value={`+${fmtUnitsPerPhase(c.levels[0].prodBonus)} → +${fmtUnitsPerPhase(c.levels[c.levels.length - 1].prodBonus)} units`}
+                    tone="good"
+                  />
+                  <StatChip
+                    label="Sell-rate"
+                    value={`+${(c.levels[0].sellBonus * 100).toFixed(1)}% → +${(c.levels[c.levels.length - 1].sellBonus * 100).toFixed(1)}%`}
+                    tone="reach"
+                  />
+                  {/* The number the decision actually turns on, and the one
+                      step of the mental arithmetic nobody should have to do:
+                      cost ÷ extra units = the margin each new unit must clear
+                      for the hire to pay for itself. */}
+                  <StatChip
+                    label="Breakeven margin"
+                    value={`${fmt$(c.levels[0].cost / c.levels[0].prodBonus)} / unit`}
+                    tone="money"
+                    className="col-span-2"
+                  />
+                </div>
                 </div>
                 </div>
               </div>
             );
           })}
+          {/* A real control, not a text link. Undoing a hire refunds energy,
+              which is a decision worth as much affordance as making one. */}
           {hire && (
-            <button onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitHire(s)); }} className="text-[15px] font-bold text-text-3 hover:text-danger self-start">
-              ✕ Clear hire · refund {hireRefund}⚡
-            </button>
+            <PixelButton
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitHire(s)); }}
+            >
+              Clear hire · refund <EnergyValue amount={hireRefund} className="ml-1" />
+            </PixelButton>
           )}
         </div>
-      </Section>
+      </OpsSection>
 
       {/* ── Shipping vendor (active line) ── */}
-      <Section title="Shipping Vendor" hint={activeLine ? `For ${activeLine.name} (${activeLine.genre ?? 'indie'}). Adds sell + production if it stocks the genre.` : 'Add a notebook first.'}>
+      <OpsSection
+        icon={SECTION_ICON.vendor}
+        title="Shipping Vendor"
+        hint={activeLine ? `For ${activeLine.name}. Only helps if it stocks that market.` : 'Add a notebook first.'}
+        onDetails={() => setDetail(vendorDetail(vendorLevel))}
+      >
         {activeLine ? (
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
@@ -282,30 +479,60 @@ export function StudioPanel() {
                     onClick={() => { playSfx('click-soft'); setPending({ kind: 'vendor', id: v.id as VendorId, energy: cost, study: studyFor('vendor', v.id)! }); }}
                     className={clsx(
                       'ctl-btn text-left px-2 py-2 border-2 transition-all active:scale-[0.98]',
-                      on ? 'border-success bg-success-soft' : stocks && affordable ? 'border-border-soft bg-surface hover:border-border' : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed',
+                      on ? 'border-ink-900 bg-success-soft'
+                      : stocks && affordable ? 'border-ink-900 bg-surface hover:bg-cream-100'
+                      : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed',
                     )}
-                    title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(cov.cost)}/day` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
+                    title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(perPhase(cov.cost))} per phase (${fmt$(cov.cost)}/day)` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
                   >
-                    <div className="text-[16px] font-bold text-text leading-tight">{v.name}</div>
+                    <div className="flex items-center gap-2.5">
+                      <SafeImage
+                        src={VENDOR_ICON[v.id]}
+                        alt=""
+                        className="shrink-0 w-12 h-12 object-contain"
+                        fallbackIcon="box"
+                        fallbackSize={32}
+                      />
+                      <span className="h2 uppercase text-ink-900 truncate flex-1 min-w-0">{v.name}</span>
+                      {stocks && <PixelBadge tone={cov.quality === 'perfect' ? 'success' : 'neutral'}>{cov.quality}</PixelBadge>}
+                    </div>
                     {stocks ? (
-                      <div className="text-[14px] text-text-3 mt-0.5">
-                        {cov.quality} · +{(cov.sellBonus * 100).toFixed(1)}% · <span className="text-warning font-bold">{cost}⚡</span> · {fmt$(cov.cost)}/d
+                      <div className="grid grid-cols-3 gap-1.5 mt-2">
+                        <StatChip label="Sell" value={`+${(cov.sellBonus * 100).toFixed(1)}%`} tone="good" />
+                        <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone="money" />
+                        <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone="energy" />
                       </div>
                     ) : (
-                      <div className="text-[14px] text-text-3 mt-0.5">- no coverage</div>
+                      <p className="body-xs text-text-3 mt-2">Doesn't stock this market.</p>
                     )}
                   </button>
                 );
               })}
             </div>
             {activeLine.vendor && (
-              <button onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitVendor(s)); }} className="text-[15px] font-bold text-text-3 hover:text-danger self-start">
-                ✕ Clear vendor · refund {vendorRefund}⚡
-              </button>
+              <PixelButton
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitVendor(s)); }}
+              >
+                Clear vendor · refund <EnergyValue amount={vendorRefund} className="ml-1" />
+              </PixelButton>
             )}
           </div>
         ) : null}
-      </Section>
+      </OpsSection>
+
+      {/* Per-section reference sheet: cost/energy/impact on the left, the
+          market numbers behind it on the right. */}
+      <OperationsDetailModal
+        open={detail !== null}
+        onClose={() => setDetail(null)}
+        title={detail?.title ?? ''}
+        intro={detail?.intro}
+        inputs={detail?.inputs ?? []}
+        tables={detail?.tables ?? []}
+      />
 
       {/* Case-study gate — the PDF's "read before choosing". */}
       <PixelModal
@@ -318,31 +545,53 @@ export function StudioPanel() {
           const short = pending.energy > energy;
           const { tiles, effects } = engageSummary(pending, vendorLevel, activeLine?.genre);
           return (
-          <div className="flex flex-col gap-3 p-1">
-            <p className="text-[18px] text-text leading-relaxed">{pending.study.brief}</p>
-            <div className="border-l-4 border-success pl-3 py-1 bg-success-soft/40">
-              <div className="text-[10.5px] uppercase tracking-[0.09em] font-bold text-text-2">Best when</div>
-              <div className="text-[15px] text-text">{pending.study.bestWhen}</div>
+          <div className="flex flex-col gap-4">
+            {/* Who this is about. A case study with no face was just a wall of
+                prose; the portrait anchors the brief and matches the roster row
+                the player clicked to get here. */}
+            <div className="flex items-start gap-3.5">
+              {pending.kind === 'candidate' && (
+                <SafeImage
+                  src={CANDIDATE_ICON[pending.id]}
+                  alt=""
+                  className="shrink-0 w-20 h-20 object-contain"
+                  fallbackIcon="hire"
+                  fallbackSize={56}
+                />
+              )}
+              <p className="body-sm text-text leading-relaxed min-w-0">{pending.study.brief}</p>
             </div>
-            <div className="border-l-4 border-warning pl-3 py-1 bg-warning-soft/40">
-              <div className="text-[10.5px] uppercase tracking-[0.09em] font-bold text-text-2">Watch out</div>
-              <div className="text-[15px] text-text">{pending.study.watchOut}</div>
+
+            {/* The trade-off, as a matched pair — same shape, opposite colour,
+                so "when this wins" and "when it hurts" weigh the same. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="readout bg-success-soft/50 px-3 py-2.5">
+                <div className="stat-label text-success">Best when</div>
+                <div className="body-xs text-text mt-1.5">{pending.study.bestWhen}</div>
+              </div>
+              <div className="readout bg-warning-soft/50 px-3 py-2.5">
+                <div className="stat-label text-warning">Watch out</div>
+                <div className="body-xs text-text mt-1.5">{pending.study.watchOut}</div>
+              </div>
             </div>
 
             {/* Prominent cost + impact — the numbers the player is committing to. */}
             <CostTiles tiles={tiles} />
             {effects.length > 0 && <ImpactList items={effects} />}
 
-            <div className="flex items-center justify-end gap-2 pt-1">
-              {short && <span className="text-[16px] font-bold text-danger mr-auto self-center">Not enough energy</span>}
-              <button onClick={() => setPending(null)} className="px-3 py-1.5 text-[17px] border-2 border-border-soft bg-surface text-text-2 hover:text-text">Back</button>
-              <button
-                onClick={commit}
-                disabled={short}
-                className={clsx('px-3 py-1.5 text-[17px] font-bold border-2', short ? 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed' : 'border-primary bg-primary text-white hover:brightness-105 active:scale-95')}
-              >
-                Engage · {pending.energy}⚡
-              </button>
+            {/* Actions use PixelButton like every other commit in the game —
+                the hand-rolled body-xs buttons here were the only ones in the
+                app set in the body face, which is why they read as foreign. */}
+            <div className="flex items-center justify-end gap-2 pt-1 border-t border-border-soft mt-1 -mx-1 px-1 pt-3.5">
+              {short && (
+                <span className="mr-auto self-center inline-flex items-center gap-1.5 border-2 border-danger bg-danger-soft/50 px-2.5 py-1.5">
+                  <span className="stat-label text-danger">Not enough energy</span>
+                </span>
+              )}
+              <PixelButton variant="ghost" size="md" onClick={() => setPending(null)}>Back</PixelButton>
+              <PixelButton variant="primary" size="md" disabled={short} onClick={commit}>
+                Engage · <EnergyValue amount={pending.energy} className="ml-1" />
+              </PixelButton>
             </div>
           </div>
           );
@@ -352,7 +601,10 @@ export function StudioPanel() {
   );
 }
 
-/* A budget lever — a $/day slider with its live effect and activation energy.
+/* A budget lever. The slider's underlying unit is $/DAY (that is what the
+   engine charges and what the design sheet specifies), but the chip reports the
+   PER-PHASE total, because that is the figure a player weighs against revenue.
+   The raw per-day value is never surfaced, so there is no unit to confuse.
    $0 = off; moving above 0 charges the flat activation energy (refunded when
    set back to 0). Money spend flows through the phase P&L. */
 function BudgetLever({
@@ -361,7 +613,7 @@ function BudgetLever({
   value,
   energy,
   effectLabel,
-  effectTone,
+  effect,
   canActivate,
   onChange,
 }: {
@@ -369,19 +621,35 @@ function BudgetLever({
   hint: string;
   value: number;
   energy: number;
+  /** What the spend moves, e.g. "Demand". */
   effectLabel: string;
-  effectTone: string;
+  /** The live figure for that effect at the current spend, e.g. "+5%". */
+  effect: string;
   canActivate: boolean;
   onChange: (v: number) => void;
 }) {
   const active = value > 0;
   return (
-    <div className={clsx('border-2 px-2.5 py-2', active ? 'border-success bg-success-soft' : 'border-border-soft bg-surface')}>
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[17px] font-bold text-text">{label}</span>
-        <span className="text-[18px] font-bold tabular-nums text-text">{fmt$(value)}<span className="text-text-3 text-[15px]">/day</span></span>
+    // The lever's CONTROL is the slider; the card around it is a panel.
+    <div className={clsx('readout p-3 flex flex-col gap-2', active ? 'bg-success-soft' : 'bg-surface')}>
+      <div>
+        <div className="h2 uppercase text-ink-900">{label}</div>
+        <p className="body-xs text-text-2 mt-1">{hint}</p>
       </div>
-      <div className="text-[14px] text-text-3 leading-tight mb-1.5">{hint}</div>
+
+      {/* Three chips, because dragging the slider used to change exactly one
+          number — the spend — and say nothing about what that money bought.
+          The effect chip is the whole point of the lever. */}
+      <div className="grid grid-cols-3 gap-2">
+        <StatChip label="Spend / phase" value={fmt$(perPhase(value))} tone={active ? 'money' : 'muted'} />
+        <StatChip label={effectLabel} value={effect} tone={active ? 'good' : 'muted'} />
+        <StatChip
+          label={active ? 'Running on' : 'To activate'}
+          value={<EnergyValue amount={energy} size={13} />}
+          tone="energy"
+        />
+      </div>
+
       <input
         type="range"
         min={0}
@@ -392,22 +660,6 @@ function BudgetLever({
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
         className="w-full accent-ui-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
       />
-      <div className="flex items-center justify-between mt-1 text-[15px]">
-        <span className={clsx('font-bold', active ? effectTone : 'text-text-3')}>{active ? effectLabel : 'Off'}</span>
-        <span className="text-text-3">
-          {active ? <>Active · <span className="text-warning font-bold">{energy}⚡</span> to run</> : <><span className="text-warning font-bold">{energy}⚡</span> to activate</>}
-        </span>
-      </div>
     </div>
-  );
-}
-
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <div className="text-[11px] uppercase tracking-[0.09em] font-bold text-text-2 mb-1">{title}</div>
-      {hint && <div className="text-[12px] font-medium text-text-3 mb-1.5 leading-tight">{hint}</div>}
-      {children}
-    </section>
   );
 }

@@ -19,7 +19,16 @@ export type {
 export type Phase = 1 | 2 | 3;
 export type Route = 'self' | 'investor';
 export type Segment = 'students' | 'creators' | 'professionals' | 'gift';
-export type Archetype = 'student' | 'planner' | 'daily';
+/**
+ * A notebook's identity = the market it is made for.
+ *
+ * This used to be a closed union of V2 product shapes ('student' | 'planner' |
+ * 'daily') that sat ALONGSIDE `genre`, holding a 1:1 duplicate of it. Two
+ * fields for one concept is what made the product model confusing, so the
+ * archetype axis is gone and `genre` is the single identity. The alias is kept
+ * only so existing call sites read naturally; it is a genre id.
+ */
+export type Archetype = FinlitGenreId;
 export type Cover = 'hardcover' | 'leather';
 export type Binding = 'ring' | 'staple';
 export type Size = 's' | 'm' | 'l';
@@ -163,6 +172,12 @@ export interface ProductLine {
    */
   isCustomName: boolean;
 
+  /**
+   * The notebook this line makes = the market it targets. Mirrors `genre`
+   * below, which is the canonical field; this alias stays populated so the
+   * many `line.archetype` call sites keep working and a saved game written by
+   * either name still loads. Both always hold the same genre id.
+   */
   archetype: Archetype;
   cover: Cover;
   binding: Binding;
@@ -172,12 +187,15 @@ export interface ProductLine {
   price: number;
 
   /**
-   * Per-archetype add-on lists, preserved from the legacy single-product
-   * model. Switching archetype on the line keeps the per-archetype
-   * customisations the player has built up. Only the active archetype's
-   * list affects unit cost / time / fit / demand on this line.
+   * Add-on lists keyed by notebook id, so switching a line between notebooks
+   * keeps the decoration the player built up for each. Only the active id's
+   * list affects unit cost / time / fit / demand.
+   *
+   * A partial Record, not a total one: notebook ids are open-ended now (the
+   * operator can publish more), so an entry is created on demand rather than
+   * every id being present up front.
    */
-  addOnsByArchetype: Record<Archetype, AddOnInstance[]>;
+  addOnsByArchetype: Partial<Record<Archetype, AddOnInstance[]>>;
 
   /**
    * Player intent for the WHOLE PHASE (units). Engine divides by phase

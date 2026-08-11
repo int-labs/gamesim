@@ -51,9 +51,7 @@ const CONNECT_OPTIONS: mongoose.ConnectOptions = {
 /* 4) Global singletons (typed) to avoid duplicate connections on hot reload  */
 /* -------------------------------------------------------------------------- */
 declare global {
-  // eslint-disable-next-line no-var
   var __mongoConnPromise: Promise<Connection> | undefined;
-  // eslint-disable-next-line no-var
   var __mongoShutdownRegistered: boolean | undefined;
 }
 global.__mongoConnPromise ??= undefined;

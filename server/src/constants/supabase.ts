@@ -1,42 +1,19 @@
-import dotenv from "dotenv";
-import { createClient } from "@supabase/supabase-js";
-import ws from "ws";
-
-dotenv.config()
-
-globalThis.WebSocket = ws as any;
-
-const SUPABASE_URL      = process.env.SUPABASE_URL;
-const SUPABASE_KEY      = process.env.SUPABASE_KEY;
-const SUPABASE_BUCKET   = "imageAsset";
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  throw new Error("Missing Supabase environment variables.");
-}
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-export const uploadImage = async (
-  file: Buffer,
-  filename: string
-): Promise<string> => {
-  const { error } = await supabase.storage
-    .from(SUPABASE_BUCKET)
-    .upload(filename, file, { contentType: "image/*", upsert: false });
-
-  if (error) throw new Error(`Upload failed: ${error.message}`);
-
-  const { data } = supabase.storage
-    .from(SUPABASE_BUCKET)
-    .getPublicUrl(filename);
-
-  return data.publicUrl;
-};
-
-export const deleteImage = async (image_id: string): Promise<void> => {
-  const { error } = await supabase.storage
-    .from(SUPABASE_BUCKET)
-    .remove([image_id]);
-
-  if (error) throw new Error(`Delete failed: ${error.message}`);
-};
+/**
+ * Kept as a thin re-export so existing imports keep working.
+ *
+ * The implementation moved to `services/storage.ts`, which chooses between
+ * Supabase and local disk instead of throwing at import time when the Supabase
+ * env vars are absent. That throw meant an unconfigured — or, as happened
+ * here, a deleted — Supabase project took the whole API down on boot, even
+ * though storage is used by exactly one route.
+ *
+ * New code should import from `services/storage` directly.
+ */
+export {
+  uploadImage,
+  deleteImage,
+  putObject,
+  deleteObject,
+  activeDriver,
+} from "../services/storage";
+export type { StorageDriver } from "../services/storage";

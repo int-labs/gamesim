@@ -24,6 +24,7 @@ import { PixelModal } from '@/components/primitives/PixelModal';
 import { PixelButton, PixelBadge } from '@/components/primitives';
 import { CostTiles, type CostTile } from '@/components/primitives/CostTiles';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
+import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import clsx from 'clsx';
 import {
@@ -33,6 +34,7 @@ import {
   type ServerProjectionResult,
 } from '@/gamesim/sync';
 import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { EnergyValue } from '@/components/primitives/EnergyValue';
 
 const PHASE_END = { 1: 30, 2: 60, 3: 90 } as const;
 
@@ -72,7 +74,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   const pendingEventId = useGame((s) => s.meta.pendingEventId);
   const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
   const setScreen = useGame((s) => s.setScreen);
-  const { canPlay, bootstrap, roundContext, submittedDecision, refreshOfficial } = useGamesimSession();
+  const { canSubmit, canAdvance, bootstrap, roundContext, submittedDecision, refreshOfficial } = useGamesimSession();
 
   const [step, setStep] = useState<Step>('preview');
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
   /** Preview "Confirm" → run scenarios first (if any), else simulate. */
   const onConfirm = () => {
-    if (!canPlay) {
+    if (!canAdvance) {
       const status = bootstrap?.round?.status ?? 'unknown';
       setSyncError(
         status !== 'Active'
@@ -115,16 +117,22 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   };
   // Reset to preview when the modal re-opens for a new phase confirm cycle.
   useEffect(() => {
-    if (open) {
-      setStep('preview');
-      setSyncError(null);
-      setSyncing(false);
-      phaseAtOpenRef.current = phase;
-      cashAtOpenRef.current = cash;
-      apply((s) => { s.meta.sequenceActive = true; });
-    } else {
-      apply((s) => { s.meta.sequenceActive = false; });
-    }
+    if (!open) return;
+    setStep('preview');
+    setSyncError(null);
+    setSyncing(false);
+    phaseAtOpenRef.current = phase;
+    cashAtOpenRef.current = cash;
+    apply((s) => { s.meta.sequenceActive = true; });
+    // Cleared in a CLEANUP, not an else-branch. This modal is keyed on
+    // `openCount`, so it remounts rather than re-renders, and its parent can
+    // unmount entirely while `open` is still true — in both cases an
+    // else-branch never runs and the flag outlives the component that owns it.
+    // A stuck `sequenceActive` is unrecoverable without a reload: App.tsx both
+    // declines to promote the evaluation screen and suppresses the standalone
+    // one, so a set `pendingEvalPhase` renders nothing while blocking every
+    // action on the phase bar.
+    return () => { apply((s) => { s.meta.sequenceActive = false; }); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -180,7 +188,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
    *  the machine rumbles — then the engine applies in one go. */
   const simFromDayRef = useRef(1);
   const tick = async () => {
-    if (!canPlay || !roundContext) {
+    if (!canAdvance || !roundContext) {
       setSyncError('Cannot submit: this round is not accepting decisions.');
       setStep('preview');
       return;
@@ -193,11 +201,18 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
       // Must succeed before the local phase advances — a silent failure would
       // leave the team out of the round's scoring while the player believed the
       // decision was in. POST /decisions is one-shot per round: no re-submit.
-      await submitRoundDecision(roundContext, {
-        state: useGame.getState() as any,
-        products: bootstrap?.products ?? [],
-      });
-      void refreshOfficial();
+      //
+      // If this round's decision is already in, skip the POST and run the phase
+      // anyway. Re-sending would 409, but the player still has 30 days of their
+      // own simulation to watch and an evaluation to answer; the send being done
+      // is not a reason to stop the game.
+      if (canSubmit) {
+        await submitRoundDecision(roundContext, {
+          state: useGame.getState() as any,
+          products: bootstrap?.products ?? [],
+        });
+        void refreshOfficial();
+      }
     } catch (err) {
       setSyncing(false);
       setStep('preview');
@@ -235,7 +250,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
       startVelocity: 36,
       origin: { y: 0.42 },
       colors: phaseDelta >= 0
-        ? ['#6FBB85', '#DDA655', '#9B6CD9', '#6892C9']
+        ? ['#6FBB85', '#DDA655', '#B98BD4', '#8E6CAC']
         : ['#CB6356', '#DDA655', '#8A765D'],
       ticks: 200,
     });
@@ -340,7 +355,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
         <span className="flex items-center gap-2">
           <span>Phase {phaseAtOpenRef.current} simulation</span>
           <span className="text-text-3 font-normal">·</span>
-          <span className="text-[15px] text-text-3">
+          <span className="body-xs text-text-3">
             Step {stepIndex} of 4
           </span>
         </span>
@@ -367,13 +382,13 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-3">
               <MascotAvatar mood="presenting" size={66} />
-              <div className="flex-1 text-[19px] text-text leading-relaxed">
+              <div className="flex-1 body-sm text-text leading-relaxed">
                 <p className="mb-1">
                   Lock in your decisions for <strong>Phase {phase}</strong>. The simulation
                   will run <strong>{daysLeft} day{daysLeft === 1 ? '' : 's'}</strong>, pausing for
                   events and the phase evaluation in this same window.
                 </p>
-                <p className="text-text-2 text-[18px]">
+                <p className="text-text-2 body-sm">
                   Numbers below are an estimate based on today's settings - actual demand is
                   rolled day-by-day.
                 </p>
@@ -416,9 +431,9 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
                     { label: 'Customers', value: fmtInt(Math.round(serverCustomers ?? 0)), tone: 'neutral', icon: 'demand' },
                   ] satisfies CostTile[]}
                 />
-                <p className="text-text-2 text-[15px] mt-2">
+                <p className="text-text-2 body-xs mt-2">
                   These are the numbers your facilitator scores. They come from a different model
-                  than the studio estimate above, so the two will not match — final market share
+                  than the studio estimate above, so the two will not match - final market share
                   also depends on what every other team submits.
                 </p>
               </div>
@@ -426,18 +441,22 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
             <div className="flex flex-col gap-2 pt-1">
               {submittedDecision && (
-                <div className="panel-muted px-3 py-2 text-[16px] text-text-2">
-                  Round {bootstrap?.round?.roundNumber} has already been submitted — decisions are
-                  final once sent.
+                <div className="flex items-start gap-2 border-2 border-success/45 bg-success-soft/40 px-3 py-2">
+                  <span className="stat-label text-success shrink-0 mt-0.5">Sent</span>
+                  <span className="body-xs text-text">
+                    Round {bootstrap?.round?.roundNumber} is already with your facilitator and
+                    scores from that submission. You can still run the phase and see how it plays
+                    out.
+                  </span>
                 </div>
               )}
               {syncError && (
-                <div className="panel-muted px-3 py-2 text-[16px] text-red-700 border border-red-300 bg-red-50">
+                <div className="panel-muted px-3 py-2 body-xs text-red-700 border border-red-300 bg-red-50">
                   {syncError}
                 </div>
               )}
-              {!canPlay && !syncError && (
-                <div className="panel-muted px-3 py-2 text-[16px] text-text-2">
+              {!canAdvance && !syncError && !submittedDecision && (
+                <div className="panel-muted px-3 py-2 body-xs text-text-2">
                   Round is not accepting decisions right now
                   {bootstrap?.round ? ` (status: ${bootstrap.round.status})` : ''}.
                 </div>
@@ -447,7 +466,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
                 <PixelButton
                   variant="primary"
                   size="lg"
-                  disabled={!canPlay || syncing}
+                  disabled={!canAdvance || syncing}
                   onClick={onConfirm}
                 >
                   {syncing
@@ -472,12 +491,12 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
                 <MascotAvatar mood="warning" size={66} />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-hud text-[14px] uppercase tracking-wider text-brand-500">
+                    <span className="eyebrow eyebrow-sm text-brand-500">
                       Key Scenario {allPhaseScenarios.length > 1 ? `${resolvedThisPhase + 1}/${allPhaseScenarios.length}` : ''}
                     </span>
                   </div>
-                  <h3 className="font-hud text-[17px] uppercase text-text mb-1">{sc.title}</h3>
-                  <p className="text-[18px] text-text leading-relaxed">{sc.body}</p>
+                  <h3 className="h3 uppercase text-ink-900 mb-1">{sc.title}</h3>
+                  <p className="body-sm text-text leading-relaxed">{sc.body}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -494,22 +513,22 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
                       }
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[18px] font-bold text-text"><span className="text-primary">{o.id}.</span> {o.label}</span>
+                        <span className="item-name text-text"><span className="text-primary">{o.id}.</span> {o.label}</span>
                         <span
                           className={clsx(
-                            'shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 border font-hud text-[15px] tabular-nums',
+                            'shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 border num-xs',
                             o.energy > 0 ? 'border-warning/50 bg-warning-soft/40 text-warning' : 'border-success/50 bg-success-soft/40 text-success',
                           )}
                         >
-                          {o.energy > 0 ? `${o.energy}⚡` : 'FREE'}
+                          {o.energy > 0 ? <EnergyValue amount={o.energy} /> : 'FREE'}
                         </span>
                       </div>
-                      <div className="text-[16px] text-text-2 leading-tight mt-0.5">{o.detail}</div>
+                      <div className="body-xs text-text-2 leading-tight mt-0.5">{o.detail}</div>
                     </button>
                   );
                 })}
               </div>
-              <div className="text-[16px] text-text-3 text-right">⚡ {currentEnergy} energy available</div>
+              <div className="body-xs text-text-3 text-right inline-flex items-baseline gap-1 justify-end w-full"><EnergyValue amount={currentEnergy} /> energy available</div>
             </div>
           );
         })()}
@@ -529,11 +548,11 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <PixelBadge tone="warn">Day {day} · Event</PixelBadge>
-                  <span className="text-[16px] uppercase tracking-wider font-bold text-text-3">
+                  <span className="stat-label">
                     {ev.title}
                   </span>
                 </div>
-                <p className="text-[19px] text-text leading-snug">{ev.body}</p>
+                <p className="body-sm text-text leading-snug">{ev.body}</p>
               </div>
             </div>
             <EventOptions ev={ev} cash={cash} onPick={onEventChoice} />
@@ -561,6 +580,9 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
               cashStart={cashAtOpenRef.current}
               onContinue={onResultContinue}
             />
+            {/* Anything the facilitator wrote for this round. Renders nothing
+                when there are no notes, so the phase result is unchanged. */}
+            <RoundNotesCard />
           </div>
         )}
       </motion.div>
@@ -588,14 +610,28 @@ function Stat({
     : tone === 'warn' ? 'var(--c-warning)'
     : tone === 'info' ? 'var(--c-info)'
     : 'var(--c-text-2)';
+  // Tone has to reach the TILE, not just an 11px icon. A phase that stocked out
+  // 30 days of 30 and lost 29 sales was rendering in the same neutral panel as
+  // the revenue beside it — the one number the player most needed to notice was
+  // the one carrying no signal at all. `warn` now tints the whole chip, the way
+  // every other chip in the app already states its tone.
+  const toneChip =
+    tone === 'warn' ? 'border-warning bg-warning-soft/50'
+    : tone === 'cash' ? 'border-success/50 bg-success-soft/30'
+    : 'border-border-soft';
   return (
-    <div className="panel px-3 py-2 flex flex-col gap-0.5">
+    <div className={clsx('px-3 py-2 flex flex-col gap-0.5 border-2', toneChip)}>
       <div className="flex items-center gap-1.5">
         <PixelIcon kind={icon} size={11} color={color} />
         <span className="kpi-label">{label}</span>
       </div>
-      <div className="num-md text-text">{value}</div>
-      {sub && <div className="text-[15px] text-text-3">{sub}</div>}
+      {/* The unit rides WITH the figure on one baseline. On its own line it
+          read as a second, unrelated fact stacked under the number, and left
+          the tiles that have no `sub` a row shorter than the ones that do. */}
+      <div className="flex items-baseline gap-1.5 flex-wrap">
+        <span className="num-md text-text">{value}</span>
+        {sub && <span className="stat-label">{sub}</span>}
+      </div>
     </div>
   );
 }
@@ -634,10 +670,10 @@ function EventOptions({
               )}
             >
               <div className="flex items-center gap-1.5 mb-0.5">
-                <span className={clsx('font-bold text-[15px] uppercase tracking-wider', isPicked ? 'text-primary' : 'text-text-3')}>{o.id}.</span>
-                <span className={clsx('font-bold text-[17px]', isPicked ? 'text-[#FAF7E8]' : 'text-text')}>{o.label}</span>
+                <span className={clsx('eyebrow eyebrow-sm', isPicked ? 'text-primary' : 'text-text-3')}>{o.id}.</span>
+                <span className={clsx('item-name', isPicked ? 'text-[#FAF7E8]' : 'text-text')}>{o.label}</span>
               </div>
-              <div className={clsx('text-[16px] leading-snug', isPicked ? 'text-[#FAF7E8]/85' : 'text-text-2')}>{o.description}</div>
+              <div className={clsx('body-xs leading-snug', isPicked ? 'text-[#FAF7E8]/85' : 'text-text-2')}>{o.description}</div>
               <div className="flex flex-wrap gap-1 mt-1.5">
                 <PixelBadge tone="warn">E−{o.cost.energy}</PixelBadge>
                 {o.cost.cash !== undefined && o.cost.cash > 0 && (
@@ -695,13 +731,20 @@ function EvaluationStep({
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <PixelBadge tone="brand">Phase {phase} debrief</PixelBadge>
-            <span className="text-[16px] uppercase tracking-wider font-bold text-text-3">
+            <span className="stat-label">
               Days {summary.fromDay}-{summary.toDay}
             </span>
           </div>
-          <p className="text-[18px] text-text leading-snug">
+          <p className="body-sm text-text leading-snug">
+            {/* A profitable phase spent entirely out of stock is not a phase
+                that "paid off" - it is money left on the table, and inventory
+                discipline is a quarter of the final rubric. Congratulating the
+                player here taught the opposite of the lesson, so a stockout
+                qualifies the headline instead of being buried in a side tile. */}
             {goodPhase
-              ? `Profit ${fmt$(summary.opProfit)} this phase - your decisions paid off.`
+              ? summary.unitsLost > 5
+                ? `Profit ${fmt$(summary.opProfit)} this phase - but you sold out on ${summary.stockoutDays} of ${summary.toDay - summary.fromDay + 1} days and turned away about ${fmtInt(summary.unitsLost)} buyers. Make more of what was already selling.`
+                : `Profit ${fmt$(summary.opProfit)} this phase - your decisions paid off.`
               : `Profit dipped (${fmt$(summary.opProfit)}). Trace it back to costs and timing in the P&L below.`}
           </p>
         </div>
@@ -715,7 +758,7 @@ function EvaluationStep({
 
       <div className="panel-muted px-3.5 py-3">
         <div className="panel-title text-text mb-2">Insight check</div>
-        <p className="text-[18px] text-text mb-2">{insight.question}</p>
+        <p className="body-sm text-text mb-2">{insight.question}</p>
         <div className="flex flex-col gap-1.5">
           {insight.options.map((o) => {
             const isPicked = answer === o.id;
@@ -727,7 +770,7 @@ function EvaluationStep({
                 disabled={revealed}
                 onClick={() => { playSfx('click-soft'); onPick(o.id); }}
                 className={clsx(
-                  'text-left p-2 border-2 text-[17px] leading-snug transition-all',
+                  'text-left p-2 border-2 body-xs leading-snug transition-all',
                   showCorrect && 'border-success bg-success-soft text-text',
                   wrongPicked && 'border-danger bg-error-soft text-text',
                   // Selected (pre-reveal) - dark walnut plate + cream
@@ -739,7 +782,7 @@ function EvaluationStep({
               >
                 <span
                   className={clsx(
-                    'font-bold text-[15px] uppercase tracking-wider mr-2',
+                    'eyebrow eyebrow-sm mr-2',
                     isPicked && !revealed ? 'text-primary' : 'text-text-3',
                   )}
                 >
@@ -751,7 +794,7 @@ function EvaluationStep({
           })}
         </div>
         {revealed && (
-          <div className="mt-2 text-[17px] text-text-2 leading-snug">
+          <div className="mt-2 body-xs text-text-2 leading-snug">
             <strong className="text-text">Why:</strong> {insight.explanation}
           </div>
         )}
@@ -797,7 +840,7 @@ function ResultStep({
               Phase {phaseJustFinished} complete
             </PixelBadge>
           </div>
-          <p className="text-[19px] text-text leading-snug">
+          <p className="body-sm text-text leading-snug">
             {positive
               ? `Nice run. Cash went up ${fmt$(cashDelta)} this phase.`
               : `Cash dipped ${fmt$(Math.abs(cashDelta))} this phase - open the P&L below to diagnose.`}
@@ -872,16 +915,16 @@ function SimulatingShow({ fromDay, toDay, phase }: { fromDay: number; toDay: num
         transition={{ duration: 0.38, repeat: Infinity, ease: 'linear' }}
       >
         <MascotAvatar mood="excited" size={76} />
-        <div className="font-hud text-[18px] uppercase tracking-wider text-text">
+        <div className="section-title text-ink-900">
           Simulating Phase {phase}…
         </div>
         {/* racing day odometer */}
         <div className="flex items-baseline gap-2">
-          <span className="font-hud text-[15px] uppercase tracking-[0.2em] text-text-3">Day</span>
-          <span className="font-hud text-[34px] leading-none text-text tabular-nums">{shownDay}</span>
-          <span className="font-hud text-[19px] text-text-3">/ {toDay}</span>
+          <span className="stat-label">Day</span>
+          <span className="num-xl leading-none text-text">{shownDay}</span>
+          <span className="num-sm text-text-3">/ {toDay}</span>
         </div>
-        <div className="text-[17px] text-text-2">Selling, producing, counting the till…</div>
+        <div className="body-xs text-text-2">Selling, producing, counting the till…</div>
         <div className="w-48 h-1.5 bg-surface-2 border border-border-soft mt-1 overflow-hidden">
           <motion.div
             className="h-full bg-primary"

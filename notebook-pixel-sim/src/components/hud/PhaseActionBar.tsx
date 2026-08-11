@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { useGame } from '@/state/store';
 import { PhaseSequenceModal } from '@/components/PhaseSequenceModal';
@@ -7,6 +7,7 @@ import { TOAST, VALIDATION } from '@/content/copy';
 import { expandScript, SCRIPT_BEFORE_PHASE1_CONFIRM } from '@/content/mascotScripts';
 import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
+import { SessionChip } from '@/components/hud/SessionChip';
 
 const PHASE_END = { 1: 30, 2: 60, 3: 90 } as const;
 
@@ -34,6 +35,17 @@ export function PhaseActionBar() {
   // Bumped each time the modal opens so the modal remounts fresh —
   // prevents the previous run's "running" local state from persisting.
   const [openCount, setOpenCount] = useState(0);
+
+  // "Before you lock Phase 1, two checks..." — pushed on ARRIVAL, not on the
+  // confirm click. Fired from the click it queued behind the sequence modal and
+  // surfaced on the Phase 1 DEBRIEF, telling a player to check decisions they
+  // had already made while its scrim dimmed the results. Guidance titled
+  // "before you confirm" has to precede the decision to mean anything.
+  // pushMascotSequence de-dupes by script id, so this runs once per save.
+  useEffect(() => {
+    if (phase === 1) pushMascotSequence(expandScript(SCRIPT_BEFORE_PHASE1_CONFIRM));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const target = PHASE_END[phase];
   const daysLeft = Math.max(0, target - day + 1);
@@ -108,12 +120,6 @@ export function PhaseActionBar() {
       });
       return;
     }
-    // First Phase 1 confirm — push the "before you confirm" guidance
-    // script so first-time players understand exactly what's about to
-    // happen. The script de-dupes by id so it only fires once.
-    if (phase === 1) {
-      pushMascotSequence(expandScript(SCRIPT_BEFORE_PHASE1_CONFIRM));
-    }
     playSfx('confirm');
     setOpenCount((c) => c + 1);
     setOpen(true);
@@ -137,15 +143,22 @@ export function PhaseActionBar() {
             <PixelIcon kind="phase" size={12} color="var(--c-border)" />
           </span>
           <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-[9.5px] uppercase tracking-[0.14em] font-bold text-[#9A7B4F]">Current Phase</span>
-            <span className="text-[12px] text-[#E8DCBE] truncate">
-              Day <span className="font-bold tabular-nums">{day}</span> / 90
-              <span className="text-[#9A7B4F]"> · </span>
+            <span className="eyebrow eyebrow-sm text-[#9F7F52]">Current Phase</span>
+            <span className="hint text-[#E8DCBE] truncate">
+              Day <span className="num-xs">{day}</span> / 90
+              <span className="text-[#9F7F52]"> · </span>
               <span className="tabular-nums">{daysLeft}d</span> left
               <span className="hidden sm:inline"> in Phase {phase}</span>
             </span>
           </div>
         </div>
+
+        {/* The ROOM, next to the run. Round + facilitator's clock + team name
+            used to sit in the top bar, where they were the widest block that
+            could not shrink and pushed the projection dashboard over its
+            neighbours. They read better here anyway: this bar already answers
+            "where am I in the session", which is the same question. */}
+        <SessionChip />
 
         {blockReason && (
           (needsSegment || needsAnyNotebook) ? (
@@ -182,7 +195,7 @@ export function PhaseActionBar() {
             >
               <PixelIcon kind="warning" size={11} color="var(--c-warning)" />
               <span className="truncate">{blockReason}</span>
-              <span className="ml-1 hidden sm:inline-flex items-center text-[10px] uppercase tracking-wider opacity-75">
+              <span className="ml-1 hidden sm:inline-flex items-center eyebrow eyebrow-sm opacity-75">
                 Tap to fix
               </span>
               <PixelIcon kind="arrow-right" size={10} color="var(--c-warning)" />
@@ -225,12 +238,12 @@ export function PhaseActionBar() {
             blocked && 'game-btn--blocked',
           )}
         >
-          <PixelIcon kind="check" size={13} color="#FAF7E8" />
-          <span className="btn-label uppercase tracking-wide">
+          <PixelIcon kind="check" size={13} color="#12301C" />
+          <span className="btn-label uppercase">
             <span className="sm:hidden">Confirm Phase {phase}</span>
             <span className="hidden sm:inline">{phaseTitle}</span>
           </span>
-          <PixelIcon kind="arrow-right" size={13} color="#FAF7E8" />
+          <PixelIcon kind="arrow-right" size={13} color="#12301C" />
         </button>
         </Tooltip>
       </div>

@@ -42,7 +42,7 @@ async function main() {
   let simTypeId: ObjectId | null = null;
   try {
     simTypeId = new ObjectId(simulationTypeIdArg);
-  } catch (err) {
+  } catch {
     console.error(
       "ERROR: Provided SimulationType ID is not a valid MongoDB ObjectId."
     );

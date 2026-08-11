@@ -14,6 +14,7 @@ import { RouteChoiceScreen } from '@/screens/RouteChoiceScreen';
 import { PhaseIntroScreen } from '@/screens/PhaseIntroScreen';
 import { SimulationScreen } from '@/screens/SimulationScreen';
 import { VisualNovelMascot } from '@/components/mascot/VisualNovelMascot';
+import { AudiencePickerModal } from '@/components/AudiencePickerModal';
 import { Toast } from '@/components/Toast';
 import { SmallScreenGate } from '@/components/SmallScreenGate';
 import { AppShell } from '@/components/AppShell';
@@ -86,15 +87,19 @@ export default function App() {
   // multiple messages each so users get full Previous/Next navigation.
   useEffect(() => {
     if (screen !== 'simulation') return;
-    // Phase 1 wrap → debrief at first day of Phase 2.
-    if (phase === 2 && day >= 31 && day <= 32) {
+    // Keyed on PHASE ENTRY, not a day window. `advanceFinlitPhase` sets
+    // `day = phase * 30`, so the day is 30/60/90 and the next confirm jumps it
+    // straight past — 31-32 and 61-62 are never observed on a rendered frame,
+    // which left both of these coaching scripts as dead code that had never
+    // played. `seenScripts` de-dupes, so each still fires exactly once.
+    if (phase === 2) {
       pushMascotSequence(expandScript(SCRIPT_AFTER_PHASE1));
       pushMascotSequence(expandScript(SCRIPT_PHASE2_START));
     }
-    if (phase === 3 && day >= 61 && day <= 62) {
+    if (phase === 3) {
       pushMascotSequence(expandScript(SCRIPT_PHASE3_START));
     }
-  }, [screen, phase, day, pushMascotSequence]);
+  }, [screen, phase, pushMascotSequence]);
 
   useEffect(() => {
     if (screen === 'final') {
@@ -154,8 +159,25 @@ export default function App() {
 
           {/* The phase-intro hero screen has its own big mascot, so suppress
               the dialogue-bubble mascot there (avoids two Amelias + its scrim
-              dimming the hero). */}
-          {screen !== 'phase_intro' && <VisualNovelMascot />}
+              dimming the hero).
+
+              Suppressed on every RESULTS surface for the same reason - the
+              phase sequence, the standalone evaluation and the final score.
+              Each is a focused flow whose whole purpose is a screen of numbers
+              to read, and the mascot's scrim dims exactly that. The queue also
+              persists, so a script the player skipped earlier (a route-choice
+              line, say) resurfaces at the next screen that allows the mascot
+              and talks over an evaluation it has nothing to do with. */}
+          {screen !== 'phase_intro'
+            && screen !== 'evaluation'
+            && screen !== 'final'
+            && !sequenceActive
+            && <VisualNovelMascot />}
+          {/* Opens only when the run has no target audience — a migrated save,
+              or a player who cleared theirs. A fresh game derives one from the
+              starter genre, so it stays silent there. It shipped orphaned in the
+              vendor drop: the file existed but nothing ever rendered it. */}
+          <AudiencePickerModal />
           <DayAdvanceFlash />
           {/* Pixel-wipe transition on the big moments: game start, each
               round/phase change, and game end. */}
@@ -169,10 +191,15 @@ export default function App() {
               is free (it would otherwise overlap the phase bar). */}
           {(screen === 'start' || screen === 'route' || screen === 'phase_intro') && <AccessMenu />}
 
-          {/* Dev: show seed in corner */}
-          <div className="fixed bottom-1 right-2 font-hud text-[8px] text-ink-700/50 pointer-events-none select-none">
-            v0.1 · seed {useGame.getState().meta.seed.slice(0, 14)}
-          </div>
+          {/* Dev-only build/seed stamp. Hidden in production so a class demo
+              never shows an internal version string and the run's RNG seed —
+              and so the one deliberately-faint element in the app stops being
+              the only thing failing a contrast audit. */}
+          {(import.meta as { env?: { DEV?: boolean } }).env?.DEV && (
+            <div className="fixed bottom-1 right-2 pixel-caption text-ink-700/50 pointer-events-none select-none">
+              v0.1 · seed {useGame.getState().meta.seed.slice(0, 14)}
+            </div>
+          )}
         </div>
       </SmallScreenGate>
       </PassKeyGate>

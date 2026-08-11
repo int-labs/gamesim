@@ -82,7 +82,7 @@ export function PixelSelect({
         aria-label={ariaLabel}
         onClick={toggle}
         className={clsx(
-          'w-full inline-flex items-center gap-2 px-2 py-1.5 border-2 bg-surface text-text cursor-pointer text-[12px] transition-colors',
+          'w-full inline-flex items-center gap-2 px-2 py-1.5 border bg-surface text-text cursor-pointer body-xs transition-colors',
           open ? 'border-primary' : 'border-border-soft hover:border-border',
         )}
       >
@@ -94,7 +94,7 @@ export function PixelSelect({
         <div
           id={menuId}
           role="listbox"
-          className="z-[130] panel-frame bg-surface border-2 border-border shadow-[3px_3px_0_0_var(--c-shadow)] max-h-[240px] overflow-y-auto"
+          className="z-[130] panel-frame panel-frame--lifted bg-surface max-h-[240px] overflow-y-auto"
           style={{
             position: 'fixed',
             left: rect.left,
@@ -111,12 +111,12 @@ export function PixelSelect({
                 aria-selected={sel}
                 onClick={() => pick(o.id)}
                 className={clsx(
-                  'w-full flex items-center gap-2 px-2.5 py-2 text-left cursor-pointer border-b border-border-soft last:border-b-0 text-[12px]',
+                  'w-full flex items-center gap-2 px-2.5 py-2 text-left cursor-pointer border-b border-border-soft last:border-b-0 body-xs',
                   sel ? 'bg-primary-soft' : 'hover:bg-surface-2',
                 )}
               >
                 <span className="flex-1 min-w-0 truncate text-text">{o.label}</span>
-                {o.hint && <span className="text-[10px] text-text-3 tabular-nums shrink-0">{o.hint}</span>}
+                {o.hint && <span className="num-xs text-text-3 shrink-0">{o.hint}</span>}
                 {sel && <PixelIcon kind="check" size={10} color="var(--c-primary)" />}
               </button>
             );

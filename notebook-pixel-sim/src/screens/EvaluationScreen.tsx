@@ -37,6 +37,7 @@ export function EvaluationScreen() {
   const labor = summary.labor;
   const marketing = summary.marketing;
   const tools = summary.tools;
+  const channel = summary.channel;
   const opProfit = summary.opProfit;
 
   const onSubmit = () => {
@@ -78,13 +79,28 @@ export function EvaluationScreen() {
   return (
     // z-[60] — must cover the sim's floating chrome underneath (EdgeDock
     // z-50, page tabs z-40) while staying under transitions/toast/VN.
-    <div className="absolute inset-0 bg-cream-50 z-[60] overflow-y-auto">
+    <div className="absolute inset-0 z-[60]">
+      {/* Same scene backdrop as the final screen — see the note there. A phase
+          debrief is a pause IN the run, not a departure from it, and a flat
+          cream fill edge to edge was the only thing in the game that made the
+          world disappear between phases. */}
+      <img
+        src={A.env.deskFull}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover"
+        draggable={false}
+      />
+      <div aria-hidden className="absolute inset-0 bg-ink-900/60" />
+      <div className="absolute inset-0 overflow-y-auto">
       <div className="max-w-[1100px] mx-auto px-6 py-6">
+        {/* One floating sheet over the scene — same reasoning as the final
+            screen: a backdrop only helps if the content keeps a surface. */}
+        <div className="pixel-frame bg-cream-50 p-4 sm:p-5">
         <div className="flex items-center gap-3 mb-4">
           <img src={A.logo} alt="int labs" className="h-10" />
           <div>
-            <div className="font-hud text-[10px] uppercase tracking-wider text-brand-500">Phase {phase} {isFinal ? 'Final' : 'Evaluation'}</div>
-            <h2 className="font-hud text-[22px] uppercase">{isFinal ? 'Closing the books' : `Looking back at Phase ${phase}`}</h2>
+            <div className="eyebrow eyebrow-sm text-brand-500">Phase {phase} {isFinal ? 'Final' : 'Evaluation'}</div>
+            <h2 className="pixel-caption">{isFinal ? 'Closing the books' : `Looking back at Phase ${phase}`}</h2>
           </div>
         </div>
         <div className="grid lg:grid-cols-3 gap-4">
@@ -104,17 +120,28 @@ export function EvaluationScreen() {
                 <PixelStepLine data={trend.cash} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" width={420} height={120} />
               </PixelPanel>
               <PixelPanel title="Daily profit">
-                <PixelStepLine data={trend.profit} stroke="#5b86c2" fill="rgba(91,134,194,0.15)" width={420} height={120} />
+                <PixelStepLine data={trend.profit} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.16)" width={420} height={120} />
               </PixelPanel>
             </div>
-            <PixelPanel title="Cost mix this run">
+            {/* Cost mix for THIS PHASE, and only the lines that can be
+                non-zero in the V3 economy. It used to plot Material · Labor ·
+                Marketing · Tools — of which Labor and Tools are structurally
+                always $0 (the FinLit bridge never emits `cogs-labor` or
+                `opex-tool`), while Channel & Holding, usually the LARGEST
+                cost, was not plotted at all. Amelia's debrief one panel over
+                tells the player to "open the cost mix to see which line ate
+                the margin", so the chart has to be able to show it. Legacy V2
+                rows are still rendered when they carry a value, so an older
+                saved run does not silently lose them. */}
+            <PixelPanel title={`Cost mix · Phase ${phase}`}>
               <PixelStackedBar
                 data={[
                   { label: 'Material', value: matCost, color: '#e07a6a' },
+                  { label: 'Channel & holding', value: channel, color: '#6c93d9' },
+                  { label: 'Marketing / ops', value: marketing, color: '#e6b54a' },
                   { label: 'Labor', value: labor, color: '#9b6cd9' },
-                  { label: 'Marketing', value: marketing, color: '#e6b54a' },
-                  { label: 'Tools / upgrades', value: tools, color: '#5b86c2' },
-                ]}
+                  { label: 'Tools / upgrades', value: tools, color: 'var(--c-fin-cash)' },
+                ].filter((d) => Math.abs(d.value) > 0.005)}
                 width={520}
                 height={26}
               />
@@ -125,7 +152,7 @@ export function EvaluationScreen() {
             <PixelPanel title="Amelia's debrief" tone="paper">
               <div className="flex gap-2 items-start">
                 <MascotAvatar mood={opProfit >= 0 ? 'happy' : 'concerned'} size={68} />
-                <div className="text-[13px] font-body text-ink-800 leading-relaxed">
+                <div className="body-xs font-body text-ink-800 leading-relaxed">
                   <p className="mb-1.5">
                     {opProfit >= 0
                       ? `Profit positive (${fmt$(opProfit)}) - your decisions paid off this phase. The audience and price found each other.`
@@ -133,12 +160,12 @@ export function EvaluationScreen() {
                   </p>
                   {inventory.stockoutDays > 3 && (
                     <p className="mb-1.5">
-                      <strong>{inventory.stockoutDays} stockout days</strong> - that's demand you couldn't fulfil. Hire a helper, buy raw earlier, or trim a slow line.
+                      <strong>{inventory.stockoutDays} stockout days</strong> - that's demand you couldn't fulfil. Hire a helper, raise your production target, or trim a slow line.
                     </p>
                   )}
                   {inventory.overstockDays > 3 && (
                     <p className="mb-1.5">
-                      <strong>{inventory.overstockDays} overstock days</strong> - cash trapped in unsold notebooks. Slow your raw-material buys or boost demand with marketing.
+                      <strong>{inventory.overstockDays} overstock days</strong> - cash trapped in unsold notebooks. Lower your production target or boost demand with marketing.
                     </p>
                   )}
                   {inventory.stockoutDays <= 3 && inventory.overstockDays <= 3 && opProfit >= 0 && (
@@ -158,7 +185,7 @@ export function EvaluationScreen() {
             </PixelPanel>
 
             <PixelPanel title="Insight check">
-              <div className="text-[13px] font-body mb-2 text-ink-900">{insight.question}</div>
+              <div className="body-xs font-body mb-2 text-ink-900">{insight.question}</div>
               <div className="flex flex-col gap-1">
                 {insight.options.map((o) => {
                   const picked = answer === o.id;
@@ -170,7 +197,7 @@ export function EvaluationScreen() {
                       disabled={revealed}
                       onClick={() => { playSfx('click-soft'); setAnswer(o.id); }}
                       className={clsx(
-                        'text-left p-2 border-2 font-body text-[12px] transition-all',
+                        'text-left p-2 border-2 font-body hint transition-all',
                         // Selected (pre-reveal): dark walnut + cream
                         // text — unambiguous against the cream panel.
                         picked && !revealed && 'bg-[#221710] text-[#FAF7E8] border-primary',
@@ -181,7 +208,7 @@ export function EvaluationScreen() {
                     >
                       <span
                         className={clsx(
-                          'font-hud text-[10px] mr-2 uppercase',
+                          'eyebrow eyebrow-sm mr-2 uppercase',
                           picked && !revealed ? 'text-primary' : '',
                         )}
                       >
@@ -206,6 +233,8 @@ export function EvaluationScreen() {
           </div>
         </div>
       </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -217,9 +246,9 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: 'suc
     tone === 'info' ? 'bg-info-soft' :
     tone === 'error' ? 'bg-error-soft' : 'bg-cream-100';
   return (
-    <div className={`${bg} border-2 border-ink-900 p-2`}>
-      <div className="font-hud text-[10px] uppercase text-ink-700">{label}</div>
-      <div className="font-hud text-[16px]">{value}</div>
+    <div className={`${bg} border border-border-soft p-2`}>
+      <div className="eyebrow eyebrow-sm text-ink-700">{label}</div>
+      <div className="h3">{value}</div>
     </div>
   );
 }

@@ -1,3 +1,16 @@
+// The notebook catalogue, DERIVED from the engine's genre table.
+//
+// This file used to hold a hand-written record of three V2 product shapes
+// (student / planner / daily) that had no connection to the four markets the
+// simulation actually models. Two catalogues meant two things to keep in sync,
+// and they had already drifted apart.
+//
+// Now there is one source of truth: `GENRES` in the FinLit engine config. That
+// table is hydratable, so an operator publishing a fifth notebook makes it
+// appear here too — no code change, no second list to update.
+
+import { GENRES, genreArt, genreById, type GenreDef } from '@/engine/finlit/core/config/genres';
+import { GENRE_TO_SEGMENT } from '@/engine/finlit/core/config/genreSegments';
 import type { Archetype, Segment } from '@/types';
 
 export interface ArchetypeInfo {
@@ -8,73 +21,50 @@ export interface ArchetypeInfo {
   bestFor: Segment[];
   strengths: string[];
   tradeoffs: string[];
-  costNote: string;
-  productionNote: string;
-  whyChoose: string;
+  /** Cover art, resolved through the filename convention or an operator upload. */
+  art: string;
 }
 
-export const ARCHETYPE_INFO: Record<Archetype, ArchetypeInfo> = {
-  student: {
-    id: 'student',
-    title: 'Student Notebook',
-    tagline: 'Affordable, familiar, easy to make.',
-    description:
-      'A practical, no-frills lined notebook. The kind that lives in every bag on campus. Fast to produce, easy to scale, sells on price and reliability rather than premium feel.',
-    bestFor: ['students', 'creators'],
-    strengths: [
-      'Lowest unit cost - best margin headroom at low prices',
-      'Highest production speed - capacity goes further',
-      'Strong fit with student segment',
-    ],
-    tradeoffs: [
-      'Weak premium / gift appeal',
-      'Limited price ceiling - mismatch with professionals at high prices',
-      'Less differentiation without add-ons',
-    ],
-    costNote: 'Material cost is lowest of the three. Hardcover + standard paper is the value combo.',
-    productionNote: 'Fastest to produce; pairs well with smaller capacity.',
-    whyChoose: 'Pick this when starting lean, when targeting volume buyers, or when cash is tight.',
+/** Fallback copy so a notebook published without prose still renders. */
+const describe = (g: GenreDef): ArchetypeInfo => ({
+  id: g.id,
+  title: g.name,
+  tagline: g.tagline ?? g.blurb,
+  description: g.description ?? g.blurb,
+  bestFor: [GENRE_TO_SEGMENT[g.id] ?? 'students'],
+  strengths: g.strengths ?? [],
+  tradeoffs: g.tradeoffs ?? [],
+  art: genreArt(g.id),
+});
+
+/**
+ * Every notebook currently in the catalogue, in table order.
+ *
+ * A getter, not a snapshot: `GENRES` is edited in place at boot by
+ * `configHydrator`, so anything computed at module scope would freeze the
+ * bundled values and silently ignore the operator's config.
+ */
+export const notebookCatalogue = (): ArchetypeInfo[] => GENRES.map(describe);
+
+/** One notebook by id. Throws on an unknown id, like every other accessor. */
+export const archetypeInfo = (id: Archetype): ArchetypeInfo => describe(genreById(id));
+
+/** The id used when nothing else is known — always a real, present notebook. */
+export const defaultArchetype = (): Archetype => GENRES[0].id;
+
+/**
+ * Back-compat shim for the `ARCHETYPE_INFO[id]` call sites.
+ *
+ * A Proxy rather than a plain object because it has to stay live: a built map
+ * would capture the bundled genres before hydration and never see a published
+ * one. Reads resolve against `GENRES` at access time.
+ */
+export const ARCHETYPE_INFO: Record<Archetype, ArchetypeInfo> = new Proxy(
+  {} as Record<Archetype, ArchetypeInfo>,
+  {
+    get: (_t, key: string) => (typeof key === 'string' ? describe(genreById(key)) : undefined),
+    has: (_t, key: string) => GENRES.some((g) => g.id === key),
+    ownKeys: () => GENRES.map((g) => g.id),
+    getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
   },
-  planner: {
-    id: 'planner',
-    title: 'Planner',
-    tagline: 'Structured. Functional. A little more grown-up.',
-    description:
-      'A notebook with a calendar grid and tab dividers. Organised feel, slightly higher perceived value. Sits between student and premium - good middle-ground product when audiences shift.',
-    bestFor: ['students', 'professionals'],
-    strengths: [
-      'Stronger fit with professionals than the student notebook',
-      'Higher perceived value at the same paper / cover',
-      'Holds price increases better than student',
-    ],
-    tradeoffs: [
-      'Slightly more complex to produce',
-      'Charms / stickers feel less natural here than on a daily journal',
-      'Demand is steadier but lower volume than students',
-    ],
-    costNote: 'Mid-tier material cost. Leather upgrade lifts professional fit sharply.',
-    productionNote: 'Slightly slower than the student notebook; consider a hire when ramping.',
-    whyChoose: 'Pick this when broadening into the professional segment without abandoning students.',
-  },
-  daily: {
-    id: 'daily',
-    title: 'Daily Journal',
-    tagline: 'Premium, giftable, emotional.',
-    description:
-      'A leather-feel daily journal with strap and gold "DAILY" stamp. The most "giftable" of the three. Strongest emotional pull for creators and gift-buyers, command higher prices, but every cost line scales up.',
-    bestFor: ['creators', 'gift', 'professionals'],
-    strengths: [
-      'Highest price ceiling - creators and gift-buyers pay more',
-      'Strong fit with ribbon wraps and name stickers',
-      'Best for premium positioning',
-    ],
-    tradeoffs: [
-      'Highest unit cost - margin is thinner if you under-price',
-      'Slower to produce - capacity bites harder',
-      'Mismatch with budget students at low prices',
-    ],
-    costNote: 'Material cost is the highest. Leather + premium paper makes the strongest signal.',
-    productionNote: 'Slowest of the three. Hire help and add a tool to scale.',
-    whyChoose: 'Pick this for premium positioning, holiday seasons, or when serving gift-buyers.',
-  },
-};
+);

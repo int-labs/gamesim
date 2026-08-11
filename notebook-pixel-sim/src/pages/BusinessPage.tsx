@@ -58,22 +58,19 @@ export function BusinessPage() {
 
       {/* The document sheet — the active folder's contents. */}
       <section className="relative min-w-0 flex flex-col panel-frame bg-surface">
-        <header className="px-4 py-3 border-b border-border-soft bg-surface-2 shrink-0 flex items-center gap-2.5">
-          <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-border bg-surface">
-            {activeTab && <PixelIcon kind={activeTab.icon} size={13} color="var(--c-primary)" />}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="panel-title text-text">{activeTab?.label}</div>
-            <div className="text-[14px] font-medium text-text-2 mt-0.5">{activeTab?.sub}</div>
-          </div>
-          <span className="hidden lg:block text-[11px] font-medium text-text-2 text-right leading-snug max-w-[260px]">
-            Decisions here don't advance days - confirm a phase to simulate.
-          </span>
-        </header>
-        {/* Per-tab explainer - primes the user on what this section is for. */}
+        {/* Per-tab explainer, plus the one thing this sheet needs to say.
+            A header band used to sit above this rendering `activeTab.label`
+            and `.sub` — the exact text FolderTabs already prints on the active
+            tab 40px higher. Two identical headings stacked, costing 76px and
+            a repeated title on every Business screen. The band's only
+            non-duplicated content was the "doesn't advance days" note, which
+            belongs with the explainer anyway. */}
         {activeTab && (
-          <div className="px-4 py-2.5 border-b border-border-soft bg-surface text-[15px] text-text-2 leading-relaxed">
-            {activeTab.explainer}
+          <div className="px-4 py-2.5 border-b border-border-soft bg-surface flex items-start justify-between gap-4">
+            <p className="body-xs text-text-2 leading-relaxed min-w-0 measure">{activeTab.explainer}</p>
+            <span className="hidden lg:block hint text-text-3 text-right leading-snug shrink-0 max-w-[240px]">
+              Decisions here don't advance days — confirm a phase to simulate.
+            </span>
           </div>
         )}
         <motion.div
@@ -165,10 +162,10 @@ function FolderTabs({
               <PixelIcon kind={t.icon} size={isActive ? 14 : 12} color="#2a2017" />
             </span>
             <span className="flex flex-col leading-tight min-w-0">
-              <span className={clsx('font-extrabold uppercase tracking-wide text-ink-900 truncate', isActive ? 'text-[16px]' : 'text-[15px]')}>
+              <span className="tab-label-sm uppercase text-ink-900 truncate">
                 {t.label}
               </span>
-              <span className="hidden md:block text-[12px] font-medium text-ink-800 truncate mt-0.5">{t.sub}</span>
+              <span className="hidden md:block hint text-ink-800 truncate mt-0.5">{t.sub}</span>
             </span>
           </motion.button>
         );

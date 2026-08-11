@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
 import SimulationType from "../models/simulationTypes";
 
 // POST /simulation-types

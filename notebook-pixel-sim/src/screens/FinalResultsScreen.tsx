@@ -8,11 +8,13 @@ import { PixelStackedBar } from '@/components/charts/PixelStackedBar';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
 import { Confetti } from '@/components/fx/Confetti';
 import { RankBadge, rankForScore } from '@/components/results/RankBadge';
-import { fmt$ } from '@/utils/format';
+import { fmt$, fmtInt } from '@/utils/format';
 import { A } from '@/assets';
 import { FINAL } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
 import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { DebriefCard } from '@/gamesim/OperatorContent';
+import clsx from 'clsx';
 
 /**
  * FinalResultsScreen — Day 90, reworked as a CELEBRATION instead of a report.
@@ -92,7 +94,7 @@ export function FinalResultsScreen() {
   if (state.inventory.overstockDays > 3) hurt.push(FINAL.hurt.overstock);
   if (!state.market.targetSegment) hurt.push(FINAL.hurt.noSegment);
   if (state.player.cash < 0) hurt.push(FINAL.hurt.cashNegative);
-  if (state.portfolio.productLines.every((line) => Object.values(line.addOnsByArchetype).every((arr) => arr.length === 0)))
+  if (state.portfolio.productLines.every((line) => Object.values(line.addOnsByArchetype).every((arr) => (arr ?? []).length === 0)))
     hurt.push(FINAL.hurt.noDifferentiation);
 
   const takeaway =
@@ -110,10 +112,33 @@ export function FinalResultsScreen() {
   return (
     // z-[60] — must cover the sim's floating chrome underneath (EdgeDock
     // z-50, page tabs z-40) while staying under transitions/toast/VN.
-    <div className="absolute inset-0 bg-cream-50 z-[60] overflow-y-auto">
+    <div className="absolute inset-0 z-[60]">
+      {/* SCENE BACKDROP, not a blank rectangle. Both results surfaces used to
+          be `absolute inset-0 bg-cream-50` — a flat cream fill edge to edge —
+          so the payoff screen and the phase debrief were the only places in the
+          game where the world simply vanished and left a page. The desk is
+          already the run's setting; dimming it and floating the sheet on top
+          reads as a MODAL over the game rather than a navigation away from it,
+          and it keeps the transition between phases continuous. Backdrop and
+          scroller are siblings so the scene stays put while the sheet scrolls. */}
+      <img
+        src={A.env.deskFull}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover"
+        draggable={false}
+      />
+      <div aria-hidden className="absolute inset-0 bg-ink-900/60" />
+
       <Confetti tone={rank.confetti} />
 
+      <div className="absolute inset-0 overflow-y-auto">
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6">
+        {/* ONE floating sheet. With the desk showing through, the header used
+            to sit straight on dark walnut at about 1.1:1 — the scene backdrop
+            is only an improvement if the content still has a surface. This is
+            also what makes it read as a modal over the game rather than a page
+            that happens to have wallpaper. */}
+        <div className="pixel-frame bg-cream-50 p-4 sm:p-5">
         {/* Header row */}
         <motion.div
           className="flex items-center gap-3 mb-4"
@@ -123,10 +148,10 @@ export function FinalResultsScreen() {
         >
           <img src={A.logo} alt="int labs" className="h-10" />
           <div className="min-w-0">
-            <div className="font-hud text-[10px] uppercase tracking-wider text-brand-500">Day 90 · Final</div>
+            <div className="eyebrow eyebrow-sm text-brand-500">Day 90 · Final</div>
             {/* The run belongs to the player's shop - name it in the payoff. */}
-            <h2 className="font-hud text-[22px] uppercase truncate">{shopName}</h2>
-            <div className="font-hud text-[10px] uppercase tracking-wider text-ink-500 mt-0.5">Final Results</div>
+            <h2 className="h2 uppercase truncate">{shopName}</h2>
+            <div className="stat-label mt-0.5">Final Results</div>
           </div>
         </motion.div>
 
@@ -151,23 +176,23 @@ export function FinalResultsScreen() {
             <div className="flex items-center gap-3 md:w-[300px] shrink-0">
               <MascotAvatar size={88} />
               <div className="min-w-0">
-                <div className="font-hud text-[9px] uppercase tracking-wider text-brand-500">Amelia's takeaway</div>
-                <p className="text-[12.5px] font-body text-ink-900 leading-snug mt-1">{takeaway}</p>
+                <div className="eyebrow eyebrow-sm text-brand-500">Amelia's takeaway</div>
+                <p className="body-xs text-ink-900 mt-1">{takeaway}</p>
               </div>
             </div>
 
             {/* The number */}
             <div className="flex-1 text-center py-1">
-              <div className="inline-flex items-center gap-1.5 font-hud text-[10px] uppercase tracking-[0.18em] text-ink-700">
+              <div className="inline-flex items-center gap-1.5 stat-label">
                 <img src={A.ui.pixel.trophy} alt="" className="w-[16px] h-[16px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
                 Final score
               </div>
-              <div className="font-hud text-[58px] sm:text-[66px] leading-none mt-1 text-ink-900 tabular-nums">
+              <div className="num-hero text-[58px] sm:text-[66px] leading-none mt-1 text-ink-900">
                 {shownScore}
-                <span className="text-[22px] sm:text-[26px] text-ink-700">/100</span>
+                <span className="num-lg text-ink-700">/100</span>
               </div>
-              <div className="text-[12px] font-body text-ink-800 mt-1.5">
-                Net profit projected from ledger: <span className="font-bold">{fmt$(score.netDollar)}</span>
+              <div className="body-xs text-ink-800 mt-1.5">
+                Net profit projected from ledger: <span className="num-xs">{fmt$(score.netDollar)}</span>
               </div>
             </div>
 
@@ -185,7 +210,7 @@ export function FinalResultsScreen() {
               <PixelPanel title="Score Breakdown" tone="paper">
                 <div className="grid grid-cols-3 gap-2">
                   <ScoreCell label="Net Profit" value={score.netProfit} max={50} color="#5fb27a" bg="bg-success-soft" delay={DATA_AT + 0.15} />
-                  <ScoreCell label="Inventory" value={score.inventory} max={25} color="#5b86c2" bg="bg-info-soft" delay={DATA_AT + 0.3} />
+                  <ScoreCell label="Inventory" value={score.inventory} max={25} color="var(--c-fin-cash)" bg="bg-info-soft" delay={DATA_AT + 0.3} />
                   <ScoreCell label="Insight" value={score.insight} max={25} color="#9b6cd9" bg="bg-brand-300" delay={DATA_AT + 0.45} />
                 </div>
               </PixelPanel>
@@ -196,16 +221,16 @@ export function FinalResultsScreen() {
               <PixelPanel title="The full 90 days" tone="paper">
                 <div className="grid md:grid-cols-2 gap-3">
                   <div>
-                    <div className="font-hud text-[10px] uppercase text-ink-700 mb-1">Cash trend</div>
+                    <div className="stat-label mb-1">Cash trend</div>
                     <PixelStepLine data={state.series.cash} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" width={420} height={120} />
                   </div>
                   <div>
-                    <div className="font-hud text-[10px] uppercase text-ink-700 mb-1">Profit trend</div>
-                    <PixelStepLine data={state.series.profit} stroke="#5b86c2" fill="rgba(91,134,194,0.15)" width={420} height={120} />
+                    <div className="stat-label mb-1">Profit trend</div>
+                    <PixelStepLine data={state.series.profit} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.16)" width={420} height={120} />
                   </div>
                 </div>
                 <div className="mt-3">
-                  <div className="font-hud text-[10px] uppercase text-ink-700 mb-1">Cost mix</div>
+                  <div className="stat-label mb-1">Cost mix</div>
                   <PixelStackedBar
                     data={[
                       { label: 'Material (COGS)', value: matCost, color: '#e07a6a' },
@@ -222,7 +247,7 @@ export function FinalResultsScreen() {
             {/* Did well / hurt - items stamp in one by one */}
             <motion.div {...sec(2)}>
               <PixelPanel title="What you did well / What hurt">
-                <div className="grid md:grid-cols-2 gap-3 text-[12px] font-body">
+                <div className="grid md:grid-cols-2 gap-3 body-xs">
                   <StampList
                     title={FINAL.panels.didWell}
                     items={didWell}
@@ -254,7 +279,7 @@ export function FinalResultsScreen() {
                   })}
             >
               <PixelPanel title="Decision Timeline">
-                <div className="max-h-[420px] overflow-y-auto pr-2 text-[12px] font-body">
+                <div className="max-h-[420px] overflow-y-auto pr-2 body-xs">
                   {[...state.history].reverse().map((h, i) => (
                     <div key={i} className="flex items-start gap-2 py-0.5 border-b border-ink-700/15">
                       <PixelBadge tone="neutral">D{h.day}</PixelBadge>
@@ -278,63 +303,57 @@ export function FinalResultsScreen() {
                 <PixelPanel title="Official Result">
                   <div className="flex items-center gap-2 mb-2">
                     <PixelBadge tone="info">From the simulation server</PixelBadge>
-                    <span className="text-[11px] font-body text-ink-700">
+                    <span className="hint">
                       Round {latestResults?.roundNumber ?? latestFinancials?.roundNumber}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[12px] font-body">
-                    <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Revenue</div>
-                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.revenue ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Gross Profit</div>
-                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.grossProfit ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">COGS</div>
-                      <div className="font-hud text-[16px]">{fmt$(latestFinancials?.cogs ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Customers</div>
-                      <div className="font-hud text-[16px]">{Math.round(latestFinancials?.customersObtained ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Market Share</div>
-                      <div className="font-hud text-[16px]">
-                        {latestResults
-                          ? `${(latestResults.averageMarketShare * 100).toFixed(1)}%`
-                          : 'Pending'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="font-hud text-[9px] uppercase text-ink-700">Rank</div>
-                      <div className="font-hud text-[16px]">
-                        {latestResults && teamId
-                          ? `#${
-                              latestResults.leaderboard.findIndex((t) => t.teamId === teamId) + 1
-                            } / ${latestResults.leaderboard.length}`
-                          : 'Pending'}
-                      </div>
-                    </div>
+                  {/* Bordered, tinted readouts — the same language as every
+                      other number in the app. Bare label+value divs made the
+                      most important panel in the product read as a plain data
+                      table dropped into a pixel game. */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <ServerStat label="Revenue" value={fmt$(latestFinancials?.revenue ?? 0)} tone="good" />
+                    <ServerStat label="Gross Profit" value={fmt$(latestFinancials?.grossProfit ?? 0)} tone="good" />
+                    <ServerStat label="COGS" value={fmt$(latestFinancials?.cogs ?? 0)} tone="cost" />
+                    <ServerStat label="Customers" value={fmtInt(Math.round(latestFinancials?.customersObtained ?? 0))} />
+                    {/* "Strength", not "Market share": calcMarketModel multiplies a
+                        competed share by each team's OWN declared projection, so the
+                        values rank teams correctly but do not partition the market —
+                        twelve teams sum to ~175%. Never label it as a share of the
+                        market where a facilitator might repeat it to a room. */}
+                    <ServerStat
+                      label="Strength"
+                      value={latestResults ? `${(latestResults.averageMarketShare * 100).toFixed(1)}%` : 'Pending'}
+                      tone={latestResults ? 'info' : 'muted'}
+                    />
+                    <ServerStat
+                      label="Rank"
+                      value={latestResults && teamId
+                        ? `#${latestResults.leaderboard.findIndex((t) => t.teamId === teamId) + 1} / ${latestResults.leaderboard.length}`
+                        : 'Pending'}
+                      tone={latestResults ? 'info' : 'muted'}
+                    />
                   </div>
 
                   {latestResults && (
                     <div className="mt-3">
-                      <div className="font-hud text-[9px] uppercase text-ink-700 mb-1">Leaderboard</div>
-                      <div className="text-[12px] font-body">
+                      <div className="stat-label mb-1">Leaderboard</div>
+                      <div className="body-xs">
                         {latestResults.leaderboard.map((t, i) => (
                           <div
                             key={t.teamId}
-                            className="flex items-center gap-2 py-0.5 border-b border-ink-700/15"
+                            className={clsx(
+                              'flex items-center gap-2 px-2 py-1 border-b border-border-soft last:border-b-0',
+                              t.teamId === teamId && 'bg-primary-soft',
+                            )}
                           >
                             <PixelBadge tone={t.teamId === teamId ? 'info' : 'neutral'}>
                               #{i + 1}
                             </PixelBadge>
-                            <div className="flex-1">
+                            <div className={clsx('flex-1 truncate', t.teamId === teamId ? 'item-name' : 'body-xs')}>
                               {t.teamId === teamId ? 'Your team' : `Team ${t.teamId.slice(-6)}`}
                             </div>
-                            <div className="font-hud text-[11px]">
+                            <div className="num-xs text-text">
                               {(t.averageMarketShare * 100).toFixed(1)}%
                             </div>
                           </div>
@@ -344,14 +363,18 @@ export function FinalResultsScreen() {
                   )}
 
                   {!latestResults && (
-                    <p className="text-[11px] font-body text-ink-700 mt-2">
-                      Market share and ranking appear once your facilitator has run this round's
+                    <p className="hint mt-2">
+                      Strength and ranking appear once your facilitator has run this round's
                       calculation for every team.
                     </p>
                   )}
                 </PixelPanel>
               </motion.div>
             )}
+
+            {/* Facilitator's debrief — renders nothing until it is published
+                AND the simulation is Completed. */}
+            <DebriefCard />
 
             {/* CTAs */}
             <motion.div {...sec(3)} className="flex gap-2">
@@ -364,6 +387,8 @@ export function FinalResultsScreen() {
             </motion.div>
           </div>
         </div>
+        </div>
+      </div>
       </div>
     </div>
   );
@@ -390,11 +415,11 @@ function ScoreCell({
   const reduced = useReducedMotion();
   const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
   return (
-    <div className={`${bg} border-2 border-ink-900 p-2 text-center`}>
-      <div className="font-hud text-[10px] uppercase text-ink-700">{label}</div>
-      <div className="font-hud text-[22px] leading-none mt-1 tabular-nums">
+    <div className={`${bg} border border-border-soft p-2 text-center`}>
+      <div className="stat-label">{label}</div>
+      <div className="num-lg mt-1">
         {value}
-        <span className="text-[13px] text-ink-700">/{max}</span>
+        <span className="body-xs text-ink-700">/{max}</span>
       </div>
       <div className="mt-2 h-[7px] border border-ink-900/60 bg-cream-50 overflow-hidden">
         <motion.div
@@ -424,8 +449,8 @@ function StampList({
   reduced: boolean;
 }) {
   return (
-    <div className={`${boxClass} border-2 border-ink-900 p-2`}>
-      <div className="font-hud text-[10px] uppercase">{title}</div>
+    <div className={`${boxClass} border border-border-soft p-2`}>
+      <div className="stat-label">{title}</div>
       <ul className="list-disc pl-5 mt-1">
         {items.map((text, i) => (
           <motion.li
@@ -470,4 +495,32 @@ function useCountUp(target: number, duration = 1250, delayMs = 0) {
     };
   }, [target, duration, delayMs, reduced]);
   return v;
+}
+
+/**
+ * One server-authoritative figure, in the app's own readout language: tinted
+ * box, quiet caption, loud value. Deliberately the same shape as the chips on
+ * the Operations page so the official numbers read as part of the game rather
+ * than a report pasted into it.
+ */
+function ServerStat({
+  label,
+  value,
+  tone = 'muted',
+}: {
+  label: string;
+  value: string;
+  tone?: 'good' | 'cost' | 'info' | 'muted';
+}) {
+  const skin =
+    tone === 'good' ? 'border-success bg-success-soft/50'
+    : tone === 'cost' ? 'border-warning bg-warning-soft/50'
+    : tone === 'info' ? 'border-info bg-info-soft/50'
+    : 'border-border-soft bg-surface-2/60';
+  return (
+    <div className={clsx('border-2 px-2.5 py-2 min-w-0', skin)}>
+      <div className="stat-label stat-label-on-tint truncate">{label}</div>
+      <div className="num-sm text-text mt-1 truncate">{value}</div>
+    </div>
+  );
 }

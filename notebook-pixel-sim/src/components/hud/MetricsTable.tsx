@@ -80,12 +80,12 @@ export function BottomStats() {
       </div>
 
       <header className="relative flex items-center gap-2.5 mb-6">
-        <span className="inline-flex items-center justify-center w-9 h-9 border-2 border-cream-100/25 bg-black/25">
+        <span className="inline-flex items-center justify-center w-9 h-9 border border-cream-100/25 bg-black/25">
           <img src={A.ui.sidebar.metrics} alt="" className="w-6 h-6 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
         </span>
         <div className="min-w-0">
-          <div className="text-[21px] uppercase tracking-[0.16em] font-bold text-cream-100 font-hud">Stats &amp; P&amp;L</div>
-          <div className="text-[15px] font-medium text-cream-100/80 hidden md:block mt-1">
+          <div className="pixel-caption text-cream-100">Stats &amp; P&amp;L</div>
+          <div className="body-xs text-cream-100/80 hidden md:block mt-1">
             Your paperwork - the active notebook, the whole portfolio, and the run's finances
           </div>
         </div>
@@ -142,12 +142,12 @@ function PaperSheet({
       <span aria-hidden className="absolute -top-2 left-7 w-14 h-4 -rotate-3 bg-[#E9E0C8]/90 border border-black/20 shadow-[1px_1px_0_0_rgba(0,0,0,0.25)] z-10" />
       <span aria-hidden className="absolute -top-2 right-7 w-14 h-4 rotate-2 bg-[#E9E0C8]/90 border border-black/20 shadow-[1px_1px_0_0_rgba(0,0,0,0.25)] z-10" />
 
-      <div className="panel-frame bg-surface px-3 pt-3 pb-3 shadow-[7px_9px_0_0_rgba(0,0,0,0.35)]">
+      <div className="panel-frame bg-surface px-3 pt-3 pb-3">
         <div className="flex items-center gap-2 pb-2.5">
-          <span className="inline-flex items-center justify-center w-7 h-7 border-2 border-border-soft bg-surface-2 shrink-0">
+          <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2 shrink-0">
             <img src={icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
           </span>
-          <span className="font-hud text-[16px] uppercase tracking-wider text-text truncate">{title}</span>
+          <span className="eyebrow eyebrow-sm text-text truncate">{title}</span>
         </div>
         {children}
       </div>
@@ -183,23 +183,23 @@ function KVTable({ groups }: { groups: KVGroup[] }) {
   let rowIdx = 0;
   return (
     // Thin border only - the PaperSheet wrapper provides the heavy frame.
-    <div className="border-2 border-border-soft bg-surface overflow-hidden">
-      <table className="w-full border-collapse text-[17px]">
+    <div className="border border-border-soft bg-surface overflow-hidden">
+      <table className="w-full border-collapse body-xs">
         {groups.map((g, gi) => (
-          <tbody key={g.key} className={clsx(gi > 0 && 'border-t-2 border-border-soft')}>
+          <tbody key={g.key} className={clsx(gi > 0 && 'border-t border-border-soft')}>
             {/* GROUP header - a clear SECTION divider: small caps, heavy,
                 strong ink. Deliberately smaller than the row values below it
                 so the data reads as the loudest thing. */}
             <tr className="bg-surface-2/80">
-              <th className="text-left font-extrabold uppercase tracking-[0.08em] text-[12px] text-text-2 px-2.5 py-1.5">
+              <th className="text-left stat-label text-text-2 px-2.5 py-1.5">
                 <span className="inline-flex items-center gap-2">
-                  <span className="inline-flex items-center justify-center w-6 h-6 border-2 border-border-soft bg-surface shrink-0">
+                  <span className="inline-flex items-center justify-center w-6 h-6 border border-border-soft bg-surface shrink-0">
                     <img src={g.icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
                   </span>
                   {g.title}
                 </span>
               </th>
-              <th className={clsx('text-right px-2.5 py-1.5 text-[16px] font-extrabold tabular-nums', toneText[g.totalTone ?? 'neutral'])}>
+              <th className={clsx('text-right px-2.5 py-1.5 num-xs', toneText[g.totalTone ?? 'neutral'])}>
                 {g.total ?? ''}
               </th>
             </tr>
@@ -220,12 +220,12 @@ function KVTable({ groups }: { groups: KVGroup[] }) {
                   )}
                 >
                   <td className="pl-10 pr-2.5 py-2 align-middle">
-                    <div className={clsx('leading-tight truncate text-[14px]', r.emphasis ? 'font-bold text-text' : 'font-semibold text-text-2')}>
+                    <div className={clsx('leading-tight truncate body-xs', r.emphasis ? 'item-name text-text' : 'text-text-2')}>
                       {r.label}
                     </div>
-                    {r.sub && <div className="text-[11.5px] font-medium text-text-3 leading-tight truncate mt-0.5">{r.sub}</div>}
+                    {r.sub && <div className="hint text-text-3 leading-tight truncate mt-0.5">{r.sub}</div>}
                   </td>
-                  <td className={clsx('px-2.5 py-2 text-right align-middle text-[17px] font-extrabold tabular-nums whitespace-nowrap w-[120px]', toneText[r.tone ?? 'neutral'])}>
+                  <td className={clsx('px-2.5 py-2 text-right align-middle num-sm whitespace-nowrap w-[120px]', toneText[r.tone ?? 'neutral'])}>
                     {r.num !== undefined && r.format ? <CountUp value={r.num} format={r.format} /> : r.value}
                   </td>
                 </motion.tr>
@@ -240,8 +240,8 @@ function KVTable({ groups }: { groups: KVGroup[] }) {
 
 function EmptyMetrics({ text }: { text: string }) {
   return (
-    <div className="border-2 border-border-soft bg-surface p-6 text-center">
-      <div className="text-[17px] text-text-2">{text}</div>
+    <div className="border border-border-soft bg-surface p-6 text-center">
+      <div className="body-xs text-text-2">{text}</div>
     </div>
   );
 }
@@ -393,16 +393,36 @@ export function FinanceTable() {
 
   return (
     // Thin border only - the PaperSheet wrapper provides the heavy frame.
-    <div className="border-2 border-border-soft bg-surface overflow-hidden">
+    <div className="border border-border-soft bg-surface overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[16px] min-w-[500px]">
+        <table className="w-full border-collapse min-w-[520px]">
           <thead>
-            <tr className="text-text-3 bg-surface-2/70">
-              <th className="text-left font-semibold uppercase tracking-wider text-[14px] py-2 pl-2.5 pr-2">Line item</th>
-              <th className={clsx('text-right font-semibold uppercase tracking-wider text-[14px] py-2 px-2 w-[74px]', phaseNow === 1 && 'text-text')}>P1</th>
-              <th className={clsx('text-right font-semibold uppercase tracking-wider text-[14px] py-2 px-2 w-[74px]', phaseNow === 2 && 'text-text')}>P2</th>
-              <th className={clsx('text-right font-semibold uppercase tracking-wider text-[14px] py-2 px-2 w-[74px]', phaseNow === 3 && 'text-text')}>P3</th>
-              <th className="text-right font-semibold uppercase tracking-wider text-[14px] py-2 pl-2 pr-2.5 w-[86px] text-text">Total</th>
+            {/* The live phase column is marked in the header rather than left
+                to the reader to work out from the day counter. */}
+            <tr className="bg-cream-200 border-b border-border-soft">
+              <th className="stat-label text-left py-2.5 pl-3 pr-2">Line item</th>
+              {([1, 2, 3] as const).map((p) => (
+                // "You are here" is a COLUMN marker, so it reads as a rule
+                // under the heading, the way a selected tab does — not as a
+                // filled cell. The fill was `bg-info-soft`, a lavender block
+                // dropped into a table of warm creams and browns, and it
+                // highlighted one header cell rather than the column it names.
+                // The trailing "·" is gone with it: a stray dot after "P1" is
+                // not a legend anyone can read.
+                <th
+                  key={p}
+                  aria-current={phaseNow === p ? 'true' : undefined}
+                  className={clsx(
+                    'eyebrow eyebrow-sm text-right py-2.5 px-2 w-[78px] border-b-4',
+                    phaseNow === p
+                      ? 'eyebrow-strong border-primary bg-cream-100'
+                      : 'eyebrow-muted border-transparent',
+                  )}
+                >
+                  {`P${p}`}
+                </th>
+              ))}
+              <th className="stat-label text-text text-right py-2.5 pl-2 pr-3 w-[92px]">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -418,7 +438,7 @@ export function FinanceTable() {
                 total: computeRow(r, 'total'),
               };
               const emphasisCls =
-                r.emphasis === 'highlight' ? 'bg-surface-2 font-semibold'
+                r.emphasis === 'highlight' ? 'bg-surface-2 item-name'
                 : r.emphasis === 'subtotal' ? 'bg-surface-2/40'
                 : '';
               // Group-based divider: heavier line where the group changes
@@ -437,12 +457,12 @@ export function FinanceTable() {
                     emphasisCls,
                   )}
                 >
-                  <td className={clsx('py-1.5 pl-2.5 pr-2', r.group === 'cost' ? 'text-text-2' : 'text-text')}>
-                    <span className="inline-flex items-center gap-2 min-w-0">
-                      <span className="inline-flex items-center justify-center w-6 h-6 border border-border-soft bg-surface-2/60 shrink-0">
+                  <td className={clsx('py-2 pl-3 pr-2', r.group === 'cost' ? 'text-text-2' : 'text-text')}>
+                    <span className="inline-flex items-center gap-2.5 min-w-0">
+                      <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2/60 shrink-0">
                         <img src={r.icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
                       </span>
-                      <span className={clsx('truncate', r.emphasis ? 'font-bold text-[17px]' : 'text-[16px]')}>{r.label}</span>
+                      <span className={clsx('truncate', r.emphasis ? 'item-name' : 'body-xs')}>{r.label}</span>
                     </span>
                   </td>
                   <PnLCell value={values.p1} row={r} />
@@ -461,7 +481,7 @@ export function FinanceTable() {
 
 function PnLCell({ value, row, emphasis }: { value: number | null; row: PnLRow; emphasis?: boolean }) {
   if (value === null) {
-    return <td className="py-1.5 px-2 text-right text-text-3">-</td>;
+    return <td className="py-2 px-2 text-right num-xs text-text-3">-</td>;
   }
   let color = 'text-text';
   if (row.group === 'cost') color = value !== 0 ? 'text-fin-cost' : 'text-text-3';
@@ -474,7 +494,7 @@ function PnLCell({ value, row, emphasis }: { value: number | null; row: PnLRow; 
     row.group === 'cost' && value !== 0 ? `−${fmt$(Math.abs(value))}` : fmt$(value);
 
   return (
-    <td className={clsx('py-1.5 px-2 text-right tabular-nums whitespace-nowrap', color, emphasis && 'pr-2.5 font-bold')}>
+    <td className={clsx('py-2 px-2 text-right num-xs whitespace-nowrap', color, emphasis && 'pr-3')}>
       {display}
     </td>
   );

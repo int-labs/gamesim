@@ -200,7 +200,7 @@ export const SCRIPT_PHASE2_START: MascotScript = {
       mood: 'thinking',
     },
     {
-      body: "Watch two numbers: Stock and Demand in the top HUD. If stock keeps hitting zero, hire helpers or buy a tool. If stock keeps growing, slow your raw-material buys.",
+      body: "Watch two numbers: Stock and Demand in the top HUD. If stock keeps hitting zero, raise Produce / day or hire a helper. If stock keeps growing, lower it again.",
       mood: 'pointing_right_explain',
     },
     {
