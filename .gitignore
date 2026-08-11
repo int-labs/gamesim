@@ -92,6 +92,8 @@ bower_components/
 
 # Local development notes / rules (session docs, not for the public repo)
 notes/
+!client/src/features/notes/
+!client/src/features/notes/**
 
 # Locally-stored image uploads (see server/src/services/storage.ts)
 server/uploads/
