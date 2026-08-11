@@ -1,7 +1,7 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
-import RoundNote from "../models/RoundNote";
+import RoundNote from "../models/roundNote";
 
 /**
  * Facilitator notes per round.

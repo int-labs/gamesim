@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { IMPACT_CONFIG } from "../constants/impacts";
+import { IMPACT_CONFIG, SELLING_PRICE_KEY } from "../constants/impacts";
 import { calcBellCurveScore } from "../utils/calcBellCurveScore";
 import { calcReverseDiminishingReturns } from "../utils/calcReverseDiminishingReturns";
 import { calcDiminishingReturnsCostFactor } from "../utils/calcDiminishingReturnsCostFactor";
@@ -256,7 +256,6 @@ export const calcPricingScore = (
   return rawScore * 0.5;
 };
 
-const SELLING_PRICE_KEY = "selling_price";
 
 export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput {
   const { productId, marketShares, productFields, decisions, globalInputs, baseVariables } = input;

@@ -1,7 +1,7 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
-import ImageAsset from "../models/ImageAssets";
+import ImageAsset from "../models/imageAssets";
 import { deleteObject, putObject, resolveStorage } from "../services/storage";
 
 const EXT_BY_MIME: Record<string, string> = {

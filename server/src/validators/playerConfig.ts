@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { PLAYER_CONFIG_SECTIONS, type PlayerConfigSection } from "../models/PlayerConfig";
+﻿import { z } from "zod";
+import { PLAYER_CONFIG_SECTIONS, type PlayerConfigSection } from "../models/playerConfig";
 
 /**
  * Shape contract for PlayerConfig. Mirrors the player's own TypeScript types

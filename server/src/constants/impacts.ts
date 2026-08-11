@@ -1,3 +1,6 @@
+export const SELLING_PRICE_KEY          = "selling_price";
+export const PROJECTED_MARKET_SHARE_KEY = "projected_market_share";
+
 export type ImpactTarget =
   | "inventory"
   | "sales_channel"

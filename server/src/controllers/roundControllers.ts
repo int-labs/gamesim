@@ -1,8 +1,8 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Round from "../models/rounds";
 import Simulation from "../models/simulations";
-import Results from "../models/Results";
+import Results from "../models/results";
 import { runRoundCalculation } from "../services/roundCalculation";
 
 // GET /rounds?simulationId=

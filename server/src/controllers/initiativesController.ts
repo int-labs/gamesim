@@ -1,5 +1,5 @@
-import { Request, Response } from "express";
-import Initiative from "../models/Initiatives";
+﻿import { Request, Response } from "express";
+import Initiative from "../models/initiatives";
 
 // POST /initiatives
 export const createInitiative = async (req: Request, res: Response): Promise<void> => {

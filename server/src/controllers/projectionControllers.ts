@@ -1,9 +1,9 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import mongoose from "mongoose";
-import Product from "../models/Products";
-import Projection from "../models/Projections";
+import Product from "../models/products";
+import Projection from "../models/projections";
 import { ROLES } from "../constants/roles";
-import BaseData from "../models/BaseData";
+import BaseData from "../models/baseData";
 import Round from "../models/rounds";
 import { calcFinancials, ProductField, BaseVariables } from "../sim/calcFinancials";
 

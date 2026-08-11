@@ -1,5 +1,5 @@
-import { Request, Response } from "express";
-import TeamRunReport from "../models/TeamRunReport";
+﻿import { Request, Response } from "express";
+import TeamRunReport from "../models/teamRunReport";
 import { ROLES } from "../constants/roles";
 
 /**

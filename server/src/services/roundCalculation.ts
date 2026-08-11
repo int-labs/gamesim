@@ -1,4 +1,4 @@
-// Round calculation, extracted so it can run either standalone
+﻿// Round calculation, extracted so it can run either standalone
 // (POST /rounds/:id/calculate) or inside the atomic end-of-round transaction
 // (POST /rounds/:id/end).
 //
@@ -15,11 +15,11 @@
 // status back too.
 
 import mongoose, { ClientSession } from "mongoose";
-import BaseData from "../models/BaseData";
+import BaseData from "../models/baseData";
 import Decision from "../models/decisions";
-import Product from "../models/Products";
-import Projections from "../models/Projections";
-import Results from "../models/Results";
+import Product from "../models/products";
+import Projections from "../models/projections";
+import Results from "../models/results";
 import Simulation from "../models/simulations";
 import {
   calcMarketModel,

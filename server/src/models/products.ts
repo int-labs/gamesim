@@ -1,5 +1,5 @@
-import mongoose, { Document, Schema, Types } from "mongoose";
-import Segment from "./Segment";
+﻿import mongoose, { Document, Schema, Types } from "mongoose";
+import Segment from "./segment";
 
 // ============================================================
 // Interfaces

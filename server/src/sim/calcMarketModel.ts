@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { mean, calcStdDev, directionOffset, normalCDF, DEFAULT_TIGHTENING } from "../utils/calcMathUtilities";
+import { SELLING_PRICE_KEY, PROJECTED_MARKET_SHARE_KEY } from "../constants/impacts";
 import { calcDiminishingReturnsCostFactor } from "../utils/calcDiminishingReturnsCostFactor";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -122,7 +123,6 @@ const resolveFieldValue = (
 };
 
 // ─── Core Calculation ────────────────────────────────────────────────────────
-const SELLING_PRICE_KEY = "selling_price";
 
 export function calcMarketModel(
   input: CalcMarketModelInput
@@ -174,7 +174,7 @@ export function calcMarketModel(
     const teamTotals:    Record<string, number> = {};
 
     for (const mmField of mmFields) {
-      if (mmField.key === "projected_market_share" || mmField.key === SELLING_PRICE_KEY) continue;
+      if (mmField.key === PROJECTED_MARKET_SHARE_KEY || mmField.key === SELLING_PRICE_KEY) continue;
 
       // look up calc config from productFields
       const pf = productFields.find((f) => f.key === mmField.key);
@@ -266,7 +266,7 @@ export function calcMarketModel(
         : (weightedScoresNormalCDF[tidStr] ?? 0) / totalScore;
 
     // projected_market_share: team's intended capture, clamped 0–100
-    const pmsRaw = getInput(teamId, "projected_market_share");
+    const pmsRaw = getInput(teamId, PROJECTED_MARKET_SHARE_KEY);
     const pms    = Math.min(Math.max(pmsRaw, 0), 100);
 
     // normalise against each team's equal slice (1 / numberOfTeams)

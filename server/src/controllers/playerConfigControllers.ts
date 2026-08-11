@@ -1,10 +1,10 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import mongoose from "mongoose";
 import PlayerConfig, {
   PLAYER_CONFIG_SECTIONS,
   toSnapshot,
   type PlayerConfigSection,
-} from "../models/PlayerConfig";
+} from "../models/playerConfig";
 import SimulationType from "../models/simulationTypes";
 import {
   SECTION_SCHEMAS,

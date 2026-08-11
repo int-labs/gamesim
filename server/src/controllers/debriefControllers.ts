@@ -1,6 +1,6 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { z } from "zod";
-import Debrief from "../models/Debrief";
+import Debrief from "../models/debrief";
 import Simulation from "../models/simulations";
 
 /**
