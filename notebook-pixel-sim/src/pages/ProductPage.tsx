@@ -147,10 +147,17 @@ export function ProductPage() {
         open={!!leftDrawer && leftDrawer !== DETAILS_ID}
         zClassName="z-40"
         escYields={rightDrawer === DETAILS_ID}
-        // With Details open the pair should read as two panels flanking a live
-        // canvas, so the left one drops its dim layer too — otherwise Details
-        // floats over a page the left drawer has greyed out.
-        backdrop={rightDrawer !== DETAILS_ID}
+        // NEVER dims. The left drawer is a work surface you keep open while
+        // using the canvas and the Details drawer, so it must not blank the
+        // page behind it.
+        //
+        // Gating this on `rightDrawer !== DETAILS_ID` (the first attempt) was
+        // backwards: with Details CLOSED the dim was on, and the Details
+        // button sits under it — so you could never reach the control that
+        // opens the second drawer. Raising the button to z-45 does not help,
+        // because it lives inside the canvas subtree and the backdrop is in
+        // the drawer's own stacking context; z-index cannot cross that.
+        backdrop={false}
         title={leftDrawer ? LEFT_META[leftDrawer]?.title : ''}
         icon={leftDrawer ? LEFT_META[leftDrawer]?.icon : undefined}
         onClose={() => closeDrawer('left')}
