@@ -446,7 +446,7 @@ export function StudioPanel() {
                 <div className="flex items-end gap-2 border-t border-border-soft pt-2.5">
                   {/* <label> wraps both parts, so the caption is a click target
                       for the field rather than decoration beside it. */}
-                  <label className="min-w-0 w-[120px] shrink-0 flex flex-col cursor-pointer">
+                  <label className="min-w-0 flex-1 flex flex-col cursor-pointer">
                     <span className="stat-label truncate">{`Level · max ${maxLevel}`}</span>
                     <input
                       type="number"
@@ -462,7 +462,7 @@ export function StudioPanel() {
                       className="w-full mt-1 bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary shadow-[2px_2px_0_0_var(--c-shadow)] px-1.5 py-1 cursor-text"
                     />
                   </label>
-                  <span className="ml-auto self-end pb-0.5">
+                  <span className="shrink-0 self-end pb-0.5">
                   {engaged ? (
                     <PixelButton
                       variant="ghost"
