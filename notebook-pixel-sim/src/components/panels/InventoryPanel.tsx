@@ -179,8 +179,20 @@ function ProductionRow({
           </span>
         </span>
       </div>
-      <div className="flex items-center gap-3">
-        <span className="stat-label w-24 shrink-0">Produce / phase</span>
+      {/* Caption and value on one line, slider on its own beneath. The caption
+          used to sit INSIDE the slider row at a fixed `w-24` (96px), and
+          `.stat-label` is `white-space: nowrap`, so "PRODUCE / PHASE" simply
+          ran past its box and the slider was drawn over the last letters. The
+          two fixed widths were the whole bug; without them nothing can clip,
+          the slider gets the full width to drag along, and the value sits
+          where every other figure in this panel sits. */}
+      <div>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="stat-label">Produce / phase</span>
+          {/* The slider's unit is still units/DAY internally — that is what the
+              engine schedules — but every figure the player reads is per phase. */}
+          <span className="num-sm text-text tabular-nums">{fmtInt(perPhase(value))}</span>
+        </div>
         <input
           type="range"
           min={0}
@@ -188,14 +200,8 @@ function ProductionRow({
           step={1}
           value={value}
           onChange={(e) => onChange(parseInt(e.target.value, 10))}
-          className="flex-1 accent-ui-primary cursor-pointer"
+          className="w-full mt-1.5 accent-ui-primary cursor-pointer"
         />
-        {/* VALUE — the loudest thing in the row */}
-        {/* The slider's unit is still units/DAY internally — that is what the
-            engine schedules — but every figure the player reads is per phase. */}
-        <span className="num-sm text-text w-20 text-right shrink-0">
-          {fmtInt(perPhase(value))}
-        </span>
       </div>
       <div className="flex items-center justify-between gap-3 mt-2">
         <span className="flex items-center gap-3 min-w-0">
@@ -217,9 +223,15 @@ function Box({ label, value, tone, hint }: { label: string; value: string; tone:
   const bg =
     tone === 'info' ? 'bg-surface-muted/60' : tone === 'success' ? 'bg-success-soft/60' : 'bg-surface-2';
   const inner = (
+    // `.stat-label`, not `.eyebrow`: an eyebrow OPENS a section, a stat-label
+    // NAMES a value, and this is the second. And `.num-md` (21px) rather than
+    // `.num-lg` (28px) - these tiles were running eleven pixels and a whole
+    // weight above every other readout in the app, so a summary band read as
+    // the loudest thing on the page. One step up from the 17px chips is enough
+    // to say "summary" without leaving the scale.
     <div className={`readout ${bg} border border-border-soft p-2`}>
-      <div className="eyebrow eyebrow-sm">{label}</div>
-      <div className="num-lg text-text mt-0.5 tabular-nums">{value}</div>
+      <div className="stat-label">{label}</div>
+      <div className="num-md text-text mt-1 tabular-nums">{value}</div>
     </div>
   );
   return hint ? <Tooltip content={hint}>{inner}</Tooltip> : inner;

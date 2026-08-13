@@ -467,7 +467,7 @@ button {
   .section-heading {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 28px;
+    font-size: 32px;
     line-height: 1.02;
     letter-spacing: 0.03em;
     text-transform: uppercase;
@@ -476,7 +476,7 @@ button {
   .panel-title {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 16px;          /* +5 vs. original Inter 11px */
+    font-size: 19px;          /* +5 vs. original Inter 11px */
     line-height: 1.05;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -492,14 +492,19 @@ button {
   .h2 {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 24px;          /* +6 vs. Inter 18px to match visual weight */
+    font-size: 28px;          /* +6 vs. Inter 18px to match visual weight */
     line-height: 1.05;
     letter-spacing: 0.02em;
   }
+  /* HEADING SIZES were raised one step across the board (section-heading 28→32,
+     h2 24→28, h3 22 from 18, panel-title 16→19). VT323 is a condensed pixel
+     face and reads a good deal smaller than the same px value in Inter, so a
+     card title set at 18px sat BELOW the body copy beside it and the hierarchy
+     inverted - the name of the thing looked less important than its blurb. */
   .h3 {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 18px;          /* +4 vs. Inter 14px */
+    font-size: 22px;          /* +4 vs. Inter 14px */
     line-height: 1.1;
     letter-spacing: 0.02em;
   }

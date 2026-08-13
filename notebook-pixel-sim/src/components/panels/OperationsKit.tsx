@@ -87,14 +87,21 @@ export function StatChip({
     // to read as a set of controls. But it keeps its FILL: `.readout`'s inset
     // shadow says "display", and the tint is what makes label + value read as
     // one object instead of two loose lines.
-    <div className={clsx('readout px-2.5 py-1.5 min-w-0', CHIP_TONE[tone], className)}>
-      {/* One line, always. .stat-label carries `white-space: nowrap`, so a long
-          caption clips at the chip edge instead of pushing the figure down and
-          leaving one chip in a row taller than its neighbours. */}
-      <div className="stat-label stat-label-on-tint truncate">{label}</div>
-      {/* Values wrap rather than truncate: a clipped "$11.50/day + $…" hides
-          exactly the number the player needs. */}
-      <div className="num-sm mt-1 leading-tight break-words">{value}</div>
+    // SIDE BY SIDE, not stacked. A caption over its figure made every chip two
+    // lines tall, so five facts became a five-storey block and the card was
+    // mostly chips. On one baseline a chip is a row in a table - caption left,
+    // figure right - which is how you read a set of numbers against each other.
+    // The label truncates and the FIGURE never does: a clipped "$11.50 / uni"
+    // hides exactly what the player came for, so the value keeps its width and
+    // the caption gives way.
+    <div className={clsx('readout px-2.5 py-1.5 min-w-0 flex items-baseline justify-between gap-2', CHIP_TONE[tone], className)}>
+      {/* WRAPS rather than truncates. Side by side there is far less room for a
+          caption than there was stacked, and "OUTPUT / P…" / "BREAKEVEN…" tells
+          you nothing - the words are the only thing naming the figure. The grid
+          row stretches its cells, so a caption taking two lines lifts its whole
+          row and the chips stay level. */}
+      <div className="stat-label stat-label-on-tint min-w-0 leading-tight">{label}</div>
+      <div className="num-sm leading-tight shrink-0 text-right">{value}</div>
     </div>
   );
 }
