@@ -294,7 +294,11 @@ export function OperationsDetailModal({
             {inputs.map((inp, i) => (
               <motion.div
                 key={inp.name}
-                className="border-2 border-ink-900 bg-cream-50"
+                // Hairline, not a 2px ink frame. This is a REFERENCE card in a
+                // read-only sheet — nothing here is pressable — and it was
+                // wearing the same frame as the buttons on the page behind it.
+                // Its own header band already separates one entry from the next.
+                className="border border-border-soft bg-cream-50"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04, type: 'spring', stiffness: 280, damping: 22 }}

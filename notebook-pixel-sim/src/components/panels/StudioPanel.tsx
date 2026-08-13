@@ -656,7 +656,10 @@ export function StudioPanel() {
                 app set in the body face, which is why they read as foreign. */}
             <div className="flex items-center justify-end gap-2 pt-1 border-t border-border-soft mt-1 -mx-1 px-1 pt-3.5">
               {short && (
-                <span className="mr-auto self-center inline-flex items-center gap-1.5 border-2 border-danger bg-danger-soft/50 px-2.5 py-1.5">
+                // No 2px frame: this is a REASON, not a control, and it sits
+                // inches from the two buttons it explains. Framing it like them
+                // invited a click on the one thing here that does nothing.
+                <span className="mr-auto self-center inline-flex items-center gap-1.5 bg-danger-soft/50 px-2.5 py-1.5">
                   <span className="stat-label text-danger">Not enough energy</span>
                 </span>
               )}

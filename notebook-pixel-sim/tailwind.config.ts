@@ -1,6 +1,35 @@
 import type { Config } from 'tailwindcss';
 
 /**
+ * A CSS-variable colour that ALSO honours Tailwind's `/NN` alpha modifier.
+ *
+ * Every token below used to be a bare `var(--c-…)` string. Tailwind cannot
+ * inject an alpha into an opaque `var()`, so it emitted an INVALID colour for
+ * any `/NN` suffix and the browser fell back to transparent. `bg-warning-soft`
+ * painted; `bg-warning-soft/40` painted nothing — silently, with no build
+ * warning and no console error. Around fifty call sites were written that way,
+ * which is why assorted tiles and chips across the app looked like they had
+ * simply lost their background: they had never had one.
+ *
+ * `color-mix()` gives the alpha back without changing how the variables are
+ * declared (they stay readable hex in index.css, still usable from plain CSS).
+ * Support matches the app's floor — Chrome 111 / Safari 16.2 / Firefox 113 —
+ * and anything older lands on transparent, i.e. exactly today's behaviour.
+ *
+ * The guards matter: for a plain utility Tailwind passes `var(--tw-bg-opacity)`
+ * rather than a number, so anything non-finite (or >= 1) must fall through to
+ * the plain variable or every un-suffixed class would break instead.
+ */
+const alphaVar =
+  (name: string) =>
+  ({ opacityValue }: { opacityValue?: string }) => {
+    if (opacityValue === undefined) return `var(${name})`;
+    const n = Number(opacityValue);
+    if (!Number.isFinite(n) || n >= 1) return `var(${name})`;
+    return `color-mix(in srgb, var(${name}) ${n * 100}%, transparent)`;
+  };
+
+/**
  * Minimal pixel design system.
  * One restrained palette, one ink color, one outline color, soft semantic accents.
  * All colors flow from CSS variables defined in styles/index.css for easy themeing.
@@ -20,16 +49,16 @@ export default {
         // the type classes paint, so a label inside a light-on-dark button needs
         // an explicit way to yield to its parent.
         inherit: 'inherit',
-        success: 'var(--c-success-ink)',
-        warning: 'var(--c-warning-ink)',
-        danger: 'var(--c-danger-ink)',
-        info: 'var(--c-info-ink)',
-        'fin-revenue': 'var(--c-fin-revenue-ink)',
-        'fin-cost': 'var(--c-fin-cost-ink)',
-        'fin-profit': 'var(--c-fin-profit-ink)',
-        'fin-cash': 'var(--c-fin-cash-ink)',
-        'fin-inventory': 'var(--c-fin-inventory-ink)',
-        'fin-demand': 'var(--c-fin-demand-ink)',
+        success: alphaVar('--c-success-ink'),
+        warning: alphaVar('--c-warning-ink'),
+        danger: alphaVar('--c-danger-ink'),
+        info: alphaVar('--c-info-ink'),
+        'fin-revenue': alphaVar('--c-fin-revenue-ink'),
+        'fin-cost': alphaVar('--c-fin-cost-ink'),
+        'fin-profit': alphaVar('--c-fin-profit-ink'),
+        'fin-cash': alphaVar('--c-fin-cash-ink'),
+        'fin-inventory': alphaVar('--c-fin-inventory-ink'),
+        'fin-demand': alphaVar('--c-fin-demand-ink'),
       },
       fontFamily: {
         body: ['Inter', 'system-ui', 'sans-serif'],
@@ -38,41 +67,41 @@ export default {
       },
       colors: {
         // Background / surfaces
-        bg: 'var(--c-bg)',
-        surface: 'var(--c-surface)',
-        'surface-2': 'var(--c-surface-2)',
-        'surface-muted': 'var(--c-surface-muted)',
+        bg: alphaVar('--c-bg'),
+        surface: alphaVar('--c-surface'),
+        'surface-2': alphaVar('--c-surface-2'),
+        'surface-muted': alphaVar('--c-surface-muted'),
         // Borders / outlines
-        border: 'var(--c-border)',
-        'border-soft': 'var(--c-border-soft)',
+        border: alphaVar('--c-border'),
+        'border-soft': alphaVar('--c-border-soft'),
         // Text
-        text: 'var(--c-text)',
-        'text-2': 'var(--c-text-2)',
-        'text-3': 'var(--c-text-3)',
+        text: alphaVar('--c-text'),
+        'text-2': alphaVar('--c-text-2'),
+        'text-3': alphaVar('--c-text-3'),
         // Brand / actions
-        primary: 'var(--c-primary)',
-        'primary-soft': 'var(--c-primary-soft)',
-        'primary-strong': 'var(--c-primary-strong)',
-        secondary: 'var(--c-secondary)',
-        'secondary-soft': 'var(--c-secondary-soft)',
-        'secondary-strong': 'var(--c-secondary-strong)',
+        primary: alphaVar('--c-primary'),
+        'primary-soft': alphaVar('--c-primary-soft'),
+        'primary-strong': alphaVar('--c-primary-strong'),
+        secondary: alphaVar('--c-secondary'),
+        'secondary-soft': alphaVar('--c-secondary-soft'),
+        'secondary-strong': alphaVar('--c-secondary-strong'),
         // Semantic
-        success: 'var(--c-success)',
-        'success-soft': 'var(--c-success-soft)',
-        warning: 'var(--c-warning)',
-        'warning-soft': 'var(--c-warning-soft)',
-        danger: 'var(--c-danger)',
-        'danger-soft': 'var(--c-danger-soft)',
-        'danger-strong': 'var(--c-danger-strong)',
-        info: 'var(--c-info)',
-        'info-soft': 'var(--c-info-soft)',
+        success: alphaVar('--c-success'),
+        'success-soft': alphaVar('--c-success-soft'),
+        warning: alphaVar('--c-warning'),
+        'warning-soft': alphaVar('--c-warning-soft'),
+        danger: alphaVar('--c-danger'),
+        'danger-soft': alphaVar('--c-danger-soft'),
+        'danger-strong': alphaVar('--c-danger-strong'),
+        info: alphaVar('--c-info'),
+        'info-soft': alphaVar('--c-info-soft'),
         // Finance
-        'fin-revenue': 'var(--c-fin-revenue)',
-        'fin-cost': 'var(--c-fin-cost)',
-        'fin-profit': 'var(--c-fin-profit)',
-        'fin-cash': 'var(--c-fin-cash)',
-        'fin-inventory': 'var(--c-fin-inventory)',
-        'fin-demand': 'var(--c-fin-demand)',
+        'fin-revenue': alphaVar('--c-fin-revenue'),
+        'fin-cost': alphaVar('--c-fin-cost'),
+        'fin-profit': alphaVar('--c-fin-profit'),
+        'fin-cash': alphaVar('--c-fin-cash'),
+        'fin-inventory': alphaVar('--c-fin-inventory'),
+        'fin-demand': alphaVar('--c-fin-demand'),
 
         // ----- Legacy aliases kept so existing components still compile.
         // These will gradually be replaced by the new tokens above.
@@ -95,25 +124,25 @@ export default {
         kraft: { DEFAULT: '#cba87a', light: '#e6c898', dark: '#9a7a55' },
         cloth: { DEFAULT: '#cfc4ad', light: '#e8dec7', dark: '#a89c84' },
         ui: {
-          primary: 'var(--c-primary)',
+          primary: alphaVar('--c-primary'),
           'primary-dark': '#3F8A59',
-          secondary: 'var(--c-secondary)',
+          secondary: alphaVar('--c-secondary'),
           'secondary-dark': '#3E6299',
-          danger: 'var(--c-danger)',
+          danger: alphaVar('--c-danger'),
           'danger-dark': '#A13A30',
-          warm: 'var(--c-warning)',
-          warmsoft: 'var(--c-warning-soft)',
+          warm: alphaVar('--c-warning'),
+          warmsoft: alphaVar('--c-warning-soft'),
         },
         warn: { DEFAULT: 'var(--c-warning)', soft: 'var(--c-warning-soft)' },
         error: { DEFAULT: 'var(--c-danger)', soft: 'var(--c-danger-soft)' },
         // Chart palette uses semantic tokens
         chart: {
-          1: 'var(--c-fin-revenue)',
-          2: 'var(--c-fin-cash)',
-          3: 'var(--c-fin-demand)',
-          4: 'var(--c-fin-cost)',
-          5: 'var(--c-fin-profit)',
-          6: 'var(--c-secondary)',
+          1: alphaVar('--c-fin-revenue'),
+          2: alphaVar('--c-fin-cash'),
+          3: alphaVar('--c-fin-demand'),
+          4: alphaVar('--c-fin-cost'),
+          5: alphaVar('--c-fin-profit'),
+          6: alphaVar('--c-secondary'),
         },
         brand: { 500: '#954CC5', 400: '#c87bd9', 300: '#e29bd2' },
       },
