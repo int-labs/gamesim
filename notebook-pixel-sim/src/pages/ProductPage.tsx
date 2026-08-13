@@ -15,6 +15,11 @@ import { ProductLineList } from '@/components/panels/ProductLineList';
 import { EdgeDock, type DockItem } from '@/components/hud/EdgeDock';
 import { Drawer } from '@/components/hud/Drawer';
 
+/** Horizontal space the open left drawer needs: the edge dock's rail, the
+ *  384px panel and a gutter. The right drawer subtracts this so the two sit
+ *  side by side instead of one across the other. */
+const LEFT_DRAWER_RESERVE = 516;
+
 /**
  * Product page — WIDE CANVAS shell.
  *
@@ -203,7 +208,23 @@ export function ProductPage() {
         open={rightDrawer === DETAILS_ID}
         title="Notebook Details"
         onClose={() => closeDrawer('right')}
-        width="min(1040px, 92%)"
+        // The whole point of this drawer is that it opens ALONGSIDE the left
+        // one, and at 92% it did not: measured at a 1440px viewport, the left
+        // panel ended at x=488 and this one started at x=390, so it sat 98px
+        // on top of the panel it is meant to be read next to - clipping the
+        // items list mid-sentence.
+        //
+        // `LEFT_DRAWER_RESERVE` is the space the left drawer occupies (the
+        // edge dock's rail + the 384px panel + a gutter), so the cap below is
+        // "as wide as you like, but never into the left drawer". The floor
+        // keeps this readable on a small screen, where the two genuinely do
+        // not both fit: below ~1030px it overlaps again, which is the old
+        // behaviour and the best available on that width.
+        width={
+          leftDrawer && leftDrawer !== DETAILS_ID
+            ? `min(1040px, max(520px, calc(100% - ${LEFT_DRAWER_RESERVE}px)))`
+            : 'min(1040px, 92%)'
+        }
         backdrop={false}
         closeOnOutsidePointer
         zClassName="z-[60]"

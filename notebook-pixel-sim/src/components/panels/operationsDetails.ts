@@ -165,7 +165,7 @@ export function hiringDetail(): SectionDetail {
 
 export function vendorDetail(level: 1 | 2): SectionDetail {
   return {
-    title: 'Shipping Vendor',
+    title: 'Vendor',
     intro:
       'Vendors are per notebook, not company-wide. A vendor only helps if it actually stocks that notebook\'s market, so coverage matters more than headline cost.',
     inputs: VENDORS.map((v) => {

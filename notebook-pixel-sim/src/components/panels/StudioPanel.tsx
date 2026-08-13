@@ -438,10 +438,17 @@ export function StudioPanel() {
                     control here is a bare framed field on the card surface —
                     the same 2px frame + resting shadow as every button — so
                     the contrast with the two trays beside it IS the signal. */}
-                <div className="flex flex-wrap items-stretch gap-2 border-t border-border-soft pt-2.5">
+                {/* A GRID, not wrapped flex. As flex with `shrink-0` items the
+                    three fields sat at their content width and left a wide dead
+                    gap before the button, so the row read as three small boxes
+                    adrift in the card while the row below it spanned the full
+                    width. Three equal columns plus an auto column for the
+                    button fills the card and puts the fields on the same
+                    rhythm as the figures underneath. */}
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-stretch gap-2 border-t border-border-soft pt-2.5">
                   {/* <label> wraps both parts, so the caption is a click target
                       for the field rather than decoration beside it. */}
-                  <label className="shrink-0 flex flex-col justify-between cursor-pointer">
+                  <label className="min-w-0 flex flex-col justify-between cursor-pointer">
                     <span className="stat-label truncate">{`Level · max ${maxLevel}`}</span>
                     <input
                       type="number"
@@ -457,9 +464,9 @@ export function StudioPanel() {
                       className="w-full mt-1 bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary shadow-[2px_2px_0_0_var(--c-shadow)] px-1.5 py-1 cursor-text"
                     />
                   </label>
-                  <StatChip label="Cost / phase" value={fmt$(perPhase(lv.cost))} tone="money" className="shrink-0" />
-                  <StatChip label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" className="shrink-0" />
-                  <span className="ml-auto self-center shrink-0">
+                  <StatChip label="Cost / phase" value={fmt$(perPhase(lv.cost))} tone="money" />
+                  <StatChip label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" />
+                  <span className="self-center pl-1">
                   {engaged ? (
                     <PixelButton
                       variant="ghost"
@@ -483,7 +490,7 @@ export function StudioPanel() {
                 {/* Figures resolve to the level TYPED, not an L1→L4 range —
                     the range made you interpolate to find what you were
                     actually buying. */}
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 gap-2">
                   <StatChip label="Output / phase" value={`+${fmtUnitsPerPhase(lv.prodBonus)} units`} tone="good" />
                   <StatChip label="Sell-rate" value={`+${(lv.sellBonus * 100).toFixed(1)}%`} tone="good" />
                   {/* cost ÷ extra units = the margin each new unit must clear
@@ -507,7 +514,7 @@ export function StudioPanel() {
       {/* ── Shipping vendor (active line) ── */}
       <OpsSection
         icon={SECTION_ICON.vendor}
-        title="Shipping Vendor"
+        title="Vendor"
         hint={activeLine ? `For ${activeLine.name}. Only helps if it stocks that market.` : 'Add a notebook first.'}
         onDetails={() => setDetail(vendorDetail(vendorLevel))}
       >
