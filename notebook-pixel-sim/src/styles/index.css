@@ -669,7 +669,7 @@ button {
      recessed: an inset shadow reads as sunken, the opposite of pressable,
      which is why it is safe on a non-interactive value display.
 
-     THREE EXEMPTIONS. These are clickable and deliberately carry NO lift,
+     FOUR EXEMPTIONS. These are clickable and deliberately carry NO lift,
      because applying the rule literally makes them worse. Do not "fix" them:
 
        1. SEGMENTED CONTROLS / TAB STRIPS (Product/Business, Focus/Shelf/
@@ -688,6 +688,15 @@ button {
           character sprite would read as a bug, not a button.
 
      Everything else with a handler gets the lift.
+
+     AND ONE IN THE OTHER DIRECTION. The rule says a 2px frame means pressable,
+     so a framed thing you cannot press is normally a bug — but a PHYSICAL
+     OBJECT is not a control and does not read as one. `RankBadge` on the final
+     results screen is a rubber stamp: a 4px rank-coloured frame, a hard offset
+     shadow, corner pips and a -5deg rotation. Nobody has ever tried to click a
+     stamp. Flatten it to a hairline "for consistency" and the results screen
+     loses the one object that makes it feel like a verdict. An automated sweep
+     for framed non-clickables will flag it every time; this is the answer.
      ========================================================================== */
 
   /* Pixel button base — resting shadow IS the affordance. See the rule above. */
