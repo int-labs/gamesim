@@ -123,17 +123,21 @@ export function OpsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="border border-border-soft bg-cream-50">
-      {/* The masthead carries the section's weight. It used to be a 32px mark
-          beside a 16px caption — smaller than the card titles underneath it —
-          so five stacked sections read as one undifferentiated column. Bigger
-          art, a heading that outranks its children, and a caramel band that is
-          tall enough to register as a header rather than a divider. */}
+    // NO frame of its own. Reading one figure on this page meant parsing FIVE
+    // nested boxes - chip inside card inside section inside sheet inside page -
+    // each drawing its own edge and fill. That is the structural reason the
+    // screen read as cluttered, and no amount of colour tuning fixes it; a
+    // level has to go. The section is identified by its masthead band and the
+    // space around it, which is enough, so its border comes off and the count
+    // drops to four.
+    <section className="bg-cream-50">
+      {/* The masthead carries the section's weight: bigger art and a heading
+          that outranks the card titles underneath it. */}
       <header className="flex items-center gap-3.5 px-4 py-3 border-b border-border-soft bg-cream-200">
         <img
           src={icon}
           alt=""
-          className="w-16 h-16 object-contain shrink-0"
+          className="w-20 h-20 object-contain shrink-0"
           style={{ imageRendering: 'pixelated' }}
           draggable={false}
         />

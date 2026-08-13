@@ -240,7 +240,7 @@ export function StudioPanel() {
                   // and desaturated art.
                   'ctl-btn flex flex-col gap-2 p-3 border-2 text-left cursor-pointer transition-colors',
                   on
-                    ? 'border-primary-strong bg-success-soft'
+                    ? 'border-primary-strong bg-surface'
                     : 'border-ink-900 bg-surface hover:bg-cream-100',
                 )}
               >
@@ -256,7 +256,7 @@ export function StudioPanel() {
                     src={CHANNEL_ICON[ch]}
                     alt=""
                     className={clsx(
-                      'w-24 h-24 object-contain shrink-0 transition-[filter,opacity]',
+                      'w-28 h-28 object-contain shrink-0 transition-[filter,opacity]',
                       !on && 'grayscale',
                     )}
                     style={{ imageRendering: 'pixelated' }}
@@ -392,12 +392,12 @@ export function StudioPanel() {
               // started at a different x in every card. Header row first
               // (art + name + blurb), then controls and figures full width,
               // so all four cards align down the same edge.
-              <div key={c.id} className={clsx('readout p-3 flex flex-col gap-3', engaged ? 'bg-primary-soft' : 'bg-surface')}>
+              <div key={c.id} className="readout p-3 flex flex-col gap-3 bg-surface">
                 <div className="flex items-start gap-3">
                   <SafeImage
                     src={CANDIDATE_ICON[c.id]}
                     alt=""
-                    className={clsx('shrink-0 w-20 h-20 object-contain', !engaged && 'grayscale-[45%] opacity-80')}
+                    className={clsx('shrink-0 w-24 h-24 object-contain', !engaged && 'grayscale-[45%] opacity-80')}
                     fallbackIcon="hire"
                     fallbackSize={44}
                   />
@@ -429,35 +429,35 @@ export function StudioPanel() {
                     so they are inline figures now; only the input and the
                     button are boxed, and the button is pushed to the far end
                     where an action belongs. */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border-soft pt-2.5">
-                  <label className="flex items-center gap-2 shrink-0">
-                    <span className="stat-label">Level</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      max={maxLevel}
-                      value={draftRaw}
-                      onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
-                      onBlur={() => setLevelDraft((d) => ({ ...d, [c.id]: String(level) }))}
-                      aria-label={`${c.name} level, 1 to ${maxLevel}`}
-                      className="w-[62px] bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary px-2 py-1"
-                    />
-                    <span className="hint text-text-3 whitespace-nowrap">of {maxLevel}</span>
-                  </label>
-                  {/* Rules between the groups: the row carries three separate
-                      facts, and spacing alone let them run together. */}
-                  <span aria-hidden className="hidden sm:block w-px self-stretch bg-border-soft" />
-                  <span className="flex items-baseline gap-1.5 whitespace-nowrap">
-                    <span className="stat-label">Cost / phase</span>
-                    <span className="num-sm text-text">{fmt$(perPhase(lv.cost))}</span>
-                  </span>
-                  <span aria-hidden className="hidden sm:block w-px self-stretch bg-border-soft" />
-                  <span className="flex items-baseline gap-1.5 whitespace-nowrap">
-                    <span className="stat-label">Energy</span>
-                    <span className="num-sm text-text"><EnergyValue amount={lv.energy} size={13} /></span>
-                  </span>
-                  <span className="ml-auto shrink-0">
+                {/* All three facts wear the SAME chip as the figures below —
+                    label above, value beneath, one tint per meaning. They were
+                    briefly inline text, which left their labels sitting on no
+                    background while every neighbouring value had one. The
+                    level input is the chip's value, so the input, the cost and
+                    the energy line up as one row of equals and the button sits
+                    at the far end. */}
+                <div className="flex flex-wrap items-stretch gap-2 border-t border-border-soft pt-2.5">
+                  <StatChip
+                    label={`Level · max ${maxLevel}`}
+                    tone="reach"
+                    className="shrink-0"
+                    value={
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={maxLevel}
+                        value={draftRaw}
+                        onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
+                        onBlur={() => setLevelDraft((d) => ({ ...d, [c.id]: String(level) }))}
+                        aria-label={`${c.name} level, 1 to ${maxLevel}`}
+                        className="w-[58px] bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary px-1.5 py-0.5"
+                      />
+                    }
+                  />
+                  <StatChip label="Cost / phase" value={fmt$(perPhase(lv.cost))} tone="money" className="shrink-0" />
+                  <StatChip label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" className="shrink-0" />
+                  <span className="ml-auto self-center shrink-0">
                   {engaged ? (
                     <PixelButton
                       variant="ghost"
@@ -532,7 +532,7 @@ export function StudioPanel() {
                       // a four-card grid. The INK frame stays in both live
                       // states; an un-engaged vendor is still a control.
                       'ctl-btn text-left px-2 py-2 border-2 transition-all active:scale-[0.98]',
-                      on ? 'border-primary-strong bg-success-soft'
+                      on ? 'border-primary-strong bg-surface'
                       : stocks && affordable ? 'border-ink-900 bg-surface hover:bg-cream-100'
                       : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed',
                     )}
@@ -544,7 +544,7 @@ export function StudioPanel() {
                       <SafeImage
                         src={VENDOR_ICON[v.id]}
                         alt=""
-                        className={clsx('shrink-0 w-16 h-16 object-contain', !on && 'grayscale')}
+                        className={clsx('shrink-0 w-20 h-20 object-contain', !on && 'grayscale')}
                         fallbackIcon="box"
                         fallbackSize={32}
                       />
