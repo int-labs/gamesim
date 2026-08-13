@@ -101,7 +101,9 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews }:
     return (
       <div className="pb-2 flex flex-col gap-3">
         <ProductIdentity arch={arch} view={view} setView={setView} />
-        <ProductQualities arch={arch} />
+        <ProductCopy arch={arch} />
+        <ProductStrengths arch={arch} />
+        <ProductWeakness arch={arch} />
       </div>
     );
   }
@@ -167,13 +169,21 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews }:
               transition={{ duration: 0.18, ease: [0.2, 1, 0.4, 1] }}
             >
               {tab === 'product' && (
-                // Two columns: what it IS on the left (art, name, story),
-                // how it PERFORMS on the right (strengths vs weakness), so
-                // the two lists you weigh against each other sit together
-                // instead of one scrolling below the other.
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-                  <ProductIdentity arch={arch} view={view} setView={setView} />
-                  <ProductQualities arch={arch} />
+                // TWO ROWS, not two columns. Identity reads across the top -
+                // art on the left, name / tagline / story on the right - and
+                // the two lists you weigh against each other sit side by side
+                // beneath it. Stacked in a narrow right-hand column, strengths
+                // and weakness could only be compared vertically, which is the
+                // one direction you cannot scan two lists in.
+                <div className="flex flex-col gap-5">
+                  <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,400px)_1fr] gap-5 items-start">
+                    <ProductIdentity arch={arch} view={view} setView={setView} />
+                    <ProductCopy arch={arch} />
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                    <ProductStrengths arch={arch} />
+                    <ProductWeakness arch={arch} />
+                  </div>
                 </div>
               )}
               {tab === 'buyers' && <BuyerInterestTab arch={arch} />}
@@ -279,7 +289,9 @@ function ProductGallery({
   const art = ARCHETYPE_INFO[arch]?.art;
   return (
     <div className="bg-cream-100 pixel-frame p-3 flex flex-col items-center gap-2">
-      <div className={clsx('w-full flex items-center justify-center', compact ? 'min-h-[200px]' : 'min-h-[220px]')}>
+      {/* The art is the point of this panel, and in a 400px column it had
+          been sized for a much narrower one. */}
+      <div className={clsx('w-full flex items-center justify-center', compact ? 'min-h-[200px]' : 'min-h-[300px]')}>
         <motion.img
           // Re-keying on the visible art makes each notebook/angle change pop
           // instead of hard-swapping the pixels underneath you. Once settled it
@@ -287,7 +299,7 @@ function ProductGallery({
           key={arch}
           src={art}
           alt=""
-          className={clsx('object-contain', compact ? 'max-h-[200px]' : 'max-h-[210px]')}
+          className={clsx('object-contain w-full', compact ? 'max-h-[200px]' : 'max-h-[290px]')}
           draggable={false}
           initial={{ opacity: 0, scale: 0.9, rotate: -3 }}
           animate={{
@@ -328,10 +340,14 @@ function ProductGallery({
 
 /** Left column: what the notebook IS — art, name, and the story. */
 function ProductIdentity({ arch, view, setView }: { arch: Archetype; view: View; setView: (v: View) => void }) {
+  return <ProductGallery arch={arch} view={view} setView={setView} showViews={false} />;
+}
+
+/** Name, tagline and the story - the reading column beside the art. */
+function ProductCopy({ arch }: { arch: Archetype }) {
   const info = ARCHETYPE_INFO[arch];
   return (
-    <div className="flex flex-col gap-3">
-      <ProductGallery arch={arch} view={view} setView={setView} showViews={false} />
+    <div className="flex flex-col gap-2 min-w-0">
       <div>
         <motion.div
           key={`${arch}-title`}
@@ -344,28 +360,31 @@ function ProductIdentity({ arch, view, setView }: { arch: Archetype; view: View;
         </motion.div>
         <div className="body-sm text-ink-700 mt-1.5">{info.tagline}</div>
       </div>
-      <p className="body-xs text-ink-900">{info.description}</p>
+      <p className="body-xs text-ink-900 measure">{info.description}</p>
     </div>
   );
 }
 
 /** Right column: how it performs — the two lists you weigh against each other. */
-function ProductQualities({ arch }: { arch: Archetype }) {
+function ProductStrengths({ arch }: { arch: Archetype }) {
   const info = ARCHETYPE_INFO[arch];
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Strengths" tone="success">
-        <ul className="body-xs text-ink-900 list-disc pl-5 space-y-1.5">
-          {info.strengths.map((s, i) => <li key={i}>{s}</li>)}
-        </ul>
-      </Card>
+    <Card title="Strengths" tone="success">
+      <ul className="body-xs text-ink-900 list-disc pl-5 space-y-1.5">
+        {info.strengths.map((s, i) => <li key={i}>{s}</li>)}
+      </ul>
+    </Card>
+  );
+}
 
-      <Card title="Weakness" tone="warn">
-        <ul className="body-xs text-ink-900 list-disc pl-5 space-y-1.5">
-          {info.tradeoffs.map((s, i) => <li key={i}>{s}</li>)}
-        </ul>
-      </Card>
-    </div>
+function ProductWeakness({ arch }: { arch: Archetype }) {
+  const info = ARCHETYPE_INFO[arch];
+  return (
+    <Card title="Weakness" tone="warn">
+      <ul className="body-xs text-ink-900 list-disc pl-5 space-y-1.5">
+        {info.tradeoffs.map((s, i) => <li key={i}>{s}</li>)}
+      </ul>
+    </Card>
   );
 }
 
