@@ -290,7 +290,14 @@ export function OperationsDetailModal({
             {tables.map((t, i) => (
               <motion.div
                 key={i}
-                className="border-2 border-ink-900 bg-cream-50 overflow-x-auto"
+                // The caption sits OUTSIDE the scroll container. Inside it, a
+                // wide table scrolled the caption along with the columns and
+                // clipped it ("…VEL 1)"), because a block inside an
+                // overflow-x-auto box scrolls with its content rather than
+                // pinning to the visible width. Only the table scrolls now.
+                // Border also drops to the static weight (RULE 5) — this is a
+                // panel, not a control.
+                className="border border-border-soft bg-cream-50"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.08 + i * 0.04, type: 'spring', stiffness: 280, damping: 22 }}
@@ -300,6 +307,7 @@ export function OperationsDetailModal({
                     <span className="stat-label text-text">{t.caption}</span>
                   </div>
                 )}
+                <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-cream-100 border-b border-border-soft">
@@ -339,6 +347,7 @@ export function OperationsDetailModal({
                     ))}
                   </tbody>
                 </table>
+                </div>
               </motion.div>
             ))}
           </div>

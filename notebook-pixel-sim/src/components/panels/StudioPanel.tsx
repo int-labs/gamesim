@@ -16,11 +16,11 @@ import { DAYS_PER_PHASE } from '@/engine/config';
 import { playSfx } from '@/audio/audioManager';
 import { PixelModal } from '@/components/primitives/PixelModal';
 import { CostTiles, ImpactList, type CostTile } from '@/components/primitives/CostTiles';
-import { PixelBadge, PixelButton } from '@/components/primitives';
+import { PixelButton } from '@/components/primitives';
 import { SafeImage } from '@/components/primitives/SafeImage';
 import { A } from '@/assets';
 import { studyFor, type CaseStudy } from '@/content/finlitCaseStudies';
-import { OpsSection, StatChip, EnergyTag, OperationsDetailModal } from './OperationsKit';
+import { OpsSection, StatChip, OperationsDetailModal } from './OperationsKit';
 import { channelDetail, budgetDetail, hiringDetail, vendorDetail, type SectionDetail } from './operationsDetails';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
@@ -121,6 +121,9 @@ export function StudioPanel() {
   const shopName = useGame((s) => s.meta.shopName);
   const apply = useGame((s) => s.apply);
   const [pending, setPending] = useState<Pending | null>(null);
+  // Raw text per candidate so the field can be empty mid-typing; it is parsed
+  // and clamped before anything reaches the engine.
+  const [levelDraft, setLevelDraft] = useState<Record<string, string>>({});
   // null = not editing; the input falls back to the store value.
   const [shopDraft, setShopDraft] = useState<string | null>(null);
   // Which section's reference sheet is open, if any.
@@ -268,7 +271,7 @@ export function StudioPanel() {
                 </div>
 
                 <div className="min-w-0">
-                  <div className="h2 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
+                  <div className="h3 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
                   <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
                 </div>
 
@@ -360,120 +363,103 @@ export function StudioPanel() {
           {CANDIDATES.map((c) => {
             const engaged = hire?.candidate === c.id;
             const curLevel = engaged ? hire!.level : 0;
+            // Ceiling comes from the config table, which the operator can
+            // extend from the backend — not from a hard-coded 4.
+            const maxLevel = c.levels.length;
+            const draftRaw = levelDraft[c.id] ?? String(engaged ? curLevel : 1);
+            const parsed = parseInt(draftRaw, 10);
+            const level = Number.isFinite(parsed) ? Math.min(maxLevel, Math.max(1, parsed)) : 1;
+            const lv = hireLevel(c.id as CandidateId, level);
             return (
-              // A roster ROW, not a control — you click the tier buttons
-              // inside it, never the row. Fill alone marks the engaged hire.
-              <div key={c.id} className={clsx('readout px-2.5 py-2 flex gap-2.5', engaged ? 'bg-primary-soft' : 'bg-surface')}>
-                {/* Candidate portrait. No frame: a box around a transparent
-                    pixel sprite added a second border inside a bordered card
-                    and boxed the art into a narrow column. Unframed it reads as
-                    a character standing in the row, and the space that the
-                    frame's padding was eating goes to the art instead. */}
-                <SafeImage
-                  src={CANDIDATE_ICON[c.id]}
-                  alt=""
-                  className="shrink-0 w-20 h-20 object-contain self-center"
-                  fallbackIcon="hire"
-                  fallbackSize={56}
-                />
-                <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="h2 uppercase text-ink-900">{c.name}</span>
-                  {engaged && <PixelBadge tone="success">L{curLevel} hired</PixelBadge>}
-                </div>
-                <p className="body-xs text-text-2 mt-1 mb-2 measure">{c.blurb}</p>
-                <div className="flex flex-wrap items-start gap-3">
-                {/* Capped. Four tier buttons stretched across the full card
-                    width gave each one ~330px of box around ~50px of content —
-                    a row of mostly empty rectangles. At this width they read as
-                    a tier selector, and the space left over carries the
-                    trade-off the whole choice turns on. */}
-                <div className="grid grid-cols-4 gap-1.5 w-full xl:max-w-none max-w-[440px]">
-                  {c.levels.map((lv) => {
-                    const affordable = energy >= lv.energy;
-                    const isCur = engaged && curLevel === lv.level;
-                    return (
-                      // The engaged tier is a TOGGLE, not a dead end. It used
-                      // to be `disabled`, so undoing a hire meant finding a
-                      // separate "Clear hire" button at the bottom of the
-                      // section — a different control, in a different place,
-                      // for the exact decision you were already looking at.
-                      // Clicking the lit tier now releases the hire and
-                      // refunds its energy, the same click that made it.
-                      <button
-                        key={lv.level}
-                        disabled={!isCur && !affordable}
-                        aria-pressed={isCur}
-                        onClick={() => {
-                          playSfx('click-soft');
-                          if (isCur) { apply((s) => clearFinlitHire(s)); return; }
-                          setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! });
-                        }}
-                        className={clsx(
-                          'ctl-btn flex flex-col items-center gap-0.5 py-1.5 px-1 border-2 transition-all',
-                          isCur ? 'border-primary-strong bg-primary text-ink-900 active:scale-95'
-                          : affordable ? 'border-ink-900 bg-surface hover:bg-cream-100 text-text active:scale-95'
-                          : 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed',
-                        )}
-                        title={isCur
-                          ? `Hired at L${lv.level} — click again to release and refund ${lv.energy}⚡`
-                          : `L${lv.level}: ${fmt$(perPhase(lv.cost))} per phase · +${fmtUnitsPerPhase(lv.prodBonus)} units per phase · +${(lv.sellBonus * 100).toFixed(1)}% sell-rate · ${lv.energy}⚡ to unlock`}
-                      >
-                        {/* Level leads because it is the button's identity, but
-                            at .num-sm, not .num-md: "L1" is a two-character tag,
-                            not a headline figure, and at 21px four of them made
-                            the tier row the loudest thing in the section. */}
-                        <span className={clsx('num-sm leading-none', isCur ? 'text-ink-900' : 'text-ink-900')}>
-                          L{lv.level}
+              // A roster CARD. The controls are the level input and the
+              // hire button inside it; the card itself is never clickable.
+              //
+              // Layout: the portrait used to be `self-center` in a flex ROW
+              // with everything else, so on a tall card it floated at mid
+              // height while the text started at the top, and because each
+              // candidate's art has its own aspect ratio the text columns
+              // started at a different x in every card. Header row first
+              // (art + name + blurb), then controls and figures full width,
+              // so all four cards align down the same edge.
+              <div key={c.id} className={clsx('readout p-3 flex flex-col gap-3', engaged ? 'bg-primary-soft' : 'bg-surface')}>
+                <div className="flex items-start gap-3">
+                  <SafeImage
+                    src={CANDIDATE_ICON[c.id]}
+                    alt=""
+                    className={clsx('shrink-0 w-16 h-16 object-contain', !engaged && 'grayscale-[45%] opacity-80')}
+                    fallbackIcon="hire"
+                    fallbackSize={44}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="h3 uppercase text-ink-900">{c.name}</span>
+                      {engaged && (
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-[2px] border-2 border-primary-strong bg-primary-strong text-cream-50">
+                          <span aria-hidden className="btn-label-sm leading-none">✓</span>
+                          <span className="eyebrow eyebrow-sm text-inherit">Level {curLevel}</span>
                         </span>
-                        {/* Per PHASE, not per day. $5/day is not a number you
-                            can weigh against a notebook's margin without doing
-                            the ×30 yourself; $150 is. The per-day rate is still
-                            in the button's title for anyone who wants it. */}
-                        <span className="stat-label stat-label-on-tint">
-                          {fmt$(perPhase(lv.cost))}
-                        </span>
-                        {isCur
-                          ? <span className="btn-label-sm uppercase leading-none text-ink-900">✓ Hired</span>
-                          : <EnergyTag amount={lv.energy} />}
-                      </button>
-                    );
-                  })}
+                      )}
+                    </div>
+                    <p className="body-xs text-text-2 mt-1 measure">{c.blurb}</p>
+                  </div>
                 </div>
 
-                {/* What separates Ains from Chewie, in numbers. Until now the
-                    per-level bonuses existed only in each button's `title`, so
-                    the actual basis for the choice was invisible unless you
-                    hovered — and the blurb's "modest sell lift" gave no way to
-                    compare two candidates. L1 → L4 shows both the floor and
-                    what the top tier buys. */}
-                <div className="grid grid-cols-2 gap-1.5 flex-1 min-w-[200px] xl:w-full xl:flex-none">
-                  {/* "+0.49 → +3.92 per day" was the L1→L4 range in the engine's
-                      own units, and nobody can picture 0.49 of a notebook. The
-                      same range per phase is 15 → 118 units, which is a pile of
-                      notebooks you can weigh against a price. */}
-                  <StatChip
-                    label="Output / phase"
-                    value={`+${fmtUnitsPerPhase(c.levels[0].prodBonus)} → +${fmtUnitsPerPhase(c.levels[c.levels.length - 1].prodBonus)} units`}
-                    tone="good"
-                  />
-                  <StatChip
-                    label="Sell-rate"
-                    value={`+${(c.levels[0].sellBonus * 100).toFixed(1)}% → +${(c.levels[c.levels.length - 1].sellBonus * 100).toFixed(1)}%`}
-                    tone="reach"
-                  />
-                  {/* The number the decision actually turns on, and the one
-                      step of the mental arithmetic nobody should have to do:
-                      cost ÷ extra units = the margin each new unit must clear
+                {/* LEVEL — typed, not picked from a fixed row of tiers. The
+                    ceiling is `c.levels.length`, which comes from the operator's
+                    published config (configHydrator merges `hiringCandidates`),
+                    so adding a level in the backend widens this input with no
+                    code change. `hireLevel()` throws on an unknown level, so the
+                    value is clamped before it ever reaches the engine. */}
+                <div className="flex flex-wrap items-end gap-2.5">
+                  <label className="flex flex-col gap-1 shrink-0">
+                    <span className="stat-label">Level · max {maxLevel}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={maxLevel}
+                      value={draftRaw}
+                      onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
+                      onBlur={() => setLevelDraft((d) => ({ ...d, [c.id]: String(level) }))}
+                      aria-label={`${c.name} level, 1 to ${maxLevel}`}
+                      className="w-[86px] bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary px-2 py-1.5"
+                    />
+                  </label>
+                  <StatChip label="Cost / phase" value={fmt$(perPhase(lv.cost))} tone="money" />
+                  <StatChip label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" />
+                  {engaged ? (
+                    <PixelButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { playSfx('click-soft'); apply((s2) => clearFinlitHire(s2)); }}
+                    >
+                      Release
+                    </PixelButton>
+                  ) : (
+                    <PixelButton
+                      size="sm"
+                      disabled={energy < lv.energy}
+                      onClick={() => { playSfx('click-soft'); setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! }); }}
+                    >
+                      Hire
+                    </PixelButton>
+                  )}
+                </div>
+
+                {/* Figures resolve to the level TYPED, not an L1→L4 range —
+                    the range made you interpolate to find what you were
+                    actually buying. */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <StatChip label="Output / phase" value={`+${fmtUnitsPerPhase(lv.prodBonus)} units`} tone="good" />
+                  <StatChip label="Sell-rate" value={`+${(lv.sellBonus * 100).toFixed(1)}%`} tone="reach" />
+                  {/* cost ÷ extra units = the margin each new unit must clear
                       for the hire to pay for itself. */}
                   <StatChip
                     label="Breakeven margin"
-                    value={`${fmt$(c.levels[0].cost / c.levels[0].prodBonus)} / unit`}
+                    value={`${fmt$(lv.cost / lv.prodBonus)} / unit`}
                     tone="money"
                     className="col-span-2"
                   />
-                </div>
-                </div>
                 </div>
               </div>
             );
@@ -507,8 +493,15 @@ export function StudioPanel() {
                     disabled={!stocks || (!affordable && !on)}
                     onClick={() => { playSfx('click-soft'); setPending({ kind: 'vendor', id: v.id as VendorId, energy: cost, study: studyFor('vendor', v.id)! }); }}
                     className={clsx(
+                      // Same four signals as the channel cards: accent border
+                      // when engaged, fill, a solid-vs-hollow badge with a
+                      // glyph, and desaturated art + muted chips when not.
+                      // Engaged used to differ only by fill — #D4ECDB against
+                      // #FBF6E9 — which is not a difference you can see across
+                      // a four-card grid. The INK frame stays in both live
+                      // states; an un-engaged vendor is still a control.
                       'ctl-btn text-left px-2 py-2 border-2 transition-all active:scale-[0.98]',
-                      on ? 'border-ink-900 bg-success-soft'
+                      on ? 'border-primary-strong bg-success-soft'
                       : stocks && affordable ? 'border-ink-900 bg-surface hover:bg-cream-100'
                       : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed',
                     )}
@@ -518,18 +511,28 @@ export function StudioPanel() {
                       <SafeImage
                         src={VENDOR_ICON[v.id]}
                         alt=""
-                        className="shrink-0 w-12 h-12 object-contain"
+                        className={clsx('shrink-0 w-12 h-12 object-contain', !on && 'grayscale opacity-50')}
                         fallbackIcon="box"
                         fallbackSize={32}
                       />
-                      <span className="h2 uppercase text-ink-900 truncate flex-1 min-w-0">{v.name}</span>
-                      {stocks && <PixelBadge tone={cov.quality === 'perfect' ? 'success' : 'neutral'}>{cov.quality}</PixelBadge>}
+                      <span className="h3 uppercase text-ink-900 truncate flex-1 min-w-0">{v.name}</span>
+                      {stocks && (
+                        <span className={clsx(
+                          'shrink-0 inline-flex items-center gap-1 px-1.5 py-[2px] border-2',
+                          on ? 'bg-primary-strong border-primary-strong text-cream-50'
+                             : 'bg-transparent border-ink-900/40 text-text-3',
+                        )}>
+                          <span aria-hidden className="btn-label-sm leading-none">{on ? '✓' : '✕'}</span>
+                          <span className="eyebrow eyebrow-sm text-inherit">{on ? 'Shipping' : cov.quality}</span>
+                        </span>
+                      )}
                     </div>
                     {stocks ? (
-                      <div className="grid grid-cols-3 gap-1.5 mt-2">
-                        <StatChip label="Sell" value={`+${(cov.sellBonus * 100).toFixed(1)}%`} tone="good" />
-                        <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone="money" />
-                        <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone="energy" />
+                      // "Sell" lives in Details now; the card carries what the
+                      // choice costs.
+                      <div className="grid grid-cols-2 gap-1.5 mt-2">
+                        <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone={on ? 'money' : 'muted'} />
+                        <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone={on ? 'energy' : 'muted'} />
                       </div>
                     ) : (
                       <p className="body-xs text-text-3 mt-2">Doesn't stock this market.</p>
@@ -662,7 +665,7 @@ function BudgetLever({
     // The lever's CONTROL is the slider; the card around it is a panel.
     <div className={clsx('readout p-3 flex flex-col gap-2', active ? 'bg-success-soft' : 'bg-surface')}>
       <div>
-        <div className="h2 uppercase text-ink-900">{label}</div>
+        <div className="h3 uppercase text-ink-900">{label}</div>
         <p className="body-xs text-text-2 mt-1">{hint}</p>
       </div>
 
