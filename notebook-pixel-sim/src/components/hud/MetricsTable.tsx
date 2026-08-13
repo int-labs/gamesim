@@ -342,8 +342,8 @@ interface PnLRow {
 const PNL_ROWS: PnLRow[] = [
   { label: 'Gross Revenue',        icon: A.ui.pnl.gross_revenue,    kinds: ['revenue'],       sign: 'plus',  group: 'revenue', cause: 'Units sold × price' },
   { label: 'Material Cost',        icon: A.ui.pnl.material_cost,    kinds: ['cogs-material'], sign: 'minus', group: 'cost',    cause: 'Paper, cover, binding, add-ons' },
-  { label: 'Labor Cost',           icon: A.ui.pnl.labor_cost,       kinds: ['cogs-labor'],    sign: 'minus', group: 'cost',    cause: 'Daily wages × hires' },
-  { label: 'Marketing / Ops',      icon: A.ui.pnl.marketing_spend,  kinds: ['opex-marketing'],sign: 'minus', group: 'cost',    cause: 'Marketing team + hiring daily cost' },
+  { label: 'Labor Cost',           icon: A.ui.pnl.labor_cost,       kinds: ['cogs-labor'],    sign: 'minus', group: 'cost',    cause: 'Wages × hires' },
+  { label: 'Marketing / Ops',      icon: A.ui.pnl.marketing_spend,  kinds: ['opex-marketing'],sign: 'minus', group: 'cost',    cause: 'Marketing team + hiring cost' },
   { label: 'Channel & Holding',    icon: A.ui.pnl.fulfillment_cost, kinds: ['opex-rent'],     sign: 'minus', group: 'cost',    cause: 'Channel maintenance + consignment + unsold-stock holding' },
   { label: 'Packaging / Fulfill.', icon: A.ui.pnl.packaging_cost,   kinds: ['cogs-packaging','cogs-fulfillment'], sign: 'minus', group: 'cost', cause: 'Per-unit packaging + shipping' },
   { label: 'Tools / Upgrades',     icon: A.ui.sidebar.studio,       kinds: ['opex-tool'],     sign: 'minus', group: 'cost',    cause: 'One-off equipment, supplier deals' },
@@ -468,7 +468,7 @@ export function FinanceTable() {
                   {/* The live phase is marked down the whole COLUMN. A 4px
                       rule under one header cell is invisible once your eye is
                       three rows into the numbers, which is where you actually
-                      read — so the column you are playing carries a tint and
+                      read - so the column you are playing carries a tint and
                       side rules for its full height. */}
                   <PnLCell value={values.p1} row={r} live={phaseNow === 1} />
                   <PnLCell value={values.p2} row={r} live={phaseNow === 2} />

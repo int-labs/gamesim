@@ -33,7 +33,7 @@ export function channelDetail(): SectionDetail {
   return {
     title: 'Sales Channels',
     intro:
-      'Channels are company-wide: every notebook you make ships through the ones you switch on. Each adds reach at a daily overhead, and some take a cut of every sale.',
+      'Channels are company-wide: every notebook you make ships through the ones you switch on. Each adds reach at an overhead per phase, and some take a cut of every sale.',
     inputs: CHANNEL_ORDER.map((ch) => {
       // Economics other than reach are identical across genres, so a single
       // representative row is honest here; reach varies and gets its own table.

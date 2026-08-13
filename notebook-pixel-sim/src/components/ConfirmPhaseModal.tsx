@@ -169,7 +169,7 @@ export function ConfirmPhaseModal({ open, onClose }: Props) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Stat icon="cash" label="Cash now" value={fmt$(cash)} tone="cash" />
               <Stat icon="energy" label="Energy" value={`${energy}`} tone="warn" />
-              <Stat icon="demand" label="Demand est." value={fmtInt(intDemand)} sub="per day" tone="info" />
+              <Stat icon="demand" label="Demand est." value={fmtInt(intDemand)} sub="per phase" tone="info" />
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 

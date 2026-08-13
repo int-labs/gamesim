@@ -21,6 +21,13 @@ interface Props {
   /** Extra classes for the scrolling body region. */
   bodyClassName?: string;
   /**
+   * The child manages its own padding and scrolling. Swaps the body's default
+   * `overflow-y-auto p-3.5` rather than layering `overflow-hidden p-0` on top
+   * of it - those are conflicting utilities whose winner depends on Tailwind's
+   * stylesheet order, not on the order you list them.
+   */
+  bodyFill?: boolean;
+  /**
    * Position classes for the panel's docked edge (default `left-0`/`right-0`).
    * Pass e.g. `left-0 sm:left-[104px]` to slide in BESIDE a floating dock
    * instead of underneath it.
@@ -52,6 +59,13 @@ interface Props {
    * after the top drawer has already been dismissed.
    */
   escYields?: boolean;
+  /**
+   * Close when a pointer goes down outside the panel, for drawers that have no
+   * backdrop to catch the click. Presses inside ANOTHER drawer, the edge dock,
+   * a modal, or this drawer's own trigger are ignored - those panels are meant
+   * to be used side by side, so reaching for one must not dismiss the other.
+   */
+  closeOnOutsidePointer?: boolean;
 }
 
 /**
@@ -72,11 +86,13 @@ export function Drawer({
   children,
   width = 'min(384px, 100%)',
   bodyClassName,
+  bodyFill = false,
   panelOffsetClassName,
   stealth = false,
   backdrop = true,
   zClassName = 'z-40',
   escYields = false,
+  closeOnOutsidePointer = false,
 }: Props) {
   const reduced = useReducedMotion();
   const panelRef = useRef<HTMLElement | null>(null);
@@ -95,6 +111,24 @@ export function Drawer({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, escYields]);
+
+  useEffect(() => {
+    if (!open || !closeOnOutsidePointer) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (panelRef.current?.contains(t)) return;      // inside me
+      if (t.closest('[data-drawer-side]')) return;    // another drawer
+      if (t.closest('[data-edge-dock]')) return;      // the dock rail
+      if (t.closest('[data-pixel-modal]')) return;    // a modal above
+      if (t.closest('[data-drawer-trigger]')) return; // my own opener
+      onClose();
+    };
+    // `pointerdown`, not `click`: a gesture that starts on the panel and ends
+    // outside it (a drag, a text selection) must not dismiss.
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [open, closeOnOutsidePointer, onClose]);
 
   // Move focus into the panel on open; return it to the opener on close.
   useEffect(() => {
@@ -175,7 +209,7 @@ export function Drawer({
             }
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b-2 border-border-soft bg-surface-2 shrink-0">
+            <header className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-border-soft bg-surface-2 shrink-0">
               <div className="flex items-center gap-2 min-w-0">
                 {icon && (
                   <img
@@ -196,7 +230,11 @@ export function Drawer({
                 <CloseX />
               </button>
             </header>
-            <div className={clsx('flex-1 min-h-0 overflow-y-auto p-3.5', bodyClassName)}>
+            <div className={clsx(
+              'flex-1 min-h-0',
+              bodyFill ? 'overflow-hidden' : 'overflow-y-auto p-3.5',
+              bodyClassName,
+            )}>
               {children}
             </div>
           </motion.aside>

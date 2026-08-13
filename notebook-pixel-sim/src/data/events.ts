@@ -183,9 +183,9 @@ export const EVENTS: EventDef[] = [
       {
         id: 'B',
         label: 'Pause marketing',
-        description: 'Stop daily ad spend. Demand drops short-term.',
+        description: 'Stop ad spend. Demand drops short-term.',
         cost: { energy: 3 },
-        effects: ['Daily marketing pause', 'Demand −12% (10d)'],
+        effects: ['Marketing paused', 'Demand −12% (10d)'],
         modifierIds: ['pause_marketing'],
       },
       {

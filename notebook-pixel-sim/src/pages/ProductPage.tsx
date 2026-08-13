@@ -181,9 +181,18 @@ export function ProductPage() {
         </motion.div>
       </Drawer>
 
-      {/* Details — a wide RIGHT drawer, no backdrop, stacked above the left
-          one. Both can be open together: read the market data on the right
-          while you change the spec on the left. */}
+      {/* Details - a wide RIGHT drawer, no backdrop, stacked above everything
+          else on this page. Both drawers can be open together: read the market
+          data on the right while you change the spec on the left.
+
+          Stacking scale for this page, highest last:
+            z-40  left drawer
+            z-45  Details trigger, above the left drawer so it stays clickable
+                  while that drawer is open - the whole point
+            z-50  EdgeDock, which must outrank the left drawer to work as a
+                  live tab rail
+            z-60  Details drawer - above the dock, since at narrow widths the
+                  92% panel overlaps it and must not be punched through. */}
       <Drawer
         side="right"
         open={rightDrawer === DETAILS_ID}
@@ -191,10 +200,14 @@ export function ProductPage() {
         onClose={() => closeDrawer('right')}
         width="min(1040px, 92%)"
         backdrop={false}
-        zClassName="z-50"
-        bodyClassName="pb-[84px] sm:pb-3.5"
+        closeOnOutsidePointer
+        zClassName="z-[60]"
+        // The sheet owns its own scroll regions (rail, panel), so the drawer
+        // body neither pads nor scrolls - otherwise you get a scrollbar inside
+        // a scrollbar and the rail scrolls away from its tabs.
+        bodyFill
       >
-        <ArchetypeDetailModal inline open onClose={() => closeDrawer('right')} />
+        <ArchetypeDetailModal fill open onClose={() => closeDrawer('right')} />
       </Drawer>
 
       {/* The dragged tile's ghost. dropAnimation={null} because the add-on

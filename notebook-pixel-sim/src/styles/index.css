@@ -677,6 +677,10 @@ button {
        3. CLICK-TO-EDIT TEXT (the notebook name, the shop sign). These carry
           `cursor-text` and a pencil icon — the icon IS the affordance, so it
           must stay visible at rest (>= 60% opacity), never hover-only.
+       4. ART AS AFFORDANCE — a decorative element that happens to respond to
+          a click, like patting the mascot sprite (`role="button"` on
+          .vn-character-crop). It has no box to lift; a drop shadow on a
+          character sprite would read as a bug, not a button.
 
      Everything else with a handler gets the lift.
      ========================================================================== */
@@ -1353,14 +1357,22 @@ button {
   border: 2px solid var(--c-border-soft);
   background: var(--c-surface-2);
   color: var(--c-text-2);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  /* It is a button, so it carries the interactive geometry like every other
+     one (see the affordance rule). */
+  box-shadow: 2px 2px 0 0 var(--c-shadow);
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+  /* Type comes from a ROLE class on the element (.btn-label-sm), not from
+     size/weight/tracking declared here — RULE 1. Declaring them inline made
+     this the only control on screen in an 11px Jura that matches no role. */
 }
-.vn-skip:hover { background: var(--c-surface); color: var(--c-text); }
+.vn-skip:hover {
+  background: var(--c-surface);
+  color: var(--c-text);
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0 0 var(--c-shadow);
+}
+.vn-skip:active { transform: translateY(1px); box-shadow: 1px 1px 0 0 var(--c-shadow); }
 
 .vn-stage {
   position: absolute;

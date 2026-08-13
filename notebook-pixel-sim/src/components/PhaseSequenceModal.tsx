@@ -175,7 +175,10 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     serverProjection?.byProduct.reduce((a, p) => a + (p.customersObtained ?? 0), 0) ?? null;
 
   const finlitPreview = localFinlitPreview;
-  const intDemand = Math.round((finlitPreview?.demandTotal ?? 0) / 30); // per day
+  // `demandTotal` is already the PHASE total; it was being divided by 30
+  // only to print a per-day figure, which is not the unit anything else on
+  // screen uses any more.
+  const intDemand = Math.round(finlitPreview?.demandTotal ?? 0);
   const expectedSold = Math.round(finlitPreview?.soldTotal ?? 0);
   const expectedRevenue = Math.round(finlitPreview?.revenue ?? 0);
   const dailyExpenses = Math.round((finlitPreview?.opex ?? 0) + (finlitPreview?.channelCost ?? 0));
@@ -398,7 +401,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Stat icon="cash" label="Cash now" value={fmt$(cash)} tone="cash" />
               <Stat icon="energy" label="Energy" value={`${energy}`} tone="warn" />
-              <Stat icon="demand" label="Demand est." value={fmtInt(intDemand)} sub="per day" tone="info" />
+              <Stat icon="demand" label="Demand est." value={fmtInt(intDemand)} sub="per phase" tone="info" />
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 

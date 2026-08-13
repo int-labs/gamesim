@@ -20,12 +20,12 @@ export const UPGRADE_COPY: Record<string, UpgradeCopy> = {
   hire_helper: {
     name: 'Hire Part-Time Helper',
     description:
-      '+4 daily production capacity. Pays a $12/day wage. Buy when stock keeps hitting zero.',
+      '+4 production capacity. Pays a $360 wage per phase. Buy when stock keeps hitting zero.',
   },
   hire_second: {
     name: 'Hire Second Helper',
     description:
-      'A second hire stacks on the first. +5 capacity, $14/day wage. Consider after Phase 2.',
+      'A second hire stacks on the first. +5 capacity, $420 wage per phase. Consider after Phase 2.',
     lockedHint: 'Requires: Hire Part-Time Helper first.',
   },
   tool_basic: {
@@ -68,7 +68,7 @@ export const UPGRADE_COPY: Record<string, UpgradeCopy> = {
   marketing_loyalty: {
     name: 'Loyalty Program',
     description:
-      '+10% retention, −$2/day on marketing. Best after a strong launch.',
+      '+10% retention, -$60 per phase on marketing. Best after a strong launch.',
     lockedHint: 'Requires: Marketing Campaign first.',
   },
 };

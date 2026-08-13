@@ -78,15 +78,15 @@ function engageSummary(
   const effects: string[] = [];
   if (p.kind === 'candidate') {
     const lv = hireLevel(p.id, p.level);
-    tiles.push({ label: 'Daily wage', value: fmt$(lv.cost), tone: 'cost', icon: 'cash' });
-    effects.push(`+${lv.prodBonus.toFixed(2)} produced / day`, `+${(lv.sellBonus * 100).toFixed(1)}% sell-rate`);
+    tiles.push({ label: 'Wage / phase', value: fmt$(perPhase(lv.cost)), tone: 'cost', icon: 'cash' });
+    effects.push(`+${fmtUnitsPerPhase(lv.prodBonus)} produced / phase`, `+${(lv.sellBonus * 100).toFixed(1)}% sell-rate`);
   } else {
     const cov = genre ? vendorCoverage(p.id, vendorLevel, genre) : undefined;
     if (cov && cov.quality !== 'none') {
-      tiles.push({ label: 'Daily cost', value: fmt$(cov.cost), tone: 'cost', icon: 'cash' });
+      tiles.push({ label: 'Cost / phase', value: fmt$(perPhase(cov.cost)), tone: 'cost', icon: 'cash' });
       effects.push(
         `+${(cov.sellBonus * 100).toFixed(1)}% sell-rate`,
-        `+${cov.prodBonus.toFixed(1)} produced / day`,
+        `+${fmtUnitsPerPhase(cov.prodBonus)} produced / phase`,
         `${cov.quality} quality`,
       );
     }
@@ -349,7 +349,7 @@ export function StudioPanel() {
           // Kept short: the section header scrolls under the floating
           // PRODUCT/BUSINESS nav, which clips a long second line.
           daysLeftInPhase < DAYS_PER_PHASE
-            ? `Costs are per phase and recur while engaged — ${daysLeftInPhase}d left, figures show a full phase.`
+            ? `Costs are per phase and recur while engaged - ${daysLeftInPhase}d left, figures show a full phase.`
             : 'One at a time. Costs are per phase and recur while engaged.'
         }
         onDetails={() => setDetail(hiringDetail())}

@@ -136,7 +136,7 @@ export const SCRIPT_FIRST_BUSINESS_PAGE: MascotScript = {
       mood: 'pointing_right_explain',
     },
     {
-      body: 'Inventory is how many to make per day - over-make and your cash gets trapped in unsold stock. Performance is the P&L: where every dollar actually went.',
+      body: 'Inventory is how many to make per phase - over-make and your cash gets trapped in unsold stock. Performance is the P&L: where every dollar actually went.',
       mood: 'thinking_side',
     },
   ],

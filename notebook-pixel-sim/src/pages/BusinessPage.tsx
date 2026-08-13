@@ -69,7 +69,7 @@ export function BusinessPage() {
           <div className="px-4 py-2.5 border-b border-border-soft bg-surface flex items-start justify-between gap-4">
             <p className="body-xs text-text-2 leading-relaxed min-w-0 measure">{activeTab.explainer}</p>
             <span className="hidden lg:block hint text-text-3 text-right leading-snug shrink-0 max-w-[240px]">
-              Decisions here don't advance days — confirm a phase to simulate.
+              Decisions here don't advance days - confirm a phase to simulate.
             </span>
           </div>
         )}

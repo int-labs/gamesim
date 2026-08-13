@@ -241,7 +241,7 @@ export function ProductLineList() {
                   {isActive && (
                     <span
                       aria-hidden
-                      className="absolute top-0.5 left-0.5 bg-primary num-xs tracking-wider px-1 py-px border border-border z-10"
+                      className="absolute top-0.5 left-0.5 bg-primary eyebrow eyebrow-sm text-ink-900 px-1 py-px border border-border z-10"
                       style={{ color: '#12301C' }}
                     >
                       ACTIVE
@@ -256,7 +256,7 @@ export function ProductLineList() {
                       onClick={(e) => { e.stopPropagation(); startRename(line); }}
                       title="Rename"
                       aria-label={`Rename ${line.name}`}
-                      className="w-6 h-6 inline-flex items-center justify-center bg-surface border border-border-soft hover:border-border hover:bg-surface-2 cursor-pointer"
+                      className="w-6 h-6 inline-flex items-center justify-center bg-surface border-2 border-border shadow-pixel-press hover:shadow-pixel-1 active:translate-y-px active:shadow-none hover:bg-surface-2 cursor-pointer transition-[box-shadow,transform,background-color]"
                     >
                       <PixelIcon kind="pen" size={10} />
                     </button>
@@ -265,7 +265,7 @@ export function ProductLineList() {
                       onClick={(e) => { e.stopPropagation(); askDelete(line.id); }}
                       title="Delete this notebook"
                       aria-label={`Delete ${line.name}`}
-                      className="w-6 h-6 inline-flex items-center justify-center bg-surface border border-border-soft text-danger hover:border-danger hover:bg-danger-soft cursor-pointer"
+                      className="w-6 h-6 inline-flex items-center justify-center bg-surface border-2 border-border text-danger shadow-pixel-press hover:shadow-pixel-1 active:translate-y-px active:shadow-none hover:border-danger hover:bg-danger-soft cursor-pointer transition-[box-shadow,transform,background-color,border-color]"
                     >
                       <PixelIcon kind="trash" size={10} color="var(--c-danger)" />
                     </button>
@@ -290,9 +290,9 @@ export function ProductLineList() {
           aria-haspopup="menu"
           aria-expanded={addOpen}
           className={clsx(
-            'w-full h-[36px] inline-flex items-center justify-center gap-1.5 border-2 border-dashed btn-label cursor-pointer transition-colors',
+            'w-full h-[36px] inline-flex items-center justify-center gap-1.5 border-2 border-dashed btn-label cursor-pointer transition-[box-shadow,transform,background-color,border-color,color]',
             canAdd
-              ? 'border-border bg-surface text-text-2 hover:border-primary hover:text-primary hover:bg-primary-soft'
+              ? 'border-border bg-surface text-text-2 shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press hover:border-primary hover:text-primary hover:bg-primary-soft'
               : 'border-border-soft bg-surface-2 text-text-3 cursor-not-allowed opacity-70',
           )}
         >

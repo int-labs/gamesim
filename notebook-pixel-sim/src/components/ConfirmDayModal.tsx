@@ -4,7 +4,7 @@ import { advanceDay, calcDemandToday } from '@/engine/mockEngine';
 import { PixelModal } from '@/components/primitives/PixelModal';
 import { PixelButton, PixelBadge } from '@/components/primitives';
 import { MetricIcon, MetricIconKind } from '@/components/icons/MetricIcon';
-import { fmt$, fmtInt } from '@/utils/format';
+import { fmt$, fmtInt, perPhase } from '@/utils/format';
 import { mulberry32, seedFrom } from '@/utils/rng';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -110,7 +110,7 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
               <ul className="body-xs text-ink-900 leading-snug space-y-0.5">
                 <li>· Likely sold: <strong>{expectedSold}</strong> units</li>
                 <li>· Revenue est.: <strong>{fmt$(expectedRevenue)}</strong></li>
-                <li>· Daily expenses: <strong>{fmt$(dailyExpenses)}</strong></li>
+                <li>· Expenses / phase: <strong>{fmt$(perPhase(dailyExpenses))}</strong></li>
                 <li>
                   · Net cash change:{' '}
                   <strong className={expectedCashChange >= 0 ? 'text-success' : 'text-error'}>

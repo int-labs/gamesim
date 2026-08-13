@@ -40,7 +40,7 @@ import {
   BUDGET_LEVER_ENERGY,
   GENRES,
 } from '@/data/finlit';
-import { clamp, phaseOf } from '@/utils/format';
+import { clamp, phaseOf, fmt$, perPhase } from '@/utils/format';
 import type {
   LedgerEntry, Segment, ProductLine, Archetype, AddOnInstance,
   FinlitGenreId, FinlitProductionSpec, FinlitChannelId, FinlitVendorId,
@@ -619,7 +619,7 @@ export const setFinlitMarketingBudget = (s: GameState, budget: number): boolean 
   const delta = (next > 0 ? BUDGET_LEVER_ENERGY : 0) - (s.finlit.marketingBudget > 0 ? BUDGET_LEVER_ENERGY : 0);
   if (!applyEnergyDelta(s, delta, 'marketing')) return false;
   s.finlit.marketingBudget = next;
-  s.history.push({ day: s.meta.day, text: `Marketing budget → $${next}/day`, cause: 'finlit_marketing' });
+  s.history.push({ day: s.meta.day, text: `Marketing budget → ${fmt$(perPhase(next))} / phase`, cause: 'finlit_marketing' });
   return true;
 };
 
@@ -629,7 +629,7 @@ export const setFinlitSalesBudget = (s: GameState, budget: number): boolean => {
   const delta = (next > 0 ? BUDGET_LEVER_ENERGY : 0) - (s.finlit.salesBudget > 0 ? BUDGET_LEVER_ENERGY : 0);
   if (!applyEnergyDelta(s, delta, 'sales')) return false;
   s.finlit.salesBudget = next;
-  s.history.push({ day: s.meta.day, text: `Sales budget → $${next}/day`, cause: 'finlit_marketing' });
+  s.history.push({ day: s.meta.day, text: `Sales budget → ${fmt$(perPhase(next))} / phase`, cause: 'finlit_marketing' });
   return true;
 };
 

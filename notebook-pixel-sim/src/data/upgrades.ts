@@ -11,21 +11,21 @@ export const UPGRADES: UpgradeDef[] = [
     name: 'Hire Part-Time Helper',
     category: 'hire',
     description:
-      '+4 daily production capacity. Pays a $12/day wage. Buy when stock keeps hitting zero.',
+      '+4 production capacity. Pays a $360 wage per phase. Buy when stock keeps hitting zero.',
     costs: { time: 1, energy: 4, cash: 80 },
     unlockDay: 10,
-    effects: ['Capacity +4/day', 'Daily wage −$12', 'Defect rate slight ↓'],
+    effects: ['Capacity +120 / phase', 'Wage -$360 / phase', 'Defect rate slight ↓'],
   },
   {
     id: 'hire_second',
     name: 'Hire Second Helper',
     category: 'hire',
     description:
-      'A second hire stacks on the first. +5 capacity, $14/day wage. Consider after Phase 2.',
+      'A second hire stacks on the first. +5 capacity, $420 wage per phase. Consider after Phase 2.',
     costs: { time: 1, energy: 4, cash: 100 },
     unlockDay: 35,
     requires: ['hire_helper'],
-    effects: ['Capacity +5/day', 'Daily wage −$14'],
+    effects: ['Capacity +150 / phase', 'Wage -$420 / phase'],
   },
   {
     id: 'tool_basic',
@@ -35,7 +35,7 @@ export const UPGRADES: UpgradeDef[] = [
       'A small bindery rig. +6 capacity, −2% defect rate. Pays for itself if you sell ~20 units.',
     costs: { time: 1, energy: 5, cash: 220 },
     unlockDay: 18,
-    effects: ['Capacity +6/day', 'Defect rate −2%'],
+    effects: ['Capacity +180 / phase', 'Defect rate −2%'],
   },
   {
     id: 'tool_pro',
@@ -46,7 +46,7 @@ export const UPGRADES: UpgradeDef[] = [
     costs: { time: 1, energy: 6, cash: 480 },
     unlockDay: 40,
     requires: ['tool_basic'],
-    effects: ['Capacity +12/day', 'Defect rate −4%'],
+    effects: ['Capacity +360 / phase', 'Defect rate −4%'],
   },
   {
     id: 'process_qa',
@@ -104,11 +104,11 @@ export const UPGRADES: UpgradeDef[] = [
     name: 'Loyalty Program',
     category: 'marketing',
     description:
-      '+10% retention, −$2/day on marketing. Best after a strong launch.',
+      '+10% retention, -$60 per phase on marketing. Best after a strong launch.',
     costs: { time: 1, energy: 3, cash: 50 },
     unlockDay: 35,
     requires: ['marketing_campaign'],
-    effects: ['Retention +10%', 'Daily cost −$2'],
+    effects: ['Retention +10%', 'Cost -$60 / phase'],
   },
 ];
 

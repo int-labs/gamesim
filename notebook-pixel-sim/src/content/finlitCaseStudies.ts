@@ -40,13 +40,13 @@ export const CANDIDATE_STUDIES: Record<string, CaseStudy> = {
 export const MARKETING_STUDIES: Record<string, CaseStudy> = {
   social: {
     title: 'Social Media Marketing',
-    brief: 'A balanced, always-on lift to sell-rate at a modest daily spend. Reliable reach without a big commitment.',
+    brief: 'A balanced, always-on lift to sell-rate at a modest spend per phase. Reliable reach without a big commitment.',
     bestWhen: 'A dependable mid-game default across most genres.',
     watchOut: 'Never the cheapest nor the strongest - fine, rarely optimal.',
   },
   offline_ad: {
     title: 'Offline Advertisement',
-    brief: 'The cheapest team and the smallest lift. Low daily cost, low energy - good while cash is tight.',
+    brief: 'The cheapest team and the smallest lift. Low cost per phase, low energy - good while cash is tight.',
     bestWhen: 'Phase 1, or any time margins are thin and every dollar counts.',
     watchOut: 'The lift is small; you will outgrow it fast.',
   },
@@ -54,7 +54,7 @@ export const MARKETING_STUDIES: Record<string, CaseStudy> = {
     title: 'Web Marketing',
     brief: 'The biggest sell-rate lift on offer - and the priciest, hungriest for energy. A late-game amplifier once you can afford it.',
     bestWhen: 'You have volume + margin and want to convert far more of it.',
-    watchOut: 'Highest daily cost and energy; a loss-maker on thin margins.',
+    watchOut: 'Highest cost per phase and energy; a loss-maker on thin margins.',
   },
   seo: {
     title: 'SEO',

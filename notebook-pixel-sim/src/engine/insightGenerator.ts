@@ -39,7 +39,7 @@ function labelCause(cause: string): string {
   }
   if (cause.startsWith('cogs_material_')) return `Material cost (${cause.replace('cogs_material_', '')})`;
   if (cause === 'wages_hires') return 'Helper wages';
-  if (cause === 'marketing_run_rate') return 'Daily marketing spend';
+  if (cause === 'marketing_run_rate') return 'Marketing spend';
   if (cause.startsWith('upgrade_')) return `Upgrade: ${cause.replace('upgrade_', '')}`;
   if (cause === 'buy_raw') return 'Raw material purchase';
   if (cause.startsWith('event_')) return `Event response`;

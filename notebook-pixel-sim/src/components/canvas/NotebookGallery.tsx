@@ -61,6 +61,7 @@ export function NotebookGallery() {
   const apply = useGame((s) => s.apply);
   const setViewMode = useGame((s) => s.setViewMode);
   const openDrawer = useGame((s) => s.openDrawer);
+  const detailsOpen = useGame((s) => s.ui.rightDrawer === 'details');
   const reduced = useReducedMotion();
 
   const focus = (id: string) => {

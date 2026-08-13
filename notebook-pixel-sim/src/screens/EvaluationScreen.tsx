@@ -119,7 +119,7 @@ export function EvaluationScreen() {
               <PixelPanel title="Cash trend">
                 <PixelStepLine data={trend.cash} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" width={420} height={120} />
               </PixelPanel>
-              <PixelPanel title="Daily profit">
+              <PixelPanel title="Profit trend">
                 <PixelStepLine data={trend.profit} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.16)" width={420} height={120} />
               </PixelPanel>
             </div>

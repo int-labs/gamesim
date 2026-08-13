@@ -82,8 +82,14 @@ export function PixelSelect({
         aria-label={ariaLabel}
         onClick={toggle}
         className={clsx(
-          'w-full inline-flex items-center gap-2 px-2 py-1.5 border bg-surface text-text cursor-pointer body-xs transition-colors',
-          open ? 'border-primary' : 'border-border-soft hover:border-border',
+          // A select is a CONTROL: 2px border plus the resting diagonal lift,
+          // same as every button (RULE 5 / the affordance rule). It was on the
+          // static weight - 1px soft border, no shadow - so the production-spec
+          // pickers read as labelled readouts rather than things you can open.
+          'w-full inline-flex items-center gap-2 px-2 py-1.5 border-2 bg-surface text-text cursor-pointer body-xs',
+          'shadow-pixel-1 hover:shadow-pixel-2 active:translate-y-px active:shadow-pixel-press',
+          'transition-[box-shadow,transform,border-color,background-color]',
+          open ? 'border-primary' : 'border-border hover:border-primary',
         )}
       >
         <span className="flex-1 min-w-0 text-left truncate">{current?.label}</span>

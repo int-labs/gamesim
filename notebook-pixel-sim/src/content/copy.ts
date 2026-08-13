@@ -202,7 +202,7 @@ export const PRODUCT_PAGE = {
     addCta: 'Add Notebook',
     addAnother: 'Add another notebook line',
     deleteConfirm: (name: string) => `Delete "${name}"? This removes the line and its add-ons.`,
-    quantityHint: 'Sets daily production target for this notebook.',
+    quantityHint: 'Sets the production target for this notebook, per phase.',
     activePin: 'ACTIVE',
   },
   config: {
@@ -247,7 +247,7 @@ export const PRODUCT_PAGE = {
       high: (pct: number) => `High (−${pct}%)`,
       hint: 'Lines targeting the same audience may compete with each other.',
     },
-    capacityHint: '100% means production matches your daily capacity exactly.',
+    capacityHint: '100% means production matches your capacity exactly.',
   },
 };
 
@@ -262,7 +262,7 @@ export const BUSINESS_PAGE = {
     inventory: {
       label: 'Inventory',
       sub: 'Stock & production',
-      explainer: 'Finished goods, production per day, and demand. Produce near demand to stay clean - over-make and cash piles up in unsold stock.',
+      explainer: 'Finished goods, production per phase, and demand. Produce near demand to stay clean - over-make and cash piles up in unsold stock.',
     },
     performance: {
       label: 'Performance',
@@ -278,7 +278,7 @@ export const BUSINESS_PAGE = {
   },
   sales: {
     marketingHint: 'Marketing lifts demand, but only converts if you have stock AND fit.',
-    channelHint: 'Each channel has a different reach and daily cost.',
+    channelHint: 'Each channel has a different reach and cost per phase.',
   },
 };
 
@@ -289,7 +289,7 @@ export const HUD_TOOLTIPS = {
   opProfit: 'Operating Profit = Revenue − material − labor − packaging − fulfillment − marketing − tools.',
   revenue: 'Total money customers paid you. Revenue alone does not equal profit.',
   stock: 'Finished notebooks ready to sell. No stock means no sales, even if demand is high.',
-  demand: 'Estimated daily customer interest based on segment fit, price, marketing, and brand.',
+  demand: 'Estimated customer interest based on segment fit, price, marketing, and brand.',
   fit: 'How well the active notebook matches the selected audience. Above 70% is strong; below 40% is weak.',
 };
 
@@ -299,9 +299,9 @@ export const PNL = {
   rows: {
     grossRevenue: { label: 'Gross Revenue', hint: 'Units sold × price.' },
     material: { label: 'Less: Material Cost', hint: 'Paper, cover, binding, add-ons.' },
-    labor: { label: 'Less: Labor Cost', hint: 'Daily wages × hires.' },
+    labor: { label: 'Less: Labor Cost', hint: 'Wages × hires, per phase.' },
     packaging: { label: 'Less: Packaging / Fulfillment', hint: 'Per-unit fulfillment cost.' },
-    marketing: { label: 'Less: Marketing Spend', hint: 'Daily marketing cost across channels.' },
+    marketing: { label: 'Less: Marketing Spend', hint: 'Marketing cost across channels, per phase.' },
     tools: { label: 'Less: Tools / Upgrades', hint: 'One-time and recurring tool costs.' },
     grossProfit: { label: 'Gross Profit', hint: 'Revenue − direct costs (material + labor + fulfillment).' },
     opProfit: { label: 'Operating Profit', hint: 'Gross Profit − marketing − tools.' },
@@ -339,7 +339,7 @@ export const EVALUATION = {
   panels: {
     snapshot: 'Phase Snapshot',
     cash: 'Cash trend',
-    profit: 'Daily profit',
+    profit: 'Profit trend',
     cost: 'Cost mix this run',
     debrief: "Amelia's debrief",
     insight: 'Insight check',

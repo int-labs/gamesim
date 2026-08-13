@@ -43,6 +43,7 @@ export function EdgeDock({ side, items, activeId, onSelect, ariaLabel, anchor = 
     // role="group" (not "toolbar") — toolbar promises roving-tabindex arrow
     // navigation per the ARIA APG; these are independent tab-stop buttons.
     <div
+      data-edge-dock
       role="group"
       aria-label={ariaLabel ?? (side === 'left' ? 'Notebook tools' : 'Stats')}
       // z-50 keeps the dock ABOVE an open Drawer (z-40) so it acts as a live
