@@ -549,18 +549,20 @@ export const useGame = create<Store>()(
         }),
       clearToast: () => set((st) => { st.toast = null; }),
       apply: (mut) => set((st) => { mut(st); }),
-      // Only ONE drawer may be open at a time (opening a side closes the
-      // other): with both open, the later-mounted backdrop deadens the other
-      // panel and a single Esc would dismiss both.
+      // BOTH sides may be open at once — you read Details on the right while
+      // editing the notebook on the left, which is the whole point of having
+      // two edges.
+      //
+      // This used to force one-at-a-time for two concrete reasons, both now
+      // solved in <Drawer> rather than by hiding a panel:
+      //   • two dim backdrops each deadened the other panel — the right
+      //     drawer renders with `backdrop={false}`, so nothing is covered;
+      //   • a single Esc dismissed both — the left drawer now yields Esc
+      //     while a right drawer is mounted, so Esc closes the top one.
       openDrawer: (side, id) =>
         set((st) => {
-          if (side === 'left') {
-            st.ui.leftDrawer = id;
-            st.ui.rightDrawer = null;
-          } else {
-            st.ui.rightDrawer = id;
-            st.ui.leftDrawer = null;
-          }
+          if (side === 'left') st.ui.leftDrawer = id;
+          else st.ui.rightDrawer = id;
         }),
       closeDrawer: (side) =>
         set((st) => {
@@ -569,13 +571,8 @@ export const useGame = create<Store>()(
         }),
       toggleDrawer: (side, id) =>
         set((st) => {
-          if (side === 'left') {
-            st.ui.leftDrawer = st.ui.leftDrawer === id ? null : id;
-            if (st.ui.leftDrawer) st.ui.rightDrawer = null;
-          } else {
-            st.ui.rightDrawer = st.ui.rightDrawer === id ? null : id;
-            if (st.ui.rightDrawer) st.ui.leftDrawer = null;
-          }
+          if (side === 'left') st.ui.leftDrawer = st.ui.leftDrawer === id ? null : id;
+          else st.ui.rightDrawer = st.ui.rightDrawer === id ? null : id;
         }),
       setViewMode: (m) => set((st) => { st.ui.viewMode = m; }),
       dismissTip: (id) =>

@@ -33,6 +33,25 @@ interface Props {
    * the canvas underneath for the drop.
    */
   stealth?: boolean;
+  /**
+   * Dim layer behind the panel. TRUE makes the drawer modal: it blocks the
+   * page and Esc/backdrop dismiss it. FALSE leaves the rest of the UI live,
+   * which is what lets a left and a right drawer be open at once — two
+   * stacked backdrops would each deaden the other panel.
+   */
+  backdrop?: boolean;
+  /** Stacking class for the whole overlay, e.g. `z-40`. Higher sits on top. */
+  zClassName?: string;
+  /**
+   * When true this drawer ignores Esc, because a drawer stacked above it owns
+   * the key — one press closes the topmost panel, not both.
+   *
+   * Pass the OPEN STATE of the drawer above, never a DOM probe: a panel that
+   * is mid-exit is still in the document for the length of its animation, so
+   * `querySelector('[data-drawer-side=right]')` keeps blocking Esc for ~200ms
+   * after the top drawer has already been dismissed.
+   */
+  escYields?: boolean;
 }
 
 /**
@@ -55,6 +74,9 @@ export function Drawer({
   bodyClassName,
   panelOffsetClassName,
   stealth = false,
+  backdrop = true,
+  zClassName = 'z-40',
+  escYields = false,
 }: Props) {
   const reduced = useReducedMotion();
   const panelRef = useRef<HTMLElement | null>(null);
@@ -66,11 +88,13 @@ export function Drawer({
       // A modal stacked above (event / evaluation / confirm) owns Esc —
       // don't also close the drawer hidden beneath it.
       if (document.querySelector('[data-pixel-modal]')) return;
+      // With two drawers open, Esc closes the TOP one only.
+      if (escYields) return;
       onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, escYields]);
 
   // Move focus into the panel on open; return it to the opener on close.
   useEffect(() => {
@@ -108,28 +132,35 @@ export function Drawer({
       {open && (
         <div
           className={clsx(
-            'absolute inset-0 z-40 transition-opacity duration-150',
+            'absolute inset-0 transition-opacity duration-150',
+            zClassName,
+            // Without a backdrop the wrapper must not swallow clicks meant for
+            // the canvas or the other drawer; only the panel takes pointers.
+            !backdrop && 'pointer-events-none',
             stealth && 'opacity-0 pointer-events-none',
           )}
+          data-drawer-side={side}
           role="dialog"
-          aria-modal="true"
+          aria-modal={backdrop ? true : undefined}
           aria-hidden={stealth || undefined}
           aria-label={typeof title === 'string' ? title : 'Panel'}
         >
-          <motion.div
-            className="absolute inset-0 bg-ink-900/45"
-            onClick={onClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-          />
+          {backdrop && (
+            <motion.div
+              className="absolute inset-0 bg-ink-900/45"
+              onClick={onClose}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+            />
+          )}
           <motion.aside
             ref={panelRef as any}
             tabIndex={-1}
             onKeyDown={trapTab}
             className={clsx(
-              'absolute inset-y-0 flex flex-col panel-frame bg-surface outline-none',
+              'absolute inset-y-0 flex flex-col panel-frame bg-surface outline-none pointer-events-auto',
               side === 'left'
                 ? 'shadow-[8px_0_28px_-10px_rgba(0,0,0,0.5)]'
                 : 'shadow-[-8px_0_28px_-10px_rgba(0,0,0,0.5)]',

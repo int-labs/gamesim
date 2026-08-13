@@ -95,13 +95,13 @@ export function NotebookGallery() {
           </span>
         </div>
       </div>
-      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
+      <div className="absolute right-3 top-3 z-[45] h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
         <ViewToggle />
         {/* Same Details affordance as the focus view, in the same slot, so
             the toggle itself never shifts when switching views. */}
         {/* h matches the ViewToggle's OUTER height so the strip aligns. */}
         <button
-          onClick={() => { playSfx('click-soft'); openDrawer('left', 'details'); }}
+          onClick={() => { playSfx('click-soft'); openDrawer('right', 'details'); }}
           className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
         >
           <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />

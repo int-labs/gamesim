@@ -37,15 +37,17 @@ const LEFT_META: Record<string, { title: string; icon: string }> = {
 };
 
 /**
- * `details` shares the left-drawer slot in state (the canvas/gallery Details
- * buttons still call `openDrawer('left', 'details')`) but renders as a
- * near-fullscreen modal rather than a 384px drawer — it's a reference sheet
- * with hero art, not a control panel.
+ * `details` owns the RIGHT drawer slot. It used to share the left slot, which
+ * is why opening Details closed whatever you were editing and vice versa —
+ * exactly the two panels you want side by side, since Details is the reference
+ * sheet you read WHILE designing. It is a wide, backdrop-less drawer so the
+ * canvas and the left drawer both stay live behind it.
  */
 const DETAILS_ID = 'details';
 
 export function ProductPage() {
   const leftDrawer = useGame((s) => s.ui.leftDrawer);
+  const rightDrawer = useGame((s) => s.ui.rightDrawer);
   const viewMode = useGame((s) => s.ui.viewMode);
   const toggleDrawer = useGame((s) => s.toggleDrawer);
   const closeDrawer = useGame((s) => s.closeDrawer);
@@ -143,6 +145,12 @@ export function ProductPage() {
       <Drawer
         side="left"
         open={!!leftDrawer && leftDrawer !== DETAILS_ID}
+        zClassName="z-40"
+        escYields={rightDrawer === DETAILS_ID}
+        // With Details open the pair should read as two panels flanking a live
+        // canvas, so the left one drops its dim layer too — otherwise Details
+        // floats over a page the left drawer has greyed out.
+        backdrop={rightDrawer !== DETAILS_ID}
         title={leftDrawer ? LEFT_META[leftDrawer]?.title : ''}
         icon={leftDrawer ? LEFT_META[leftDrawer]?.icon : undefined}
         onClose={() => closeDrawer('left')}
@@ -166,10 +174,21 @@ export function ProductPage() {
         </motion.div>
       </Drawer>
 
-      <ArchetypeDetailModal
-        open={leftDrawer === DETAILS_ID}
-        onClose={() => closeDrawer('left')}
-      />
+      {/* Details — a wide RIGHT drawer, no backdrop, stacked above the left
+          one. Both can be open together: read the market data on the right
+          while you change the spec on the left. */}
+      <Drawer
+        side="right"
+        open={rightDrawer === DETAILS_ID}
+        title="Notebook Details"
+        onClose={() => closeDrawer('right')}
+        width="min(1040px, 92%)"
+        backdrop={false}
+        zClassName="z-50"
+        bodyClassName="pb-[84px] sm:pb-3.5"
+      >
+        <ArchetypeDetailModal inline open onClose={() => closeDrawer('right')} />
+      </Drawer>
 
       {/* The dragged tile's ghost. dropAnimation={null} because the add-on
           lands at its category default, not under the cursor — animating the
