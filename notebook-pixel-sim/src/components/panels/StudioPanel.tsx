@@ -97,7 +97,7 @@ function engageSummary(
 /**
  * StudioPanel — the V3 company-decision hub. Hire a candidate, set Marketing &
  * Sales budgets, and pick a shipping vendor for the active line. Each spends
- * ENERGY to set up (separate from the $/day money cost, which flows through the
+ * ENERGY to set up (separate from the per-phase money cost, which flows through the
  * phase P&L). Every decision is REVERSIBLE — clearing refunds the energy.
  */
 export function StudioPanel() {
@@ -136,7 +136,6 @@ export function StudioPanel() {
   const daysLeftInPhase = Math.max(0, phase * DAYS_PER_PHASE - day + 1);
 
   const vendorLevel = phase >= 2 ? 2 : 1;
-  const hireRefund = hire ? hireLevel(hire.candidate, hire.level).energy : 0;
   const vendorRefund = activeLine?.vendor ? VENDORS.find((v) => v.id === activeLine.vendor)!.energyByLevel[vendorLevel] : 0;
 
   const commit = () => {
@@ -206,11 +205,6 @@ export function StudioPanel() {
           {(Object.keys(CHANNEL_META) as ChannelId[]).map((ch) => {
             const on = companyChannels.has(ch);
             const isLastOn = on && companyChannels.size <= 1;
-            // maintenance/consignment are the same for every genre; only reach
-            // (split) differs, so show the range across the genres in play.
-            const reaches = genresInPlay.map((g) => channelRow(g, ch).split);
-            const lo = reaches.length ? Math.round(Math.min(...reaches) * 100) : 0;
-            const hi = reaches.length ? Math.round(Math.max(...reaches) * 100) : 0;
             const row = channelRow(genresInPlay[0] ?? 'indie', ch);
             return (
               <motion.button
@@ -225,27 +219,51 @@ export function StudioPanel() {
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 340, damping: 20 }}
                 className={clsx(
-                  // Ink frame either way — this is a switch, and an "off"
-                  // switch is still a control. State is carried by the FILL.
-                  'ctl-btn flex flex-col gap-2 p-3 border-2 border-ink-900 text-left cursor-pointer',
-                  on ? 'bg-success-soft' : 'bg-surface hover:bg-cream-100',
+                  // On/off used to be carried by FILL ALONE — #D4ECDB against
+                  // #FBF6E9, two pale tints that read as the same light card,
+                  // while the readout chips inside stayed fully coloured in
+                  // BOTH states. So an "off" card still contained a green
+                  // tile, and clients could not tell the two apart.
+                  //
+                  // State is now four reinforcing signals, only one of which
+                  // is colour: accent BORDER, fill, a solid-vs-hollow badge
+                  // carrying a ✓/✕ GLYPH (so it survives colour-blindness and
+                  // greyscale), and desaturated art + muted chips when off.
+                  // INK FRAME EITHER WAY. An "off" switch is still a switch,
+                  // and RULE 5 gives every control the full 2px border — fading
+                  // it to /35 made an off channel look like a static card, which
+                  // is the opposite of the problem being solved. Same weight in
+                  // both states; only the COLOUR changes, plus fill, badge glyph
+                  // and desaturated art.
+                  'ctl-btn flex flex-col gap-2 p-3 border-2 text-left cursor-pointer transition-colors',
+                  on
+                    ? 'border-primary-strong bg-success-soft'
+                    : 'border-ink-900 bg-surface hover:bg-cream-100',
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
                   <img
                     src={CHANNEL_ICON[ch]}
                     alt=""
-                    className="w-20 h-20 object-contain shrink-0"
+                    className={clsx(
+                      'w-20 h-20 object-contain shrink-0 transition-[filter,opacity]',
+                      // A channel you are not selling through should look
+                      // switched off, not merely un-tinted.
+                      !on && 'grayscale opacity-45',
+                    )}
                     style={{ imageRendering: 'pixelated' }}
                     draggable={false}
                   />
+                  {/* Solid + ✓ when on, hollow + ✕ when off. The glyph is the
+                      part that still works in greyscale or at a glance. */}
                   <span className={clsx(
-                    'shrink-0 px-2 py-1',
-                    on ? 'bg-success text-ink-900' : 'bg-surface-2',
+                    'shrink-0 inline-flex items-center gap-1 px-2 py-1 border-2',
+                    on
+                      ? 'bg-primary-strong border-primary-strong text-cream-50'
+                      : 'bg-transparent border-ink-900/40 text-text-3',
                   )}>
-                    <span className={clsx('eyebrow eyebrow-sm', on ? 'text-ink-900' : 'eyebrow-muted')}>
-                      {on ? 'On' : 'Off'}
-                    </span>
+                    <span aria-hidden className="btn-label-sm leading-none">{on ? '✓' : '✕'}</span>
+                    <span className="eyebrow eyebrow-sm text-inherit">{on ? 'On' : 'Off'}</span>
                   </span>
                 </div>
 
@@ -262,14 +280,17 @@ export function StudioPanel() {
                     read as a rendering fault rather than as "this one is
                     cheaper". "None" is the actual answer, and it's the whole
                     reason to pick offline, so it says so. */}
+                {/* Chips carry their semantic tint only while the channel is
+                    ON. Tinted in both states they out-shouted the card's own
+                    state — a green "Per sale: None" tile sat inside every OFF
+                    card, which is exactly the colour that is supposed to mean
+                    "this one is running". */}
                 <div className="grid grid-cols-2 gap-2 mt-auto">
-                  <StatChip label="Reach" value={lo === hi ? `${lo}%` : `${lo}-${hi}%`} tone="reach" />
-                  <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone="money" />
+                  <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone={on ? 'money' : 'muted'} />
                   <StatChip
                     label="Per sale"
                     value={row.consignment > 0 ? fmt$(row.consignment) : 'None'}
-                    tone={row.consignment > 0 ? 'money' : 'good'}
-                    className="col-span-2"
+                    tone={!on ? 'muted' : row.consignment > 0 ? 'money' : 'good'}
                   />
                 </div>
               </motion.button>
@@ -372,17 +393,31 @@ export function StudioPanel() {
                     const affordable = energy >= lv.energy;
                     const isCur = engaged && curLevel === lv.level;
                     return (
+                      // The engaged tier is a TOGGLE, not a dead end. It used
+                      // to be `disabled`, so undoing a hire meant finding a
+                      // separate "Clear hire" button at the bottom of the
+                      // section — a different control, in a different place,
+                      // for the exact decision you were already looking at.
+                      // Clicking the lit tier now releases the hire and
+                      // refunds its energy, the same click that made it.
                       <button
                         key={lv.level}
-                        disabled={!affordable || isCur}
-                        onClick={() => { playSfx('click-soft'); setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! }); }}
+                        disabled={!isCur && !affordable}
+                        aria-pressed={isCur}
+                        onClick={() => {
+                          playSfx('click-soft');
+                          if (isCur) { apply((s) => clearFinlitHire(s)); return; }
+                          setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! });
+                        }}
                         className={clsx(
                           'ctl-btn flex flex-col items-center gap-0.5 py-1.5 px-1 border-2 transition-all',
-                          isCur ? 'border-ink-900 bg-primary text-ink-900'
+                          isCur ? 'border-primary-strong bg-primary text-ink-900 active:scale-95'
                           : affordable ? 'border-ink-900 bg-surface hover:bg-cream-100 text-text active:scale-95'
                           : 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed',
                         )}
-                        title={`L${lv.level}: ${fmt$(perPhase(lv.cost))} per phase (${fmt$(lv.cost)}/day) · +${fmtUnitsPerPhase(lv.prodBonus)} units per phase · +${(lv.sellBonus * 100).toFixed(1)}% sell-rate · ${lv.energy}⚡ to unlock`}
+                        title={isCur
+                          ? `Hired at L${lv.level} — click again to release and refund ${lv.energy}⚡`
+                          : `L${lv.level}: ${fmt$(perPhase(lv.cost))} per phase · +${fmtUnitsPerPhase(lv.prodBonus)} units per phase · +${(lv.sellBonus * 100).toFixed(1)}% sell-rate · ${lv.energy}⚡ to unlock`}
                       >
                         {/* Level leads because it is the button's identity, but
                             at .num-sm, not .num-md: "L1" is a two-character tag,
@@ -398,7 +433,9 @@ export function StudioPanel() {
                         <span className="stat-label stat-label-on-tint">
                           {fmt$(perPhase(lv.cost))}
                         </span>
-                        {!isCur && <EnergyTag amount={lv.energy} />}
+                        {isCur
+                          ? <span className="btn-label-sm uppercase leading-none text-ink-900">✓ Hired</span>
+                          : <EnergyTag amount={lv.energy} />}
                       </button>
                     );
                   })}
@@ -441,18 +478,10 @@ export function StudioPanel() {
               </div>
             );
           })}
-          {/* A real control, not a text link. Undoing a hire refunds energy,
-              which is a decision worth as much affordance as making one. */}
-          {hire && (
-            <PixelButton
-              variant="ghost"
-              size="sm"
-              className="self-start"
-              onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitHire(s)); }}
-            >
-              Clear hire · refund <EnergyValue amount={hireRefund} className="ml-1" />
-            </PixelButton>
-          )}
+          {/* The separate "Clear hire" button is gone. Undo now lives on the
+              engaged tier itself — click the lit L1-L4 again to release it —
+              so making and unmaking the decision are the same control in the
+              same place, instead of a second button parked below the roster. */}
         </div>
       </OpsSection>
 
@@ -483,7 +512,7 @@ export function StudioPanel() {
                       : stocks && affordable ? 'border-ink-900 bg-surface hover:bg-cream-100'
                       : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed',
                     )}
-                    title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(perPhase(cov.cost))} per phase (${fmt$(cov.cost)}/day)` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
+                    title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(perPhase(cov.cost))} per phase` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
                   >
                     <div className="flex items-center gap-2.5">
                       <SafeImage

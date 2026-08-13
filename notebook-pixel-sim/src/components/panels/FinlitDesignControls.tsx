@@ -10,7 +10,7 @@ import {
 } from '@/data/finlit';
 import { vocFit } from '@/engine/finlit/fit';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
-import { fmt$ } from '@/utils/format';
+import { fmt$, fmtInt, perPhase } from '@/utils/format';
 import clsx from 'clsx';
 
 /**
@@ -121,7 +121,7 @@ export function FinlitDesignControls() {
 
       {/* ── Live feedback (the numbers the engine uses) ── */}
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Capacity" value={`${capacity.toFixed(1)}/d`} tone="info" />
+        <Stat label="Capacity" value={`${fmtInt(perPhase(capacity))} / phase`} tone="info" />
         <Stat label="Unit cost" value={fmt$(uCost)} tone="warn" />
         <Stat label="Margin" value={fmt$(margin)} tone={margin > 0 ? 'good' : 'bad'} />
       </div>

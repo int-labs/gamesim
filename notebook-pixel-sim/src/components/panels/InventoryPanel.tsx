@@ -7,7 +7,7 @@ import {
 } from '@/data/finlit';
 import { vocFit } from '@/engine/finlit/fit';
 import { PixelPanel, PixelBadge } from '@/components/primitives';
-import { fmt$, fmtInt } from '@/utils/format';
+import { fmt$, fmtInt, perPhase } from '@/utils/format';
 import { BUSINESS_PAGE } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import clsx from 'clsx';
@@ -93,9 +93,9 @@ export function InventoryPanel() {
       <PixelPanel title="Stock & Output">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Box label="Finished goods" value={fmtInt(finished)} tone="success" hint={BUSINESS_PAGE.inventory.finishedHint} />
-          <Box label="Produce / day" value={`~${fmtInt(totalTarget)}`} tone="neutral" hint="Total units/day you've planned across all notebooks." />
-          <Box label="Capacity / day" value={`~${fmtInt(Math.round(totalCapacity))}`} tone="info" hint="Most you can make per day at your current specs + hires." />
-          <Box label="Demand / day" value={`~${fmtInt(Math.round(totalDemand))}`} tone="info" hint="Estimated units/day customers will buy this phase." />
+          <Box label="Produce / phase" value={`~${fmtInt(perPhase(totalTarget))}`} tone="neutral" hint="Total units per phase you've planned across all notebooks." />
+          <Box label="Capacity / phase" value={`~${fmtInt(perPhase(totalCapacity))}`} tone="info" hint="Most you can make per phase at your current specs + hires." />
+          <Box label="Demand / phase" value={`~${fmtInt(perPhase(totalDemand))}`} tone="info" hint="Estimated units customers will buy this phase." />
         </div>
         <div className="flex items-center gap-2 mt-2">
           {stockoutDays > 0 && (
@@ -114,7 +114,7 @@ export function InventoryPanel() {
       {/* ── Production Plan — the decisions: units/day per notebook ── */}
       <PixelPanel title="Production Plan">
         <div className="hint text-text-3 -mt-1 mb-2 leading-tight">
-          Set how many of each notebook to make per day. Aim near demand - over-make and stock piles up, under-make and you sell out.
+          Set how many of each notebook to make per phase. Aim near demand - over-make and stock piles up, under-make and you sell out.
         </div>
         <div className="flex flex-col gap-2">
           {lines.map((line, i) => (
@@ -180,7 +180,7 @@ function ProductionRow({
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <span className="stat-label w-24 shrink-0">Produce / day</span>
+        <span className="stat-label w-24 shrink-0">Produce / phase</span>
         <input
           type="range"
           min={0}
@@ -191,23 +191,23 @@ function ProductionRow({
           className="flex-1 accent-ui-primary cursor-pointer"
         />
         {/* VALUE — the loudest thing in the row */}
-        <span className="num-sm text-text w-16 text-right shrink-0">
-          {value}
-          <span className="stat-label">/d</span>
+        {/* The slider's unit is still units/DAY internally — that is what the
+            engine schedules — but every figure the player reads is per phase. */}
+        <span className="num-sm text-text w-20 text-right shrink-0">
+          {fmtInt(perPhase(value))}
         </span>
       </div>
       <div className="flex items-center justify-between gap-3 mt-2">
         <span className="flex items-center gap-3 min-w-0">
           <span className="flex items-baseline gap-1.5">
             <span className="stat-label">Demand</span>
-            <span className="num-xs text-info">~{demandRounded}/d</span>
+            <span className="num-xs text-info">~{fmtInt(perPhase(demandRounded))}</span>
           </span>
           <span className="flex items-baseline gap-1.5">
             <span className="stat-label">Capacity</span>
-            <span className="num-xs text-text-2">~{stats.capacity.toFixed(1)}/d</span>
+            <span className="num-xs text-text-2">~{fmtInt(perPhase(stats.capacity))}</span>
           </span>
         </span>
-        <span className={clsx('item-name shrink-0', hintColor)}>{hint}</span>
       </div>
     </div>
   );

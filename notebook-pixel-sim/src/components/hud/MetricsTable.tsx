@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGame } from '@/state/store';
 import { A } from '@/assets';
-import { fmt$, fmtInt } from '@/utils/format';
+import { fmt$, fmtInt, perPhase } from '@/utils/format';
 import { CountUp } from '@/components/primitives/CountUp';
 import type { LedgerEntry, ProductLine } from '@/types';
 import {
@@ -317,7 +317,7 @@ function NotebookMetrics() {
       title: 'Inventory',
       rows: [
         { key: 'onhand', label: 'Stock on hand', num: finished, format: fmtInt, tone: stockTone, sub: finished === 0 ? 'Confirm the phase to produce' : finished < demandPerDay ? 'Running lean vs demand' : 'Comfortable vs demand' },
-        { key: 'target', label: 'Produce target', value: `~${fmtInt(produceTarget)}/day`, tone: 'neutral', sub: `capacity ~${capacity.toFixed(1)}/day` },
+        { key: 'target', label: 'Produce target', value: `~${fmtInt(perPhase(produceTarget))} / phase`, tone: 'neutral', sub: `capacity ~${fmtInt(perPhase(capacity))} / phase` },
       ],
     },
   ];
@@ -415,7 +415,7 @@ export function FinanceTable() {
                   className={clsx(
                     'eyebrow eyebrow-sm text-right py-2.5 px-2 w-[78px] border-b-4',
                     phaseNow === p
-                      ? 'eyebrow-strong border-primary bg-cream-100'
+                      ? 'eyebrow-strong border-primary bg-primary-soft/55 border-x border-x-primary/45'
                       : 'eyebrow-muted border-transparent',
                   )}
                 >
@@ -465,9 +465,14 @@ export function FinanceTable() {
                       <span className={clsx('truncate', r.emphasis ? 'item-name' : 'body-xs')}>{r.label}</span>
                     </span>
                   </td>
-                  <PnLCell value={values.p1} row={r} />
-                  <PnLCell value={values.p2} row={r} />
-                  <PnLCell value={values.p3} row={r} />
+                  {/* The live phase is marked down the whole COLUMN. A 4px
+                      rule under one header cell is invisible once your eye is
+                      three rows into the numbers, which is where you actually
+                      read — so the column you are playing carries a tint and
+                      side rules for its full height. */}
+                  <PnLCell value={values.p1} row={r} live={phaseNow === 1} />
+                  <PnLCell value={values.p2} row={r} live={phaseNow === 2} />
+                  <PnLCell value={values.p3} row={r} live={phaseNow === 3} />
                   <PnLCell value={values.total} row={r} emphasis />
                 </motion.tr>
               );
@@ -479,9 +484,10 @@ export function FinanceTable() {
   );
 }
 
-function PnLCell({ value, row, emphasis }: { value: number | null; row: PnLRow; emphasis?: boolean }) {
+function PnLCell({ value, row, emphasis, live }: { value: number | null; row: PnLRow; emphasis?: boolean; live?: boolean }) {
+  const liveCls = live ? 'bg-primary-soft/55 border-x border-primary/45' : '';
   if (value === null) {
-    return <td className="py-2 px-2 text-right num-xs text-text-3">-</td>;
+    return <td className={clsx('py-2 px-2 text-right num-xs text-text-3', liveCls)}>-</td>;
   }
   let color = 'text-text';
   if (row.group === 'cost') color = value !== 0 ? 'text-fin-cost' : 'text-text-3';
@@ -494,7 +500,7 @@ function PnLCell({ value, row, emphasis }: { value: number | null; row: PnLRow; 
     row.group === 'cost' && value !== 0 ? `−${fmt$(Math.abs(value))}` : fmt$(value);
 
   return (
-    <td className={clsx('py-2 px-2 text-right num-xs whitespace-nowrap', color, emphasis && 'pr-3')}>
+    <td className={clsx('py-2 px-2 text-right num-xs whitespace-nowrap', color, liveCls, emphasis && 'pr-3')}>
       {display}
     </td>
   );
@@ -543,10 +549,10 @@ export function PortfolioMetrics() {
     {
       key: 'output',
       icon: A.ui.metrics.capacity,
-      title: 'Daily Output',
+      title: 'Output / phase',
       rows: [
-        { key: 'target', label: 'Produce target', value: `~${fmtInt(totalTarget)}/day`, tone: 'neutral' },
-        { key: 'cap', label: 'Capacity', value: `~${fmtInt(Math.round(totalCapacity))}/day`, tone: 'neutral' },
+        { key: 'target', label: 'Produce target', value: `~${fmtInt(perPhase(totalTarget))} / phase`, tone: 'neutral' },
+        { key: 'cap', label: 'Capacity', value: `~${fmtInt(perPhase(totalCapacity))} / phase`, tone: 'neutral' },
         { key: 'load', label: 'Capacity load', value: `${loadPct}%`, tone: loadTone, sub: loadPct > 100 ? 'Target exceeds capacity' : 'Within capacity' },
       ],
     },

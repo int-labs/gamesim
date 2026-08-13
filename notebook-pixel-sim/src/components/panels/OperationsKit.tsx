@@ -2,7 +2,7 @@
 //
 // The old page ran every section together: a tiny uppercase caption, a hint,
 // then controls, with costs and energy buried as muted inline text like
-// "reach 30% · $10/day". Nothing framed a section, so the eye had no idea where
+// "reach 30% · $300/phase". Nothing framed a section, so the eye had no idea where
 // one decision ended and the next began, and the numbers you actually decide on
 // were the least visible thing on screen.
 //
@@ -167,7 +167,7 @@ export interface DetailInput {
   /** Option name, e.g. "Offline" or "Ains L2". */
   name: string;
   description: string;
-  /** $/day or one-off money cost. Omit when the option is free. */
+  /** Per-phase or one-off money cost. Omit when the option is free. */
   cost?: string;
   /** Energy to activate. Omit when it costs none. */
   energy?: number;
