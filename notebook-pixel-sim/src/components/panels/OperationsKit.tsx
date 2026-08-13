@@ -27,19 +27,27 @@ import { EnergyValue } from '@/components/primitives/EnergyValue';
 
 type ChipTone = 'money' | 'energy' | 'reach' | 'good' | 'muted';
 
-// Chip tints stay inside the warm palette — walnut, caramel, cream, sage,
-// amber. `reach` used to be `bg-info-soft`, the plum tint, and it repeats on
-// every channel card and every vendor row: three lavender boxes sitting in a
-// row of caramel and sage on a cream card was the one cold colour on screen
-// and read as an accident. Reach is a neutral descriptor — not good, not bad,
-// not money — so it takes the deeper caramel, which separates it from
-// `money`'s pale amber without introducing a fourth hue.
+// CHIP TONES — colour encodes MEANING, and each meaning has exactly one hue.
+//
+// This used to be four tones over two colours: `money` and `energy` were both
+// amber, `reach` and `muted` were both caramel. Colour therefore told you
+// nothing, while three adjacent chips could still come out three different
+// shades — a gain, a rate and a threshold each tinted differently in one row,
+// which is what made these read as a rainbow rather than a table.
+//
+//   good    sage    something you GAIN     (output, sell-rate lift)
+//   money   amber   money OUT or a money threshold (cost, breakeven, fees)
+//   energy  caramel the other currency you spend — warm and adjacent to
+//                   money because it is also a cost, but its own shade so a
+//                   ⚡ never reads as a $
+//   reach   surface a neutral descriptor: not good, not bad, not a cost
+//   muted   quiet   an OFF card — recedes and takes the text down with it
 const CHIP_TONE: Record<ChipTone, string> = {
   money: 'bg-warning-soft text-text',
-  energy: 'bg-warning-soft text-text',
-  reach: 'bg-surface-muted text-text',
+  energy: 'bg-surface-muted text-text',
+  reach: 'bg-surface-2 text-text',
   good: 'bg-success-soft text-text',
-  muted: 'bg-surface-2 text-text-2',
+  muted: 'bg-surface-2/40 text-text-3',
 };
 
 /**

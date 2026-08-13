@@ -270,9 +270,14 @@ export function StudioPanel() {
                   </span>
                 </div>
 
+                {/* Text recedes with the card. Dimming only the ART left the
+                    name and the figures at full strength, so an off channel
+                    read as "available" rather than "not running" — the exact
+                    complaint. --c-text-3 still measures ~10:1 on cream, so
+                    receding costs no legibility. */}
                 <div className="min-w-0">
-                  <div className="h3 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
-                  <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
+                  <div className={clsx('h3 uppercase', on ? 'text-ink-900' : 'text-text-3')}>{CHANNEL_META[ch].name}</div>
+                  <p className={clsx('body-xs mt-1 measure', on ? 'text-text-2' : 'text-text-3')}>{CHANNEL_META[ch].blurb}</p>
                 </div>
 
                 {/* The numbers you're actually choosing between get to look
@@ -410,9 +415,17 @@ export function StudioPanel() {
                     so adding a level in the backend widens this input with no
                     code change. `hireLevel()` throws on an unknown level, so the
                     value is clamped before it ever reaches the engine. */}
-                <div className="flex flex-wrap items-end gap-2.5">
-                  <label className="flex flex-col gap-1 shrink-0">
-                    <span className="stat-label">Level · max {maxLevel}</span>
+                {/* One line, baseline-aligned. This was four boxes of three
+                    different heights jammed together with `items-end` — an
+                    input, two tinted chips and a button — which read as
+                    clutter rather than a control. The cost and energy are
+                    consequences of the level you type, not things you pick,
+                    so they are inline figures now; only the input and the
+                    button are boxed, and the button is pushed to the far end
+                    where an action belongs. */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border-soft pt-2.5">
+                  <label className="flex items-center gap-2 shrink-0">
+                    <span className="stat-label">Level</span>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -422,11 +435,19 @@ export function StudioPanel() {
                       onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
                       onBlur={() => setLevelDraft((d) => ({ ...d, [c.id]: String(level) }))}
                       aria-label={`${c.name} level, 1 to ${maxLevel}`}
-                      className="w-[86px] bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary px-2 py-1.5"
+                      className="w-[62px] bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary px-2 py-1"
                     />
+                    <span className="hint text-text-3 whitespace-nowrap">of {maxLevel}</span>
                   </label>
-                  <StatChip label="Cost / phase" value={fmt$(perPhase(lv.cost))} tone="money" />
-                  <StatChip label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" />
+                  <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+                    <span className="stat-label">Cost / phase</span>
+                    <span className="num-sm text-text">{fmt$(perPhase(lv.cost))}</span>
+                  </span>
+                  <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+                    <span className="stat-label">Energy</span>
+                    <span className="num-sm text-text"><EnergyValue amount={lv.energy} size={13} /></span>
+                  </span>
+                  <span className="ml-auto shrink-0">
                   {engaged ? (
                     <PixelButton
                       variant="ghost"
@@ -444,21 +465,21 @@ export function StudioPanel() {
                       Hire
                     </PixelButton>
                   )}
+                  </span>
                 </div>
 
                 {/* Figures resolve to the level TYPED, not an L1→L4 range —
                     the range made you interpolate to find what you were
                     actually buying. */}
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-3 gap-1.5">
                   <StatChip label="Output / phase" value={`+${fmtUnitsPerPhase(lv.prodBonus)} units`} tone="good" />
-                  <StatChip label="Sell-rate" value={`+${(lv.sellBonus * 100).toFixed(1)}%`} tone="reach" />
+                  <StatChip label="Sell-rate" value={`+${(lv.sellBonus * 100).toFixed(1)}%`} tone="good" />
                   {/* cost ÷ extra units = the margin each new unit must clear
                       for the hire to pay for itself. */}
                   <StatChip
                     label="Breakeven margin"
                     value={`${fmt$(lv.cost / lv.prodBonus)} / unit`}
                     tone="money"
-                    className="col-span-2"
                   />
                 </div>
               </div>
@@ -515,7 +536,12 @@ export function StudioPanel() {
                         fallbackIcon="box"
                         fallbackSize={32}
                       />
-                      <span className="h3 uppercase text-ink-900 truncate flex-1 min-w-0">{v.name}</span>
+                      <span className={clsx('h3 uppercase truncate flex-1 min-w-0', on ? 'text-ink-900' : 'text-text-3')}>{v.name}</span>
+                      {/* The badge says STATE and nothing else. It briefly
+                          showed the coverage quality in the off state, so it
+                          read "✕ Good" — which parses as "not good" when the
+                          ✕ actually means "not engaged". Quality is a
+                          different fact and gets its own chip below. */}
                       {stocks && (
                         <span className={clsx(
                           'shrink-0 inline-flex items-center gap-1 px-1.5 py-[2px] border-2',
@@ -523,14 +549,15 @@ export function StudioPanel() {
                              : 'bg-transparent border-ink-900/40 text-text-3',
                         )}>
                           <span aria-hidden className="btn-label-sm leading-none">{on ? '✓' : '✕'}</span>
-                          <span className="eyebrow eyebrow-sm text-inherit">{on ? 'Shipping' : cov.quality}</span>
+                          <span className="eyebrow eyebrow-sm text-inherit">{on ? 'Shipping' : 'Off'}</span>
                         </span>
                       )}
                     </div>
                     {stocks ? (
                       // "Sell" lives in Details now; the card carries what the
                       // choice costs.
-                      <div className="grid grid-cols-2 gap-1.5 mt-2">
+                      <div className="grid grid-cols-3 gap-1.5 mt-2">
+                        <StatChip label="Coverage" value={cov.quality} tone={!on ? 'muted' : cov.quality === 'perfect' ? 'good' : 'reach'} />
                         <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone={on ? 'money' : 'muted'} />
                         <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone={on ? 'energy' : 'muted'} />
                       </div>
