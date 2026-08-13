@@ -244,15 +244,20 @@ export function StudioPanel() {
                     : 'border-ink-900 bg-surface hover:bg-cream-100',
                 )}
               >
+                {/* OFF fades the whole CONTENT in one move rather than
+                    bleaching each part separately. Per-element receding left
+                    the chips on almost no fill, which read as a missing
+                    background, and still needed a rule per element. The
+                    BORDER stays outside this wrapper at full strength - an
+                    off switch is still a control. */}
+                <div className={clsx('contents', !on && '[&>*]:opacity-60')}>
                 <div className="flex items-start justify-between gap-2">
                   <img
                     src={CHANNEL_ICON[ch]}
                     alt=""
                     className={clsx(
-                      'w-20 h-20 object-contain shrink-0 transition-[filter,opacity]',
-                      // A channel you are not selling through should look
-                      // switched off, not merely un-tinted.
-                      !on && 'grayscale opacity-45',
+                      'w-24 h-24 object-contain shrink-0 transition-[filter,opacity]',
+                      !on && 'grayscale',
                     )}
                     style={{ imageRendering: 'pixelated' }}
                     draggable={false}
@@ -276,8 +281,8 @@ export function StudioPanel() {
                     complaint. --c-text-3 still measures ~10:1 on cream, so
                     receding costs no legibility. */}
                 <div className="min-w-0">
-                  <div className={clsx('h3 uppercase', on ? 'text-ink-900' : 'text-text-3')}>{CHANNEL_META[ch].name}</div>
-                  <p className={clsx('body-xs mt-1 measure', on ? 'text-text-2' : 'text-text-3')}>{CHANNEL_META[ch].blurb}</p>
+                  <div className="h3 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
+                  <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
                 </div>
 
                 {/* The numbers you're actually choosing between get to look
@@ -294,12 +299,13 @@ export function StudioPanel() {
                     card, which is exactly the colour that is supposed to mean
                     "this one is running". */}
                 <div className="grid grid-cols-2 gap-2 mt-auto">
-                  <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone={on ? 'money' : 'muted'} />
+                  <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone="money" />
                   <StatChip
                     label="Per sale"
                     value={row.consignment > 0 ? fmt$(row.consignment) : 'None'}
-                    tone={!on ? 'muted' : row.consignment > 0 ? 'money' : 'good'}
+                    tone={row.consignment > 0 ? 'money' : 'good'}
                   />
+                </div>
                 </div>
               </motion.button>
             );
@@ -391,7 +397,7 @@ export function StudioPanel() {
                   <SafeImage
                     src={CANDIDATE_ICON[c.id]}
                     alt=""
-                    className={clsx('shrink-0 w-16 h-16 object-contain', !engaged && 'grayscale-[45%] opacity-80')}
+                    className={clsx('shrink-0 w-20 h-20 object-contain', !engaged && 'grayscale-[45%] opacity-80')}
                     fallbackIcon="hire"
                     fallbackSize={44}
                   />
@@ -439,10 +445,14 @@ export function StudioPanel() {
                     />
                     <span className="hint text-text-3 whitespace-nowrap">of {maxLevel}</span>
                   </label>
+                  {/* Rules between the groups: the row carries three separate
+                      facts, and spacing alone let them run together. */}
+                  <span aria-hidden className="hidden sm:block w-px self-stretch bg-border-soft" />
                   <span className="flex items-baseline gap-1.5 whitespace-nowrap">
                     <span className="stat-label">Cost / phase</span>
                     <span className="num-sm text-text">{fmt$(perPhase(lv.cost))}</span>
                   </span>
+                  <span aria-hidden className="hidden sm:block w-px self-stretch bg-border-soft" />
                   <span className="flex items-baseline gap-1.5 whitespace-nowrap">
                     <span className="stat-label">Energy</span>
                     <span className="num-sm text-text"><EnergyValue amount={lv.energy} size={13} /></span>
@@ -528,15 +538,17 @@ export function StudioPanel() {
                     )}
                     title={stocks ? `${cov.quality} · +${(cov.sellBonus * 100).toFixed(1)}% sell · ${cost}⚡ to unlock · ${fmt$(perPhase(cov.cost))} per phase` : `Doesn't stock ${activeLine.genre ?? 'indie'}`}
                   >
+                    {/* Off fades the content as one; the frame stays full. */}
+                    <div className={clsx('contents', !on && '[&>*]:opacity-60')}>
                     <div className="flex items-center gap-2.5">
                       <SafeImage
                         src={VENDOR_ICON[v.id]}
                         alt=""
-                        className={clsx('shrink-0 w-12 h-12 object-contain', !on && 'grayscale opacity-50')}
+                        className={clsx('shrink-0 w-16 h-16 object-contain', !on && 'grayscale')}
                         fallbackIcon="box"
                         fallbackSize={32}
                       />
-                      <span className={clsx('h3 uppercase truncate flex-1 min-w-0', on ? 'text-ink-900' : 'text-text-3')}>{v.name}</span>
+                      <span className="h3 uppercase text-ink-900 truncate flex-1 min-w-0">{v.name}</span>
                       {/* The badge says STATE and nothing else. It briefly
                           showed the coverage quality in the off state, so it
                           read "✕ Good" — which parses as "not good" when the
@@ -557,13 +569,14 @@ export function StudioPanel() {
                       // "Sell" lives in Details now; the card carries what the
                       // choice costs.
                       <div className="grid grid-cols-3 gap-1.5 mt-2">
-                        <StatChip label="Coverage" value={cov.quality} tone={!on ? 'muted' : cov.quality === 'perfect' ? 'good' : 'reach'} />
-                        <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone={on ? 'money' : 'muted'} />
-                        <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone={on ? 'energy' : 'muted'} />
+                        <StatChip label="Coverage" value={cov.quality} tone={cov.quality === 'perfect' ? 'good' : 'reach'} />
+                        <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone="money" />
+                        <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone="energy" />
                       </div>
                     ) : (
                       <p className="body-xs text-text-3 mt-2">Doesn't stock this market.</p>
                     )}
+                    </div>
                   </button>
                 );
               })}

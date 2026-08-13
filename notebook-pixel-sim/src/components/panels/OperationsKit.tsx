@@ -41,13 +41,17 @@ type ChipTone = 'money' | 'energy' | 'reach' | 'good' | 'muted';
 //                   money because it is also a cost, but its own shade so a
 //                   ⚡ never reads as a $
 //   reach   surface a neutral descriptor: not good, not bad, not a cost
-//   muted   quiet   an OFF card — recedes and takes the text down with it
+//   muted   quiet   a de-emphasised value. NOT the off-card treatment: an
+//                   off card fades its whole content with opacity, so its
+//                   chips keep their normal tint and fade with everything
+//                   else. Bleaching each chip instead left labels sitting on
+//                   almost no fill, which read as a missing background.
 const CHIP_TONE: Record<ChipTone, string> = {
   money: 'bg-warning-soft text-text',
   energy: 'bg-surface-muted text-text',
   reach: 'bg-surface-2 text-text',
   good: 'bg-success-soft text-text',
-  muted: 'bg-surface-2/40 text-text-3',
+  muted: 'bg-surface-2 text-text-2',
 };
 
 /**
@@ -129,7 +133,7 @@ export function OpsSection({
         <img
           src={icon}
           alt=""
-          className="w-14 h-14 object-contain shrink-0"
+          className="w-16 h-16 object-contain shrink-0"
           style={{ imageRendering: 'pixelated' }}
           draggable={false}
         />

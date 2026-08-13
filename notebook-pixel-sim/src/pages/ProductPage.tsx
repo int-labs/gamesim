@@ -147,6 +147,11 @@ export function ProductPage() {
         open={!!leftDrawer && leftDrawer !== DETAILS_ID}
         zClassName="z-40"
         escYields={rightDrawer === DETAILS_ID}
+        // It lost its backdrop (below), so it needs the same outside-pointer
+        // close the right drawer has - otherwise nothing dismisses it but the
+        // ✕ and Esc. Presses on the dock or the other drawer are ignored, so
+        // hopping Items → Design and reading Details both still work.
+        closeOnOutsidePointer
         // NEVER dims. The left drawer is a work surface you keep open while
         // using the canvas and the Details drawer, so it must not blank the
         // page behind it.
