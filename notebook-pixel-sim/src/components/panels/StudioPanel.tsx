@@ -298,7 +298,7 @@ export function StudioPanel() {
                     state — a green "Per sale: None" tile sat inside every OFF
                     card, which is exactly the colour that is supposed to mean
                     "this one is running". */}
-                <div className="grid grid-cols-2 gap-2 mt-auto">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-auto border-t border-border-soft pt-2">
                   <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone="money" />
                   <StatChip
                     label="Per sale"
@@ -436,7 +436,7 @@ export function StudioPanel() {
                     level input is the chip's value, so the input, the cost and
                     the energy line up as one row of equals and the button sits
                     at the far end. */}
-                <div className="flex flex-wrap items-stretch gap-2 border-t border-border-soft pt-2.5">
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border-soft pt-2.5">
                   <StatChip
                     label={`Level · max ${maxLevel}`}
                     tone="reach"
@@ -481,7 +481,7 @@ export function StudioPanel() {
                 {/* Figures resolve to the level TYPED, not an L1→L4 range —
                     the range made you interpolate to find what you were
                     actually buying. */}
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 gap-x-4 gap-y-1 border-t border-border-soft pt-2">
                   <StatChip label="Output / phase" value={`+${fmtUnitsPerPhase(lv.prodBonus)} units`} tone="good" />
                   <StatChip label="Sell-rate" value={`+${(lv.sellBonus * 100).toFixed(1)}%`} tone="good" />
                   {/* cost ÷ extra units = the margin each new unit must clear
@@ -568,7 +568,7 @@ export function StudioPanel() {
                     {stocks ? (
                       // "Sell" lives in Details now; the card carries what the
                       // choice costs.
-                      <div className="grid grid-cols-3 gap-1.5 mt-2">
+                      <div className="grid grid-cols-3 gap-x-4 gap-y-1 mt-2 border-t border-border-soft pt-2">
                         <StatChip label="Coverage" value={cov.quality} tone={cov.quality === 'perfect' ? 'good' : 'reach'} />
                         <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone="money" />
                         <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone="energy" />
@@ -702,8 +702,13 @@ function BudgetLever({
 }) {
   const active = value > 0;
   return (
-    // The lever's CONTROL is the slider; the card around it is a panel.
-    <div className={clsx('readout p-3 flex flex-col gap-2', active ? 'bg-success-soft' : 'bg-surface')}>
+    // The lever's CONTROL is the slider; the card around it is a panel — same
+    // `readout` + `bg-surface` as every other card in this panel. It used to
+    // turn mint (`bg-success-soft`) once funded, which made a funded lever the
+    // only tinted region on the page and re-introduced the "active gets its own
+    // colour" pattern. Funded state is already legible from the spend and the
+    // "Running on" energy label; it does not need a fill.
+    <div className="readout p-3 flex flex-col gap-2 bg-surface">
       <div>
         <div className="h3 uppercase text-ink-900">{label}</div>
         <p className="body-xs text-text-2 mt-1">{hint}</p>
