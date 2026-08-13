@@ -298,7 +298,7 @@ export function StudioPanel() {
                     state — a green "Per sale: None" tile sat inside every OFF
                     card, which is exactly the colour that is supposed to mean
                     "this one is running". */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-auto border-t border-border-soft pt-2">
+                <div className="grid grid-cols-2 gap-2 mt-auto">
                   <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone="money" />
                   <StatChip
                     label="Per sale"
@@ -436,7 +436,7 @@ export function StudioPanel() {
                     level input is the chip's value, so the input, the cost and
                     the energy line up as one row of equals and the button sits
                     at the far end. */}
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border-soft pt-2.5">
+                <div className="flex flex-wrap items-stretch gap-2 border-t border-border-soft pt-2.5">
                   <StatChip
                     label={`Level · max ${maxLevel}`}
                     tone="reach"
@@ -481,7 +481,7 @@ export function StudioPanel() {
                 {/* Figures resolve to the level TYPED, not an L1→L4 range —
                     the range made you interpolate to find what you were
                     actually buying. */}
-                <div className="grid grid-cols-3 gap-x-4 gap-y-1 border-t border-border-soft pt-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   <StatChip label="Output / phase" value={`+${fmtUnitsPerPhase(lv.prodBonus)} units`} tone="good" />
                   <StatChip label="Sell-rate" value={`+${(lv.sellBonus * 100).toFixed(1)}%`} tone="good" />
                   {/* cost ÷ extra units = the margin each new unit must clear
@@ -568,7 +568,7 @@ export function StudioPanel() {
                     {stocks ? (
                       // "Sell" lives in Details now; the card carries what the
                       // choice costs.
-                      <div className="grid grid-cols-3 gap-x-4 gap-y-1 mt-2 border-t border-border-soft pt-2">
+                      <div className="grid grid-cols-3 gap-1.5 mt-2">
                         <StatChip label="Coverage" value={cov.quality} tone={cov.quality === 'perfect' ? 'good' : 'reach'} />
                         <StatChip label="Per phase" value={fmt$(perPhase(cov.cost))} tone="money" />
                         <StatChip label="Energy" value={<EnergyValue amount={cost} size={13} />} tone="energy" />

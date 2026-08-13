@@ -444,7 +444,8 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
             <div className="flex flex-col gap-2 pt-1">
               {submittedDecision && (
-                <div className="flex items-start gap-2 border-2 border-success/45 bg-success-soft/40 px-3 py-2">
+                // No frame: a note is read, not pressed.
+                <div className="flex items-start gap-2 bg-success-soft/40 px-3 py-2">
                   <span className="stat-label text-success shrink-0 mt-0.5">Sent</span>
                   <span className="body-xs text-text">
                     Round {bootstrap?.round?.roundNumber} is already with your facilitator and
@@ -618,12 +619,17 @@ function Stat({
   // the revenue beside it — the one number the player most needed to notice was
   // the one carrying no signal at all. `warn` now tints the whole chip, the way
   // every other chip in the app already states its tone.
+  // The tone is carried by the FILL, not by a frame. These tiles used to wear a
+  // 2px border like the Cancel/Confirm buttons two rows below them, which is the
+  // one frame weight reserved for things you can press. The neutral tile had
+  // nothing else to show for it either: `border-border-soft` at 2px was its only
+  // definition, so dropping the frame means neutral needs a fill of its own.
   const toneChip =
-    tone === 'warn' ? 'border-warning bg-warning-soft/50'
-    : tone === 'cash' ? 'border-success/50 bg-success-soft/30'
-    : 'border-border-soft';
+    tone === 'warn' ? 'bg-warning-soft/50'
+    : tone === 'cash' ? 'bg-success-soft/30'
+    : 'bg-surface-2/50';
   return (
-    <div className={clsx('px-3 py-2 flex flex-col gap-0.5 border-2', toneChip)}>
+    <div className={clsx('px-3 py-2 flex flex-col gap-0.5', toneChip)}>
       <div className="flex items-center gap-1.5">
         <PixelIcon kind={icon} size={11} color={color} />
         <span className="kpi-label">{label}</span>

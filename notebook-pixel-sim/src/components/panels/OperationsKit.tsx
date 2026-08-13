@@ -46,24 +46,17 @@ type ChipTone = 'money' | 'energy' | 'reach' | 'good' | 'muted';
 //                   chips keep their normal tint and fade with everything
 //                   else. Bleaching each chip instead left labels sitting on
 //                   almost no fill, which read as a missing background.
-// BY DEFAULT a chip has no fill at all and the tone lands on the VALUE's ink
-// instead. Inside a card, a tinted box is a box inside a box inside a section:
-// it was the last of the nested fills making the page read as clutter. The
-// label / value structure stays, so these are still labelled readouts - only
-// the tray under them goes. `tinted` opts back in for a chip that ever needs
-// to sit on bare sheet rather than inside a card.
-// NOTE the class names: tailwind.config maps textColor.success/warning STRAIGHT
-// to the --c-*-ink weights, so the text class is `text-success`, not
-// `text-success-ink`. `text-*-ink` compiles to nothing at all, which silently
-// left every value on the default ink and the colour coding entirely absent.
-const CHIP_INK: Record<ChipTone, string> = {
-  money: 'text-warning',
-  energy: 'text-warning',
-  reach: 'text-text',
-  good: 'text-success',
-  muted: 'text-text-2',
-};
-
+// The TRAY is the tone. A flat variant was tried - caption over figure, colour
+// moved onto the value's ink, no fill - on the theory that a tinted box inside
+// a card was one nested fill too many. It reads calmer in isolation and it is
+// the wrong trade: without the fill the labels stop being grouped objects and
+// the row turns into loose text, so the cost/energy coding that is supposed to
+// organise the card at a glance has to be READ rather than seen. The fill stays.
+//
+// (If it is ever revisited: `text-success` / `text-warning` are the ink classes.
+// tailwind.config maps textColor.success straight to the --c-*-ink weight, so
+// `text-success-ink` is not a class, compiles to nothing, and silently leaves
+// every value on the default ink.)
 const CHIP_TONE: Record<ChipTone, string> = {
   money: 'bg-warning-soft text-text',
   energy: 'bg-surface-muted text-text',
@@ -82,36 +75,26 @@ export function StatChip({
   value,
   tone = 'muted',
   className,
-  tinted = false,
 }: {
   label: string;
   value: ReactNode;
   tone?: ChipTone;
   className?: string;
-  /** Opt IN to the tinted tray. Default is flat, deliberately: every chip in
-   *  the app sits inside a card, where a tint is a third nested fill, and a
-   *  chip added without thinking about it should get the consistent look
-   *  rather than re-introduce the boxes-inside-boxes this replaced. */
-  tinted?: boolean;
 }) {
   return (
-    // No border, ever. A chip carrying a number is not pressable, and giving it
-    // the same 2px frame as the buttons beside it is most of why the page was
-    // hard to read as a set of controls: the only 2px frames left on the page
-    // are things you can actually click. Grouping comes from the caption sitting
-    // directly above its figure - and, when `tinted`, from the tray as well.
-    <div className={clsx(
-      'min-w-0',
-      tinted ? clsx('readout px-2.5 py-1.5', CHIP_TONE[tone]) : 'px-0 py-0.5',
-      className,
-    )}>
+    // No BORDER - a chip carrying a number is not pressable, and giving it the
+    // same 2px frame as the buttons beside it is most of why the page was hard
+    // to read as a set of controls. But it keeps its FILL: `.readout`'s inset
+    // shadow says "display", and the tint is what makes label + value read as
+    // one object instead of two loose lines.
+    <div className={clsx('readout px-2.5 py-1.5 min-w-0', CHIP_TONE[tone], className)}>
       {/* One line, always. .stat-label carries `white-space: nowrap`, so a long
           caption clips at the chip edge instead of pushing the figure down and
           leaving one chip in a row taller than its neighbours. */}
       <div className="stat-label stat-label-on-tint truncate">{label}</div>
       {/* Values wrap rather than truncate: a clipped "$11.50/day + $…" hides
           exactly the number the player needs. */}
-      <div className={clsx('num-sm mt-1 leading-tight break-words', !tinted && CHIP_INK[tone])}>{value}</div>
+      <div className="num-sm mt-1 leading-tight break-words">{value}</div>
     </div>
   );
 }
@@ -309,12 +292,7 @@ export function OperationsDetailModal({
                 </div>
                 <div className="p-3 flex flex-col gap-2">
                   <p className="body-xs text-text-2">{inp.description}</p>
-                  {/* Untinted, like every chip: a tray per readout turned each
-                      card into a row of little boxes inside a box. The tone now
-                      lives on the VALUE's ink, so the colour coding survives
-                      without the nesting. One hairline separates the copy from
-                      the numbers. */}
-                  <div className="grid grid-cols-3 gap-3 border-t border-border-soft pt-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <StatChip label="Cost" value={inp.cost ?? 'Free'} tone={inp.cost ? 'money' : 'muted'} />
                     <StatChip
                       label="Energy"
