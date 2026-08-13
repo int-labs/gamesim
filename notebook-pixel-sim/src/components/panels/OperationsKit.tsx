@@ -258,7 +258,7 @@ export function OperationsDetailModal({
     <PixelModal open={open} onClose={onClose} title={title} size="lg" playful>
       <div className="flex flex-col gap-5">
         {intro && (
-          <p className="body-sm text-text-2 leading-relaxed border-l-4 border-brand-400 pl-3">{intro}</p>
+          <p className="body-sm text-text-2 leading-relaxed border-l-4 border-info pl-3">{intro}</p>
         )}
 
         {/* The two halves answer different questions — "what can I choose?" and

@@ -191,7 +191,13 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
    *  the machine rumbles — then the engine applies in one go. */
   const simFromDayRef = useRef(1);
   const tick = async () => {
-    if (!canAdvance || !roundContext) {
+    // `roundContext` is only needed to SUBMIT. Demanding it to advance was the
+    // same conflation as `canAdvance` itself, one level down: standalone play
+    // has no round context and needs none, so the guard bounced the player
+    // back to step 1 with "this round is not accepting decisions" — about a
+    // round that does not exist — immediately after the event they had just
+    // answered. The POST below is already gated on `canSubmit`.
+    if (!canAdvance || (canSubmit && !roundContext)) {
       setSyncError('Cannot submit: this round is not accepting decisions.');
       setStep('preview');
       return;
@@ -209,7 +215,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
       // anyway. Re-sending would 409, but the player still has 30 days of their
       // own simulation to watch and an evaluation to answer; the send being done
       // is not a reason to stop the game.
-      if (canSubmit) {
+      if (canSubmit && roundContext) {
         await submitRoundDecision(roundContext, {
           state: useGame.getState() as any,
           products: bootstrap?.products ?? [],
@@ -495,7 +501,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
                 <MascotAvatar mood="warning" size={66} />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="eyebrow eyebrow-sm text-brand-500">
+                    <span className="eyebrow eyebrow-sm text-info">
                       Key Scenario {allPhaseScenarios.length > 1 ? `${resolvedThisPhase + 1}/${allPhaseScenarios.length}` : ''}
                     </span>
                   </div>

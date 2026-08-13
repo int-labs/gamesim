@@ -163,7 +163,7 @@ function ProductionRow({
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
           {/* TITLE = line name; genre is a quiet tag before it */}
-          <span className="eyebrow eyebrow-sm text-brand-500 shrink-0">{genreById(stats.genre).name}</span>
+          <span className="eyebrow eyebrow-sm text-info shrink-0">{genreById(stats.genre).name}</span>
           <span className="item-name text-text truncate">{name}</span>
         </div>
         <span className="flex items-center gap-3 shrink-0">

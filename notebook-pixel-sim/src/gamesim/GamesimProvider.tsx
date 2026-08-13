@@ -387,9 +387,20 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   // permanently disabled: the player sat at the phase boundary with a greyed
   // button and no way to reach their own evaluation. Sending the decision has
   // to stop the POST, not the game.
+  //
+  // STANDALONE is the third case, and leaving it out made the mode unplayable.
+  // With `VITE_SKIP_PASSKEY=1`, or any run with no team session, there is no
+  // bootstrap and therefore no Active round — so `canAdvance` was false from
+  // day 1 and Confirm never enabled. The player could design a notebook and
+  // then never simulate a single day, with the modal explaining that a round
+  // was "not accepting decisions" in a mode that has no rounds and no server
+  // to open one. There is no facilitator to wait for here, which is exactly
+  // what the paragraph above says: the server is authoritative for scoring,
+  // not for whether the player is allowed to keep playing.
+  const standalone = status === 'standalone';
   const roundIsActive = !!bootstrap?.round && bootstrap.round.status === 'Active';
   const canSubmit = roundIsActive && !submittedDecision;
-  const canAdvance = roundIsActive || !!submittedDecision;
+  const canAdvance = standalone || roundIsActive || !!submittedDecision;
 
   const value: GamesimSessionValue = {
     status,
