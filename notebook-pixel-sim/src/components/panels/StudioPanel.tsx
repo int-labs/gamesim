@@ -181,7 +181,7 @@ export function StudioPanel() {
             maxLength={MAX_SHOP_NAME}
             aria-label="Shop name"
             placeholder={DEFAULT_SHOP_NAME}
-            className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text section-title outline-none focus:border-primary px-3 py-2"
+            className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text section-title outline-none focus:border-primary shadow-[2px_2px_0_0_var(--c-shadow)] px-3 py-2"
           />
           <div className="flex items-center gap-3 min-w-0">
             <span className="readout shrink-0 bg-surface-2 px-2 py-1">
@@ -429,32 +429,34 @@ export function StudioPanel() {
                     so they are inline figures now; only the input and the
                     button are boxed, and the button is pushed to the far end
                     where an action belongs. */}
-                {/* All three facts wear the SAME chip as the figures below —
-                    label above, value beneath, one tint per meaning. They were
-                    briefly inline text, which left their labels sitting on no
-                    background while every neighbouring value had one. The
-                    level input is the chip's value, so the input, the cost and
-                    the energy line up as one row of equals and the button sits
-                    at the far end. */}
+                {/* Cost and energy are READOUTS and wear the chip tray. The
+                    level is the one thing in this row you can change, and it
+                    is deliberately NOT a chip: it used to be an input nested
+                    inside a tray, so a tray said "number to read" while the
+                    input's own frame said "control", one inside the other, and
+                    the caption and the field read as the same object. A
+                    control here is a bare framed field on the card surface —
+                    the same 2px frame + resting shadow as every button — so
+                    the contrast with the two trays beside it IS the signal. */}
                 <div className="flex flex-wrap items-stretch gap-2 border-t border-border-soft pt-2.5">
-                  <StatChip
-                    label={`Level · max ${maxLevel}`}
-                    tone="reach"
-                    className="shrink-0"
-                    value={
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        max={maxLevel}
-                        value={draftRaw}
-                        onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
-                        onBlur={() => setLevelDraft((d) => ({ ...d, [c.id]: String(level) }))}
-                        aria-label={`${c.name} level, 1 to ${maxLevel}`}
-                        className="w-[58px] bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary px-1.5 py-0.5"
-                      />
-                    }
-                  />
+                  {/* <label> wraps both parts, so the caption is a click target
+                      for the field rather than decoration beside it. */}
+                  <label className="shrink-0 flex flex-col justify-between cursor-pointer">
+                    <span className="stat-label truncate">{`Level · max ${maxLevel}`}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={maxLevel}
+                      value={draftRaw}
+                      onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
+                      onBlur={() => setLevelDraft((d) => ({ ...d, [c.id]: String(level) }))}
+                      aria-label={`${c.name} level, 1 to ${maxLevel}`}
+                      // w-full, so the field spans its caption instead of
+                      // floating as a 58px box inside a wider container.
+                      className="w-full mt-1 bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary shadow-[2px_2px_0_0_var(--c-shadow)] px-1.5 py-1 cursor-text"
+                    />
+                  </label>
                   <StatChip label="Cost / phase" value={fmt$(perPhase(lv.cost))} tone="money" className="shrink-0" />
                   <StatChip label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" className="shrink-0" />
                   <span className="ml-auto self-center shrink-0">
