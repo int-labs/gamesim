@@ -15,11 +15,15 @@ dist-ssr
 *.sw?
 
 # Secrets / env
+#
+# `.env.production` is deliberately NOT ignored: it holds the deployed API URL
+# and nothing else. Vite inlines every VITE_* value into the client bundle, so
+# a secret placed there would ship to every browser anyway — it is a build
+# config file, not a secret store. Keep secrets on the server.
 .env
 .env.local
 .env.*.local
 .env.development
-.env.production
 *.pem
 *.key
 
