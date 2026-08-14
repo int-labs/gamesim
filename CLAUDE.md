@@ -405,6 +405,16 @@ cd server && npm run create-admin -- --email you@intlabs.io --password 'your-pas
 
 Four long documents — `BACKEND-MASTER-PLAN.md`, `INTEGRATION-PLAN.md`, `DASHBOARD-UIUX-SPEC.md`, `HANDOVER.md`. They are worth reading for *why* something is shaped the way it is, and they are **not** a description of the current tree. Their own status lines are the giveaway and disagree with each other: the backend master plan still says "PLAN — awaiting approval, zero implementation started" for work that has since shipped, while the integration plan says "Rev 3 — all phases complete". Treat every one of them as a snapshot of the day it was written, and confirm against the code before acting on anything in them. This file is the current-state doc.
 
+## Branch workflow
+
+**`notebook-sim` is the main integration branch** for the player (`notebook-pixel-sim/`). All production-ready player work lives there.
+
+**`rido-branch` is a strictly UI/UX experimentation branch.** It diverges from `notebook-sim` and is where visual and interaction experiments are developed before integration. Rules:
+
+- Commits by **ridohendrawan** to `rido-branch` do not require PR review — they are the author's own experiments on their own branch.
+- All other changes merged from `rido-branch` into `notebook-sim` are **manually PR-reviewed by the repo owner** before integration.
+- Do not assume code on `rido-branch` reflects the production-ready state of `notebook-sim`.
+
 ## Deployment
 
 `Dockerfile` builds the client, then the server, copies `client/build` into `server/public`, and serves both from one Node process (SPA fallback for non-`/api` paths, health check at `/api/health`). `start.sh` is the Render preview entrypoint: it derives a per-PR Atlas database name, seeds it, and starts the server. `.github/workflows/` contains a preview-approval gate and a `master → staging` sync job (the branch names predate `main`/`notebook-sim`).
