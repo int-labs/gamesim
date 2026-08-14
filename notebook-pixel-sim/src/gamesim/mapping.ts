@@ -1,111 +1,73 @@
-// GLUE: notebook game state → gamesim `Decision.inputs[].fields[]`.
+// GLUE: notebook game state → gamesim `Decision.inputs[].fields[]` and `globalInputs[]`.
 //
-// This file is the whole "how does a pixel notebook become a competitive
-// decision" translation, and it is NEW work — V3 has no such seam. Everything
-// here is written to fit the server exactly as it already is (no backend
-// change): the field ids come from GET /products, and the server's
-// calcMarketModel/calcFinancials decide what they mean.
-//
-// ⚠️ PROPOSED MAPPING — needs Shafnat's confirmation before it is treated as
-// final (see docs/gamesim-integration.md):
-//   selling_price            ← ProductLine.price                    (uncontroversial)
-//   score / quality          ← vocFit(spec, price, channels, genre)  ∈ [0.6, 1.2]
-//   unit cost (money field)  ← unitCost(spec)                       (uncontroversial)
-//   projected_market_share   ← local engine's share proxy — A NEW INPUT; V3 has
-//                              no such decision (it used a fixed BASE_MARKET_SHARE)
-//
-// Server quirks this file has to respect:
-//   • A ProductField with no `coefficients` is SKIPPED by calcMarketModel, so a
-//     field we fill here still contributes nothing to the competition unless the
-//     operator configured coefficients for it.
-//   • `selling_price` is skipped by the scoring loop outright
-//     (calcMarketModel.ts:192) — it drives revenue in calcFinancials, not share.
-//     So `score` is effectively the ONLY thing teams compete on today.
-//   • Every non-enum value is multiplied by a diminishing-returns factor that is
-//     1.0 at the midpoint of the field's [minValue, maxValue] and 2.0 at either
-//     bound. For `score` that means the field's range must be wide enough that
-//     the whole [0.6, 1.2] vocFit band sits on ONE side of the midpoint,
-//     otherwise a weak product can outrank a mid one — see
-//     scripts/provision-notebook.mjs, which configures [0, 3] for that reason.
-//   • projected_market_share is a FRACTION and it SCALES the score-derived
-//     share. In calcMarketModel: normalisedPms = pms / (1 / numberOfTeams), then
-//     actualShare = min(rawShare × normalisedPms, 1) — so pms = 1/numberOfTeams
-//     is the neutral claim, and getInput() additionally multiplies the value by a
-//     diminishing-returns factor that is 1.0 at the MIDPOINT of the field's
-//     [minValue, maxValue] and 2.0 at either bound. We therefore default to the
-//     field's midpoint (see `defaultProjectedShareFor`), which is the neutral,
-//     undistorted value when the operator sets the range to [0, 2/teams] — the
-//     range scripts/provision-notebook.mjs writes. recalcProjections reads the
-//     same key but clamps it to [0,1] and defaults a MISSING entry to 20 →
-//     clamped to 1.0 (100%), so we always send it explicitly.
+// Translation seam between local game state and the server's Decision schema.
+// Each spec axis is submitted as its own ProductField value; channel selections
+// are submitted as GlobalInput snapshots. No client-side scoring or cost
+// aggregation — calcMarketModel and calcFinancials handle that from the
+// individual field values and operator-configured coefficients.
 
 import type { GameState } from '@/state/store';
-import { unitCost } from '@/data/finlit';
-import { vocFit } from '@/engine/finlit';
-import { toFinlitLine, type LineInput } from '@/engine/finlit/adapter';
-import type { DecisionFieldEntry, DecisionProductInput, ProductDto, ProductFieldDto } from './types';
+import { configOption, type ConfigAxis } from '@/engine/finlit/core/config/production';
+import type {
+  DecisionFieldEntry,
+  DecisionGlobalInputDto,
+  DecisionProductInput,
+  GlobalInputDto,
+  ProductDto,
+  ProductFieldDto,
+} from './types';
 
-/** Field keys this glue knows how to fill. Anything else on the product is
- *  left to the operator's configuration (and simply not sent). */
+/** Canonical field keys this glue submits. One string per axis — no aliases. */
 export const FIELD_KEYS = {
-  sellingPrice: ['selling_price', 'sellingPrice', 'price'],
-  score: ['score', 'quality', 'product_score'],
-  unitCost: ['unit_cost', 'unitCost', 'cost'],
-  projectedMarketShare: ['projected_market_share'],
+  sellingPrice:         'selling_price',
+  paper:                'paper',
+  size:                 'size',
+  pageDesign:           'page_design',
+  addon:                'addon',
+  cover:                'cover',
+  projectedMarketShare: 'projected_market_share',
 } as const;
 
 type StoreLine = GameState['portfolio']['productLines'][number];
 
-const findField = (product: ProductDto, keys: readonly string[]): ProductFieldDto | undefined =>
-  product.fields.find((f) => keys.includes(f.key));
+const findField = (product: ProductDto, key: string): ProductFieldDto | undefined =>
+  product.fields.find((f) => f.key === key);
 
-function lineInput(l: StoreLine): LineInput {
-  return {
-    id: l.id,
-    name: l.name,
-    price: l.price,
-    genre: l.genre,
-    finlitSpec: l.finlitSpec,
-    channels: l.channels,
-    vendor: l.vendor,
-    targetPerDay: l.targetPerDay,
-    finished: l.inventory.finished,
-    targetSegment: l.targetSegment,
-  };
-}
+const specCost = (axis: ConfigAxis, id: string | undefined): number =>
+  id ? configOption(axis, id).cost : 0;
 
-/** The four numbers the glue derives from one product line. Exposed so the UI
- *  can show the player exactly what gets submitted. */
+/** The values derived from one product line for server submission. */
 export interface LineDecisionValues {
-  sellingPrice: number;
-  /** VoC fit in [0.6, 1.2] — the quality/score put up against other teams. */
-  score: number;
-  unitCost: number;
-  /** Fraction in [0,1]. */
+  sellingPrice:         number;
+  paper:                number;
+  size:                 number;
+  pageDesign:           number;
+  addon:                number;
+  cover:                number;
   projectedMarketShare: number;
 }
 
 export function lineDecisionValues(line: StoreLine, projectedMarketShare: number): LineDecisionValues {
-  const fl = toFinlitLine(lineInput(line));
+  const spec = line.finlitSpec ?? {};
   return {
-    sellingPrice: round2(fl.price),
-    score: round4(vocFit(fl.spec, fl.price, fl.channels, fl.genre)),
-    unitCost: round2(unitCost(fl.spec)),
+    sellingPrice:         round2(line.price),
+    paper:                specCost('paper',      spec.paper),
+    size:                 specCost('size',        spec.size),
+    pageDesign:           specCost('pageDesign',  spec.pageDesign),
+    addon:                specCost('addon',       spec.addon),
+    cover:                specCost('cover',       spec.cover),
     projectedMarketShare: clamp01(round4(projectedMarketShare)),
   };
 }
 
-/** Field entries for one product, skipping keys the product doesn't define. */
+/** Field entries for one product — FIELD_KEYS drives the loop. */
 export function toDecisionFields(product: ProductDto, values: LineDecisionValues): DecisionFieldEntry[] {
-  const entries: DecisionFieldEntry[] = [];
-  const push = (field: ProductFieldDto | undefined, value: number) => {
-    if (field) entries.push({ fieldId: field._id, value });
-  };
-  push(findField(product, FIELD_KEYS.sellingPrice), values.sellingPrice);
-  push(findField(product, FIELD_KEYS.score), values.score);
-  push(findField(product, FIELD_KEYS.unitCost), values.unitCost);
-  push(findField(product, FIELD_KEYS.projectedMarketShare), values.projectedMarketShare);
-  return entries;
+  return (Object.entries(FIELD_KEYS) as [keyof LineDecisionValues, string][])
+    .flatMap(([valueKey, fieldKey]) => {
+      const field = findField(product, fieldKey);
+      if (!field) return [];
+      return [{ fieldId: field._id, value: values[valueKey] }];
+    });
 }
 
 /**
@@ -115,8 +77,7 @@ export function toDecisionFields(product: ProductDto, values: LineDecisionValues
  * in common, so pairing is by name (case-insensitive, punctuation-insensitive)
  * and then positionally for whatever is left, in the order both sides list
  * them. Lines with no Product left to pair with are DROPPED from the
- * submission — the server has nowhere to put them, and inventing a Product
- * client-side is not something this seam gets to do.
+ * submission — the server has nowhere to put them.
  */
 export function pairLinesWithProducts(
   lines: StoreLine[],
@@ -151,41 +112,73 @@ export function defaultProjectedShareFor(product: ProductDto): number {
   return (min + max) / 2;
 }
 
+/** Both halves of a Decision submission. */
+export interface DecisionPayload {
+  inputs:       DecisionProductInput[];
+  globalInputs: DecisionGlobalInputDto[];
+}
+
 export interface ToDecisionInputsArgs {
-  state: GameState;
-  products: ProductDto[];
-  /** Per-line projected market share (fraction), keyed by line id. Missing
-   *  lines fall back to the paired product's neutral midpoint. */
-  projectedShareByLine?: Record<string, number>;
-  /** Overrides the per-product midpoint default for every line. */
+  state:                        GameState;
+  products:                     ProductDto[];
+  availableGlobalInputs:        GlobalInputDto[];
+  projectedShareByLine?:        Record<string, number>;
   defaultProjectedMarketShare?: number;
 }
 
 /**
- * The submission payload's `inputs[]`. One entry per paired product line —
- * notebook is multi-product, so each line is its own Product decision.
+ * The full Decision submission payload. `inputs[]` maps each paired product
+ * line to its field entries; `globalInputs[]` snapshots selected channel items
+ * from the operator's GlobalInput configuration.
  */
 export function toDecisionInputs({
   state,
   products,
+  availableGlobalInputs,
   projectedShareByLine = {},
   defaultProjectedMarketShare,
-}: ToDecisionInputsArgs): DecisionProductInput[] {
+}: ToDecisionInputsArgs): DecisionPayload {
   const activeProducts = products.filter((p) => p.active !== false);
-  return pairLinesWithProducts(state.portfolio.productLines, activeProducts).map(({ line, product }) => {
-    const share =
-      projectedShareByLine[line.id] ?? defaultProjectedMarketShare ?? defaultProjectedShareFor(product);
-    const values = lineDecisionValues(line, share);
+  const pairs = pairLinesWithProducts(state.portfolio.productLines, activeProducts);
+
+  const inputs: DecisionProductInput[] = pairs.map(({ line, product }) => {
+    const share = projectedShareByLine[line.id] ?? defaultProjectedMarketShare ?? defaultProjectedShareFor(product);
     return {
-      productId: product._id,
-      segmentId: product.segmentId,
+      productId:   product._id,
+      segmentId:   product.segmentId,
       productName: product.productName,
-      fields: toDecisionFields(product, values),
+      fields:      toDecisionFields(product, lineDecisionValues(line, share)),
     };
   });
+
+  const selectionMap = new Map(
+    (state.globalInputSelections ?? []).map((sel) => [sel.key, sel.selectedStepKey]),
+  );
+  const globalInputs: DecisionGlobalInputDto[] = [];
+  for (const container of availableGlobalInputs) {
+    for (const item of container.inputs) {
+      if (!selectionMap.has(item.key)) continue;
+      globalInputs.push({
+        globalInputItemId: item._id,
+        category:          container.category,
+        key:               item.key,
+        label:             item.label,
+        description:       item.description ?? null,
+        selectedStepKey:   selectionMap.get(item.key) ?? null,
+        cost:              item.cost,
+        energy:            item.energy,
+        productsImpacted:  item.productsImpacted,
+        impacts:           item.impacts,
+        impactLevel:       item.impactLevel ?? null,
+        options:           item.options,
+      });
+    }
+  }
+
+  return { inputs, globalInputs };
 }
 
 const normalize = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
-const clamp01 = (v: number) => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0));
-const round2 = (v: number) => Math.round(v * 100) / 100;
-const round4 = (v: number) => Math.round(v * 10000) / 10000;
+const clamp01   = (v: number) => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0));
+const round2    = (v: number) => Math.round(v * 100) / 100;
+const round4    = (v: number) => Math.round(v * 10000) / 10000;

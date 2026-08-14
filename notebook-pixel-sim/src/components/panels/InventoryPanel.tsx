@@ -2,8 +2,8 @@ import { useGame } from '@/state/store';
 import { setLineTargetPerDay } from '@/engine/mockEngine';
 import {
   genreById, prodPerDay, customersPer30dFor, genreDemand, GAME_PHASE_TO_DEMAND,
-  DEMAND_SCALE, hireLevel, salesSellBonus, marketingDemandMult,
-  type GenreId, type ProductionSpec, type ChannelId,
+  DEMAND_SCALE,
+  type GenreId, type ProductionSpec,
 } from '@/data/finlit';
 import { vocFit } from '@/engine/finlit/fit';
 import { PixelPanel, PixelBadge } from '@/components/primitives';
@@ -27,20 +27,16 @@ interface LineStats {
 }
 
 function statsFor(
-  line: { genre?: GenreId; finlitSpec?: Partial<ProductionSpec>; channels?: ChannelId[]; price: number; targetPerDay?: number; inventory: { finished: number } },
+  line: { genre?: GenreId; finlitSpec?: Partial<ProductionSpec>; price: number; targetPerDay?: number; inventory: { finished: number } },
   phase: 1 | 2 | 3,
-  sellBonus: number,
-  marketingMult: number,
 ): LineStats {
   const genre = (line.genre ?? 'indie') as GenreId;
   const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line.finlitSpec ?? {}) };
-  const channels = (line.channels ?? ['offline']) as ChannelId[];
   const capacity = prodPerDay(spec, 0);
   const d = genreDemand(genre, GAME_PHASE_TO_DEMAND[phase]);
-  const fit = vocFit(spec, line.price, channels, genre);
-  let demand30 = 0;
-  for (const ch of channels) demand30 += customersPer30dFor(genre, ch, d, sellBonus);
-  const demandDay = (demand30 * fit * marketingMult * DEMAND_SCALE) / 30;
+  const fit = vocFit(spec, line.price, ['offline'], genre);
+  const demand30 = customersPer30dFor(genre, 'offline', d, 0);
+  const demandDay = (demand30 * fit * DEMAND_SCALE) / 30;
   return {
     genre,
     capacity,
@@ -61,20 +57,12 @@ function statsFor(
 export function InventoryPanel() {
   const lines = useGame((s) => s.portfolio.productLines);
   const phase = useGame((s) => s.meta.phase);
-  const hire = useGame((s) => s.finlit.hire);
-  const marketingBudget = useGame((s) => s.finlit.marketingBudget);
-  const salesBudget = useGame((s) => s.finlit.salesBudget);
   const finished = useGame((s) => s.inventory.totalFinished);
   const stockoutDays = useGame((s) => s.inventory.stockoutDays);
   const overstockDays = useGame((s) => s.inventory.overstockDays);
   const apply = useGame((s) => s.apply);
 
-  const sellBonus =
-    (hire ? hireLevel(hire.candidate, hire.level).sellBonus : 0) +
-    salesSellBonus(salesBudget);
-  const marketingMult = marketingDemandMult(marketingBudget);
-
-  const stats = lines.map((l) => statsFor(l, phase, sellBonus, marketingMult));
+  const stats = lines.map((l) => statsFor(l, phase));
   const totalTarget = stats.reduce((a, s) => a + s.target, 0);
   const totalCapacity = stats.reduce((a, s) => a + s.capacity, 0);
   const totalDemand = stats.reduce((a, s) => a + s.demandDay, 0);

@@ -3,10 +3,9 @@ import {
   setLineGenre, setFinlitAxis, setPrice,
 } from '@/engine/mockEngine';
 import {
-  GENRES, CONFIG_TABLES, CHANNEL_META, prodPerDay, unitCost,
+  GENRES, CONFIG_TABLES, prodPerDay, unitCost,
   customersPer30dFor, genreDemand, GAME_PHASE_TO_DEMAND, DEMAND_SCALE,
-  hireLevel, salesSellBonus, marketingDemandMult,
-  type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
+  type GenreId, type ConfigAxis, type ProductionSpec,
 } from '@/data/finlit';
 import { vocFit } from '@/engine/finlit/fit';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
@@ -46,9 +45,6 @@ export function FinlitDesignControls() {
   );
   const apply = useGame((s) => s.apply);
   const phase = useGame((s) => s.meta.phase);
-  const hire = useGame((s) => s.finlit.hire);
-  const marketingBudget = useGame((s) => s.finlit.marketingBudget);
-  const salesBudget = useGame((s) => s.finlit.salesBudget);
 
   if (!line) {
     return <div className="body-sm text-text-2 p-2">Add a notebook first, then design it here.</div>;
@@ -64,24 +60,16 @@ export function FinlitDesignControls() {
     addon: line.finlitSpec?.addon ?? DEFAULT_SPEC.addon,
     cover: line.finlitSpec?.cover ?? DEFAULT_SPEC.cover,
   };
-  // Channels are set company-wide on the Business page; here they're read-only
-  // inputs to the demand estimate (and echoed in the signpost below).
-  const channels = new Set<ChannelId>((line.channels ?? ['offline']) as ChannelId[]);
-  const channelLabel = [...channels].map((c) => CHANNEL_META[c].name).join(' + ');
   const capacity = prodPerDay(spec, 0);
   const uCost = unitCost(spec);
   const margin = line.price - uCost;
 
-  // Estimated demand/day for this line this phase (so the player can produce to
-  // it — the LP2 lever). Folds in the current hire + marketing sell bonuses.
-  const sellBonus =
-    (hire ? hireLevel(hire.candidate, hire.level).sellBonus : 0) +
-    salesSellBonus(salesBudget);
+  // Local demand estimate: neutral fallbacks (sellBonus=0, channels=offline,
+  // marketingMult=1). GlobalInputSelections are server-authoritative.
   const demand = genreDemand(genre, GAME_PHASE_TO_DEMAND[phase]);
-  const fit = vocFit(spec, line.price, [...channels], genre);
-  let demand30d = 0;
-  for (const ch of channels) demand30d += customersPer30dFor(genre, ch, demand, sellBonus);
-  const demandPerDay = (demand30d * fit * marketingDemandMult(marketingBudget) * DEMAND_SCALE) / 30;
+  const fit = vocFit(spec, line.price, ['offline'], genre);
+  const demand30d = customersPer30dFor(genre, 'offline', demand, 0);
+  const demandPerDay = (demand30d * fit * DEMAND_SCALE) / 30;
 
   return (
     <div className="flex flex-col gap-4">
@@ -128,7 +116,7 @@ export function FinlitDesignControls() {
 
       {/* Signpost — these used to live here; tell the player where they went. */}
       <div className="hint border-t border-border-soft pt-3">
-        Selling through <span className="strong text-text-2">{channelLabel}</span>.
+        Selling through <span className="strong text-text-2">your active channels</span>.
         Set sales channels in <span className="strong text-text-2">Business ▸ Operations</span>,
         and how many to make in <span className="strong text-text-2">Business ▸ Inventory</span>.
       </div>

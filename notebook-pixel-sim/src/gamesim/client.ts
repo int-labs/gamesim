@@ -188,6 +188,20 @@ export function getResults(args: { simulationId: Id; roundNumber?: number }): Pr
   return request(`/results${qs(args)}`);
 }
 
+// ── Image assets ────────────────────────────────────────────────────────
+export interface ImageAssetDto {
+  _id: Id;
+  image_id: string;
+  filename: string;
+  url: string;
+}
+
+/** GET /image-assets — all uploaded images, ordered by creation date.
+ *  Rendered positionally: item at index i uses imageAssets[i].url. */
+export function getImageAssets(): Promise<ImageAssetDto[]> {
+  return request('/image-assets');
+}
+
 // ── Operator-authored content ───────────────────────────────────────────
 export interface RoundNoteDto {
   _id: Id;

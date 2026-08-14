@@ -7,9 +7,8 @@ import { CountUp } from '@/components/primitives/CountUp';
 import type { LedgerEntry, ProductLine } from '@/types';
 import {
   GENRES, prodPerDay, unitCost as finlitUnitCost, customersPer30dFor,
-  genreDemand, GAME_PHASE_TO_DEMAND, DEMAND_SCALE, hireLevel,
-  salesSellBonus, marketingDemandMult,
-  type GenreId, type ChannelId, type ProductionSpec,
+  genreDemand, GAME_PHASE_TO_DEMAND, DEMAND_SCALE,
+  type GenreId, type ProductionSpec,
 } from '@/data/finlit';
 import { vocFit } from '@/engine/finlit/fit';
 
@@ -255,9 +254,6 @@ function NotebookMetrics() {
   );
   const finished = useGame((s) => s.inventory.totalFinished);
   const phase = useGame((s) => s.meta.phase);
-  const hire = useGame((s) => s.finlit.hire);
-  const marketingBudget = useGame((s) => s.finlit.marketingBudget);
-  const salesBudget = useGame((s) => s.finlit.salesBudget);
 
   if (!hasNotebook || !line) return <EmptyMetrics text="No notebook selected. Open Notebook Items to add one." />;
 
@@ -267,23 +263,19 @@ function NotebookMetrics() {
   // conflicting numbers because they came from the old V2 engine).
   const genre: GenreId = line.genre ?? 'indie';
   const spec = finlitSpecOf(line);
-  const channels = new Set<ChannelId>((line.channels ?? ['offline']) as ChannelId[]);
   const price = line.price;
   const capacity = prodPerDay(spec, 0);
   const uCost = finlitUnitCost(spec);
   const margin = price > 0 ? (price - uCost) / price : 0;
   const marginPct = Math.round(margin * 100);
 
-  // FinLit demand/day - used only for the stock-warning tone (not shown as a
-  // row). Same math as the top pill: genre curve × VoC fit × channels.
-  const sellBonus =
-    (hire ? hireLevel(hire.candidate, hire.level).sellBonus : 0) +
-    salesSellBonus(salesBudget);
+  // Local demand estimate: neutral fallbacks (sellBonus=0, channels=offline,
+  // marketingMult=1). GlobalInputSelections are server-authoritative — the local
+  // engine can't resolve them without bootstrap data at render time.
   const demandCurve = genreDemand(genre, GAME_PHASE_TO_DEMAND[phase]);
-  const fit = vocFit(spec, price, [...channels], genre);
-  let demand30d = 0;
-  for (const ch of channels) demand30d += customersPer30dFor(genre, ch, demandCurve, sellBonus);
-  const demandPerDay = (demand30d * fit * marketingDemandMult(marketingBudget) * DEMAND_SCALE) / 30;
+  const fit = vocFit(spec, price, ['offline'], genre);
+  const demand30d = customersPer30dFor(genre, 'offline', demandCurve, 0);
+  const demandPerDay = (demand30d * fit * DEMAND_SCALE) / 30;
 
   const produceTarget = line.targetPerDay ?? Math.ceil(capacity);
   const genreName = GENRES.find((g) => g.id === genre)?.name ?? genre;
@@ -298,7 +290,6 @@ function NotebookMetrics() {
       title: 'Market',
       rows: [
         { key: 'genre', label: 'Genre', value: genreName, tone: 'info' },
-        { key: 'channels', label: 'Channels live', value: `${channels.size}/3`, tone: channels.size === 0 ? 'warn' : 'neutral' },
       ],
     },
     {

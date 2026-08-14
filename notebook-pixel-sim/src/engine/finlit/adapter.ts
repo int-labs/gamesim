@@ -5,7 +5,7 @@
 
 import {
   TYPE_OPTIONS, PAPER_OPTIONS, SIZE_OPTIONS, PAGE_DESIGN_OPTIONS, ADDON_OPTIONS, COVER_OPTIONS,
-  type GenreId, type ProductionSpec, type ChannelId, type VendorId, type CandidateId, type MarketingId,
+  type GenreId, type ProductionSpec, type VendorId, type CandidateId,
 } from '@/data/finlit';
 import type { FinlitLine, FinlitDecisions, Route } from './types';
 
@@ -16,7 +16,6 @@ export interface LineInput {
   price: number;
   genre?: GenreId;
   finlitSpec?: Partial<ProductionSpec>;
-  channels?: ChannelId[];
   vendor?: VendorId;
   targetPerDay?: number;
   finished?: number;
@@ -63,7 +62,7 @@ export function toFinlitLine(l: LineInput): FinlitLine {
     genre,
     spec,
     price: l.price > 0 ? l.price : 16,
-    channels: l.channels && l.channels.length ? l.channels : ['offline'],
+    channels: ['offline'],
     vendor: l.vendor,
     targetPerDay: l.targetPerDay,
     finished: l.finished ?? 0,
@@ -82,40 +81,6 @@ export function toFinlitDecisions(d: DecisionInput): FinlitDecisions {
     salesBudget: d.salesBudget ?? 0,
     demandMult: d.demandMult ?? 1,
     sellMult: d.sellMult ?? 1,
-  };
-}
-
-/**
- * Reverse of toFinlitLine — the subset of a store ProductLine that a
- * FinlitLine actually carries. NOT a full ProductLine: fields with no
- * FinlitLine counterpart (archetype, cover, binding, size, paperQuality,
- * pricePoint, addOnsByArchetype, quantityTarget, isCustomName, targetSegment)
- * have no way to be reconstructed from server data alone, so this is only
- * safe to merge onto an EXISTING local line with a matching id (e.g.
- * restoring a saved draft into the same browser/session) — never used to
- * synthesize a brand-new line from scratch.
- */
-export interface FinlitLineOverlay {
-  name: string;
-  genre: GenreId;
-  finlitSpec: ProductionSpec;
-  price: number;
-  channels: ChannelId[];
-  vendor?: VendorId;
-  targetPerDay?: number;
-  finished: number;
-}
-
-export function fromFinlitLine(l: FinlitLine): FinlitLineOverlay {
-  return {
-    name: l.name,
-    genre: l.genre,
-    finlitSpec: l.spec,
-    price: l.price,
-    channels: l.channels,
-    vendor: l.vendor,
-    targetPerDay: l.targetPerDay,
-    finished: l.finished,
   };
 }
 

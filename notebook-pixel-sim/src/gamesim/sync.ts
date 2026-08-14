@@ -14,11 +14,11 @@
 
 import type { GameState } from '@/state/store';
 import * as gamesim from './client';
-import { toDecisionInputs, type ToDecisionInputsArgs } from './mapping';
+import { toDecisionInputs, type DecisionPayload, type ToDecisionInputsArgs } from './mapping';
 import type {
   DecisionDto,
-  DecisionGlobalInputDto,
   DecisionProductInput,
+  GlobalInputDto,
   Id,
   ProductProjectionDto,
   ProjectionDto,
@@ -46,11 +46,10 @@ export interface RoundContext {
 
 export interface BuildDecisionArgs extends Omit<ToDecisionInputsArgs, 'state'> {
   state: GameState;
-  globalInputs?: DecisionGlobalInputDto[];
 }
 
-/** Game state → the `inputs[]` the server stores and scores. */
-export function buildDecisionInputs(args: BuildDecisionArgs): DecisionProductInput[] {
+/** Game state → the full Decision payload the server stores and scores. */
+export function buildDecisionInputs(args: BuildDecisionArgs): DecisionPayload {
   return toDecisionInputs(args);
 }
 
@@ -87,7 +86,7 @@ export async function fetchServerProjection(
   ctx: RoundContext,
   args: BuildDecisionArgs,
 ): Promise<ServerProjectionResult | null> {
-  const inputs = buildDecisionInputs(args);
+  const { inputs, globalInputs } = buildDecisionInputs(args);
   if (inputs.length === 0) return null;
 
   try {
@@ -100,7 +99,7 @@ export async function fetchServerProjection(
         roundNumber: ctx.roundNumber,
         productId: input.productId,
         fields: input.fields,
-        globalInputs: args.globalInputs ?? [],
+        globalInputs,
       });
     }
     if (!projection) return null;
@@ -134,7 +133,7 @@ export async function submitRoundDecision(
   ctx: RoundContext,
   args: BuildDecisionArgs,
 ): Promise<DecisionDto> {
-  const inputs = buildDecisionInputs(args);
+  const { inputs, globalInputs } = buildDecisionInputs(args);
   if (inputs.length === 0) {
     throw new GamesimSyncError(
       'No product line could be matched to a product in this simulation, so there is nothing to submit.',
@@ -147,7 +146,7 @@ export async function submitRoundDecision(
       teamId: ctx.teamId,
       roundNumber: ctx.roundNumber,
       inputs,
-      globalInputs: args.globalInputs ?? [],
+      globalInputs,
     });
   } catch (err) {
     if (err instanceof gamesim.GamesimApiError && err.status === 409) {

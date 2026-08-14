@@ -23,7 +23,6 @@ function lineInput(l: GameState['portfolio']['productLines'][number]): LineInput
     price: l.price,
     genre: l.genre,
     finlitSpec: l.finlitSpec,
-    channels: l.channels,
     vendor: l.vendor,
     targetPerDay: l.targetPerDay,
     finished: l.inventory.finished,
@@ -37,9 +36,8 @@ export function previewFinlitPhase(s: GameState): FinlitPhaseResult {
   const lines = toFinlitLines(s.portfolio.productLines.map(lineInput));
   const decisions = toFinlitDecisions({
     route: s.meta.route ?? 'self',
-    hire: s.finlit.hire,
-    marketingBudget: s.finlit.marketingBudget,
-    salesBudget: s.finlit.salesBudget,
+    // hire/marketingBudget/salesBudget now in globalInputSelections;
+    // local preview uses neutral fallbacks — calcFinancials is authoritative.
     demandMult: s.finlit.demandMult,
     sellMult: s.finlit.sellMult,
   });
@@ -51,9 +49,6 @@ export function runFinlitPhase(s: GameState): FinlitPhaseResult {
   const lines = toFinlitLines(s.portfolio.productLines.map(lineInput));
   const decisions = toFinlitDecisions({
     route: s.meta.route ?? 'self',
-    hire: s.finlit.hire,
-    marketingBudget: s.finlit.marketingBudget,
-    salesBudget: s.finlit.salesBudget,
     demandMult: s.finlit.demandMult,
     sellMult: s.finlit.sellMult,
   });

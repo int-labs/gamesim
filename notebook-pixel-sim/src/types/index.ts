@@ -219,8 +219,6 @@ export interface ProductLine {
   genre?: FinlitGenreId;
   /** Multiplicative production spec (type/paper/size/pageDesign/addon/cover). */
   finlitSpec?: Partial<FinlitProductionSpec>;
-  /** Channels this line is stocked in (offline/online/retail). */
-  channels?: FinlitChannelId[];
   /** Shipping vendor engaged for this line. */
   vendor?: FinlitVendorId;
   /** Units/day the player commits to producing (LP2 lever; ≤ capacity). */

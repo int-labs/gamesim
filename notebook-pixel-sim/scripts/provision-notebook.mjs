@@ -161,15 +161,26 @@ const MARKET_MODEL_KEYS = [
 ];
 
 const GLOBAL_INPUT = {
-  category: 'Marketing',
-  key: 'notebook_marketing',
-  label: 'Marketing push',
-  type: 'radio',
-  description: 'Company-wide marketing spend for the round.',
+  category:      'Marketing',
+  key:           'notebook_marketing',
+  label:         'Marketing budget',
+  type:          'checkbox',
+  description:   'Activate a marketing spend for the round. Step multipliers configured via admin panel.',
+  maxSelections: 1,
   inputs: [
-    { key: 'none', label: 'No push', cost: 0, energy: 0, impacts: {}, impactLevel: 'none', options: {} },
-    { key: 'light', label: 'Light push', cost: 2000, energy: 5, impacts: { demand: { type: 'relative', value: 0.1 } }, impactLevel: 'low', options: {} },
-    { key: 'heavy', label: 'Heavy push', cost: 6000, energy: 12, impacts: { demand: { type: 'relative', value: 0.25 } }, impactLevel: 'high', options: {} },
+    {
+      key:              'marketing_budget',
+      label:            'Marketing spend',
+      description:      'Select a daily spend level. Each step lifts customer conversion.',
+      minPossibleValue: 0,
+      maxPossibleValue: 40,
+      cost:             30,
+      energy:           4,
+      productsImpacted: [],
+      impacts:          { marketing: { type: 'relative', value: 1 } },
+      impactLevel:      null,
+      options:          {},
+    },
   ],
 };
 

@@ -1,17 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGame, DEFAULT_SHOP_NAME, MAX_SHOP_NAME } from '@/state/store';
 import {
-  engageFinlitHire, clearFinlitHire, engageFinlitVendor, clearFinlitVendor,
-  setFinlitMarketingBudget, setFinlitSalesBudget,
-  finlitCompanyChannels, toggleFinlitChannelAll, setShopName,
+  setGlobalInputSelection, clearGlobalInputSelection,
+  engageFinlitVendor, clearFinlitVendor, setShopName,
 } from '@/engine/mockEngine';
 import {
-  CANDIDATES, VENDORS, hireLevel, vendorCoverage,
-  BUDGET_MAX, BUDGET_LEVER_ENERGY, marketingDemandMult, salesSellBonus,
-  CHANNEL_META, channelRow,
-  type CandidateId, type VendorId, type GenreId, type ChannelId,
+  VENDORS, vendorCoverage,
+  type VendorId, type GenreId,
 } from '@/data/finlit';
-import { fmt$, perPhase, fmtUnitsPerPhase } from '@/utils/format';
+import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { getImageAssets, type ImageAssetDto } from '@/gamesim/client';
+import type { GlobalInputDto, GlobalInputImpactDto } from '@/gamesim/types';
+import { fmt$, perPhase } from '@/utils/format';
 import { DAYS_PER_PHASE } from '@/engine/config';
 import { playSfx } from '@/audio/audioManager';
 import { PixelModal } from '@/components/primitives/PixelModal';
@@ -20,40 +20,48 @@ import { PixelBadge, PixelButton } from '@/components/primitives';
 import { SafeImage } from '@/components/primitives/SafeImage';
 import { A } from '@/assets';
 import { studyFor, type CaseStudy } from '@/content/finlitCaseStudies';
-import { OpsSection, StatChip, EnergyTag, OperationsDetailModal } from './OperationsKit';
-import { channelDetail, budgetDetail, hiringDetail, vendorDetail, type SectionDetail } from './operationsDetails';
+import { OpsSection, StatChip, OperationsDetailModal, type DetailInput } from './OperationsKit';
+import { vendorDetail, type SectionDetail } from './operationsDetails';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
 
-/** Section header art. Each decision gets a distinct pixel mark. */
+/** Format backend impact entries into readable strings for ImpactList. */
+function formatImpacts(impacts: Record<string, GlobalInputImpactDto>): string[] {
+  return Object.entries(impacts).map(([key, v]) => {
+    const sign = v.value >= 0 ? '+' : '';
+    const val = v.type === 'relative'
+      ? `${sign}${(v.value * 100).toFixed(0)}%`
+      : `${sign}${v.value}`;
+    return `${key}: ${val}`;
+  });
+}
+
+/** Build an OperationsDetailModal payload from a GlobalInput container. */
+function buildGlobalInputDetail(container: GlobalInputDto, inputs: GlobalInputItem[]): SectionDetail {
+  return {
+    title: container.label,
+    intro: container.description ?? `Options for ${container.label}.`,
+    inputs: inputs.map((item): DetailInput => ({
+      name: item.label,
+      description: item.description ?? '',
+      cost: item.cost > 0 ? `${fmt$(item.cost)}/day` : undefined,
+      energy: item.energy > 0 ? item.energy : undefined,
+      impacts: item.productsImpacted.length ? 'Selected products' : 'All products',
+      effect: (item.impactLevel ?? formatImpacts(item.impacts ?? {}).join(', ')) || '–',
+    })),
+    tables: [],
+  };
+}
+
+/** Section header art. */
 const SECTION_ICON = {
   shop: A.ui.sidebar.product,
-  channels: A.ui.commercial.social_media,
-  budget: A.ui.commercial.campaign,
-  hiring: A.ui.studioOps.staff_training,
   vendor: A.ui.studioOps.supplier,
+  globalInput: A.ui.commercial.campaign,
 };
 
-/** Per-channel art. Closest existing marks; purpose-built ones would be better. */
-const CHANNEL_ICON: Record<ChannelId, string> = {
-  offline: A.ui.commercial.bulk_order,
-  online: A.ui.commercial.social_media,
-  retail: A.ui.studioOps.inventory_shelf,
-};
-
-// A distinct studio-operations portrait per candidate, so each hire reads at a
-// glance (the visual hook for the hiring cards).
-const CANDIDATE_ICON: Record<string, string> = {
-  ains: A.ui.studioOps.printing,
-  beta: A.ui.studioOps.staff_training,
-  chewie: A.ui.studioOps.packaging_station,
-  danoct: A.ui.studioOps.binding_machine,
-};
-
-// Storefront art per vendor. Every other option card on this page leads with a
-// pixel mark; the vendor tiles were the one set that was pure text, so a row of
-// four shops read as a table rather than as four places you could ship through.
+/** Storefront art per vendor. */
 const VENDOR_ICON: Record<string, string> = {
   als: A.ui.studioOps.supplier,
   emils: A.ui.commercial.bulk_order,
@@ -61,117 +69,121 @@ const VENDOR_ICON: Record<string, string> = {
   nines: A.ui.commercial.limited_drop,
 };
 
-// A pending pick — set when the player taps an option; the case-study modal
-// then gates the actual engage (the PDF's "read before choosing").
+type GlobalInputItem = GlobalInputDto['inputs'][number];
 type Pending =
-  | { kind: 'candidate'; id: CandidateId; level: 1 | 2 | 3 | 4; energy: number; study: CaseStudy }
-  | { kind: 'vendor'; id: VendorId; energy: number; study: CaseStudy };
+  | { kind: 'vendor'; id: VendorId; energy: number; study: CaseStudy }
+  | { kind: 'globalInput'; item: GlobalInputItem; containerInputs: GlobalInputItem[]; containerType: string; isSelected: boolean; pendingStepKey?: string };
 
-// Turn a pending pick into the prominent cost tiles + impact chips the modal
-// shows — energy to unlock (⚡) and ongoing $ cost kept as SEPARATE tiles.
-function engageSummary(
-  p: Pending,
+function vendorEngageSummary(
+  id: VendorId,
+  energy: number,
   vendorLevel: 1 | 2,
   genre: GenreId | undefined,
 ): { tiles: CostTile[]; effects: string[] } {
-  const tiles: CostTile[] = [{ label: 'Energy to unlock', value: `${p.energy}`, tone: 'energy', icon: 'energy' }];
+  const tiles: CostTile[] = [{ label: 'Energy to unlock', value: `${energy}`, tone: 'energy', icon: 'energy' }];
   const effects: string[] = [];
-  if (p.kind === 'candidate') {
-    const lv = hireLevel(p.id, p.level);
-    tiles.push({ label: 'Daily wage', value: fmt$(lv.cost), tone: 'cost', icon: 'cash' });
-    effects.push(`+${lv.prodBonus.toFixed(2)} produced / day`, `+${(lv.sellBonus * 100).toFixed(1)}% sell-rate`);
-  } else {
-    const cov = genre ? vendorCoverage(p.id, vendorLevel, genre) : undefined;
-    if (cov && cov.quality !== 'none') {
-      tiles.push({ label: 'Daily cost', value: fmt$(cov.cost), tone: 'cost', icon: 'cash' });
-      effects.push(
-        `+${(cov.sellBonus * 100).toFixed(1)}% sell-rate`,
-        `+${cov.prodBonus.toFixed(1)} produced / day`,
-        `${cov.quality} quality`,
-      );
-    }
+  const cov = genre ? vendorCoverage(id, vendorLevel, genre) : undefined;
+  if (cov && cov.quality !== 'none') {
+    tiles.push({ label: 'Daily cost', value: fmt$(cov.cost), tone: 'cost', icon: 'cash' });
+    effects.push(
+      `+${(cov.sellBonus * 100).toFixed(1)}% sell-rate`,
+      `+${cov.prodBonus.toFixed(1)} produced / day`,
+      `${cov.quality} quality`,
+    );
   }
   return { tiles, effects };
 }
 
 /**
- * StudioPanel — the V3 company-decision hub. Hire a candidate, set Marketing &
- * Sales budgets, and pick a shipping vendor for the active line. Each spends
- * ENERGY to set up (separate from the $/day money cost, which flows through the
- * phase P&L). Every decision is REVERSIBLE — clearing refunds the energy.
+ * StudioPanel — the company-decision hub. Company-wide operations (channels,
+ * hiring, budgets) are now driven by backend-configured GlobalInputs so the
+ * operator can add, remove, or re-price them without a frontend deploy.
+ * Shipping vendor (per-line) remains engine-managed.
  */
 export function StudioPanel() {
+  const { bootstrap } = useGamesimSession();
+  const [imageAssets, setImageAssets] = useState<ImageAssetDto[]>([]);
+  const [imageAssetsReady, setImageAssetsReady] = useState(false);
+
+  useEffect(() => {
+    getImageAssets()
+      .then((assets) => { setImageAssets(assets); })
+      .catch(() => {})
+      .finally(() => { setImageAssetsReady(true); });
+  }, []);
+
   const energy = useGame((s) => s.player.energy);
-  const hire = useGame((s) => s.finlit.hire);
-  const marketingBudget = useGame((s) => s.finlit.marketingBudget);
-  const salesBudget = useGame((s) => s.finlit.salesBudget);
+  const globalInputSelections = useGame((s) => s.globalInputSelections ?? []);
   const phase = useGame((s) => s.meta.phase);
   const activeLine = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
   );
-  // "Where you sell" is company-wide: one channel set across every notebook.
-  // Both selectors return a joined STRING, not a fresh array — a new array each
-  // render would break Zustand's referential equality and churn re-renders.
-  const channelsKey = useGame((s) => finlitCompanyChannels(s).join(','));
-  const genresKey = useGame((s) =>
-    [...new Set(s.portfolio.productLines.map((l) => l.genre ?? 'indie'))].join(','),
-  );
-  const companyChannels = new Set(channelsKey.split(',') as ChannelId[]);
-  const genresInPlay = (genresKey ? genresKey.split(',') : []) as GenreId[];
   const shopName = useGame((s) => s.meta.shopName);
   const apply = useGame((s) => s.apply);
   const [pending, setPending] = useState<Pending | null>(null);
-  // null = not editing; the input falls back to the store value.
   const [shopDraft, setShopDraft] = useState<string | null>(null);
-  // Which section's reference sheet is open, if any.
   const [detail, setDetail] = useState<SectionDetail | null>(null);
 
-  // Days remaining in the current phase — see the Hiring hint for why the
-  // per-phase figures need this qualifier. Derived from a PRIMITIVE read on
-  // purpose: `selectCurrentPhase` carries the same figure but returns a fresh
-  // object, so `useGame(selectCurrentPhase)` would fail Zustand's referential
-  // check and re-render this panel every tick — the same trap the channel/genre
-  // selectors above avoid by returning joined strings.
   const day = useGame((s) => s.meta.day);
   const daysLeftInPhase = Math.max(0, phase * DAYS_PER_PHASE - day + 1);
 
   const vendorLevel = phase >= 2 ? 2 : 1;
-  const hireRefund = hire ? hireLevel(hire.candidate, hire.level).energy : 0;
-  const vendorRefund = activeLine?.vendor ? VENDORS.find((v) => v.id === activeLine.vendor)!.energyByLevel[vendorLevel] : 0;
+  const vendorRefund = activeLine?.vendor
+    ? VENDORS.find((v) => v.id === activeLine.vendor)!.energyByLevel[vendorLevel]
+    : 0;
+
+  // Helpers — reads from the already-selected snapshot (no Zustand selector needed).
+  const isSelected = (key: string) => globalInputSelections.some((s) => s.key === key);
+  const selectedStep = (key: string) =>
+    globalInputSelections.find((s) => s.key === key)?.selectedStepKey ?? null;
 
   const commit = () => {
-    if (!pending) return;
+    if (!pending || pending.kind !== 'vendor') return;
     const ok = pending.energy <= energy;
     playSfx(ok ? 'confirm' : 'fail');
-    apply((s) => {
-      if (pending.kind === 'candidate') engageFinlitHire(s, pending.id, pending.level);
-      else engageFinlitVendor(s, pending.id);
-    });
+    apply((s) => engageFinlitVendor(s, pending.id));
     setPending(null);
   };
 
+  const commitGlobalInput = () => {
+    if (!pending || pending.kind !== 'globalInput') return;
+    const { item, containerInputs, containerType, isSelected: currentlySelected, pendingStepKey } = pending;
+    if (!currentlySelected) {
+      if (item.energy > energy) { playSfx('fail'); return; }
+      playSfx('confirm');
+      apply((s) => {
+        if (containerType === 'radio') {
+          for (const inp of containerInputs) {
+            if (s.globalInputSelections.some((sel: { key: string }) => sel.key === inp.key)) {
+              clearGlobalInputSelection(s, inp.key, inp.energy);
+            }
+          }
+        }
+        setGlobalInputSelection(s, item.key, pendingStepKey ?? null, item.energy);
+      });
+    } else {
+      playSfx('click-soft');
+      apply((s) => clearGlobalInputSelection(s, item.key, item.energy));
+    }
+    setPending(null);
+  };
+
+  // Pre-compute image indices: imageAssets[i] maps to the i-th GlobalInput item
+  // globally (across all containers, in the order they arrive from the server).
+  let imgIdx = 0;
+  const enrichedContainers = (bootstrap?.globalInputs ?? [])
+    .filter((container) => container.category !== 'difficulty')
+    .map((container) => ({
+      container,
+      items: container.inputs.map((item) => ({ item, imgIndex: imgIdx++ })),
+    }));
+
   return (
     <div className="flex flex-col gap-4">
-      {/* No page-level status strip. The page already opened with THREE
-          stacked bands of meta-text — the panel masthead, the tab explainer,
-          and a "company decisions · reversible" line — before a single
-          decision, and the energy figure in that third band was the same
-          number the persistent HUD shows at the top of the screen. The
-          reversibility note now lives in the tab explainer (copy.ts) and the
-          page starts on its first actual decision. */}
-
-      {/* ── Your shop — the company's name. Also renameable from the shop sign
-           on the desk (Product page); both write through setShopName. ── */}
+      {/* ── Your shop name ── */}
       <OpsSection icon={SECTION_ICON.shop} title="Your Shop" hint="Your business name. Costs nothing, change it whenever you like.">
-        {/* The field used to sit alone against a full panel width of nothing.
-            The counter and the "where does this show up?" line are what a
-            player actually wants next to a name box, and they earn the space
-            the empty half was wasting. */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <input
-            // Local draft while typing, committed on blur/Enter. Writing straight
-            // through on every keystroke would fight setShopName's empty-fallback:
-            // clearing the field to retype would snap it back to the default.
             value={shopDraft ?? shopName}
             onChange={(e) => setShopDraft(e.target.value)}
             onBlur={() => { apply((s) => setShopName(s, shopDraft ?? shopName)); setShopDraft(null); }}
@@ -194,269 +206,68 @@ export function StudioPanel() {
         </div>
       </OpsSection>
 
-      {/* ── Sales channels — WHERE you sell. Company-wide: every notebook ships
-           through the same channels, so this is one decision, not one per SKU. ── */}
-      <OpsSection
-        icon={SECTION_ICON.channels}
-        title="Sales Channels"
-        hint="Where you sell. Applies to every notebook."
-        onDetails={() => setDetail(channelDetail())}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {(Object.keys(CHANNEL_META) as ChannelId[]).map((ch) => {
-            const on = companyChannels.has(ch);
-            const isLastOn = on && companyChannels.size <= 1;
-            // maintenance/consignment are the same for every genre; only reach
-            // (split) differs, so show the range across the genres in play.
-            const reaches = genresInPlay.map((g) => channelRow(g, ch).split);
-            const lo = reaches.length ? Math.round(Math.min(...reaches) * 100) : 0;
-            const hi = reaches.length ? Math.round(Math.max(...reaches) * 100) : 0;
-            const row = channelRow(genresInPlay[0] ?? 'indie', ch);
-            return (
-              <motion.button
-                key={ch}
-                onClick={() => {
-                  if (isLastOn) { playSfx('fail'); return; }
-                  playSfx('click-soft');
-                  apply((s) => toggleFinlitChannelAll(s, ch));
-                }}
-                title={isLastOn ? 'You need at least one channel to sell through.' : undefined}
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.97 }}
-                transition={{ type: 'spring', stiffness: 340, damping: 20 }}
-                className={clsx(
-                  // Ink frame either way — this is a switch, and an "off"
-                  // switch is still a control. State is carried by the FILL.
-                  'ctl-btn flex flex-col gap-2 p-3 border-2 border-ink-900 text-left cursor-pointer',
-                  on ? 'bg-success-soft' : 'bg-surface hover:bg-cream-100',
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <img
-                    src={CHANNEL_ICON[ch]}
-                    alt=""
-                    className="w-20 h-20 object-contain shrink-0"
-                    style={{ imageRendering: 'pixelated' }}
-                    draggable={false}
-                  />
-                  <span className={clsx(
-                    'shrink-0 px-2 py-1',
-                    on ? 'bg-success text-ink-900' : 'bg-surface-2',
-                  )}>
-                    <span className={clsx('eyebrow eyebrow-sm', on ? 'text-ink-900' : 'eyebrow-muted')}>
-                      {on ? 'On' : 'Off'}
-                    </span>
-                  </span>
-                </div>
-
-                <div className="min-w-0">
-                  <div className="h2 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
-                  <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
-                </div>
-
-                {/* The numbers you're actually choosing between get to look
-                    like values, not footnotes.
-
-                    Offline takes no consignment, and omitting the chip left a
-                    hole in that card where its siblings had a third row — it
-                    read as a rendering fault rather than as "this one is
-                    cheaper". "None" is the actual answer, and it's the whole
-                    reason to pick offline, so it says so. */}
-                <div className="grid grid-cols-2 gap-2 mt-auto">
-                  <StatChip label="Reach" value={lo === hi ? `${lo}%` : `${lo}-${hi}%`} tone="reach" />
-                  <StatChip label="Per phase" value={fmt$(perPhase(row.maintenance))} tone="money" />
-                  <StatChip
-                    label="Per sale"
-                    value={row.consignment > 0 ? fmt$(row.consignment) : 'None'}
-                    tone={row.consignment > 0 ? 'money' : 'good'}
-                    className="col-span-2"
-                  />
-                </div>
-              </motion.button>
-            );
-          })}
+      {/* ── Operator-configured GlobalInput sections ──
+           Each container maps to one OpsSection. The backend operator decides
+           the categories (channels, hiring, budgets, etc.) — the frontend just
+           renders them generically. Held until imageAssetsReady so images are
+           present before any card mounts (avoids flashing placeholder boxes). */}
+      {!imageAssetsReady && enrichedContainers.length > 0 && (
+        <div className="flex items-center justify-center py-8">
+          <span className="eyebrow eyebrow-sm text-text-3 animate-pulse">Loading options…</span>
         </div>
-      </OpsSection>
+      )}
+      {imageAssetsReady && enrichedContainers.map(({ container, items }) => (
+        <GlobalInputSection
+          key={container._id}
+          container={container}
+          items={items}
+          imageAssets={imageAssets}
+          energy={energy}
+          isSelected={isSelected}
+          selectedStep={selectedStep}
+          daysLeftInPhase={daysLeftInPhase}
+          onCardClick={(item) => {
+            playSfx('click-soft');
+            setPending({
+              kind: 'globalInput',
+              item,
+              containerInputs: container.inputs,
+              containerType: container.type,
+              isSelected: isSelected(item.key),
+            });
+          }}
+          onSliderStep={(item, stepKey) => {
+            // Already engaged — direct step change, no modal.
+            playSfx('tick');
+            apply((s) => setGlobalInputSelection(s, item.key, stepKey));
+          }}
+          onSliderEngage={(item, stepKey) => {
+            // First engagement on a slider — gate through the case-study modal.
+            playSfx('click-soft');
+            setPending({
+              kind: 'globalInput',
+              item,
+              containerInputs: container.inputs,
+              containerType: container.type,
+              isSelected: false,
+              pendingStepKey: stepKey,
+            });
+          }}
+          onClearAll={() => {
+            playSfx('click-soft');
+            apply((s) => {
+              for (const inp of container.inputs) {
+                if (s.globalInputSelections.some((sel: { key: string }) => sel.key === inp.key)) {
+                  clearGlobalInputSelection(s, inp.key, inp.energy);
+                }
+              }
+            });
+          }}
+          onDetails={() => setDetail(buildGlobalInputDetail(container, container.inputs))}
+        />
+      ))}
 
-      {/* ── Marketing & Sales budgets ── */}
-      <OpsSection
-        icon={SECTION_ICON.budget}
-        title="Marketing & Sales Budget"
-        hint="Budget to grow, shown per phase. Set back to $0 to switch off and refund the energy."
-        onDetails={() => setDetail(budgetDetail(BUDGET_LEVER_ENERGY, BUDGET_MAX, marketingDemandMult, salesSellBonus))}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <BudgetLever
-            label="Marketing budget"
-            hint="Awareness - lifts DEMAND (more people want it)."
-            value={marketingBudget}
-            energy={BUDGET_LEVER_ENERGY}
-            effectLabel="Demand"
-            effect={`+${((marketingDemandMult(marketingBudget) - 1) * 100).toFixed(0)}%`}
-            canActivate={marketingBudget > 0 || energy >= BUDGET_LEVER_ENERGY}
-            onChange={(v) => { playSfx('tick'); apply((s) => setFinlitMarketingBudget(s, v)); }}
-          />
-          <BudgetLever
-            label="Sales budget"
-            hint="Conversion - lifts SELL-RATE (more of them buy)."
-            value={salesBudget}
-            energy={BUDGET_LEVER_ENERGY}
-            effectLabel="Sell-rate"
-            effect={`+${(salesSellBonus(salesBudget) * 100).toFixed(1)}%`}
-            canActivate={salesBudget > 0 || energy >= BUDGET_LEVER_ENERGY}
-            onChange={(v) => { playSfx('tick'); apply((s) => setFinlitSalesBudget(s, v)); }}
-          />
-        </div>
-      </OpsSection>
-
-      {/* ── Hiring ── */}
-      <OpsSection
-        icon={SECTION_ICON.hiring}
-        title="Hiring"
-        hint={
-          // Two things the per-phase figures do not say on their own, and both
-          // change what the number means:
-          //   1. a hire is NOT one-off — nothing clears `finlit.hire` at phase
-          //      rollover, so a Phase 1 hire keeps charging through 2 and 3.
-          //      "$150" read as one-time understates the commitment 3x.
-          //   2. the figures assume a whole 30-day phase. Hire on day 25 and
-          //      you buy 6 days of it, so surface the shortfall rather than
-          //      quietly overstating what the money buys.
-          // Kept short: the section header scrolls under the floating
-          // PRODUCT/BUSINESS nav, which clips a long second line.
-          daysLeftInPhase < DAYS_PER_PHASE
-            ? `Costs are per phase and recur while engaged — ${daysLeftInPhase}d left, figures show a full phase.`
-            : 'One at a time. Costs are per phase and recur while engaged.'
-        }
-        onDetails={() => setDetail(hiringDetail())}
-      >
-        {/* Two columns from xl. Four candidates stacked full-width left each
-            row ~1330px wide around ~500px of content, so every card carried a
-            half-empty right side and the four ran together as one long list.
-            Paired up they read as a roster you compare across, and the whole
-            section fits without scrolling. */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
-          {CANDIDATES.map((c) => {
-            const engaged = hire?.candidate === c.id;
-            const curLevel = engaged ? hire!.level : 0;
-            return (
-              // A roster ROW, not a control — you click the tier buttons
-              // inside it, never the row. Fill alone marks the engaged hire.
-              <div key={c.id} className={clsx('readout px-2.5 py-2 flex gap-2.5', engaged ? 'bg-primary-soft' : 'bg-surface')}>
-                {/* Candidate portrait. No frame: a box around a transparent
-                    pixel sprite added a second border inside a bordered card
-                    and boxed the art into a narrow column. Unframed it reads as
-                    a character standing in the row, and the space that the
-                    frame's padding was eating goes to the art instead. */}
-                <SafeImage
-                  src={CANDIDATE_ICON[c.id]}
-                  alt=""
-                  className="shrink-0 w-20 h-20 object-contain self-center"
-                  fallbackIcon="hire"
-                  fallbackSize={56}
-                />
-                <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="h2 uppercase text-ink-900">{c.name}</span>
-                  {engaged && <PixelBadge tone="success">L{curLevel} hired</PixelBadge>}
-                </div>
-                <p className="body-xs text-text-2 mt-1 mb-2 measure">{c.blurb}</p>
-                <div className="flex flex-wrap items-start gap-3">
-                {/* Capped. Four tier buttons stretched across the full card
-                    width gave each one ~330px of box around ~50px of content —
-                    a row of mostly empty rectangles. At this width they read as
-                    a tier selector, and the space left over carries the
-                    trade-off the whole choice turns on. */}
-                <div className="grid grid-cols-4 gap-1.5 w-full xl:max-w-none max-w-[440px]">
-                  {c.levels.map((lv) => {
-                    const affordable = energy >= lv.energy;
-                    const isCur = engaged && curLevel === lv.level;
-                    return (
-                      <button
-                        key={lv.level}
-                        disabled={!affordable || isCur}
-                        onClick={() => { playSfx('click-soft'); setPending({ kind: 'candidate', id: c.id as CandidateId, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id)! }); }}
-                        className={clsx(
-                          'ctl-btn flex flex-col items-center gap-0.5 py-1.5 px-1 border-2 transition-all',
-                          isCur ? 'border-ink-900 bg-primary text-ink-900'
-                          : affordable ? 'border-ink-900 bg-surface hover:bg-cream-100 text-text active:scale-95'
-                          : 'border-border-soft bg-surface-2 text-text-3 opacity-50 cursor-not-allowed',
-                        )}
-                        title={`L${lv.level}: ${fmt$(perPhase(lv.cost))} per phase (${fmt$(lv.cost)}/day) · +${fmtUnitsPerPhase(lv.prodBonus)} units per phase · +${(lv.sellBonus * 100).toFixed(1)}% sell-rate · ${lv.energy}⚡ to unlock`}
-                      >
-                        {/* Level leads because it is the button's identity, but
-                            at .num-sm, not .num-md: "L1" is a two-character tag,
-                            not a headline figure, and at 21px four of them made
-                            the tier row the loudest thing in the section. */}
-                        <span className={clsx('num-sm leading-none', isCur ? 'text-ink-900' : 'text-ink-900')}>
-                          L{lv.level}
-                        </span>
-                        {/* Per PHASE, not per day. $5/day is not a number you
-                            can weigh against a notebook's margin without doing
-                            the ×30 yourself; $150 is. The per-day rate is still
-                            in the button's title for anyone who wants it. */}
-                        <span className="stat-label stat-label-on-tint">
-                          {fmt$(perPhase(lv.cost))}
-                        </span>
-                        {!isCur && <EnergyTag amount={lv.energy} />}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* What separates Ains from Chewie, in numbers. Until now the
-                    per-level bonuses existed only in each button's `title`, so
-                    the actual basis for the choice was invisible unless you
-                    hovered — and the blurb's "modest sell lift" gave no way to
-                    compare two candidates. L1 → L4 shows both the floor and
-                    what the top tier buys. */}
-                <div className="grid grid-cols-2 gap-1.5 flex-1 min-w-[200px] xl:w-full xl:flex-none">
-                  {/* "+0.49 → +3.92 per day" was the L1→L4 range in the engine's
-                      own units, and nobody can picture 0.49 of a notebook. The
-                      same range per phase is 15 → 118 units, which is a pile of
-                      notebooks you can weigh against a price. */}
-                  <StatChip
-                    label="Output / phase"
-                    value={`+${fmtUnitsPerPhase(c.levels[0].prodBonus)} → +${fmtUnitsPerPhase(c.levels[c.levels.length - 1].prodBonus)} units`}
-                    tone="good"
-                  />
-                  <StatChip
-                    label="Sell-rate"
-                    value={`+${(c.levels[0].sellBonus * 100).toFixed(1)}% → +${(c.levels[c.levels.length - 1].sellBonus * 100).toFixed(1)}%`}
-                    tone="reach"
-                  />
-                  {/* The number the decision actually turns on, and the one
-                      step of the mental arithmetic nobody should have to do:
-                      cost ÷ extra units = the margin each new unit must clear
-                      for the hire to pay for itself. */}
-                  <StatChip
-                    label="Breakeven margin"
-                    value={`${fmt$(c.levels[0].cost / c.levels[0].prodBonus)} / unit`}
-                    tone="money"
-                    className="col-span-2"
-                  />
-                </div>
-                </div>
-                </div>
-              </div>
-            );
-          })}
-          {/* A real control, not a text link. Undoing a hire refunds energy,
-              which is a decision worth as much affordance as making one. */}
-          {hire && (
-            <PixelButton
-              variant="ghost"
-              size="sm"
-              className="self-start"
-              onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitHire(s)); }}
-            >
-              Clear hire · refund <EnergyValue amount={hireRefund} className="ml-1" />
-            </PixelButton>
-          )}
-        </div>
-      </OpsSection>
-
-      {/* ── Shipping vendor (active line) ── */}
+      {/* ── Shipping vendor (per active line) ── */}
       <OpsSection
         icon={SECTION_ICON.vendor}
         title="Shipping Vendor"
@@ -523,8 +334,7 @@ export function StudioPanel() {
         ) : null}
       </OpsSection>
 
-      {/* Per-section reference sheet: cost/energy/impact on the left, the
-          market numbers behind it on the right. */}
+      {/* Per-section reference sheet. */}
       <OperationsDetailModal
         open={detail !== null}
         onClose={() => setDetail(null)}
@@ -534,66 +344,103 @@ export function StudioPanel() {
         tables={detail?.tables ?? []}
       />
 
-      {/* Case-study gate — the PDF's "read before choosing". */}
+      {/* Case-study modal for GlobalInput item engagement / removal. */}
       <PixelModal
-        open={pending !== null}
+        open={pending?.kind === 'globalInput'}
         onClose={() => setPending(null)}
-        title={pending ? `Case Study · ${pending.study.title}` : ''}
+        title={pending?.kind === 'globalInput' ? `Case Study · ${pending.item.label}` : ''}
         width="min(520px, calc(100vw - 32px))"
       >
-        {pending && (() => {
-          const short = pending.energy > energy;
-          const { tiles, effects } = engageSummary(pending, vendorLevel, activeLine?.genre);
+        {pending?.kind === 'globalInput' && (() => {
+          const { item, isSelected: currentlySelected, pendingStepKey } = pending;
+          const short = !currentlySelected && item.energy > energy;
+          const tiles: CostTile[] = [];
+          const stepMult = (pendingStepKey && item.options?.[pendingStepKey]) ? item.options[pendingStepKey] : 1;
+          if (item.energy > 0) tiles.push({ label: 'Energy to engage', value: `${item.energy}`, tone: 'energy', icon: 'energy' });
+          if (item.cost > 0) tiles.push({ label: `${daysLeftInPhase}d cost`, value: fmt$(item.cost * stepMult * daysLeftInPhase), tone: 'cost', icon: 'cash' });
+          const impacts = formatImpacts(item.impacts ?? {});
           return (
-          <div className="flex flex-col gap-4">
-            {/* Who this is about. A case study with no face was just a wall of
-                prose; the portrait anchors the brief and matches the roster row
-                the player clicked to get here. */}
-            <div className="flex items-start gap-3.5">
-              {pending.kind === 'candidate' && (
-                <SafeImage
-                  src={CANDIDATE_ICON[pending.id]}
-                  alt=""
-                  className="shrink-0 w-20 h-20 object-contain"
-                  fallbackIcon="hire"
-                  fallbackSize={56}
-                />
+            <div className="flex flex-col gap-4">
+              {item.description && (
+                <p className="body-sm text-text leading-relaxed">{item.description}</p>
               )}
-              <p className="body-sm text-text leading-relaxed min-w-0">{pending.study.brief}</p>
-            </div>
-
-            {/* The trade-off, as a matched pair — same shape, opposite colour,
-                so "when this wins" and "when it hurts" weigh the same. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="readout bg-success-soft/50 px-3 py-2.5">
-                <div className="stat-label text-success">Best when</div>
-                <div className="body-xs text-text mt-1.5">{pending.study.bestWhen}</div>
-              </div>
-              <div className="readout bg-warning-soft/50 px-3 py-2.5">
-                <div className="stat-label text-warning">Watch out</div>
-                <div className="body-xs text-text mt-1.5">{pending.study.watchOut}</div>
-              </div>
-            </div>
-
-            {/* Prominent cost + impact — the numbers the player is committing to. */}
-            <CostTiles tiles={tiles} />
-            {effects.length > 0 && <ImpactList items={effects} />}
-
-            {/* Actions use PixelButton like every other commit in the game —
-                the hand-rolled body-xs buttons here were the only ones in the
-                app set in the body face, which is why they read as foreign. */}
-            <div className="flex items-center justify-end gap-2 pt-1 border-t border-border-soft mt-1 -mx-1 px-1 pt-3.5">
-              {short && (
-                <span className="mr-auto self-center inline-flex items-center gap-1.5 border-2 border-danger bg-danger-soft/50 px-2.5 py-1.5">
-                  <span className="stat-label text-danger">Not enough energy</span>
-                </span>
+              {(item.impactLevel || pendingStepKey) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {pendingStepKey && (
+                    <div className="readout bg-success-soft/50 px-3 py-2.5">
+                      <div className="stat-label text-success">Selected option</div>
+                      <div className="body-xs text-text mt-1.5 strong">{pendingStepKey}</div>
+                    </div>
+                  )}
+                  {item.impactLevel && (
+                    <div className="readout bg-warning-soft/50 px-3 py-2.5">
+                      <div className="stat-label text-warning">Impact level</div>
+                      <div className="body-xs text-text mt-1.5">{item.impactLevel}</div>
+                    </div>
+                  )}
+                </div>
               )}
-              <PixelButton variant="ghost" size="md" onClick={() => setPending(null)}>Back</PixelButton>
-              <PixelButton variant="primary" size="md" disabled={short} onClick={commit}>
-                Engage · <EnergyValue amount={pending.energy} className="ml-1" />
-              </PixelButton>
+              {tiles.length > 0 && <CostTiles tiles={tiles} />}
+              {impacts.length > 0 && <ImpactList items={impacts} />}
+              <div className="flex items-center justify-end gap-2 pt-1 border-t border-border-soft mt-1 -mx-1 px-1 pt-3.5">
+                {short && (
+                  <span className="mr-auto self-center inline-flex items-center gap-1.5 border-2 border-danger bg-danger-soft/50 px-2.5 py-1.5">
+                    <span className="stat-label text-danger">Not enough energy</span>
+                  </span>
+                )}
+                <PixelButton variant="ghost" size="md" onClick={() => setPending(null)}>Back</PixelButton>
+                {currentlySelected ? (
+                  <PixelButton variant="ghost" size="md" onClick={commitGlobalInput}>
+                    Remove · refund <EnergyValue amount={item.energy} className="ml-1" />
+                  </PixelButton>
+                ) : (
+                  <PixelButton variant="primary" size="md" disabled={short} onClick={commitGlobalInput}>
+                    Engage{item.energy > 0 && <> · <EnergyValue amount={item.energy} className="ml-1" /></>}
+                  </PixelButton>
+                )}
+              </div>
             </div>
-          </div>
+          );
+        })()}
+      </PixelModal>
+
+      {/* Case-study gate for vendor engagement. */}
+      <PixelModal
+        open={pending?.kind === 'vendor'}
+        onClose={() => setPending(null)}
+        title={pending?.kind === 'vendor' ? `Case Study · ${pending.study.title}` : ''}
+        width="min(520px, calc(100vw - 32px))"
+      >
+        {pending?.kind === 'vendor' && (() => {
+          const short = pending.energy > energy;
+          const { tiles, effects } = vendorEngageSummary(pending.id, pending.energy, vendorLevel, activeLine?.genre);
+          return (
+            <div className="flex flex-col gap-4">
+              <p className="body-sm text-text leading-relaxed">{pending.study.brief}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="readout bg-success-soft/50 px-3 py-2.5">
+                  <div className="stat-label text-success">Best when</div>
+                  <div className="body-xs text-text mt-1.5">{pending.study.bestWhen}</div>
+                </div>
+                <div className="readout bg-warning-soft/50 px-3 py-2.5">
+                  <div className="stat-label text-warning">Watch out</div>
+                  <div className="body-xs text-text mt-1.5">{pending.study.watchOut}</div>
+                </div>
+              </div>
+              <CostTiles tiles={tiles} />
+              {effects.length > 0 && <ImpactList items={effects} />}
+              <div className="flex items-center justify-end gap-2 pt-1 border-t border-border-soft mt-1 -mx-1 px-1 pt-3.5">
+                {short && (
+                  <span className="mr-auto self-center inline-flex items-center gap-1.5 border-2 border-danger bg-danger-soft/50 px-2.5 py-1.5">
+                    <span className="stat-label text-danger">Not enough energy</span>
+                  </span>
+                )}
+                <PixelButton variant="ghost" size="md" onClick={() => setPending(null)}>Back</PixelButton>
+                <PixelButton variant="primary" size="md" disabled={short} onClick={commit}>
+                  Engage · <EnergyValue amount={pending.energy} className="ml-1" />
+                </PixelButton>
+              </div>
+            </div>
           );
         })()}
       </PixelModal>
@@ -601,65 +448,171 @@ export function StudioPanel() {
   );
 }
 
-/* A budget lever. The slider's underlying unit is $/DAY (that is what the
-   engine charges and what the design sheet specifies), but the chip reports the
-   PER-PHASE total, because that is the figure a player weighs against revenue.
-   The raw per-day value is never surfaced, so there is no unit to confuse.
-   $0 = off; moving above 0 charges the flat activation energy (refunded when
-   set back to 0). Money spend flows through the phase P&L. */
-function BudgetLever({
-  label,
-  hint,
-  value,
+// ── Generic GlobalInput section ──────────────────────────────────────────────
+
+type EnrichedItem = { item: GlobalInputItem; imgIndex: number };
+
+function GlobalInputSection({
+  container,
+  items,
+  imageAssets,
   energy,
-  effectLabel,
-  effect,
-  canActivate,
-  onChange,
+  isSelected,
+  selectedStep,
+  daysLeftInPhase,
+  onCardClick,
+  onSliderStep,
+  onSliderEngage,
+  onClearAll,
+  onDetails,
 }: {
-  label: string;
-  hint: string;
-  value: number;
+  container: GlobalInputDto;
+  items: EnrichedItem[];
+  imageAssets: ImageAssetDto[];
   energy: number;
-  /** What the spend moves, e.g. "Demand". */
-  effectLabel: string;
-  /** The live figure for that effect at the current spend, e.g. "+5%". */
-  effect: string;
-  canActivate: boolean;
-  onChange: (v: number) => void;
+  isSelected: (key: string) => boolean;
+  selectedStep: (key: string) => string | null;
+  daysLeftInPhase: number;
+  onCardClick: (item: GlobalInputItem) => void;
+  onSliderStep: (item: GlobalInputItem, stepKey: string) => void;
+  onSliderEngage: (item: GlobalInputItem, stepKey: string) => void;
+  onClearAll: () => void;
+  onDetails: () => void;
 }) {
-  const active = value > 0;
+  const type = container.type as 'checkbox' | 'radio' | 'slider';
+  const hasAnySelected = items.some(({ item }) => isSelected(item.key));
+
+  const hint = daysLeftInPhase < DAYS_PER_PHASE
+    ? `${daysLeftInPhase}d left this phase — costs recur while engaged.`
+    : undefined;
+
   return (
-    // The lever's CONTROL is the slider; the card around it is a panel.
-    <div className={clsx('readout p-3 flex flex-col gap-2', active ? 'bg-success-soft' : 'bg-surface')}>
-      <div>
-        <div className="h2 uppercase text-ink-900">{label}</div>
-        <p className="body-xs text-text-2 mt-1">{hint}</p>
+    <OpsSection
+      icon={SECTION_ICON.globalInput}
+      title={container.label}
+      hint={hint}
+      onDetails={onDetails}
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {items.map(({ item, imgIndex }) => {
+          const img = imageAssets[imgIndex];
+          const active = isSelected(item.key);
+          const step = selectedStep(item.key);
+          const stepKeys = Object.keys(item.options ?? {});
+          const isSlider = type === 'slider';
+          const stepIdx = step ? stepKeys.indexOf(step) : -1;
+
+          return (
+            <motion.div
+              key={item.key}
+              className={clsx(
+                'flex flex-col gap-2 p-3 border-2 border-ink-900',
+                !isSlider && 'cursor-pointer',
+                active ? 'bg-success-soft' : 'bg-surface',
+              )}
+              onClick={!isSlider ? () => onCardClick(item) : undefined}
+              whileHover={!isSlider ? { y: -3 } : undefined}
+              whileTap={!isSlider ? { scale: 0.97 } : undefined}
+              transition={{ type: 'spring', stiffness: 340, damping: 20 }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                {img?.url ? (
+                  <SafeImage
+                    src={img.url}
+                    alt=""
+                    className="w-20 h-20 object-contain shrink-0"
+                    style={{ imageRendering: 'pixelated' }}
+                    fallbackIcon="hire"
+                    fallbackSize={56}
+                  />
+                ) : (
+                  <div className="w-20 h-20 shrink-0 bg-surface-2 border border-border-soft" />
+                )}
+                <span className={clsx(
+                  'shrink-0 px-2 py-1',
+                  active ? 'bg-success text-ink-900' : 'bg-surface-2',
+                )}>
+                  <span className={clsx('eyebrow eyebrow-sm', active ? 'text-ink-900' : 'eyebrow-muted')}>
+                    {active ? (step ?? 'On') : 'Off'}
+                  </span>
+                </span>
+              </div>
+
+              <div className="min-w-0">
+                <div className="h2 uppercase text-ink-900">{item.label}</div>
+                {item.description && (
+                  <p className="body-xs text-text-2 mt-1 measure">{item.description}</p>
+                )}
+              </div>
+
+              {(() => {
+                const mult = (step && item.options?.[step]) ? item.options[step] : 1;
+                const effectiveCost = item.cost * mult;
+                return (
+                  <div className="grid grid-cols-2 gap-2 mt-auto">
+                    {item.cost > 0 && (
+                      <StatChip
+                        label={`${daysLeftInPhase}d cost`}
+                        value={fmt$(effectiveCost * daysLeftInPhase)}
+                        tone={active ? 'money' : 'muted'}
+                      />
+                    )}
+                    <StatChip label={active ? 'Running on' : 'To engage'} value={<EnergyValue amount={item.energy} size={13} />} tone="energy" />
+                  </div>
+                );
+              })()}
+
+              {/* Slider — real range input, same pattern as BudgetLever. Card is
+                  not clickable; user drags to set the step. First drag opens the
+                  case-study modal; subsequent drags are direct step switches. */}
+              {isSlider && stepKeys.length > 0 && (
+                <div className="flex flex-col gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={stepKeys.length - 1}
+                    step={1}
+                    value={stepIdx >= 0 ? stepIdx : 0}
+                    disabled={!active && item.energy > energy}
+                    className={clsx(
+                      'w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50',
+                      active ? 'accent-primary' : 'accent-border',
+                    )}
+                    onChange={(e) => {
+                      const idx = parseInt(e.target.value, 10);
+                      const sk = stepKeys[idx];
+                      if (!active) {
+                        onSliderEngage(item, sk);
+                      } else {
+                        onSliderStep(item, sk);
+                      }
+                    }}
+                  />
+                  <div className="flex justify-between px-0.5">
+                    {stepKeys.map((sk) => (
+                      <span
+                        key={sk}
+                        className={clsx(
+                          'stat-label leading-none',
+                          step === sk ? 'text-primary strong' : 'text-text-3',
+                        )}
+                      >
+                        {sk}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
       </div>
 
-      {/* Three chips, because dragging the slider used to change exactly one
-          number — the spend — and say nothing about what that money bought.
-          The effect chip is the whole point of the lever. */}
-      <div className="grid grid-cols-3 gap-2">
-        <StatChip label="Spend / phase" value={fmt$(perPhase(value))} tone={active ? 'money' : 'muted'} />
-        <StatChip label={effectLabel} value={effect} tone={active ? 'good' : 'muted'} />
-        <StatChip
-          label={active ? 'Running on' : 'To activate'}
-          value={<EnergyValue amount={energy} size={13} />}
-          tone="energy"
-        />
-      </div>
-
-      <input
-        type="range"
-        min={0}
-        max={BUDGET_MAX}
-        step={1}
-        value={value}
-        disabled={!canActivate}
-        onChange={(e) => onChange(parseInt(e.target.value, 10))}
-        className="w-full accent-ui-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-      />
-    </div>
+      {hasAnySelected && (
+        <PixelButton variant="ghost" size="sm" className="self-start mt-1" onClick={onClearAll}>
+          Clear all · refund energy
+        </PixelButton>
+      )}
+    </OpsSection>
   );
 }

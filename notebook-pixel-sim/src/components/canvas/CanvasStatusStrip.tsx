@@ -4,7 +4,7 @@ import { fmt$ } from '@/utils/format';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import { previewFinlitPhase } from '@/engine/mockEngine';
 import { vocFit } from '@/engine/finlit/fit';
-import type { GenreId, ProductionSpec, ChannelId } from '@/data/finlit';
+import type { GenreId, ProductionSpec } from '@/data/finlit';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import clsx from 'clsx';
@@ -33,20 +33,18 @@ export function CanvasStatusStrip() {
 
   // A compact signature of everything the projection depends on — the memo
   // recomputes only when one of these actually changes (price/spec/target/
-  // channels/genre/hire/marketing/decision-mults/stock), never per render.
+  // globalInputSelections/genre/decision-mults/stock), never per render.
   const sig = useGame((s) => {
     const parts: string[] = [
       `p${s.meta.phase}`,
-      `h${s.finlit.hire?.candidate ?? ''}:${s.finlit.hire?.level ?? ''}`,
-      `mb${s.finlit.marketingBudget}`,
-      `sb${s.finlit.salesBudget}`,
       `dm${s.finlit.demandMult ?? 1}`,
       `sm${s.finlit.sellMult ?? 1}`,
+      `gi${(s.globalInputSelections ?? []).map((g) => `${g.key}:${g.selectedStepKey ?? ''}`).join('.')}`,
     ];
     for (const l of s.portfolio.productLines) {
       parts.push(
         `${l.id}|${l.genre ?? ''}|${l.price}|${l.targetPerDay ?? ''}|` +
-        `${(l.channels ?? []).join('.')}|${JSON.stringify(l.finlitSpec ?? {})}|${l.inventory.finished}`,
+        `${JSON.stringify(l.finlitSpec ?? {})}|${l.inventory.finished}`,
       );
     }
     return parts.join(';');
@@ -65,8 +63,7 @@ export function CanvasStatusStrip() {
       for (const l of st.portfolio.productLines) {
         const genre = (l.genre ?? 'indie') as GenreId;
         const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(l.finlitSpec ?? {}) };
-        const chs = (l.channels ?? ['offline']) as ChannelId[];
-        const f = vocFit(spec, l.price, chs, genre);
+        const f = vocFit(spec, l.price, ['offline'], genre);
         const w = Math.max(1, res.byLine.find((b) => b.lineId === l.id)?.demand ?? 1);
         wSum += w;
         fitSum += f * w;

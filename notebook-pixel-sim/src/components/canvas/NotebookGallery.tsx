@@ -158,8 +158,7 @@ function BookCard({
   // V3 caption — genre market, VoC fit, spec summary, channels.
   const genre: GenreId = (line.genre ?? 'indie') as GenreId;
   const spec: ProductionSpec = { ...GALLERY_DEFAULT_SPEC, type: genre, ...(line.finlitSpec ?? {}) };
-  const channels = (line.channels ?? ['offline']) as ChannelId[];
-  const vfit = vocFit(spec, line.price, channels, genre);
+  const vfit = vocFit(spec, line.price, ['offline'], genre);
   const fitPct = Math.round(vfit * 100);
   const fitTone = vfit >= 1.08 ? 'success' : vfit < 0.85 ? 'warn' : 'info';
   const specSummary = `${configOption('paper', spec.paper).name.split(' ')[0]} · ${spec.size.toUpperCase()} · ${configOption('pageDesign', spec.pageDesign).name}`;
@@ -259,7 +258,7 @@ function BookCard({
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <Chip tone={fitTone}>{fitPct}% fit</Chip>
-          <Chip tone="info">{channels.length} channel{channels.length === 1 ? '' : 's'}</Chip>
+          <Chip tone="info">1 channel</Chip>
           <Chip tone={stock === 0 ? 'warn' : 'neutral'}>{stock} stock</Chip>
         </div>
       </div>

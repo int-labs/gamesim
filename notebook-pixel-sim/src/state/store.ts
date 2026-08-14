@@ -20,8 +20,6 @@ import type {
   MascotMood,
   BubbleType,
   ProductLine,
-  FinlitCandidateId,
-  FinlitMarketingId,
 } from '@/types';
 import { PHASE_MAX_ENERGY, STARTING_CASH, STARTING_DEBT } from '@/data/balance';
 import { ENERGY_START, ENERGY_CAP, GENRES } from '@/data/finlit';
@@ -242,16 +240,14 @@ export interface GameState {
    * FinLit engine adapter. See docs/V3-FINLIT-PRD.md.
    */
   finlit: {
-    hire: { candidate: FinlitCandidateId; level: 1 | 2 | 3 | 4 } | null;
-    /** $/day marketing spend (lifts demand). 0 = off. */
-    marketingBudget: number;
-    /** $/day sales spend (lifts conversion). 0 = off. */
-    salesBudget: number;
     demandMult: number;
     sellMult: number;
     /** Key-scenario ids the player has already resolved this run. */
     resolvedScenarios: string[];
   };
+  /** Operator-configured global input selections (channels, hiring, budgets, etc.).
+   *  Each entry records which item key is selected and, for sliders, which step. */
+  globalInputSelections: Array<{ key: string; selectedStepKey: string | null }>;
 }
 
 const STARTER_LINE_ID = 'line-starter';
@@ -289,7 +285,6 @@ const starterLine = (): ProductLine => {
     targetSegment: starterSegment(),
     inventory: { raw: 2, finished: 1, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
     finlitSpec: { type: genre.id, paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
-    channels: ['offline'],
     // Start producing near demand (not full capacity) so a fresh, untouched run
     // opens modestly in the black rather than underwater on overstock holding —
     // the player optimises up from a sane, positive baseline.
@@ -385,7 +380,8 @@ const startingState = (): GameState => ({
   mascot: { queue: [], current: null, history: [], seenScripts: [], mood: 'idle', minimized: false, position: null },
   audio: { sfxEnabled: true, musicEnabled: false },
   ui: { leftDrawer: null, rightDrawer: null, viewMode: 'focus', dismissedTips: [] },
-  finlit: { hire: null, marketingBudget: 0, salesBudget: 0, demandMult: 1, sellMult: 1, resolvedScenarios: [] },
+  finlit: { demandMult: 1, sellMult: 1, resolvedScenarios: [] },
+  globalInputSelections: [],
   toast: null,
 });
 
@@ -585,7 +581,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 12,
+      version: 13,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -906,6 +902,19 @@ export const useGame = create<Store>()(
         // This runs on every load below v12 and only touches auto-named lines
         // whose name is exactly a retired archetype label, so a player's own
         // name and any already-correct name are both left alone.
+        if (fromVersion < 13) {
+          persisted.globalInputSelections = [];
+          if (persisted.finlit) {
+            delete persisted.finlit.hire;
+            delete persisted.finlit.marketingBudget;
+            delete persisted.finlit.salesBudget;
+          }
+          if (Array.isArray(persisted.portfolio?.productLines)) {
+            for (const line of persisted.portfolio.productLines) {
+              delete line.channels;
+            }
+          }
+        }
         if (fromVersion < 12 && Array.isArray(persisted?.portfolio?.productLines)) {
           const RETIRED_LABELS = new Set(['Student', 'Planner', 'Daily Journal']);
           for (const line of persisted.portfolio.productLines) {

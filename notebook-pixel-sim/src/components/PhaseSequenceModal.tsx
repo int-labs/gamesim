@@ -159,6 +159,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     fetchServerProjection(roundContext, {
       state: useGame.getState() as any,
       products: bootstrap?.products ?? [],
+      availableGlobalInputs: bootstrap?.globalInputs ?? [],
     }).then((res) => {
       if (!cancelled) setServerProjection(res);
     });
@@ -210,6 +211,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
         await submitRoundDecision(roundContext, {
           state: useGame.getState() as any,
           products: bootstrap?.products ?? [],
+          availableGlobalInputs: bootstrap?.globalInputs ?? [],
         });
         void refreshOfficial();
       }

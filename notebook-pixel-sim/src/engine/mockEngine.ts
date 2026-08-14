@@ -33,18 +33,14 @@ import {
   BRAND_MIN,
 } from './config';
 import {
-  hireLevel as finlitHireLevel,
   vendorById as finlitVendorById,
   scenarioById as finlitScenarioById,
-  BUDGET_MAX,
-  BUDGET_LEVER_ENERGY,
   GENRES,
 } from '@/data/finlit';
 import { clamp, phaseOf } from '@/utils/format';
 import type {
   LedgerEntry, Segment, ProductLine, Archetype, AddOnInstance,
-  FinlitGenreId, FinlitProductionSpec, FinlitChannelId, FinlitVendorId,
-  FinlitCandidateId, FinlitMarketingId,
+  FinlitGenreId, FinlitProductionSpec, FinlitVendorId,
 } from '@/types';
 import { resolveEventOption } from './eventEffects';
 import { calcRawPurchaseUnitCostForLine, getActiveLine, getLineOrThrow } from './cost';
@@ -189,10 +185,9 @@ const defaultLine = (id: string, name: string, archetype: Archetype = defaultNot
     quantityTarget: 30,
     targetSegment: segmentForGenre(genre),
     inventory: { raw: 0, finished: 0, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
-    // V3 defaults — a valid market + a lean/cheap spec + one channel.
+    // V3 defaults — a valid market + a lean/cheap spec.
     genre,
     finlitSpec: { type: genre, paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
-    channels: ['offline'],
   };
 };
 
@@ -478,50 +473,34 @@ export const setFinlitAxis = (
   s.history.push({ day: s.meta.day, text: `${line.name} ${axis} → ${optionId}`, cause: 'finlit_spec' });
 };
 
-/** Toggle a sales channel on/off for a line (keeps at least one stocked). */
-export const toggleFinlitChannel = (s: GameState, channel: FinlitChannelId, lineId?: string) => {
-  const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  const set = new Set(line.channels ?? ['offline']);
-  if (set.has(channel)) {
-    if (set.size > 1) set.delete(channel); // never leave a line with zero channels
+/** Activate or update a GlobalInput selection. energyDelta > 0 = spend, < 0 = refund.
+ *  Returns false (and toasts) if the player can't afford the spend. */
+export const setGlobalInputSelection = (
+  s: GameState,
+  key: string,
+  selectedStepKey: string | null,
+  energyDelta = 0,
+): boolean => {
+  if (energyDelta !== 0 && !applyEnergyDelta(s, energyDelta, key)) return false;
+  const idx = s.globalInputSelections.findIndex((sel) => sel.key === key);
+  if (idx >= 0) {
+    s.globalInputSelections[idx].selectedStepKey = selectedStepKey;
   } else {
-    set.add(channel);
+    s.globalInputSelections.push({ key, selectedStepKey });
   }
-  line.channels = [...set] as FinlitChannelId[];
-  s.history.push({ day: s.meta.day, text: `${line.name} channels → ${line.channels.join('/')}`, cause: 'finlit_channel' });
+  s.history.push({ day: s.meta.day, text: `${key} → ${selectedStepKey ?? 'on'}`, cause: 'global_input' });
+  return true;
 };
 
-/**
- * The COMPANY's sales channels. "Where you sell" is a company decision, not a
- * per-notebook one, so every line shares one channel set (the engine still
- * stores it per line). Read as the union so a legacy save with per-line
- * channels resolves to something sensible.
- */
-export const finlitCompanyChannels = (s: GameState): FinlitChannelId[] => {
-  const set = new Set<FinlitChannelId>();
-  for (const l of s.portfolio.productLines) {
-    for (const c of (l.channels ?? ['offline'])) set.add(c as FinlitChannelId);
+/** Clear a GlobalInput selection and optionally refund its energy. */
+export const clearGlobalInputSelection = (s: GameState, key: string, energyRefund = 0): void => {
+  const idx = s.globalInputSelections.findIndex((sel) => sel.key === key);
+  if (idx < 0) return;
+  s.globalInputSelections.splice(idx, 1);
+  if (energyRefund > 0) {
+    s.player.energy = clamp(s.player.energy + energyRefund, 0, s.player.maxEnergy);
   }
-  if (set.size === 0) set.add('offline');
-  return [...set];
-};
-
-/**
- * Toggle a sales channel for the WHOLE company — writes the same set to every
- * notebook. Never leaves the company with zero channels (there'd be nowhere to
- * sell). Reversible, like every other company decision.
- */
-export const toggleFinlitChannelAll = (s: GameState, channel: FinlitChannelId) => {
-  const set = new Set(finlitCompanyChannels(s));
-  if (set.has(channel)) {
-    if (set.size <= 1) return; // never leave the company with nowhere to sell
-    set.delete(channel);
-  } else {
-    set.add(channel);
-  }
-  const next = [...set] as FinlitChannelId[];
-  for (const l of s.portfolio.productLines) l.channels = [...next];
-  s.history.push({ day: s.meta.day, text: `Sales channels → ${next.join('/')}`, cause: 'finlit_channel' });
+  s.history.push({ day: s.meta.day, text: `${key} cleared`, cause: 'global_input' });
 };
 
 /**
@@ -552,30 +531,10 @@ export const setLineVendor = (s: GameState, vendor: FinlitVendorId | undefined, 
   s.history.push({ day: s.meta.day, text: `${line.name} vendor → ${vendor ?? 'none'}`, cause: 'finlit_vendor' });
 };
 
-/** Company-wide hire decision. */
-export const setFinlitHire = (
-  s: GameState,
-  hire: { candidate: FinlitCandidateId; level: 1 | 2 | 3 | 4 } | null,
-) => {
-  s.finlit.hire = hire;
-  s.history.push({ day: s.meta.day, text: hire ? `Hired ${hire.candidate} L${hire.level}` : 'Cleared hire', cause: 'finlit_hire' });
-};
-
 // ── Energy-gated "engage" decisions ────────────────────────────────────────
-// Each key decision spends ENERGY (the scarce per-phase resource). The money
-// cost of hiring/marketing/vendors flows as ONGOING opex inside the sim, so we
-// do NOT also charge it here (that would double-count). Decisions are fully
-// REVERSIBLE: engaging spends only the DELTA vs the current commitment, and
-// clearing refunds it — energy is a per-phase planning budget, not a sunk cost.
-
-function spendEnergy(s: GameState, cost: number, label: string): boolean {
-  if (s.player.energy < cost) {
-    s.toast = { id: 'energy-short', kind: 'warning', text: `Not enough energy for ${label} (need ${cost})`, until: Date.now() + 1800 };
-    return false;
-  }
-  s.player.energy = Math.max(0, s.player.energy - cost);
-  return true;
-}
+// Each key decision spends ENERGY (the scarce per-phase resource). Decisions
+// are fully REVERSIBLE: engaging spends only the DELTA vs the current
+// commitment, and clearing refunds it.
 
 /** Apply an energy delta (spend when +, refund when −). Refunds cap at
  *  maxEnergy; a spend that can't be afforded toasts and returns false. */
@@ -588,51 +547,6 @@ function applyEnergyDelta(s: GameState, delta: number, label: string): boolean {
   return true;
 }
 
-/** Engage/upgrade a hire candidate at a level. Spends only the DELTA vs the
- *  current hire, so switching level/candidate is reversible. */
-export const engageFinlitHire = (
-  s: GameState,
-  candidate: FinlitCandidateId,
-  level: 1 | 2 | 3 | 4,
-): boolean => {
-  const newCost = finlitHireLevel(candidate, level).energy;
-  const oldCost = s.finlit.hire ? finlitHireLevel(s.finlit.hire.candidate, s.finlit.hire.level).energy : 0;
-  if (!applyEnergyDelta(s, newCost - oldCost, 'hiring')) return false;
-  s.finlit.hire = { candidate, level };
-  s.history.push({ day: s.meta.day, text: `Hired ${candidate} (L${level}) - ${newCost}⚡`, cause: 'finlit_hire' });
-  return true;
-};
-
-/** Un-engage the current hire and refund its energy. */
-export const clearFinlitHire = (s: GameState): void => {
-  if (!s.finlit.hire) return;
-  const refund = finlitHireLevel(s.finlit.hire.candidate, s.finlit.hire.level).energy;
-  s.player.energy = clamp(s.player.energy + refund, 0, s.player.maxEnergy);
-  s.finlit.hire = null;
-  s.history.push({ day: s.meta.day, text: `Cleared hire - +${refund}⚡ refunded`, cause: 'finlit_hire' });
-};
-
-/** Set the $/day MARKETING budget (lifts demand). A flat energy activates the
- *  lever; dropping to $0 refunds it. Returns false if energy is short. */
-export const setFinlitMarketingBudget = (s: GameState, budget: number): boolean => {
-  const next = clamp(finite(budget, 0), 0, BUDGET_MAX);
-  const delta = (next > 0 ? BUDGET_LEVER_ENERGY : 0) - (s.finlit.marketingBudget > 0 ? BUDGET_LEVER_ENERGY : 0);
-  if (!applyEnergyDelta(s, delta, 'marketing')) return false;
-  s.finlit.marketingBudget = next;
-  s.history.push({ day: s.meta.day, text: `Marketing budget → $${next}/day`, cause: 'finlit_marketing' });
-  return true;
-};
-
-/** Set the $/day SALES budget (lifts conversion). */
-export const setFinlitSalesBudget = (s: GameState, budget: number): boolean => {
-  const next = clamp(finite(budget, 0), 0, BUDGET_MAX);
-  const delta = (next > 0 ? BUDGET_LEVER_ENERGY : 0) - (s.finlit.salesBudget > 0 ? BUDGET_LEVER_ENERGY : 0);
-  if (!applyEnergyDelta(s, delta, 'sales')) return false;
-  s.finlit.salesBudget = next;
-  s.history.push({ day: s.meta.day, text: `Sales budget → $${next}/day`, cause: 'finlit_marketing' });
-  return true;
-};
-
 /**
  * Resolve a key scenario option — spends energy, folds the option's demand/sell
  * multipliers into the phase decisions (applied to the coming phase, then reset
@@ -643,7 +557,7 @@ export const resolveFinlitScenario = (s: GameState, scenarioId: string, optId: '
   if (!sc) return false;
   const opt = sc.options.find((o) => o.id === optId);
   if (!opt) return false;
-  if (!spendEnergy(s, opt.energy, sc.title)) return false;
+  if (!applyEnergyDelta(s, opt.energy, sc.title)) return false;
   s.finlit.demandMult *= opt.demandMult ?? 1;
   s.finlit.sellMult *= opt.sellMult ?? 1;
   if (opt.cashNow) s.player.cash += opt.cashNow;

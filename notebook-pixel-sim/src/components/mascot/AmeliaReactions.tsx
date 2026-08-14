@@ -25,9 +25,8 @@ export function AmeliaReactions() {
 
   const genre: GenreId = (line?.genre ?? 'indie') as GenreId;
   const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line?.finlitSpec ?? {}) };
-  const channels = (line?.channels ?? ['offline']) as ChannelId[];
   const price = line?.price ?? 0;
-  const fit = line ? vocFit(spec, price, channels, genre) : 1;
+  const fit = line ? vocFit(spec, price, ['offline'], genre) : 1;
   const margin = line ? price - unitCost(spec) : 0;
 
   const quiet = () => useGame.getState().meta.sequenceActive;
