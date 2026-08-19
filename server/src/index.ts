@@ -37,6 +37,8 @@ const allowedOrigins = new Set(
   "http://localhost:3000",
   "http://localhost:3005",
   "http://localhost:5173",
+  "https://game.int-labs.site",
+  "https://admin.int-labs.site"
 ].forEach((o) => allowedOrigins.add(o));
 
 // Connect to MongoDB
