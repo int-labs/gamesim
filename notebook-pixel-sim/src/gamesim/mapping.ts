@@ -52,6 +52,9 @@ export const FIELD_KEYS = {
   score: ['score', 'quality', 'product_score'],
   unitCost: ['unit_cost', 'unitCost', 'cost'],
   projectedMarketShare: ['projected_market_share'],
+  channelOffline: ['channel_offline'],
+  channelOnline: ['channel_online'],
+  channelRetail: ['channel_retail'],
 } as const;
 
 type StoreLine = GameState['portfolio']['productLines'][number];
@@ -83,15 +86,23 @@ export interface LineDecisionValues {
   unitCost: number;
   /** Fraction in [0,1]. */
   projectedMarketShare: number;
+  /** Channel activations — 1 if the team has the channel live, 0 otherwise. */
+  channelOffline: 0 | 1;
+  channelOnline: 0 | 1;
+  channelRetail: 0 | 1;
 }
 
 export function lineDecisionValues(line: StoreLine, projectedMarketShare: number): LineDecisionValues {
   const fl = toFinlitLine(lineInput(line));
+  const ch = new Set(fl.channels ?? []);
   return {
     sellingPrice: round2(fl.price),
     score: round4(vocFit(fl.spec, fl.price, fl.channels, fl.genre)),
     unitCost: round2(unitCost(fl.spec)),
     projectedMarketShare: clamp01(round4(projectedMarketShare)),
+    channelOffline: ch.has('offline') ? 1 : 0,
+    channelOnline: ch.has('online') ? 1 : 0,
+    channelRetail: ch.has('retail') ? 1 : 0,
   };
 }
 
@@ -105,6 +116,9 @@ export function toDecisionFields(product: ProductDto, values: LineDecisionValues
   push(findField(product, FIELD_KEYS.score), values.score);
   push(findField(product, FIELD_KEYS.unitCost), values.unitCost);
   push(findField(product, FIELD_KEYS.projectedMarketShare), values.projectedMarketShare);
+  push(findField(product, FIELD_KEYS.channelOffline), values.channelOffline);
+  push(findField(product, FIELD_KEYS.channelOnline), values.channelOnline);
+  push(findField(product, FIELD_KEYS.channelRetail), values.channelRetail);
   return entries;
 }
 

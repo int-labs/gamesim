@@ -269,8 +269,9 @@ function NotebookMetrics() {
   const spec = finlitSpecOf(line);
   const channels = new Set<ChannelId>((line.channels ?? ['offline']) as ChannelId[]);
   const price = line.price;
-  const capacity = prodPerDay(spec, 0);
-  const uCost = finlitUnitCost(spec);
+  const hireReduction = hire ? hireLevel(hire.candidate, hire.level).costReduction : 0;
+  const capacity = prodPerDay(spec, hire ? hireLevel(hire.candidate, hire.level).prodBonus : 0);
+  const uCost = Math.max(0, finlitUnitCost(spec) - hireReduction);
   const margin = price > 0 ? (price - uCost) / price : 0;
   const marginPct = Math.round(margin * 100);
 
@@ -511,18 +512,23 @@ function PnLCell({ value, row, emphasis, live }: { value: number | null; row: Pn
 export function PortfolioMetrics() {
   const lines = useGame((s) => s.portfolio.productLines);
   const finished = useGame((s) => s.inventory.totalFinished);
+  const hire = useGame((s) => s.finlit.hire);
 
   if (lines.length === 0) return <EmptyMetrics text="No notebooks yet. Open Notebook Items to add one." />;
+
+  const hireData = hire ? hireLevel(hire.candidate, hire.level) : null;
+  const costReduction = hireData?.costReduction ?? 0;
+  const prodBonus = hireData?.prodBonus ?? 0;
 
   // Everything reads from the FinLit model (same engine that runs the phase),
   // so the portfolio sheet agrees with the Active Notebook sheet. The old
   // Capacity & Risk card (capacity-load / complexity / cannibalization) was
   // legacy V2 - none of it fed the V3 sim - so it's gone.
   const specs = lines.map(finlitSpecOf);
-  const avgCost = specs.reduce((a, sp) => a + finlitUnitCost(sp), 0) / specs.length;
-  const totalCapacity = specs.reduce((a, sp) => a + prodPerDay(sp, 0), 0);
+  const avgCost = specs.reduce((a, sp) => a + Math.max(0, finlitUnitCost(sp) - costReduction), 0) / specs.length;
+  const totalCapacity = specs.reduce((a, sp) => a + prodPerDay(sp, prodBonus), 0);
   const totalTarget = lines.reduce(
-    (a, l, i) => a + (l.targetPerDay ?? Math.ceil(prodPerDay(specs[i], 0))),
+    (a, l, i) => a + (l.targetPerDay ?? Math.ceil(prodPerDay(specs[i], prodBonus))),
     0,
   );
   // A genuine diversity signal (the honest heir to "cannibalization"): are the

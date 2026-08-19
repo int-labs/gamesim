@@ -38,7 +38,7 @@ export const getPlayerConfig = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const doc = await PlayerConfig.findOne({ simulationTypeId });
+    const doc = await PlayerConfig.findOne({ simulationTypeId }).sort({ _id: -1 });
     if (!doc) {
       res.status(404).json({
         message: "No player config for this simulation type. The player will use its bundled defaults.",
@@ -112,7 +112,7 @@ export const putPlayerConfig = async (req: Request, res: Response): Promise<void
     }
 
     const doc =
-      (await PlayerConfig.findOne({ simulationTypeId })) ??
+      (await PlayerConfig.findOne({ simulationTypeId }).sort({ _id: -1 })) ??
       new PlayerConfig({ simulationTypeId });
 
     for (const [section, value] of Object.entries(parsed.data)) {
@@ -169,7 +169,7 @@ export const patchPlayerConfigSection = async (req: Request, res: Response): Pro
     }
 
     const doc =
-      (await PlayerConfig.findOne({ simulationTypeId })) ??
+      (await PlayerConfig.findOne({ simulationTypeId }).sort({ _id: -1 })) ??
       new PlayerConfig({ simulationTypeId });
 
     (doc as any)[section] = parsed.data;
@@ -199,7 +199,7 @@ export const patchPlayerConfigSection = async (req: Request, res: Response): Pro
 export const publishPlayerConfig = async (req: Request, res: Response): Promise<void> => {
   try {
     const { simulationTypeId } = req.params;
-    const doc = await PlayerConfig.findOne({ simulationTypeId });
+    const doc = await PlayerConfig.findOne({ simulationTypeId }).sort({ _id: -1 });
     if (!doc) {
       res.status(404).json({ message: "No player config to publish." });
       return;
@@ -254,7 +254,7 @@ export const publishPlayerConfig = async (req: Request, res: Response): Promise<
 export const revertPlayerConfigDraft = async (req: Request, res: Response): Promise<void> => {
   try {
     const { simulationTypeId } = req.params;
-    const doc = await PlayerConfig.findOne({ simulationTypeId });
+    const doc = await PlayerConfig.findOne({ simulationTypeId }).sort({ _id: -1 });
     if (!doc) {
       res.status(404).json({ message: "No player config found." });
       return;

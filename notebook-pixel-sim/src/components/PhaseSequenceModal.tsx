@@ -71,6 +71,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   );
   const channels = useGame((s) => s.channels);
   const ops = useGame((s) => s.ops);
+  const lines = useGame((s) => s.portfolio.productLines);
   const pendingEventId = useGame((s) => s.meta.pendingEventId);
   const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
   const setScreen = useGame((s) => s.setScreen);
@@ -175,10 +176,10 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     serverProjection?.byProduct.reduce((a, p) => a + (p.customersObtained ?? 0), 0) ?? null;
 
   const finlitPreview = localFinlitPreview;
-  // `demandTotal` is already the PHASE total; it was being divided by 30
-  // only to print a per-day figure, which is not the unit anything else on
-  // screen uses any more.
-  const intDemand = Math.round(finlitPreview?.demandTotal ?? 0);
+  // Show the player's own demand estimate (from InventoryPanel) — the same
+  // value displayed in "Demand est. / phase" there. Fall back to 0 (shown as
+  // '—') when the player hasn't entered an estimate yet.
+  const intDemand = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
   const expectedSold = Math.round(finlitPreview?.soldTotal ?? 0);
   const expectedRevenue = Math.round(finlitPreview?.revenue ?? 0);
   const dailyExpenses = Math.round((finlitPreview?.opex ?? 0) + (finlitPreview?.channelCost ?? 0));
@@ -407,7 +408,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Stat icon="cash" label="Cash now" value={fmt$(cash)} tone="cash" />
               <Stat icon="energy" label="Energy" value={`${energy}`} tone="warn" />
-              <Stat icon="demand" label="Demand est." value={fmtInt(intDemand)} sub="per phase" tone="info" />
+              <Stat icon="demand" label="Demand est." value={intDemand > 0 ? fmtInt(intDemand) : '—'} sub="your estimate" tone="info" />
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 

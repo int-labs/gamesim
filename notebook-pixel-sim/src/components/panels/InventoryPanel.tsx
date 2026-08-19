@@ -1,5 +1,5 @@
 import { useGame } from '@/state/store';
-import { setLineTargetPerDay } from '@/engine/mockEngine';
+import { setLineTargetPerDay, setLineDemandEst } from '@/engine/mockEngine';
 import {
   genreById, prodPerDay, customersPer30dFor, genreDemand, GAME_PHASE_TO_DEMAND,
   DEMAND_SCALE, hireLevel, salesSellBonus, marketingDemandMult,
@@ -69,6 +69,7 @@ export function InventoryPanel() {
   const overstockDays = useGame((s) => s.inventory.overstockDays);
   const apply = useGame((s) => s.apply);
 
+
   const sellBonus =
     (hire ? hireLevel(hire.candidate, hire.level).sellBonus : 0) +
     salesSellBonus(salesBudget);
@@ -77,7 +78,7 @@ export function InventoryPanel() {
   const stats = lines.map((l) => statsFor(l, phase, sellBonus, marketingMult));
   const totalTarget = stats.reduce((a, s) => a + s.target, 0);
   const totalCapacity = stats.reduce((a, s) => a + s.capacity, 0);
-  const totalDemand = stats.reduce((a, s) => a + s.demandDay, 0);
+  const totalEstimatedDemand = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
 
   if (lines.length === 0) {
     return (
@@ -95,7 +96,7 @@ export function InventoryPanel() {
           <Box label="Finished goods" value={fmtInt(finished)} tone="success" hint={BUSINESS_PAGE.inventory.finishedHint} />
           <Box label="Produce / phase" value={`~${fmtInt(perPhase(totalTarget))}`} tone="neutral" hint="Total units per phase you've planned across all notebooks." />
           <Box label="Capacity / phase" value={`~${fmtInt(perPhase(totalCapacity))}`} tone="info" hint="Most you can make per phase at your current specs + hires." />
-          <Box label="Demand / phase" value={`~${fmtInt(perPhase(totalDemand))}`} tone="info" hint="Estimated units customers will buy this phase." />
+          <Box label="Demand est. / phase" value={totalEstimatedDemand > 0 ? `~${fmtInt(totalEstimatedDemand)}` : '—'} tone="info" hint="Your estimate of units you expect to sell this phase, set per notebook below." />
         </div>
         <div className="flex items-center gap-2 mt-2">
           {stockoutDays > 0 && (
@@ -122,6 +123,8 @@ export function InventoryPanel() {
               key={line.id}
               name={line.name}
               stats={stats[i]}
+              demandEst={line.demandEstPerPhase ?? 0}
+              onDemandEstChange={(v) => apply((s) => setLineDemandEst(s, v, line.id))}
               onChange={(v) => apply((s) => setLineTargetPerDay(s, v, line.id))}
             />
           ))}
@@ -136,26 +139,31 @@ export function InventoryPanel() {
 function ProductionRow({
   name,
   stats,
+  demandEst,
+  onDemandEstChange,
   onChange,
 }: {
   name: string;
   stats: LineStats;
+  demandEst: number;
+  onDemandEstChange: (v: number) => void;
   onChange: (v: number) => void;
 }) {
   const capMax = Math.max(1, Math.ceil(stats.capacity));
   const value = Math.min(stats.target, capMax);
-  const demandRounded = Math.max(0, Math.round(stats.demandDay));
-  // Tone the target against demand — the produce-to-demand coaching signal.
-  const gap = value - stats.demandDay;
+  // Tone production target against the player's own estimate — coaching without revealing real demand.
+  const demandEstDay = demandEst / 30;
+  const gap = value - demandEstDay;
   const tone: 'good' | 'warn' | 'over' =
-    stats.demandDay <= 0 ? 'good'
-    : gap < -stats.demandDay * 0.2 ? 'warn'   // >20% under demand → will sell out
-    : gap > stats.demandDay * 0.5 ? 'over'    // >50% over demand → will pile up
+    demandEst <= 0 ? 'good'
+    : gap < -demandEstDay * 0.2 ? 'warn'
+    : gap > demandEstDay * 0.5 ? 'over'
     : 'good';
   const hint =
-    tone === 'warn' ? 'Below demand - you may sell out'
-    : tone === 'over' ? 'Above demand - stock may pile up'
-    : 'Matched to demand';
+    tone === 'warn' ? 'Below your estimate - you may sell out'
+    : tone === 'over' ? 'Above your estimate - stock may pile up'
+    : demandEst > 0 ? 'Matched to your estimate'
+    : 'Enter your demand estimate below';
   const hintColor = tone === 'warn' ? 'text-warning' : tone === 'over' ? 'text-info' : 'text-success';
 
   return (
@@ -204,16 +212,30 @@ function ProductionRow({
         />
       </div>
       <div className="flex items-center justify-between gap-3 mt-2">
-        <span className="flex items-center gap-3 min-w-0">
-          <span className="flex items-baseline gap-1.5">
-            <span className="stat-label">Demand</span>
-            <span className="num-xs text-info">~{fmtInt(perPhase(demandRounded))}</span>
-          </span>
+        <span className="flex items-center gap-3 min-w-0 flex-wrap">
+          <label className="flex items-baseline gap-1.5">
+            <span className="stat-label shrink-0">Demand est. / phase</span>
+            <input
+              type="number"
+              min={0}
+              step={10}
+              value={demandEst || ''}
+              placeholder="?"
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                onDemandEstChange(Number.isFinite(n) && n >= 0 ? n : 0);
+              }}
+              className="w-20 bg-cream-50 border border-border text-info num-xs text-center outline-none focus:border-primary px-1 py-0.5"
+            />
+          </label>
           <span className="flex items-baseline gap-1.5">
             <span className="stat-label">Capacity</span>
             <span className="num-xs text-text-2">~{fmtInt(perPhase(stats.capacity))}</span>
           </span>
         </span>
+        {demandEst > 0 && (
+          <span className={`hint shrink-0 ${hintColor}`}>{hint}</span>
+        )}
       </div>
     </div>
   );

@@ -7,12 +7,14 @@
 // prodBonus adds to prodPerDay (the `+H43` term); sellBonus adds to channel
 // sell-rate (the `+I43` term).
 
-export type CandidateId = 'ains' | 'beta' | 'chewie' | 'danoct';
+export type CandidateId = 'ains' | 'beta' | 'chewie';
 
 export interface HireLevel {
   level: 1 | 2 | 3 | 4;
   prodBonus: number;
   sellBonus: number;
+  /** Flat $/unit reduction applied to every line's unit cost while this hire is engaged. */
+  costReduction: number;
   cost: number;
   energy: number;
 }
@@ -28,46 +30,35 @@ export interface CandidateDef {
 export const CANDIDATES: CandidateDef[] = [
   {
     id: 'ains',
-    name: 'Ains',
-    blurb: 'Production powerhouse - highest output, modest sell lift.',
+    name: 'Production Team',
+    blurb: 'Increases production.',
     levels: [
-      { level: 1, prodBonus: 0.49, sellBonus: 0.01, cost: 5, energy: 2 },
-      { level: 2, prodBonus: 0.98, sellBonus: 0.02, cost: 10, energy: 4 },
-      { level: 3, prodBonus: 1.96, sellBonus: 0.04, cost: 20, energy: 6 },
-      { level: 4, prodBonus: 3.92, sellBonus: 0.08, cost: 40, energy: 8 },
+      { level: 1, prodBonus: 0.49,  sellBonus: 0,     costReduction: 0, cost: 5,  energy: 2 },
+      { level: 2, prodBonus: 0.98,  sellBonus: 0,     costReduction: 0, cost: 10, energy: 4 },
+      { level: 3, prodBonus: 1.96,  sellBonus: 0,     costReduction: 0, cost: 20, energy: 6 },
+      { level: 4, prodBonus: 3.92,  sellBonus: 0,     costReduction: 0, cost: 40, energy: 8 },
     ],
   },
   {
     id: 'beta',
-    name: 'Beta',
-    blurb: 'Balanced hand - steady production with a healthy sell bump.',
+    name: 'Marketing Team',
+    blurb: 'Increases marketing potential.',
     levels: [
-      { level: 1, prodBonus: 0.482, sellBonus: 0.018, cost: 5, energy: 2 },
-      { level: 2, prodBonus: 0.964, sellBonus: 0.036, cost: 10, energy: 4 },
-      { level: 3, prodBonus: 1.928, sellBonus: 0.072, cost: 20, energy: 6 },
-      { level: 4, prodBonus: 3.856, sellBonus: 0.144, cost: 40, energy: 8 },
+      { level: 1, prodBonus: 0,     sellBonus: 0.018, costReduction: 0, cost: 5,  energy: 2 },
+      { level: 2, prodBonus: 0,     sellBonus: 0.036, costReduction: 0, cost: 10, energy: 4 },
+      { level: 3, prodBonus: 0,     sellBonus: 0.072, costReduction: 0, cost: 20, energy: 6 },
+      { level: 4, prodBonus: 0,     sellBonus: 0.144, costReduction: 0, cost: 40, energy: 8 },
     ],
   },
   {
     id: 'chewie',
-    name: 'Chewie',
-    blurb: 'Closer - strongest sell-rate lift, slightly lower output.',
+    name: 'Materials Team',
+    blurb: 'Reduces cost of production.',
     levels: [
-      { level: 1, prodBonus: 0.479, sellBonus: 0.021, cost: 5, energy: 2 },
-      { level: 2, prodBonus: 0.958, sellBonus: 0.042, cost: 10, energy: 4 },
-      { level: 3, prodBonus: 1.916, sellBonus: 0.084, cost: 20, energy: 6 },
-      { level: 4, prodBonus: 3.832, sellBonus: 0.168, cost: 40, energy: 8 },
-    ],
-  },
-  {
-    id: 'danoct',
-    name: 'Danoct',
-    blurb: 'Grinder - top-tier production, minimal sell lift.',
-    levels: [
-      { level: 1, prodBonus: 0.487, sellBonus: 0.013, cost: 5, energy: 2 },
-      { level: 2, prodBonus: 0.974, sellBonus: 0.026, cost: 10, energy: 4 },
-      { level: 3, prodBonus: 1.948, sellBonus: 0.052, cost: 20, energy: 6 },
-      { level: 4, prodBonus: 3.896, sellBonus: 0.104, cost: 40, energy: 8 },
+      { level: 1, prodBonus: 0, sellBonus: 0, costReduction: 1, cost: 5,  energy: 2 },
+      { level: 2, prodBonus: 0, sellBonus: 0, costReduction: 2, cost: 10, energy: 4 },
+      { level: 3, prodBonus: 0, sellBonus: 0, costReduction: 4, cost: 20, energy: 6 },
+      { level: 4, prodBonus: 0, sellBonus: 0, costReduction: 8, cost: 40, energy: 8 },
     ],
   },
 ];

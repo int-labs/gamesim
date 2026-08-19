@@ -19,21 +19,15 @@ export const CANDIDATE_STUDIES: Record<string, CaseStudy> = {
   },
   beta: {
     title: 'Beta - the all-rounder',
-    brief: 'Beta gives you a steady bump to both production and sell-rate. No spikes, no gaps - a safe hire when you are not sure where the bottleneck is.',
+    brief: 'Beta gives you a steady bump to sell-rate. No spikes, no gaps - a safe hire when you are not sure where the bottleneck is.',
     bestWhen: 'Early game, or when production and demand are roughly balanced.',
     watchOut: 'A specialist beats Beta once you know your exact constraint.',
   },
   chewie: {
     title: 'Chewie - the closer',
-    brief: 'Chewie lifts your sell-rate hardest, turning browsers into buyers. Output is a touch lower, so pair them with capacity you already have.',
-    bestWhen: 'You have stock sitting unsold - demand, not supply, is the limit.',
-    watchOut: 'Useless if you cannot produce enough to meet the demand they create.',
-  },
-  danoct: {
-    title: 'Danoct - the grinder',
-    brief: 'Top-tier raw output, minimal sell lift. Danoct is Ains with the dial turned even further toward the workbench.',
-    bestWhen: 'Deep production shortfall and a channel that already sells itself.',
-    watchOut: 'The weakest sell lift on the roster - do not expect demand help.',
+    brief: 'Chewie reduces the cost of production. over long periods of time, that tiny margin to material cost might make a huge difference in profit margins',
+    bestWhen: "You're unsure whether the item will sell, or if you require a larger margin of error to breakeven with less units sold",
+    watchOut: 'When you have a large enough profit, it may be better to invest into other hiring options',
   },
 };
 

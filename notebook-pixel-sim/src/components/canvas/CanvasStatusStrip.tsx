@@ -108,13 +108,6 @@ export function CanvasStatusStrip() {
         tone={profitTone}
         tip="Projected net profit this phase - revenue minus materials, wages, marketing and channel costs."
       />
-      <Kpi
-        icon="fit"
-        label="Market Fit"
-        value={`${dash.satisfaction}%`}
-        tone={satTone}
-        tip="How well the portfolio matches its market - blends product fit (do they want what you made?) with how much of that demand you can actually fill."
-      />
     </div>
   );
 }

@@ -48,7 +48,7 @@ const CANDIDATE_ICON: Record<string, string> = {
   ains: A.ui.studioOps.printing,
   beta: A.ui.studioOps.staff_training,
   chewie: A.ui.studioOps.packaging_station,
-  danoct: A.ui.studioOps.binding_machine,
+
 };
 
 // Storefront art per vendor. Every other option card on this page leads with a
@@ -79,7 +79,9 @@ function engageSummary(
   if (p.kind === 'candidate') {
     const lv = hireLevel(p.id, p.level);
     tiles.push({ label: 'Wage / phase', value: fmt$(perPhase(lv.cost)), tone: 'cost', icon: 'cash' });
-    effects.push(`+${fmtUnitsPerPhase(lv.prodBonus)} produced / phase`, `+${(lv.sellBonus * 100).toFixed(1)}% sell-rate`);
+    if (lv.prodBonus > 0) effects.push(`+${fmtUnitsPerPhase(lv.prodBonus)} produced / phase`);
+    if (lv.sellBonus > 0) effects.push(`+${(lv.sellBonus * 100).toFixed(1)}% sell-rate`);
+    if (lv.costReduction > 0) effects.push(`−$${lv.costReduction} / unit cost`);
   } else {
     const cov = genre ? vendorCoverage(p.id, vendorLevel, genre) : undefined;
     if (cov && cov.quality !== 'none') {
@@ -493,12 +495,13 @@ export function StudioPanel() {
                   <StatChip className="col-span-3" label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" />
                   <StatChip className="col-span-3" label="Output / phase" value={`+${fmtUnitsPerPhase(lv.prodBonus)} units`} tone="good" />
                   <StatChip className="col-span-3" label="Sell-rate" value={`+${(lv.sellBonus * 100).toFixed(1)}%`} tone="good" />
+                  <StatChip className="col-span-3" label="Cost reduction" value={lv.costReduction > 0 ? `−$${lv.costReduction} / unit` : '—'} tone="good" />
                   {/* cost ÷ extra units = the margin each new unit must clear
                       for the hire to pay for itself. */}
                   <StatChip
-                    className="col-span-6"
+                    className="col-span-3"
                     label="Breakeven margin"
-                    value={`${fmt$(lv.cost / lv.prodBonus)} / unit`}
+                    value={lv.prodBonus > 0 ? `${fmt$(lv.cost / lv.prodBonus)} / unit` : '—'}
                     tone="money"
                   />
                 </div>

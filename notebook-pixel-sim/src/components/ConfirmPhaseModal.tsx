@@ -1,10 +1,9 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useGame } from '@/state/store';
-import { advanceDay, calcDemandToday } from '@/engine/mockEngine';
+import { advanceDay } from '@/engine/mockEngine';
 import { PixelModal } from '@/components/primitives/PixelModal';
 import { PixelButton } from '@/components/primitives';
 import { fmt$, fmtInt } from '@/utils/format';
-import { mulberry32, seedFrom } from '@/utils/rng';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
 import confetti from 'canvas-confetti';
@@ -53,15 +52,15 @@ export function ConfirmPhaseModal({ open, onClose }: Props) {
   const target = PHASE_END[phase];
   const daysLeft = Math.max(0, target - day + 1);
 
-  const rand = mulberry32(seedFrom(useGame.getState().meta.seed + ':phase:' + phase));
-  const demand = calcDemandToday(useGame.getState(), rand);
-  const intDemand = Math.round(demand.total);
-  const expectedSold = Math.min(intDemand, finished);
+  const lines = useGame((s) => s.portfolio.productLines);
+  const demandEstPerPhase = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
+  const expectedSold = demandEstPerPhase > 0 ? Math.min(demandEstPerPhase, finished) : finished;
   // product is undefined with an EMPTY portfolio (this component stays
   // mounted while closed) — degrade to $0 instead of crashing the tree.
-  const expectedRevenue = expectedSold * (product?.price ?? 0) * daysLeft;
-  const dailyExpenses = (ops.hires * 12 + channels.marketingPerDay) * daysLeft;
-  const expectedNetCash = expectedRevenue - dailyExpenses;
+  // expectedSold is per-phase so no daysLeft multiplier.
+  const expectedRevenue = expectedSold * (product?.price ?? 0);
+  const phaseExpenses = (ops.hires * 12 + channels.marketingPerDay) * daysLeft;
+  const expectedNetCash = expectedRevenue - phaseExpenses;
 
   const onConfirm = () => {
     setState('running');
@@ -169,16 +168,16 @@ export function ConfirmPhaseModal({ open, onClose }: Props) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Stat icon="cash" label="Cash now" value={fmt$(cash)} tone="cash" />
               <Stat icon="energy" label="Energy" value={`${energy}`} tone="warn" />
-              <Stat icon="demand" label="Demand est." value={fmtInt(intDemand)} sub="per phase" tone="info" />
+              <Stat icon="demand" label="Demand est." value={demandEstPerPhase > 0 ? fmtInt(demandEstPerPhase) : '—'} sub="your estimate" tone="info" />
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 
             <div className="panel-muted px-3.5 py-3">
               <div className="panel-title text-text mb-2">Estimated phase impact</div>
               <ul className="body-xs text-text leading-relaxed space-y-1">
-                <li>• Likely sold over {daysLeft}d: <strong>~{expectedSold * daysLeft}</strong> units</li>
+                <li>• Likely sold this phase: <strong>~{expectedSold}</strong> units</li>
                 <li>• Revenue est.: <strong>{fmt$(expectedRevenue)}</strong></li>
-                <li>• Operating expenses: <strong>{fmt$(dailyExpenses)}</strong></li>
+                <li>• Operating expenses: <strong>{fmt$(phaseExpenses)}</strong></li>
                 <li>
                   • Net cash change:{' '}
                   <strong className={expectedNetCash >= 0 ? 'text-fin-profit' : 'text-danger'}>

@@ -57,6 +57,7 @@ export function simulatePhase(
   const companyOpexDay = (hire?.cost ?? 0) + marketingBudget + salesBudget;
   const globalSellBonus = (hire?.sellBonus ?? 0) + salesSellBonus(salesBudget);
   const globalProdBonus = hire?.prodBonus ?? 0;
+  const globalCostReduction = hire?.costReduction ?? 0;
   const marketingMult = marketingDemandMult(marketingBudget);
 
   // Build a per-line plan.
@@ -69,7 +70,7 @@ export function simulatePhase(
     const capacity = prodPerDay(line.spec, globalProdBonus + vendorProd);
     // The player's production target throttles output below capacity (LP2).
     const prodDay = line.targetPerDay != null ? Math.max(0, Math.min(line.targetPerDay, capacity)) : capacity;
-    const unitCostLine = unitCost(line.spec);
+    const unitCostLine = Math.max(0, unitCost(line.spec) - globalCostReduction);
     const sellBonus = globalSellBonus + vendorSell;
     const fit = vocFit(line.spec, line.price, line.channels, line.genre);
     const demand = genreDemand(line.genre, phaseKey);

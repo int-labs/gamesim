@@ -545,6 +545,12 @@ export const setLineTargetPerDay = (s: GameState, units: number | undefined, lin
   s.history.push({ day: s.meta.day, text: `${line.name} production target ${units ?? 'max'}`, cause: 'finlit_target' });
 };
 
+/** Set the player's demand estimate for a line (units/phase). */
+export const setLineDemandEst = (s: GameState, units: number, lineId: string) => {
+  const line = getLineOrThrow(s, lineId);
+  line.demandEstPerPhase = Math.max(0, Math.round(units));
+};
+
 /** Set the shipping vendor engaged for a line (undefined = none). */
 export const setLineVendor = (s: GameState, vendor: FinlitVendorId | undefined, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);

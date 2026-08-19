@@ -225,6 +225,8 @@ export interface ProductLine {
   vendor?: FinlitVendorId;
   /** Units/day the player commits to producing (LP2 lever; ≤ capacity). */
   targetPerDay?: number;
+  /** Player's own demand estimate for the phase (units/phase). Never the real value — the player decides this. */
+  demandEstPerPhase?: number;
 }
 
 export type AddOnCategory =

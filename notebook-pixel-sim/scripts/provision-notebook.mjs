@@ -145,6 +145,25 @@ const FIELDS = [
     // share multiplier instead, so it carries no coefficients.
     direction: 1, tightening: 3, coefficients: {}, unitCost: null,
   },
+  // ── Channel selections (analytical only — not scored) ──────────────────
+  // Stored as 0/1 booleans so the export can show which channels each team
+  // activated, and cross-reference against revenue to identify channel ROI.
+  // No coefficients → calcMarketModel ignores them entirely.
+  {
+    key: 'channel_offline', label: 'Channel: Offline', type: 'number',
+    order: 5, required: false, minValue: 0, maxValue: 1,
+    direction: 0, tightening: 1, coefficients: {}, unitCost: null,
+  },
+  {
+    key: 'channel_online', label: 'Channel: Online', type: 'number',
+    order: 6, required: false, minValue: 0, maxValue: 1,
+    direction: 0, tightening: 1, coefficients: {}, unitCost: null,
+  },
+  {
+    key: 'channel_retail', label: 'Channel: Retail', type: 'number',
+    order: 7, required: false, minValue: 0, maxValue: 1,
+    direction: 0, tightening: 1, coefficients: {}, unitCost: null,
+  },
 ];
 
 /** Which field keys take part in the competitive model, per product. Their calc

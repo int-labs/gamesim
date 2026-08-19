@@ -187,6 +187,7 @@ async function main() {
       role: "team",
       teamId: team._id,
       simulationId: sim._id,
+      email: `team-${team._id}@seed.intlabs.internal`,
     })).data);
 
     // Roster: the lead plus two others, avatars generated server-side.
@@ -279,6 +280,14 @@ async function main() {
             value = unitCostValue;
           } else if (f.key === "projected_market_share") {
             value = 1 / TEAMS.length;
+          } else if (f.key === "channel_offline") {
+            // Each team picks a primary channel mix based on their index.
+            // Patterns: offline-heavy, online-heavy, retail-heavy, omni.
+            value = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0][i % 12] ?? 1;
+          } else if (f.key === "channel_online") {
+            value = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1][i % 12] ?? 1;
+          } else if (f.key === "channel_retail") {
+            value = [0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1][i % 12] ?? 1;
           } else {
             value = lo;
           }

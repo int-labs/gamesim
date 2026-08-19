@@ -22,7 +22,8 @@
     "backfill-avatars": "ts-node scripts/backfillAvatars.ts",
     "repair-validators": "ts-node scripts/repairCollectionValidators.ts",
     "sync-finlit": "ts-node scripts/syncFinlitEngine.ts",
-    "seed-demo": "node scripts/seedDemoCohort.mjs"
+    "seed-demo": "node scripts/seedDemoCohort.mjs",
+    "export-round": "node scripts/exportRoundData.mjs"
   },
   "dependencies": {
     "@dicebear/collection": "^9.4.2",
