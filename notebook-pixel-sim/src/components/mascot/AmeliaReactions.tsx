@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useGame } from '@/state/store';
-import { genreById, unitCost, type GenreId, type ProductionSpec, type ChannelId } from '@/data/finlit';
+import { genreById, unitCost, type GenreId, type ProductionSpec } from '@/data/finlit';
 import { vocFit } from '@/engine/finlit/fit';
 import { fmt$ } from '@/utils/format';
 
@@ -26,7 +26,8 @@ export function AmeliaReactions() {
   const genre: GenreId = (line?.genre ?? 'indie') as GenreId;
   const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line?.finlitSpec ?? {}) };
   const price = line?.price ?? 0;
-  const fit = line ? vocFit(spec, price, ['offline'], genre) : 1;
+  const stickersSpend = Math.min((line?.addOnsByArchetype?.[line?.archetype ?? genre] ?? []).length * 0.15, 100);
+  const fit = line ? vocFit(spec, price, stickersSpend, genre) : 1;
   const margin = line ? price - unitCost(spec) : 0;
 
   const quiet = () => useGame.getState().meta.sequenceActive;

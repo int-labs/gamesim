@@ -11,12 +11,14 @@ export interface CostTile {
   icon?: PixelIconKind;
 }
 
-const TONE: Record<CostTone, { text: string; border: string; bg: string; icon: string }> = {
-  cost:    { text: 'text-warning', border: 'border-warning/45', bg: 'bg-warning-soft/40', icon: 'var(--c-warning)' },
-  energy:  { text: 'text-warning', border: 'border-warning/45', bg: 'bg-warning-soft/40', icon: 'var(--c-warning)' },
-  gain:    { text: 'text-success', border: 'border-success/45', bg: 'bg-success-soft/40', icon: 'var(--c-success)' },
-  danger:  { text: 'text-danger',  border: 'border-danger/45',  bg: 'bg-danger-soft/40',  icon: 'var(--c-danger)' },
-  neutral: { text: 'text-text',    border: 'border-border-soft', bg: 'bg-surface-2/50',   icon: 'var(--c-text-2)' },
+// No `border` key any more — see the tile below. Tone is carried by the tint
+// behind the tile and the ink of its figure, which is all it ever needed.
+const TONE: Record<CostTone, { text: string; bg: string; icon: string }> = {
+  cost:    { text: 'text-warning', bg: 'bg-warning-soft/40', icon: 'var(--c-warning)' },
+  energy:  { text: 'text-warning', bg: 'bg-warning-soft/40', icon: 'var(--c-warning)' },
+  gain:    { text: 'text-success', bg: 'bg-success-soft/40', icon: 'var(--c-success)' },
+  danger:  { text: 'text-danger',  bg: 'bg-danger-soft/40',  icon: 'var(--c-danger)' },
+  neutral: { text: 'text-text',    bg: 'bg-surface-2/50',    icon: 'var(--c-text-2)' },
 };
 
 /**
@@ -36,7 +38,12 @@ export function CostTiles({ tiles, className }: { tiles: CostTile[]; className?:
       {tiles.map((t) => {
         const tone = TONE[t.tone ?? 'neutral'];
         return (
-          <div key={t.label} className={clsx('readout flex flex-col items-center justify-center gap-1.5 border-2 px-2 py-3 text-center', tone.border, tone.bg)}>
+          // NO border. These are the numbers you are deciding AGAINST, sitting
+          // beside the button you press — and they used to carry the same 2px
+          // frame as that button, which is most of why "what can I click?" was
+          // the first question this screen provoked. A 2px frame is reserved
+          // for controls; a tile is a readout, so the tint alone holds it.
+          <div key={t.label} className={clsx('readout flex flex-col items-center justify-center gap-1.5 px-2 py-3 text-center', tone.bg)}>
             <span className="inline-flex items-center gap-1 stat-label">
               {t.icon && <PixelIcon kind={t.icon} size={10} color={tone.icon} />}
               {t.label}
@@ -63,7 +70,9 @@ export function ImpactList({ label = 'Effects', items }: { label?: string; items
       <span className="stat-label">{label}</span>
       <div className="flex flex-wrap gap-1.5">
         {items.map((it, i) => (
-          <span key={i} className="inline-flex items-center px-2.5 py-1.5 border-2 border-success/40 bg-success-soft/40 num-xs text-text leading-none">
+          // Same rule as the tiles above: an effect is something you read, not
+          // something you press, so it loses its 2px frame too.
+          <span key={i} className="inline-flex items-center px-2.5 py-1.5 bg-success-soft/40 num-xs text-text leading-none">
             {it}
           </span>
         ))}

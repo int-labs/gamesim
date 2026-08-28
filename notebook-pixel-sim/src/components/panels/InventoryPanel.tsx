@@ -1,13 +1,11 @@
 import { useGame } from '@/state/store';
-import { setLineTargetPerDay } from '@/engine/mockEngine';
+import { setLineTargetPerDay, setLineDemandEst } from '@/engine/mockEngine';
 import {
-  genreById, prodPerDay, customersPer30dFor, genreDemand, GAME_PHASE_TO_DEMAND,
-  DEMAND_SCALE,
+  genreById, prodPerDay,
   type GenreId, type ProductionSpec,
 } from '@/data/finlit';
-import { vocFit } from '@/engine/finlit/fit';
 import { PixelPanel, PixelBadge } from '@/components/primitives';
-import { fmt$, fmtInt } from '@/utils/format';
+import { fmt$, fmtInt, perPhase } from '@/utils/format';
 import { BUSINESS_PAGE } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import clsx from 'clsx';
@@ -19,7 +17,6 @@ const DEFAULT_SPEC: ProductionSpec = {
 interface LineStats {
   genre: GenreId;
   capacity: number;
-  demandDay: number;
   finished: number;
   target: number;
   /** Read-only here — price is set on the Product page (it pairs with unit cost). */
@@ -28,19 +25,13 @@ interface LineStats {
 
 function statsFor(
   line: { genre?: GenreId; finlitSpec?: Partial<ProductionSpec>; price: number; targetPerDay?: number; inventory: { finished: number } },
-  phase: 1 | 2 | 3,
 ): LineStats {
   const genre = (line.genre ?? 'indie') as GenreId;
   const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line.finlitSpec ?? {}) };
   const capacity = prodPerDay(spec, 0);
-  const d = genreDemand(genre, GAME_PHASE_TO_DEMAND[phase]);
-  const fit = vocFit(spec, line.price, ['offline'], genre);
-  const demand30 = customersPer30dFor(genre, 'offline', d, 0);
-  const demandDay = (demand30 * fit * DEMAND_SCALE) / 30;
   return {
     genre,
     capacity,
-    demandDay,
     finished: line.inventory.finished,
     target: line.targetPerDay ?? Math.ceil(capacity),
     price: line.price,
@@ -56,16 +47,16 @@ function statsFor(
  */
 export function InventoryPanel() {
   const lines = useGame((s) => s.portfolio.productLines);
-  const phase = useGame((s) => s.meta.phase);
   const finished = useGame((s) => s.inventory.totalFinished);
   const stockoutDays = useGame((s) => s.inventory.stockoutDays);
   const overstockDays = useGame((s) => s.inventory.overstockDays);
   const apply = useGame((s) => s.apply);
 
-  const stats = lines.map((l) => statsFor(l, phase));
+
+  const stats = lines.map((l) => statsFor(l));
   const totalTarget = stats.reduce((a, s) => a + s.target, 0);
   const totalCapacity = stats.reduce((a, s) => a + s.capacity, 0);
-  const totalDemand = stats.reduce((a, s) => a + s.demandDay, 0);
+  const totalEstimatedDemand = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
 
   if (lines.length === 0) {
     return (
@@ -81,9 +72,9 @@ export function InventoryPanel() {
       <PixelPanel title="Stock & Output">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Box label="Finished goods" value={fmtInt(finished)} tone="success" hint={BUSINESS_PAGE.inventory.finishedHint} />
-          <Box label="Produce / day" value={`~${fmtInt(totalTarget)}`} tone="neutral" hint="Total units/day you've planned across all notebooks." />
-          <Box label="Capacity / day" value={`~${fmtInt(Math.round(totalCapacity))}`} tone="info" hint="Most you can make per day at your current specs + hires." />
-          <Box label="Demand / day" value={`~${fmtInt(Math.round(totalDemand))}`} tone="info" hint="Estimated units/day customers will buy this phase." />
+          <Box label="Produce / phase" value={`~${fmtInt(perPhase(totalTarget))}`} tone="neutral" hint="Total units per phase you've planned across all notebooks." />
+          <Box label="Capacity / phase" value={`~${fmtInt(perPhase(totalCapacity))}`} tone="info" hint="Most you can make per phase at your current specs + hires." />
+          <Box label="Demand est. / phase" value={totalEstimatedDemand > 0 ? `~${fmtInt(totalEstimatedDemand)}` : '—'} tone="info" hint="Your estimate of units you expect to sell this phase, set per notebook below." />
         </div>
         <div className="flex items-center gap-2 mt-2">
           {stockoutDays > 0 && (
@@ -102,7 +93,7 @@ export function InventoryPanel() {
       {/* ── Production Plan — the decisions: units/day per notebook ── */}
       <PixelPanel title="Production Plan">
         <div className="hint text-text-3 -mt-1 mb-2 leading-tight">
-          Set how many of each notebook to make per day. Aim near demand - over-make and stock piles up, under-make and you sell out.
+          Set how many of each notebook to make per phase. Aim near demand - over-make and stock piles up, under-make and you sell out.
         </div>
         <div className="flex flex-col gap-2">
           {lines.map((line, i) => (
@@ -110,6 +101,8 @@ export function InventoryPanel() {
               key={line.id}
               name={line.name}
               stats={stats[i]}
+              demandEst={line.demandEstPerPhase ?? 0}
+              onDemandEstChange={(v) => apply((s) => setLineDemandEst(s, v, line.id))}
               onChange={(v) => apply((s) => setLineTargetPerDay(s, v, line.id))}
             />
           ))}
@@ -124,26 +117,31 @@ export function InventoryPanel() {
 function ProductionRow({
   name,
   stats,
+  demandEst,
+  onDemandEstChange,
   onChange,
 }: {
   name: string;
   stats: LineStats;
+  demandEst: number;
+  onDemandEstChange: (v: number) => void;
   onChange: (v: number) => void;
 }) {
   const capMax = Math.max(1, Math.ceil(stats.capacity));
   const value = Math.min(stats.target, capMax);
-  const demandRounded = Math.max(0, Math.round(stats.demandDay));
-  // Tone the target against demand — the produce-to-demand coaching signal.
-  const gap = value - stats.demandDay;
+  // Tone production target against the player's own estimate — coaching without revealing real demand.
+  const demandEstDay = demandEst / 30;
+  const gap = value - demandEstDay;
   const tone: 'good' | 'warn' | 'over' =
-    stats.demandDay <= 0 ? 'good'
-    : gap < -stats.demandDay * 0.2 ? 'warn'   // >20% under demand → will sell out
-    : gap > stats.demandDay * 0.5 ? 'over'    // >50% over demand → will pile up
+    demandEst <= 0 ? 'good'
+    : gap < -demandEstDay * 0.2 ? 'warn'
+    : gap > demandEstDay * 0.5 ? 'over'
     : 'good';
   const hint =
-    tone === 'warn' ? 'Below demand - you may sell out'
-    : tone === 'over' ? 'Above demand - stock may pile up'
-    : 'Matched to demand';
+    tone === 'warn' ? 'Below your estimate - you may sell out'
+    : tone === 'over' ? 'Above your estimate - stock may pile up'
+    : demandEst > 0 ? 'Matched to your estimate'
+    : 'Enter your demand estimate below';
   const hintColor = tone === 'warn' ? 'text-warning' : tone === 'over' ? 'text-info' : 'text-success';
 
   return (
@@ -151,7 +149,7 @@ function ProductionRow({
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
           {/* TITLE = line name; genre is a quiet tag before it */}
-          <span className="eyebrow eyebrow-sm text-brand-500 shrink-0">{genreById(stats.genre).name}</span>
+          <span className="eyebrow eyebrow-sm text-info shrink-0">{genreById(stats.genre).name}</span>
           <span className="item-name text-text truncate">{name}</span>
         </div>
         <span className="flex items-center gap-3 shrink-0">
@@ -167,8 +165,20 @@ function ProductionRow({
           </span>
         </span>
       </div>
-      <div className="flex items-center gap-3">
-        <span className="stat-label w-24 shrink-0">Produce / day</span>
+      {/* Caption and value on one line, slider on its own beneath. The caption
+          used to sit INSIDE the slider row at a fixed `w-24` (96px), and
+          `.stat-label` is `white-space: nowrap`, so "PRODUCE / PHASE" simply
+          ran past its box and the slider was drawn over the last letters. The
+          two fixed widths were the whole bug; without them nothing can clip,
+          the slider gets the full width to drag along, and the value sits
+          where every other figure in this panel sits. */}
+      <div>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="stat-label">Produce / phase</span>
+          {/* The slider's unit is still units/DAY internally — that is what the
+              engine schedules — but every figure the player reads is per phase. */}
+          <span className="num-sm text-text tabular-nums">{fmtInt(perPhase(value))}</span>
+        </div>
         <input
           type="range"
           min={0}
@@ -176,26 +186,34 @@ function ProductionRow({
           step={1}
           value={value}
           onChange={(e) => onChange(parseInt(e.target.value, 10))}
-          className="flex-1 accent-ui-primary cursor-pointer"
+          className="w-full mt-1.5 accent-ui-primary cursor-pointer"
         />
-        {/* VALUE — the loudest thing in the row */}
-        <span className="num-sm text-text w-16 text-right shrink-0">
-          {value}
-          <span className="stat-label">/d</span>
-        </span>
       </div>
       <div className="flex items-center justify-between gap-3 mt-2">
-        <span className="flex items-center gap-3 min-w-0">
-          <span className="flex items-baseline gap-1.5">
-            <span className="stat-label">Demand</span>
-            <span className="num-xs text-info">~{demandRounded}/d</span>
-          </span>
+        <span className="flex items-center gap-3 min-w-0 flex-wrap">
+          <label className="flex items-baseline gap-1.5">
+            <span className="stat-label shrink-0">Demand est. / phase</span>
+            <input
+              type="number"
+              min={0}
+              step={10}
+              value={demandEst || ''}
+              placeholder="?"
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                onDemandEstChange(Number.isFinite(n) && n >= 0 ? n : 0);
+              }}
+              className="w-20 bg-cream-50 border border-border text-info num-xs text-center outline-none focus:border-primary px-1 py-0.5"
+            />
+          </label>
           <span className="flex items-baseline gap-1.5">
             <span className="stat-label">Capacity</span>
-            <span className="num-xs text-text-2">~{stats.capacity.toFixed(1)}/d</span>
+            <span className="num-xs text-text-2">~{fmtInt(perPhase(stats.capacity))}</span>
           </span>
         </span>
-        <span className={clsx('item-name shrink-0', hintColor)}>{hint}</span>
+        {demandEst > 0 && (
+          <span className={`hint shrink-0 ${hintColor}`}>{hint}</span>
+        )}
       </div>
     </div>
   );
@@ -205,9 +223,15 @@ function Box({ label, value, tone, hint }: { label: string; value: string; tone:
   const bg =
     tone === 'info' ? 'bg-surface-muted/60' : tone === 'success' ? 'bg-success-soft/60' : 'bg-surface-2';
   const inner = (
+    // `.stat-label`, not `.eyebrow`: an eyebrow OPENS a section, a stat-label
+    // NAMES a value, and this is the second. And `.num-md` (21px) rather than
+    // `.num-lg` (28px) - these tiles were running eleven pixels and a whole
+    // weight above every other readout in the app, so a summary band read as
+    // the loudest thing on the page. One step up from the 17px chips is enough
+    // to say "summary" without leaving the scale.
     <div className={`readout ${bg} border border-border-soft p-2`}>
-      <div className="eyebrow eyebrow-sm">{label}</div>
-      <div className="num-lg text-text mt-0.5 tabular-nums">{value}</div>
+      <div className="stat-label">{label}</div>
+      <div className="num-md text-text mt-1 tabular-nums">{value}</div>
     </div>
   );
   return hint ? <Tooltip content={hint}>{inner}</Tooltip> : inner;

@@ -11,6 +11,8 @@
 // working simplification. We use each genre's OWN per-phase demand (the model's
 // clear intent). This is the single deliberate correction; see PRD §DEC B.
 
+import type { GlobalInputItemDto } from '@/gamesim/types';
+import { GENRES } from './genres';
 import type { GenreId } from './genres';
 
 export type ChannelId = 'offline' | 'online' | 'retail';
@@ -59,3 +61,81 @@ export const channelRow = (genre: GenreId, channel: ChannelId): ChannelRow => {
   if (!r) throw new Error(`No ${channel} row for genre ${genre}`);
   return r;
 };
+
+// Impact key → ChannelRow field for per-product-aware fields
+const SELECTION_FIELDS: { impactKey: string; rowField: 'split' | 'sellRate' }[] = [
+  { impactKey: 'sales_channel', rowField: 'split' },
+  { impactKey: 'sell_rate',     rowField: 'sellRate' },
+];
+
+// Impact key → ChannelRow field for flat (non-per-product) fields
+const FLAT_FIELDS: { impactKey: string; rowField: 'maintenance' | 'consignment' | 'inventoryCost' }[] = [
+  { impactKey: 'maintenance',   rowField: 'maintenance' },
+  { impactKey: 'consignment',   rowField: 'consignment' },
+  { impactKey: 'inventory_cost',rowField: 'inventoryCost' },
+];
+
+/**
+ * Populate CHANNEL_META and all ChannelRow fields from the backend `channel`
+ * GlobalInput. Fields with per-product selections (split, sellRate) resolve
+ * per genre; flat fields (maintenance, consignment, inventoryCost) use the
+ * impact default value uniformly across all genres.
+ */
+export function hydrateChannels(
+  items: GlobalInputItemDto[],
+  products: { _id: string; productName: string }[],
+): void {
+  // Build productId → genreId map
+  const productGenre = new Map<string, GenreId>();
+  for (const p of products) {
+    const lower = p.productName.toLowerCase();
+    const genre = GENRES.find((g) => lower.includes(g.id.toLowerCase()));
+    if (genre) productGenre.set(String(p._id), genre.id as GenreId);
+  }
+
+  // Build genreId → productIds map for selection lookups
+  const genreProducts = new Map<GenreId, string[]>();
+  for (const [productId, genreId] of productGenre) {
+    const list = genreProducts.get(genreId) ?? [];
+    list.push(productId);
+    genreProducts.set(genreId, list);
+  }
+
+  const genres = Object.keys(CHANNELS_BY_GENRE) as GenreId[];
+
+  for (const item of items) {
+    const chId = item.key as ChannelId;
+    if (!CHANNEL_META[chId]) continue;
+
+    // Update display metadata
+    CHANNEL_META[chId] = {
+      name: item.label,
+      blurb: item.description ?? CHANNEL_META[chId].blurb,
+    };
+
+    // Per-product-aware fields: resolve per genre via selections
+    for (const { impactKey, rowField } of SELECTION_FIELDS) {
+      const impact = item.impacts[impactKey];
+      if (!impact) continue;
+      const selections = impact.selections ?? [];
+
+      for (const genreId of genres) {
+        const row = CHANNELS_BY_GENRE[genreId].find((r) => r.channel === chId);
+        if (!row) continue;
+        const genreProductIds = genreProducts.get(genreId) ?? [];
+        const match = selections.find((s) => genreProductIds.includes(String(s.productId)));
+        row[rowField] = match ? match.value : impact.value;
+      }
+    }
+
+    // Flat fields: apply the same value across all genres
+    for (const { impactKey, rowField } of FLAT_FIELDS) {
+      const impact = item.impacts[impactKey];
+      if (!impact) continue;
+      for (const genreId of genres) {
+        const row = CHANNELS_BY_GENRE[genreId].find((r) => r.channel === chId);
+        if (row) row[rowField] = impact.value;
+      }
+    }
+  }
+}

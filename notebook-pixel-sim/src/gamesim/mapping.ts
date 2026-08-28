@@ -20,11 +20,12 @@ import type {
 /** Canonical field keys this glue submits. One string per axis — no aliases. */
 export const FIELD_KEYS = {
   sellingPrice:         'selling_price',
-  paper:                'paper',
-  size:                 'size',
+  stickers:             'stickers',
+  addons:               'addons',
+  pageSize:             'page_size',
+  paperMaterial:        'paper_material',
   pageDesign:           'page_design',
-  addon:                'addon',
-  cover:                'cover',
+  coverPage:            'cover_page',
   projectedMarketShare: 'projected_market_share',
 } as const;
 
@@ -39,23 +40,27 @@ const specCost = (axis: ConfigAxis, id: string | undefined): number =>
 /** The values derived from one product line for server submission. */
 export interface LineDecisionValues {
   sellingPrice:         number;
-  paper:                number;
-  size:                 number;
+  stickers:             number;
+  addons:               number;
+  pageSize:             number;
+  paperMaterial:        number;
   pageDesign:           number;
-  addon:                number;
-  cover:                number;
+  coverPage:            number;
   projectedMarketShare: number;
 }
 
 export function lineDecisionValues(line: StoreLine, projectedMarketShare: number): LineDecisionValues {
-  const spec = line.finlitSpec ?? {};
+  const spec      = line.finlitSpec ?? {};
+  const instances = line.addOnsByArchetype?.[line.archetype] ?? [];
+  const stickersSpend = Math.min(instances.length * 0.15, 100);
   return {
     sellingPrice:         round2(line.price),
-    paper:                specCost('paper',      spec.paper),
-    size:                 specCost('size',        spec.size),
+    stickers:             stickersSpend,
+    addons:               specCost('addon',      spec.addon),
+    pageSize:             specCost('size',        spec.size),
+    paperMaterial:        specCost('paper',       spec.paper),
     pageDesign:           specCost('pageDesign',  spec.pageDesign),
-    addon:                specCost('addon',       spec.addon),
-    cover:                specCost('cover',       spec.cover),
+    coverPage:            specCost('cover',       spec.cover),
     projectedMarketShare: clamp01(round4(projectedMarketShare)),
   };
 }

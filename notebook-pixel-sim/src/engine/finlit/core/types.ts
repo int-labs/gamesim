@@ -1,7 +1,7 @@
 // V3 FinLit engine — decision + result types. Pure data; no store coupling, so
 // the simulator can be unit-verified in isolation.
 
-import type { GenreId, ProductionSpec, ChannelId, CandidateId, MarketingId, VendorId } from './config';
+import type { GenreId, ProductionSpec, ChannelId, MarketingId, VendorId } from './config';
 
 /** 'self' = bootstrapped/self-funded, 'investor' = took outside investment. Ported verbatim from notebook-pixel-sim src/types/index.ts. */
 export type Route = 'self' | 'investor';
@@ -16,6 +16,8 @@ export interface FinlitLine {
   price: number;
   /** Channels the line is stocked in (offline/online/retail). */
   channels: ChannelId[];
+  /** Stickers spend derived from placed canvas add-on instances × unitCost (0.15). */
+  stickersSpend: number;
   /** Shipping vendor engaged for this line (adds sell/prod bonus if it covers the genre). */
   vendor?: VendorId;
   /**
@@ -31,11 +33,10 @@ export interface FinlitLine {
 /** Company-wide decisions in force for a phase. */
 export interface FinlitDecisions {
   route: Route;
-  hire?: { candidate: CandidateId; level: 1 | 2 | 3 | 4 };
-  /** $/day marketing spend — lifts demand (0 = off). */
-  marketingBudget: number;
-  /** $/day sales spend — lifts sell-rate/conversion (0 = off). */
-  salesBudget: number;
+  /** All hired candidates for this phase (up to maxSelections from globalInputs). */
+  hires: { candidate: string; level: 1 | 2 | 3 | 4 }[];
+  /** Direct demand multiplier from marketing globalInput options[selectedStepKey] (1.0 = no spend). */
+  marketingMult: number;
   /** Global demand/sell multipliers from key-decision cards (e.g. +15% demand). */
   demandMult: number; // default 1
   sellMult: number; // default 1

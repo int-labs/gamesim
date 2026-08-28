@@ -12,7 +12,7 @@ import { Notebook, sizeScale } from './Notebook';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { A } from '@/assets';
 import { addOnById } from '@/data/addOns';
-import { genreById, configOption, type GenreId, type ProductionSpec, type ChannelId } from '@/data/finlit';
+import { genreById, configOption, type GenreId, type ProductionSpec } from '@/data/finlit';
 import { lineSize } from '@/engine/selectors';
 import { vocFit } from '@/engine/finlit/fit';
 
@@ -61,6 +61,7 @@ export function NotebookGallery() {
   const apply = useGame((s) => s.apply);
   const setViewMode = useGame((s) => s.setViewMode);
   const openDrawer = useGame((s) => s.openDrawer);
+  const detailsOpen = useGame((s) => s.ui.rightDrawer === 'details');
   const reduced = useReducedMotion();
 
   const focus = (id: string) => {
@@ -95,13 +96,13 @@ export function NotebookGallery() {
           </span>
         </div>
       </div>
-      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
+      <div className="absolute right-3 top-3 z-[45] h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
         <ViewToggle />
         {/* Same Details affordance as the focus view, in the same slot, so
             the toggle itself never shifts when switching views. */}
         {/* h matches the ViewToggle's OUTER height so the strip aligns. */}
         <button
-          onClick={() => { playSfx('click-soft'); openDrawer('left', 'details'); }}
+          onClick={() => { playSfx('click-soft'); openDrawer('right', 'details'); }}
           className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
         >
           <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
@@ -158,7 +159,8 @@ function BookCard({
   // V3 caption — genre market, VoC fit, spec summary, channels.
   const genre: GenreId = (line.genre ?? 'indie') as GenreId;
   const spec: ProductionSpec = { ...GALLERY_DEFAULT_SPEC, type: genre, ...(line.finlitSpec ?? {}) };
-  const vfit = vocFit(spec, line.price, ['offline'], genre);
+  const stickersSpend = Math.min((line.addOnsByArchetype?.[line.archetype] ?? []).length * 0.15, 100);
+  const vfit = vocFit(spec, line.price, stickersSpend, genre);
   const fitPct = Math.round(vfit * 100);
   const fitTone = vfit >= 1.08 ? 'success' : vfit < 0.85 ? 'warn' : 'info';
   const specSummary = `${configOption('paper', spec.paper).name.split(' ')[0]} · ${spec.size.toUpperCase()} · ${configOption('pageDesign', spec.pageDesign).name}`;
@@ -258,7 +260,7 @@ function BookCard({
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <Chip tone={fitTone}>{fitPct}% fit</Chip>
-          <Chip tone="info">1 channel</Chip>
+          <Chip tone="info">{stickersSpend > 0 ? `${stickersSpend.toFixed(0)} stickers` : 'no stickers'}</Chip>
           <Chip tone={stock === 0 ? 'warn' : 'neutral'}>{stock} stock</Chip>
         </div>
       </div>

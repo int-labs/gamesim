@@ -221,7 +221,7 @@ export function VisualNovelMascot() {
         onClick={onSkip}
         aria-label="Skip dialogue"
         title="Skip - close all dialogue"
-        className="vn-skip"
+        className="vn-skip btn-label-sm uppercase"
       >
         <span>Skip</span>
         <span aria-hidden>▸</span>
@@ -246,11 +246,11 @@ export function VisualNovelMascot() {
               style={{ minHeight: 220, maxHeight: 320 }}
             >
               {/* Header — speaker label + sequence progress */}
-              <div className="flex items-center justify-between px-5 py-3 border-b-2 border-border-soft bg-surface-2 shrink-0">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border-soft bg-surface-2 shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                   <span
                     className={clsx(
-                      'inline-flex items-center justify-center w-8 h-8 border-2 shrink-0',
+                      'inline-flex items-center justify-center w-8 h-8 border shrink-0',
                       tone.accent,
                       tone.tagBg,
                     )}
@@ -268,7 +268,7 @@ export function VisualNovelMascot() {
                 </div>
                 {current.seqLen && current.seqLen > 1 && (
                   <span
-                    className="num-xs tracking-wider text-text-3 shrink-0"
+                    className="num-xs text-text-3 shrink-0"
                     aria-label={`Message ${(current.seqIndex ?? 0) + 1} of ${current.seqLen}`}
                   >
                     {(current.seqIndex ?? 0) + 1} / {current.seqLen}

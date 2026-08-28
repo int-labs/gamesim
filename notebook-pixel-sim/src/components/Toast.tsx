@@ -10,7 +10,7 @@ const tones: Record<BubbleType, string> = {
   success: 'bg-success-soft border-success',
   event: 'bg-info-soft border-info',
   insight: 'bg-info-soft border-info',
-  debrief: 'bg-brand-300 border-brand-500',
+  debrief: 'bg-info-soft border-info',
   tutorial: 'bg-cream-100 border-ink-900',
 };
 

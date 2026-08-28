@@ -58,6 +58,7 @@ export function NotebookCanvas() {
   const segment = useGame((s) => (product?.targetSegment ?? s.market.targetSegment));
   const addOns = useGame((s) => (hasNotebook ? currentAddOns(s) : []));
   const openDrawer = useGame((s) => s.openDrawer);
+  const detailsOpen = useGame((s) => s.ui.rightDrawer === 'details');
   const lines = useGame((s) => s.portfolio.productLines);
   const pushMascot = useGame((s) => s.pushMascot);
   const patCount = useRef(0);
@@ -370,12 +371,17 @@ export function NotebookCanvas() {
       </div>
 
       {/* ── Floating view controls (top-right, same 48px band) ─────────── */}
-      <div className="absolute right-3 top-3 z-20 h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
+      <div className="absolute right-3 top-3 z-[45] h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
         <ViewToggle />
         {/* h matches the ViewToggle's OUTER height (26px buttons + p-0.5 +
             border = 32px) so the row reads as one aligned control strip. */}
         <button
-          onClick={() => openDrawer('left', 'details')}
+          // Marks the trigger so the drawer's outside-pointer close ignores it
+          // - otherwise the same press that opens Details also dismisses it -
+          // and reports state to assistive tech.
+          data-drawer-trigger
+          aria-expanded={detailsOpen}
+          onClick={() => openDrawer('right', 'details')}
           className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
         >
           <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />

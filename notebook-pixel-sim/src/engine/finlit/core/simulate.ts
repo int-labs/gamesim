@@ -13,9 +13,9 @@
 
 import {
   PHASE_LENGTH_DAYS, GAME_PHASE_TO_DEMAND, BASE_MARKET_SHARE, DEMAND_SCALE,
-  HOLDING_RATE_PER_DAY, marketingDemandMult, salesSellBonus,
+  HOLDING_RATE_PER_DAY,
   prodPerDay, unitCost, customersPer30d, genreDemand,
-  channelRow, hireLevel, vendorCoverage,
+  channelRow, hireLevel, vendorById,
   type GenreId,
 } from './config';
 import { vocFit } from './fit';
@@ -47,42 +47,43 @@ export function simulatePhase(
   const demandMult = decisions.demandMult ?? 1;
   const sellMult = decisions.sellMult ?? 1;
 
-  // Company-wide daily operating costs + global sell/prod bonuses.
-  //   • Marketing budget → lifts demand (folded into demandMult below).
-  //   • Sales budget     → lifts sell-rate (added to globalSellBonus).
-  //   • Both $/day spends flow into companyOpexDay.
-  const hire = decisions.hire ? hireLevel(decisions.hire.candidate, decisions.hire.level) : null;
-  const marketingBudget = Math.max(0, decisions.marketingBudget ?? 0);
-  const salesBudget = Math.max(0, decisions.salesBudget ?? 0);
-  const companyOpexDay = (hire?.cost ?? 0) + marketingBudget + salesBudget;
-  const globalSellBonus = (hire?.sellBonus ?? 0) + salesSellBonus(salesBudget);
-  const globalProdBonus = hire?.prodBonus ?? 0;
-  const marketingMult = marketingDemandMult(marketingBudget);
+  // Company-wide costs + hire augments (multiplicative, matching backend pattern).
+  // Each hired candidate contributes to a running multiplier; applying them
+  // multiplicatively means two hires stack as (1+a)*(1+b), not (a+b) additive.
+  const hireLevels = decisions.hires.map((h) => hireLevel(h.candidate, h.level));
+  const companyOpexDay = hireLevels.reduce((sum, h) => sum + h.cost, 0);
+  const hireSellMult = hireLevels.reduce((m, h) => m * (1 + h.sellBonus), 1);
+  const hireProdMult = hireLevels.reduce((m, h) => m * (1 + h.prodBonus), 1);
+  const hireCostMult = hireLevels.reduce((m, h) => m * (1 - h.costReduction), 1);
+  const marketingMult = decisions.marketingMult ?? 1;
 
   // Build a per-line plan.
   const plans: LinePlan[] = lines.map((line) => {
-    const vend = line.vendor ? vendorCoverage(line.vendor, phase === 3 ? 2 : (phase as 1 | 2), line.genre) : null;
-    const vendorSell = vend?.sellBonus ?? 0;
-    const vendorProd = vend?.prodBonus ?? 0;
-    const vendorDayCost = vend?.cost ?? 0;
+    // Vendor: production-only augment, applied multiplicatively (backend pattern).
+    // Cost is per-phase, amortised to daily so it flows into the series correctly.
+    const vend = line.vendor ? vendorById(line.vendor) : null;
+    const vendorProdMult = vend ? (1 + vend.prodBonus) : 1;
+    const vendorDayCost = vend ? (vend.cost / PHASE_LENGTH_DAYS) : 0;
 
-    const capacity = prodPerDay(line.spec, globalProdBonus + vendorProd);
+    // Hire prod and vendor prod both stack as multipliers on the base rate.
+    const capacity = prodPerDay(line.spec) * vendorProdMult * hireProdMult;
     // The player's production target throttles output below capacity (LP2).
     const prodDay = line.targetPerDay != null ? Math.max(0, Math.min(line.targetPerDay, capacity)) : capacity;
-    const unitCostLine = unitCost(line.spec);
-    const sellBonus = globalSellBonus + vendorSell;
-    const fit = vocFit(line.spec, line.price, line.channels, line.genre);
+    // Hire cost reduction is multiplicative (backend: dynamicCost *= (1 - reduction)).
+    const unitCostLine = unitCost(line.spec) * hireCostMult;
+    const fit = vocFit(line.spec, line.price, line.stickersSpend, line.genre);
     const demand = genreDemand(line.genre, phaseKey);
 
-    // Sum demand across stocked channels; each channel uses its split + sell-rate.
+    // Vendor has no sell bonus — only production rate is augmented.
     let demand30d = 0;
     for (const ch of line.channels) {
       const row = channelRow(line.genre, ch);
       demand30d += customersPer30d({
-        demand, channelSellRate: row.sellRate, sellBonus, split: row.split, share,
+        demand, channelSellRate: row.sellRate, split: row.split, share,
       });
     }
-    demand30d *= fit * demandMult * marketingMult * sellMult * DEMAND_SCALE;
+    // Hire sell and marketing are multiplicative augments (backend pattern).
+    demand30d *= fit * demandMult * marketingMult * hireSellMult * sellMult * DEMAND_SCALE;
     const demandDay = demand30d / PHASE_LENGTH_DAYS;
     const addressable30d = demand * share * DEMAND_SCALE;
 

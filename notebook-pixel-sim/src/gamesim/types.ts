@@ -80,9 +80,15 @@ export interface ProductDto {
 }
 
 // ── Global inputs (company-wide levers) ─────────────────────────────────
+export interface GlobalInputImpactSelectionDto {
+  productId: string;
+  value: number;
+}
+
 export interface GlobalInputImpactDto {
   type: 'relative' | 'absolute';
   value: number;
+  selections?: GlobalInputImpactSelectionDto[];
 }
 
 export interface GlobalInputItemDto {

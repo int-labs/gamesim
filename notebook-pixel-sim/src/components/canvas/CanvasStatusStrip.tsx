@@ -33,18 +33,20 @@ export function CanvasStatusStrip() {
 
   // A compact signature of everything the projection depends on — the memo
   // recomputes only when one of these actually changes (price/spec/target/
-  // globalInputSelections/genre/decision-mults/stock), never per render.
+  // channels/genre/hire/marketing/decision-mults/stock), never per render.
   const sig = useGame((s) => {
     const parts: string[] = [
       `p${s.meta.phase}`,
+      `h${s.globalInputSelections.filter(sel => sel.key === 'hiring').map(sel => `${sel.selectedStepKey}:${sel.selectedLevel}`).join(',')}`,
+      `mb${s.globalInputSelections.find(sel => sel.key === 'marketing')?.selectedStepKey ?? ''}`,
       `dm${s.finlit.demandMult ?? 1}`,
       `sm${s.finlit.sellMult ?? 1}`,
-      `gi${(s.globalInputSelections ?? []).map((g) => `${g.key}:${g.selectedStepKey ?? ''}`).join('.')}`,
     ];
     for (const l of s.portfolio.productLines) {
+      const stickers = (l.addOnsByArchetype?.[l.archetype] ?? []).length;
       parts.push(
         `${l.id}|${l.genre ?? ''}|${l.price}|${l.targetPerDay ?? ''}|` +
-        `${JSON.stringify(l.finlitSpec ?? {})}|${l.inventory.finished}`,
+        `${stickers}|${JSON.stringify(l.finlitSpec ?? {})}|${l.inventory.finished}`,
       );
     }
     return parts.join(';');
@@ -63,7 +65,8 @@ export function CanvasStatusStrip() {
       for (const l of st.portfolio.productLines) {
         const genre = (l.genre ?? 'indie') as GenreId;
         const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(l.finlitSpec ?? {}) };
-        const f = vocFit(spec, l.price, ['offline'], genre);
+        const stickersSpend = Math.min((l.addOnsByArchetype?.[l.archetype] ?? []).length * 0.15, 100);
+        const f = vocFit(spec, l.price, stickersSpend, genre);
         const w = Math.max(1, res.byLine.find((b) => b.lineId === l.id)?.demand ?? 1);
         wSum += w;
         fitSum += f * w;
@@ -104,13 +107,6 @@ export function CanvasStatusStrip() {
         value={`${dash.profit >= 0 ? '' : '−'}${fmt$(Math.abs(dash.profit))}`}
         tone={profitTone}
         tip="Projected net profit this phase - revenue minus materials, wages, marketing and channel costs."
-      />
-      <Kpi
-        icon="fit"
-        label="Market Fit"
-        value={`${dash.satisfaction}%`}
-        tone={satTone}
-        tip="How well the portfolio matches its market - blends product fit (do they want what you made?) with how much of that demand you can actually fill."
       />
     </div>
   );

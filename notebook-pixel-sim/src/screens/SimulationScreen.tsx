@@ -12,6 +12,7 @@ import { ProductPage } from '@/pages/ProductPage';
 import { BusinessPage } from '@/pages/BusinessPage';
 import { ResultsPage } from '@/pages/ResultsPage';
 import { useGame } from '@/state/store';
+import { useLiveProjection } from '@/gamesim/useLiveProjection';
 import {
   expandScript,
   SCRIPT_FIRST_PRODUCT_PAGE,
@@ -33,6 +34,7 @@ import {
 export function SimulationScreen() {
   const [page, setPage] = useState<MainPage>('product');
   const pushMascotSequence = useGame((s) => s.pushMascotSequence);
+  const liveProjectionState = useLiveProjection();
 
   // First-visit guidance scripts. Each script de-dupes via id, so once
   // a player has seen the Product or Business intro it won't fire again
@@ -87,10 +89,10 @@ export function SimulationScreen() {
               there's no scroll-within-scroll. */}
           <div className={page === 'product' ? 'h-full flex flex-col' : 'min-h-full flex flex-col'}>
             {page === 'product' && <ProductPage />}
-            {page === 'business' && <BusinessPage />}
+            {page === 'business' && <BusinessPage liveProjectionState={liveProjectionState} />}
             {page === 'results' && <ResultsPage />}
           </div>
-          <BottomStats />
+          <BottomStats liveProjectionState={liveProjectionState} />
         </main>
       </div>
 

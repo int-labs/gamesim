@@ -4,27 +4,10 @@ import { useGame } from '@/state/store';
 import { A } from '@/assets';
 import { fmt$, fmtInt } from '@/utils/format';
 import { CountUp } from '@/components/primitives/CountUp';
-import type { LedgerEntry, ProductLine } from '@/types';
-import {
-  GENRES, prodPerDay, unitCost as finlitUnitCost, customersPer30dFor,
-  genreDemand, GAME_PHASE_TO_DEMAND, DEMAND_SCALE,
-  type GenreId, type ProductionSpec,
-} from '@/data/finlit';
-import { vocFit } from '@/engine/finlit/fit';
-
-/** Build the full FinLit production spec for a line (overrides on defaults,
- *  type follows genre) — the single source both stats panels read from. */
-function finlitSpecOf(line: ProductLine): ProductionSpec {
-  const genre: GenreId = line.genre ?? 'indie';
-  return {
-    type: line.finlitSpec?.type ?? genre,
-    paper: line.finlitSpec?.paper ?? 'cream',
-    size: line.finlitSpec?.size ?? 'a5',
-    pageDesign: line.finlitSpec?.pageDesign ?? 'lined',
-    addon: line.finlitSpec?.addon ?? 'bookmark',
-    cover: line.finlitSpec?.cover ?? 'plastic',
-  };
-}
+import type { LedgerEntry } from '@/types';
+import { GENRES, type GenreId } from '@/data/finlit';
+import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
+import type { ServerProjectionResult, ServerProductProjection } from '@/gamesim/sync';
 
 /**
  * The single home for every number the sim shows the player, rendered as
@@ -64,7 +47,9 @@ const toneText: Record<Tone, string> = {
  * to read it. `id="stats-section"` is the scroll anchor for the canvas
  * "Stats ↓" chip. Reduced-motion renders everything settled instantly.
  */
-export function BottomStats() {
+export function BottomStats({ liveProjectionState }: { liveProjectionState: LiveProjectionState }) {
+  const { liveProjection, loading } = liveProjectionState;
+
   return (
     <section
       id="stats-section"
@@ -88,14 +73,15 @@ export function BottomStats() {
             Your paperwork - the active notebook, the whole portfolio, and the run's finances
           </div>
         </div>
+        {loading && <span className="body-xs text-cream-100/50 ml-2">Updating…</span>}
       </header>
 
       <div className="relative grid gap-5 lg:grid-cols-2 mb-6 items-start">
         <PaperSheet title="Active Notebook" icon={A.ui.sidebar.product} tilt={-0.6}>
-          <NotebookMetrics />
+          <NotebookMetrics liveProjection={liveProjection} />
         </PaperSheet>
         <PaperSheet title="Portfolio" icon={A.ui.sidebar.metrics} tilt={0.5} delay={0.08}>
-          <PortfolioMetrics />
+          <PortfolioMetrics liveProjection={liveProjection} />
         </PaperSheet>
       </div>
       <PaperSheet title="Profit & Loss · by phase" icon={A.ui.pnl.operating_profit} tilt={0.35} delay={0.05} className="relative">
@@ -245,70 +231,70 @@ function EmptyMetrics({ text }: { text: string }) {
   );
 }
 
-/* ── Notebook tab (active line impact) ───────────────────────────────── */
+/* ── Notebook tab (active line) ───────────────────────────────────────── */
 
-function NotebookMetrics() {
-  const hasNotebook = useGame((s) => s.portfolio.productLines.length > 0);
+function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionResult | null }) {
   const line = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
   );
+  const lineIndex = useGame((s) =>
+    s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId),
+  );
   const finished = useGame((s) => s.inventory.totalFinished);
-  const phase = useGame((s) => s.meta.phase);
+  const channelCount = useGame((s) =>
+    s.globalInputSelections.filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null).length,
+  );
 
-  if (!hasNotebook || !line) return <EmptyMetrics text="No notebook selected. Open Notebook Items to add one." />;
+  if (!line) return <EmptyMetrics text="No notebook selected. Open Notebook Items to add one." />;
 
-  // Everything here reads from the V3 FinLit model - the same engine that
-  // actually runs the phase - so this panel agrees with the top-bar VoC pill
-  // and the design controls (the legacy segment-fit / demand-est shown two
-  // conflicting numbers because they came from the old V2 engine).
   const genre: GenreId = line.genre ?? 'indie';
-  const spec = finlitSpecOf(line);
-  const price = line.price;
-  const capacity = prodPerDay(spec, 0);
-  const uCost = finlitUnitCost(spec);
-  const margin = price > 0 ? (price - uCost) / price : 0;
-  const marginPct = Math.round(margin * 100);
-
-  // Local demand estimate: neutral fallbacks (sellBonus=0, channels=offline,
-  // marketingMult=1). GlobalInputSelections are server-authoritative — the local
-  // engine can't resolve them without bootstrap data at render time.
-  const demandCurve = genreDemand(genre, GAME_PHASE_TO_DEMAND[phase]);
-  const fit = vocFit(spec, price, ['offline'], genre);
-  const demand30d = customersPer30dFor(genre, 'offline', demandCurve, 0);
-  const demandPerDay = (demand30d * fit * DEMAND_SCALE) / 30;
-
-  const produceTarget = line.targetPerDay ?? Math.ceil(capacity);
   const genreName = GENRES.find((g) => g.id === genre)?.name ?? genre;
 
-  const marginTone: Tone = margin >= 0.4 ? 'success' : margin >= 0.15 ? 'info' : 'warn';
-  const stockTone: Tone = finished === 0 ? 'danger' : finished < demandPerDay ? 'warn' : 'neutral';
+  // Server projection for this specific line (index-aligned with portfolio order).
+  const proj: ServerProductProjection | null = liveProjection?.byProduct[lineIndex] ?? liveProjection?.byProduct[0] ?? null;
+
+  const revenue = proj?.revenue;
+  const customers = proj?.customersObtained;
+  const unitCost = proj?.dynamicCost;
+  const grossProfit = proj?.grossProfit;
+  const price = proj?.sellingPrice ?? line.price;
+
+  const marginPct = unitCost != null && price > 0 ? Math.round(((price - unitCost) / price) * 100) : null;
+  const marginTone: Tone = marginPct == null ? 'neutral' : marginPct >= 40 ? 'success' : marginPct >= 15 ? 'info' : 'warn';
+
+  const projRows: KVRow[] = proj ? [
+    { key: 'revenue',   label: 'Revenue',      num: Math.round(revenue ?? 0),    format: fmt$,   tone: 'revenue' },
+    { key: 'customers', label: 'Customers',     num: Math.round(customers ?? 0),  format: fmtInt, tone: 'neutral' },
+    { key: 'ucost',     label: 'Unit cost',     num: unitCost ?? 0,               format: fmt$,   tone: 'cost',   sub: 'per notebook (incl. modifiers)' },
+    { key: 'gprofit',   label: 'Gross profit',  num: Math.round(grossProfit ?? 0), format: fmt$,  tone: (grossProfit ?? 0) >= 0 ? 'profit' : 'danger' },
+  ] : [
+    { key: 'pending', label: 'Waiting for server projection…', value: '–', tone: 'neutral' },
+  ];
 
   const groups: KVGroup[] = [
     {
-      key: 'market',
+      key: 'design',
       icon: A.ui.metrics.demand,
-      title: 'Market',
+      title: 'Design',
       rows: [
-        { key: 'genre', label: 'Genre', value: genreName, tone: 'info' },
+        { key: 'genre',    label: 'Genre',          value: genreName,                              tone: 'info' },
+        { key: 'price',    label: 'Price',           num: line.price, format: fmt$,                 tone: 'neutral' },
+        { key: 'channels', label: 'Channels active', value: `${channelCount}/3`,                   tone: channelCount === 0 ? 'warn' : 'neutral' },
+        ...(marginPct != null ? [{ key: 'margin', label: 'Margin', value: `${marginPct}%`, tone: marginTone } as KVRow] : []),
       ],
     },
     {
-      key: 'pricing',
+      key: 'projections',
       icon: A.ui.pnl.operating_profit,
-      title: 'Pricing & Margin',
-      rows: [
-        { key: 'price', label: 'Price', num: price, format: fmt$, tone: 'neutral' },
-        { key: 'unit', label: 'Unit cost', num: uCost, format: fmt$, tone: uCost > price * 0.7 ? 'warn' : 'neutral', sub: 'per notebook' },
-        { key: 'margin', label: 'Margin', value: `${marginPct}%`, tone: marginTone },
-      ],
+      title: 'Projections (this phase)',
+      rows: projRows,
     },
     {
-      key: 'stock',
+      key: 'inventory',
       icon: A.ui.metrics.inventory,
       title: 'Inventory',
       rows: [
-        { key: 'onhand', label: 'Stock on hand', num: finished, format: fmtInt, tone: stockTone, sub: finished === 0 ? 'Confirm the phase to produce' : finished < demandPerDay ? 'Running lean vs demand' : 'Comfortable vs demand' },
-        { key: 'target', label: 'Produce target', value: `~${fmtInt(produceTarget)}/day`, tone: 'neutral', sub: `capacity ~${capacity.toFixed(1)}/day` },
+        { key: 'stock', label: 'Stock on hand', num: finished, format: fmtInt, tone: finished === 0 ? 'danger' : 'neutral', sub: finished === 0 ? 'Confirm the phase to produce' : undefined },
       ],
     },
   ];
@@ -333,8 +319,8 @@ interface PnLRow {
 const PNL_ROWS: PnLRow[] = [
   { label: 'Gross Revenue',        icon: A.ui.pnl.gross_revenue,    kinds: ['revenue'],       sign: 'plus',  group: 'revenue', cause: 'Units sold × price' },
   { label: 'Material Cost',        icon: A.ui.pnl.material_cost,    kinds: ['cogs-material'], sign: 'minus', group: 'cost',    cause: 'Paper, cover, binding, add-ons' },
-  { label: 'Labor Cost',           icon: A.ui.pnl.labor_cost,       kinds: ['cogs-labor'],    sign: 'minus', group: 'cost',    cause: 'Daily wages × hires' },
-  { label: 'Marketing / Ops',      icon: A.ui.pnl.marketing_spend,  kinds: ['opex-marketing'],sign: 'minus', group: 'cost',    cause: 'Marketing team + hiring daily cost' },
+  { label: 'Labor Cost',           icon: A.ui.pnl.labor_cost,       kinds: ['cogs-labor'],    sign: 'minus', group: 'cost',    cause: 'Wages × hires' },
+  { label: 'Marketing / Ops',      icon: A.ui.pnl.marketing_spend,  kinds: ['opex-marketing'],sign: 'minus', group: 'cost',    cause: 'Marketing team + hiring cost' },
   { label: 'Channel & Holding',    icon: A.ui.pnl.fulfillment_cost, kinds: ['opex-rent'],     sign: 'minus', group: 'cost',    cause: 'Channel maintenance + consignment + unsold-stock holding' },
   { label: 'Packaging / Fulfill.', icon: A.ui.pnl.packaging_cost,   kinds: ['cogs-packaging','cogs-fulfillment'], sign: 'minus', group: 'cost', cause: 'Per-unit packaging + shipping' },
   { label: 'Tools / Upgrades',     icon: A.ui.sidebar.studio,       kinds: ['opex-tool'],     sign: 'minus', group: 'cost',    cause: 'One-off equipment, supplier deals' },
@@ -406,7 +392,7 @@ export function FinanceTable() {
                   className={clsx(
                     'eyebrow eyebrow-sm text-right py-2.5 px-2 w-[78px] border-b-4',
                     phaseNow === p
-                      ? 'eyebrow-strong border-primary bg-cream-100'
+                      ? 'eyebrow-strong border-primary bg-primary-soft/55 border-x border-x-primary/45'
                       : 'eyebrow-muted border-transparent',
                   )}
                 >
@@ -456,9 +442,14 @@ export function FinanceTable() {
                       <span className={clsx('truncate', r.emphasis ? 'item-name' : 'body-xs')}>{r.label}</span>
                     </span>
                   </td>
-                  <PnLCell value={values.p1} row={r} />
-                  <PnLCell value={values.p2} row={r} />
-                  <PnLCell value={values.p3} row={r} />
+                  {/* The live phase is marked down the whole COLUMN. A 4px
+                      rule under one header cell is invisible once your eye is
+                      three rows into the numbers, which is where you actually
+                      read - so the column you are playing carries a tint and
+                      side rules for its full height. */}
+                  <PnLCell value={values.p1} row={r} live={phaseNow === 1} />
+                  <PnLCell value={values.p2} row={r} live={phaseNow === 2} />
+                  <PnLCell value={values.p3} row={r} live={phaseNow === 3} />
                   <PnLCell value={values.total} row={r} emphasis />
                 </motion.tr>
               );
@@ -470,9 +461,10 @@ export function FinanceTable() {
   );
 }
 
-function PnLCell({ value, row, emphasis }: { value: number | null; row: PnLRow; emphasis?: boolean }) {
+function PnLCell({ value, row, emphasis, live }: { value: number | null; row: PnLRow; emphasis?: boolean; live?: boolean }) {
+  const liveCls = live ? 'bg-primary-soft/55 border-x border-primary/45' : '';
   if (value === null) {
-    return <td className="py-2 px-2 text-right num-xs text-text-3">-</td>;
+    return <td className={clsx('py-2 px-2 text-right num-xs text-text-3', liveCls)}>-</td>;
   }
   let color = 'text-text';
   if (row.group === 'cost') color = value !== 0 ? 'text-fin-cost' : 'text-text-3';
@@ -485,7 +477,7 @@ function PnLCell({ value, row, emphasis }: { value: number | null; row: PnLRow; 
     row.group === 'cost' && value !== 0 ? `−${fmt$(Math.abs(value))}` : fmt$(value);
 
   return (
-    <td className={clsx('py-2 px-2 text-right num-xs whitespace-nowrap', color, emphasis && 'pr-3')}>
+    <td className={clsx('py-2 px-2 text-right num-xs whitespace-nowrap', color, liveCls, emphasis && 'pr-3')}>
       {display}
     </td>
   );
@@ -493,30 +485,20 @@ function PnLCell({ value, row, emphasis }: { value: number | null; row: PnLRow; 
 
 /* ── Portfolio tab (all-notebooks rollup) ────────────────────────────── */
 
-export function PortfolioMetrics() {
+export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
   const lines = useGame((s) => s.portfolio.productLines);
   const finished = useGame((s) => s.inventory.totalFinished);
 
   if (lines.length === 0) return <EmptyMetrics text="No notebooks yet. Open Notebook Items to add one." />;
 
-  // Everything reads from the FinLit model (same engine that runs the phase),
-  // so the portfolio sheet agrees with the Active Notebook sheet. The old
-  // Capacity & Risk card (capacity-load / complexity / cannibalization) was
-  // legacy V2 - none of it fed the V3 sim - so it's gone.
-  const specs = lines.map(finlitSpecOf);
-  const avgCost = specs.reduce((a, sp) => a + finlitUnitCost(sp), 0) / specs.length;
-  const totalCapacity = specs.reduce((a, sp) => a + prodPerDay(sp, 0), 0);
-  const totalTarget = lines.reduce(
-    (a, l, i) => a + (l.targetPerDay ?? Math.ceil(prodPerDay(specs[i], 0))),
-    0,
-  );
-  // A genuine diversity signal (the honest heir to "cannibalization"): are the
-  // lines spread across genres, or piled onto one?
   const genresInPlay = new Set(lines.map((l) => l.genre ?? 'indie')).size;
 
-  const loadRatio = totalCapacity > 0 ? totalTarget / totalCapacity : 0;
-  const loadPct = Math.round(loadRatio * 100);
-  const loadTone: Tone = loadPct > 100 ? 'danger' : loadPct > 90 ? 'warn' : 'success';
+  const bp = liveProjection?.byProduct ?? [];
+  const avgCost = bp.length
+    ? bp.reduce((a, p) => a + (p.dynamicCost ?? 0), 0) / bp.length
+    : null;
+  const totalRevenue   = bp.length ? Math.round(bp.reduce((a, p) => a + (p.revenue ?? 0), 0))           : null;
+  const totalCustomers = bp.length ? Math.round(bp.reduce((a, p) => a + (p.customersObtained ?? 0), 0)) : null;
 
   const groups: KVGroup[] = [
     {
@@ -526,19 +508,20 @@ export function PortfolioMetrics() {
       total: fmtInt(lines.length),
       totalTone: 'neutral',
       rows: [
-        { key: 'count', label: 'Notebooks', num: lines.length, format: fmtInt, tone: 'neutral' },
-        { key: 'genres', label: 'Genres in play', value: `${genresInPlay}/${GENRES.length}`, tone: genresInPlay > 1 ? 'success' : 'neutral', sub: genresInPlay === 1 ? 'All lines share one market' : 'Spread across markets' },
-        { key: 'avg', label: 'Avg unit cost', num: avgCost, format: fmt$, tone: 'neutral' },
+        { key: 'count',  label: 'Notebooks',      num: lines.length, format: fmtInt, tone: 'neutral' },
+        { key: 'genres', label: 'Genres in play',  value: `${genresInPlay}/${GENRES.length}`, tone: genresInPlay > 1 ? 'success' : 'neutral', sub: genresInPlay === 1 ? 'All lines in one market' : 'Spread across markets' },
+        ...(avgCost != null ? [{ key: 'avg', label: 'Avg unit cost', num: avgCost, format: fmt$, tone: 'neutral' as Tone }] : []),
       ],
     },
     {
       key: 'output',
-      icon: A.ui.metrics.capacity,
-      title: 'Daily Output',
-      rows: [
-        { key: 'target', label: 'Produce target', value: `~${fmtInt(totalTarget)}/day`, tone: 'neutral' },
-        { key: 'cap', label: 'Capacity', value: `~${fmtInt(Math.round(totalCapacity))}/day`, tone: 'neutral' },
-        { key: 'load', label: 'Capacity load', value: `${loadPct}%`, tone: loadTone, sub: loadPct > 100 ? 'Target exceeds capacity' : 'Within capacity' },
+      icon: A.ui.pnl.operating_profit,
+      title: 'Output / phase',
+      rows: bp.length ? [
+        { key: 'revenue',   label: 'Est. revenue',   num: totalRevenue!,   format: fmt$,   tone: 'revenue' as Tone },
+        { key: 'customers', label: 'Est. customers', num: totalCustomers!, format: fmtInt, tone: 'neutral' as Tone },
+      ] : [
+        { key: 'pending', label: 'Awaiting projection…', value: '–', tone: 'neutral' as Tone },
       ],
     },
     {

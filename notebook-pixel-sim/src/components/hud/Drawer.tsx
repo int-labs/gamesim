@@ -21,6 +21,13 @@ interface Props {
   /** Extra classes for the scrolling body region. */
   bodyClassName?: string;
   /**
+   * The child manages its own padding and scrolling. Swaps the body's default
+   * `overflow-y-auto p-3.5` rather than layering `overflow-hidden p-0` on top
+   * of it - those are conflicting utilities whose winner depends on Tailwind's
+   * stylesheet order, not on the order you list them.
+   */
+  bodyFill?: boolean;
+  /**
    * Position classes for the panel's docked edge (default `left-0`/`right-0`).
    * Pass e.g. `left-0 sm:left-[104px]` to slide in BESIDE a floating dock
    * instead of underneath it.
@@ -33,6 +40,32 @@ interface Props {
    * the canvas underneath for the drop.
    */
   stealth?: boolean;
+  /**
+   * Dim layer behind the panel. TRUE makes the drawer modal: it blocks the
+   * page and Esc/backdrop dismiss it. FALSE leaves the rest of the UI live,
+   * which is what lets a left and a right drawer be open at once — two
+   * stacked backdrops would each deaden the other panel.
+   */
+  backdrop?: boolean;
+  /** Stacking class for the whole overlay, e.g. `z-40`. Higher sits on top. */
+  zClassName?: string;
+  /**
+   * When true this drawer ignores Esc, because a drawer stacked above it owns
+   * the key — one press closes the topmost panel, not both.
+   *
+   * Pass the OPEN STATE of the drawer above, never a DOM probe: a panel that
+   * is mid-exit is still in the document for the length of its animation, so
+   * `querySelector('[data-drawer-side=right]')` keeps blocking Esc for ~200ms
+   * after the top drawer has already been dismissed.
+   */
+  escYields?: boolean;
+  /**
+   * Close when a pointer goes down outside the panel, for drawers that have no
+   * backdrop to catch the click. Presses inside ANOTHER drawer, the edge dock,
+   * a modal, or this drawer's own trigger are ignored - those panels are meant
+   * to be used side by side, so reaching for one must not dismiss the other.
+   */
+  closeOnOutsidePointer?: boolean;
 }
 
 /**
@@ -53,8 +86,13 @@ export function Drawer({
   children,
   width = 'min(384px, 100%)',
   bodyClassName,
+  bodyFill = false,
   panelOffsetClassName,
   stealth = false,
+  backdrop = true,
+  zClassName = 'z-40',
+  escYields = false,
+  closeOnOutsidePointer = false,
 }: Props) {
   const reduced = useReducedMotion();
   const panelRef = useRef<HTMLElement | null>(null);
@@ -66,11 +104,31 @@ export function Drawer({
       // A modal stacked above (event / evaluation / confirm) owns Esc —
       // don't also close the drawer hidden beneath it.
       if (document.querySelector('[data-pixel-modal]')) return;
+      // With two drawers open, Esc closes the TOP one only.
+      if (escYields) return;
       onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, escYields]);
+
+  useEffect(() => {
+    if (!open || !closeOnOutsidePointer) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (panelRef.current?.contains(t)) return;      // inside me
+      if (t.closest('[data-drawer-side]')) return;    // another drawer
+      if (t.closest('[data-edge-dock]')) return;      // the dock rail
+      if (t.closest('[data-pixel-modal]')) return;    // a modal above
+      if (t.closest('[data-drawer-trigger]')) return; // my own opener
+      onClose();
+    };
+    // `pointerdown`, not `click`: a gesture that starts on the panel and ends
+    // outside it (a drag, a text selection) must not dismiss.
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [open, closeOnOutsidePointer, onClose]);
 
   // Move focus into the panel on open; return it to the opener on close.
   useEffect(() => {
@@ -108,28 +166,35 @@ export function Drawer({
       {open && (
         <div
           className={clsx(
-            'absolute inset-0 z-40 transition-opacity duration-150',
+            'absolute inset-0 transition-opacity duration-150',
+            zClassName,
+            // Without a backdrop the wrapper must not swallow clicks meant for
+            // the canvas or the other drawer; only the panel takes pointers.
+            !backdrop && 'pointer-events-none',
             stealth && 'opacity-0 pointer-events-none',
           )}
+          data-drawer-side={side}
           role="dialog"
-          aria-modal="true"
+          aria-modal={backdrop ? true : undefined}
           aria-hidden={stealth || undefined}
           aria-label={typeof title === 'string' ? title : 'Panel'}
         >
-          <motion.div
-            className="absolute inset-0 bg-ink-900/45"
-            onClick={onClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-          />
+          {backdrop && (
+            <motion.div
+              className="absolute inset-0 bg-ink-900/45"
+              onClick={onClose}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+            />
+          )}
           <motion.aside
             ref={panelRef as any}
             tabIndex={-1}
             onKeyDown={trapTab}
             className={clsx(
-              'absolute inset-y-0 flex flex-col panel-frame bg-surface outline-none',
+              'absolute inset-y-0 flex flex-col panel-frame bg-surface outline-none pointer-events-auto',
               side === 'left'
                 ? 'shadow-[8px_0_28px_-10px_rgba(0,0,0,0.5)]'
                 : 'shadow-[-8px_0_28px_-10px_rgba(0,0,0,0.5)]',
@@ -144,7 +209,7 @@ export function Drawer({
             }
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b-2 border-border-soft bg-surface-2 shrink-0">
+            <header className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-border-soft bg-surface-2 shrink-0">
               <div className="flex items-center gap-2 min-w-0">
                 {icon && (
                   <img
@@ -165,7 +230,11 @@ export function Drawer({
                 <CloseX />
               </button>
             </header>
-            <div className={clsx('flex-1 min-h-0 overflow-y-auto p-3.5', bodyClassName)}>
+            <div className={clsx(
+              'flex-1 min-h-0',
+              bodyFill ? 'overflow-hidden' : 'overflow-y-auto p-3.5',
+              bodyClassName,
+            )}>
               {children}
             </div>
           </motion.aside>

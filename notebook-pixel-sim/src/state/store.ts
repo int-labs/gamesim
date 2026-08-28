@@ -26,6 +26,7 @@ import { ENERGY_START, ENERGY_CAP, GENRES } from '@/data/finlit';
 import { segmentForGenre } from '@/engine/finlit/core/config/genreSegments';
 import type { ActiveModifier } from '@/engine/modifiers';
 import type { PendingCash } from '@/engine/cashflow';
+import type { GlobalInputDto } from '@/gamesim/types';
 
 /**
  * The shop's name before the player picks one. Doubles as the fallback whenever
@@ -246,8 +247,22 @@ export interface GameState {
     resolvedScenarios: string[];
   };
   /** Operator-configured global input selections (channels, hiring, budgets, etc.).
-   *  Each entry records which item key is selected and, for sliders, which step. */
-  globalInputSelections: Array<{ key: string; selectedStepKey: string | null }>;
+   *  Each entry records which item key is selected, the backend input's _id for
+   *  server reconciliation, and (for inputs with levels, e.g. hiring) the level
+   *  the player chose. */
+  globalInputSelections: Array<{
+    key: string;
+    selectedStepKey: string | null;
+    inputId?: string;
+    selectedLevel?: number;
+  }>;
+  /**
+   * The full globalInputs schema fetched from the server at boot — what inputs
+   * are available, their maxSelections constraints, and their option sets.
+   * Transient: never persisted (stripped in partialize), repopulated by
+   * GamesimProvider after each successful bootstrap.
+   */
+  availableGlobalInputs: GlobalInputDto[];
 }
 
 const STARTER_LINE_ID = 'line-starter';
@@ -382,6 +397,7 @@ const startingState = (): GameState => ({
   ui: { leftDrawer: null, rightDrawer: null, viewMode: 'focus', dismissedTips: [] },
   finlit: { demandMult: 1, sellMult: 1, resolvedScenarios: [] },
   globalInputSelections: [],
+  availableGlobalInputs: [],
   toast: null,
 });
 
@@ -417,6 +433,8 @@ interface Actions {
   toggleDrawer: (side: 'left' | 'right', id: string) => void;
   setViewMode: (m: 'focus' | 'gallery') => void;
   dismissTip: (id: string) => void;
+  /** Populate the server's globalInputs schema; called by GamesimProvider after bootstrap. Transient — never persisted. */
+  setAvailableGlobalInputs: (inputs: GlobalInputDto[]) => void;
 }
 
 export type Store = GameState & Actions;
@@ -545,18 +563,12 @@ export const useGame = create<Store>()(
         }),
       clearToast: () => set((st) => { st.toast = null; }),
       apply: (mut) => set((st) => { mut(st); }),
-      // Only ONE drawer may be open at a time (opening a side closes the
-      // other): with both open, the later-mounted backdrop deadens the other
-      // panel and a single Esc would dismiss both.
+      // Left and right drawers are independent — ProductPage uses backdrop={false}
+      // on the left so both can be open at once (design + details side by side).
       openDrawer: (side, id) =>
         set((st) => {
-          if (side === 'left') {
-            st.ui.leftDrawer = id;
-            st.ui.rightDrawer = null;
-          } else {
-            st.ui.rightDrawer = id;
-            st.ui.leftDrawer = null;
-          }
+          if (side === 'left') st.ui.leftDrawer = id;
+          else st.ui.rightDrawer = id;
         }),
       closeDrawer: (side) =>
         set((st) => {
@@ -565,23 +577,19 @@ export const useGame = create<Store>()(
         }),
       toggleDrawer: (side, id) =>
         set((st) => {
-          if (side === 'left') {
-            st.ui.leftDrawer = st.ui.leftDrawer === id ? null : id;
-            if (st.ui.leftDrawer) st.ui.rightDrawer = null;
-          } else {
-            st.ui.rightDrawer = st.ui.rightDrawer === id ? null : id;
-            if (st.ui.rightDrawer) st.ui.leftDrawer = null;
-          }
+          if (side === 'left') st.ui.leftDrawer = st.ui.leftDrawer === id ? null : id;
+          else st.ui.rightDrawer = st.ui.rightDrawer === id ? null : id;
         }),
       setViewMode: (m) => set((st) => { st.ui.viewMode = m; }),
       dismissTip: (id) =>
         set((st) => {
           if (!st.ui.dismissedTips.includes(id)) st.ui.dismissedTips.push(id);
         }),
+      setAvailableGlobalInputs: (inputs) => set((st) => { st.availableGlobalInputs = inputs; }),
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 13,
+      version: 14,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -619,6 +627,8 @@ export const useGame = create<Store>()(
           // UI shell is always transient — never rehydrate an open drawer,
           // a gallery view, or dismissed tips across loads.
           ui: { leftDrawer: null, rightDrawer: null, viewMode: 'focus', dismissedTips: [] },
+          // Server schema: re-fetched every boot, never stored in localStorage.
+          availableGlobalInputs: [],
           toast: null,
         }) as unknown as Store,
       migrate: (persisted: any, fromVersion) => {
@@ -914,6 +924,12 @@ export const useGame = create<Store>()(
               delete line.channels;
             }
           }
+        }
+        // v14: globalInputSelections gains inputId and selectedLevel fields.
+        // Reset the array so stale entries without these fields don't persist —
+        // the player re-makes selections on the next session (same as v13 did).
+        if (fromVersion < 14) {
+          persisted.globalInputSelections = [];
         }
         if (fromVersion < 12 && Array.isArray(persisted?.portfolio?.productLines)) {
           const RETIRED_LABELS = new Set(['Student', 'Planner', 'Daily Journal']);

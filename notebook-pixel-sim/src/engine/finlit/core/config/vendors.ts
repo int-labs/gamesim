@@ -1,118 +1,78 @@
-// Shipping vendors / stockists (sheet rows 55–87). Each store covers some
-// genres (not all — a "–" means unavailable). Per genre it offers a QUALITY,
-// a SELL-RATE bonus, and a PRODUCTION-RATE bonus, at a COST. Stores unlock by
-// level: Level 1 at Phase 1, Level 2 at Phase 2 (roughly ×2–3 scaling).
+// Shipping vendors / supply-chain partners — hydrated at boot from the
+// backend's globalInputs (key: 'supply_chain'). Only the inventory (production
+// rate) impact is carried; there is no per-genre coverage table or sell bonus.
 //
-// PDF says "3 vendors"; the calc defines 4 stores. We transcribe all four
-// (the numeric source of truth) and let the picker offer a subset if desired.
+// Quality is derived from prodBonus using the operator's mapping:
+//   perfect  > 0.75  |  good  > 0.60  |  average  > 0.35  |  none  otherwise
+//
+// Genre coverage is resolved at hydration time: productsImpacted ObjectIds are
+// matched against the bootstrap products array to produce coveredGenres (string
+// genre ids). Components use coveredGenres to gate vendor availability per line.
 
-import type { GenreId } from './genres';
+import type { GlobalInputItemDto } from '@/gamesim/types';
+import { GENRES } from './genres';
 
-export type VendorId = 'als' | 'emils' | 'phoebes' | 'nines';
+export type VendorId = string;
 export type VendorQuality = 'perfect' | 'good' | 'average' | 'none';
 
-export interface VendorCoverage {
-  cost: number;
-  quality: VendorQuality;
-  sellBonus: number;
-  prodBonus: number;
-}
-
 export interface VendorDef {
-  id: VendorId;
+  id: string;
   name: string;
-  /** Energy cost to engage the vendor, per level (L1 = Phase 1, L2 = Phase 2). */
-  energyByLevel: { 1: number; 2: number };
-  /** coverage[level][genre] — quality 'none' + cost 0 means "doesn't stock it". */
-  coverage: Record<1 | 2, Record<GenreId, VendorCoverage>>;
+  description: string;
+  cost: number;
+  energy: number;
+  /** Product ObjectIds from the backend — raw reference. */
+  productsImpacted: string[];
+  /** Genre ids this vendor covers, resolved at hydration from productsImpacted. */
+  coveredGenres: string[];
+  /** Production rate augment — applied as prodPerDay × (1 + prodBonus). */
+  prodBonus: number;
+  quality: VendorQuality;
 }
 
-const none: VendorCoverage = { cost: 0, quality: 'none', sellBonus: 0, prodBonus: 0 };
+export const VENDORS: VendorDef[] = [];
 
-export const VENDORS: VendorDef[] = [
-  {
-    id: 'als',
-    name: "Al's Store",
-    energyByLevel: { 1: 8, 2: 18 },
-    coverage: {
-      1: {
-        cute: none,
-        anime: { cost: 40, quality: 'perfect', sellBonus: 0.145, prodBonus: 3.1 },
-        minimalist: { cost: 30, quality: 'average', sellBonus: 0.1, prodBonus: 3.125 },
-        indie: { cost: 40, quality: 'good', sellBonus: 0.125, prodBonus: 3.1 },
-      },
-      2: {
-        cute: none,
-        anime: { cost: 120, quality: 'perfect', sellBonus: 0.31581, prodBonus: 6.6898 },
-        minimalist: { cost: 90, quality: 'average', sellBonus: 0.2178, prodBonus: 6.74375 },
-        indie: { cost: 120, quality: 'good', sellBonus: 0.27225, prodBonus: 6.6898 },
-      },
-    },
-  },
-  {
-    id: 'emils',
-    name: "Emil's Shop",
-    energyByLevel: { 1: 8, 2: 18 },
-    coverage: {
-      1: {
-        cute: { cost: 35, quality: 'good', sellBonus: 0.1, prodBonus: 3.1 },
-        anime: { cost: 45, quality: 'perfect', sellBonus: 0.145, prodBonus: 3.125 },
-        minimalist: none,
-        indie: { cost: 45, quality: 'good', sellBonus: 0.1, prodBonus: 3.25 },
-      },
-      2: {
-        cute: { cost: 105, quality: 'good', sellBonus: 0.2178, prodBonus: 6.6898 },
-        anime: { cost: 135, quality: 'perfect', sellBonus: 0.31581, prodBonus: 6.74375 },
-        minimalist: none,
-        indie: { cost: 135, quality: 'good', sellBonus: 0.2178, prodBonus: 7.0135 },
-      },
-    },
-  },
-  {
-    id: 'phoebes',
-    name: "Phoebe's Books",
-    energyByLevel: { 1: 8, 2: 18 },
-    coverage: {
-      1: {
-        cute: { cost: 40, quality: 'good', sellBonus: 0.125, prodBonus: 3.4 },
-        anime: none,
-        minimalist: { cost: 25, quality: 'average', sellBonus: 0.1, prodBonus: 3.1 },
-        indie: { cost: 35, quality: 'good', sellBonus: 0.125, prodBonus: 3.1 },
-      },
-      2: {
-        cute: { cost: 120, quality: 'good', sellBonus: 0.27225, prodBonus: 7.3372 },
-        anime: none,
-        minimalist: { cost: 75, quality: 'average', sellBonus: 0.2178, prodBonus: 6.6898 },
-        indie: { cost: 105, quality: 'good', sellBonus: 0.27225, prodBonus: 6.6898 },
-      },
-    },
-  },
-  {
-    id: 'nines',
-    name: "Nine's Wares",
-    energyByLevel: { 1: 8, 2: 18 },
-    coverage: {
-      1: {
-        cute: { cost: 25, quality: 'average', sellBonus: 0.1, prodBonus: 3.1 },
-        anime: none,
-        minimalist: { cost: 35, quality: 'perfect', sellBonus: 0.145, prodBonus: 3.25 },
-        indie: { cost: 45, quality: 'perfect', sellBonus: 0.145, prodBonus: 3.25 },
-      },
-      2: {
-        cute: { cost: 75, quality: 'average', sellBonus: 0.2178, prodBonus: 6.6898 },
-        anime: none,
-        minimalist: { cost: 105, quality: 'perfect', sellBonus: 0.31581, prodBonus: 7.0135 },
-        indie: { cost: 135, quality: 'perfect', sellBonus: 0.31581, prodBonus: 7.0135 },
-      },
-    },
-  },
-];
+function deriveQuality(prodBonus: number): VendorQuality {
+  if (prodBonus > 0.75) return 'perfect';
+  if (prodBonus > 0.60) return 'good';
+  if (prodBonus > 0.35) return 'average';
+  return 'none';
+}
 
-export const vendorById = (id: VendorId): VendorDef => {
-  const v = VENDORS.find((x) => x.id === id);
-  if (!v) throw new Error(`Unknown vendor: ${id}`);
-  return v;
-};
+export function hydrateVendors(
+  items: GlobalInputItemDto[],
+  products: { _id: string; productName: string }[],
+): void {
+  const productGenre = new Map<string, string>();
+  for (const p of products) {
+    const lower = p.productName.toLowerCase();
+    const genre = GENRES.find((g) => lower.includes(g.id.toLowerCase()));
+    if (genre) productGenre.set(p._id, genre.id);
+  }
 
-export const vendorCoverage = (id: VendorId, level: 1 | 2, genre: GenreId): VendorCoverage =>
-  vendorById(id).coverage[level][genre];
+  VENDORS.length = 0;
+  for (const item of items) {
+    const prodBonus = item.impacts['inventory']?.value ?? 0;
+    const coveredGenres = item.productsImpacted
+      .map(String)
+      .flatMap((id) => {
+        const g = productGenre.get(id);
+        return g ? [g] : [];
+      });
+    VENDORS.push({
+      id: item.key,
+      name: item.label,
+      description: item.description ?? '',
+      cost: item.cost,
+      energy: item.energy,
+      productsImpacted: item.productsImpacted.map(String),
+      coveredGenres,
+      prodBonus,
+      quality: deriveQuality(prodBonus),
+    });
+  }
+}
+
+export function vendorById(id: string): VendorDef | undefined {
+  return VENDORS.find((v) => v.id === id);
+}

@@ -5,7 +5,7 @@
 
 import {
   TYPE_OPTIONS, PAPER_OPTIONS, SIZE_OPTIONS, PAGE_DESIGN_OPTIONS, ADDON_OPTIONS, COVER_OPTIONS,
-  type GenreId, type ProductionSpec, type VendorId, type CandidateId,
+  type GenreId, type ProductionSpec, type VendorId,
 } from '@/data/finlit';
 import type { FinlitLine, FinlitDecisions, Route } from './types';
 
@@ -21,13 +21,16 @@ export interface LineInput {
   finished?: number;
   /** Legacy hint used only to pick a default genre when `genre` is unset. */
   targetSegment?: string | null;
+  /** Stickers spend: placed canvas add-on instances × 0.15 unitCost, capped at 100. */
+  stickersSpend?: number;
+  /** Active sales channels (company-wide, from globalInputSelections). */
+  channels?: import('@/data/finlit').ChannelId[];
 }
 
 export interface DecisionInput {
   route: Route;
-  hire?: { candidate: CandidateId; level: 1 | 2 | 3 | 4 } | null;
-  marketingBudget?: number;
-  salesBudget?: number;
+  hires?: { candidate: string; level: 1 | 2 | 3 | 4 }[];
+  marketingMult?: number;
   demandMult?: number;
   sellMult?: number;
 }
@@ -62,7 +65,8 @@ export function toFinlitLine(l: LineInput): FinlitLine {
     genre,
     spec,
     price: l.price > 0 ? l.price : 16,
-    channels: ['offline'],
+    channels: l.channels?.length ? l.channels : ['offline'],
+    stickersSpend: l.stickersSpend ?? 0,
     vendor: l.vendor,
     targetPerDay: l.targetPerDay,
     finished: l.finished ?? 0,
@@ -76,9 +80,8 @@ export function toFinlitLines(lines: LineInput[]): FinlitLine[] {
 export function toFinlitDecisions(d: DecisionInput): FinlitDecisions {
   return {
     route: d.route,
-    hire: d.hire ?? undefined,
-    marketingBudget: d.marketingBudget ?? 0,
-    salesBudget: d.salesBudget ?? 0,
+    hires: d.hires ?? [],
+    marketingMult: d.marketingMult ?? 1,
     demandMult: d.demandMult ?? 1,
     sellMult: d.sellMult ?? 1,
   };
@@ -87,9 +90,8 @@ export function toFinlitDecisions(d: DecisionInput): FinlitDecisions {
 export function fromFinlitDecisions(d: FinlitDecisions): DecisionInput {
   return {
     route: d.route,
-    hire: d.hire ?? null,
-    marketingBudget: d.marketingBudget,
-    salesBudget: d.salesBudget,
+    hires: d.hires,
+    marketingMult: d.marketingMult,
     demandMult: d.demandMult,
     sellMult: d.sellMult,
   };

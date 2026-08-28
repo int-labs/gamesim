@@ -3,13 +3,11 @@ import {
   setLineGenre, setFinlitAxis, setPrice,
 } from '@/engine/mockEngine';
 import {
-  GENRES, CONFIG_TABLES, prodPerDay, unitCost,
-  customersPer30dFor, genreDemand, GAME_PHASE_TO_DEMAND, DEMAND_SCALE,
-  type GenreId, type ConfigAxis, type ProductionSpec,
+  GENRES, CONFIG_TABLES, CHANNEL_META, prodPerDay, unitCost,
+  type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
 } from '@/data/finlit';
-import { vocFit } from '@/engine/finlit/fit';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
-import { fmt$ } from '@/utils/format';
+import { fmt$, fmtInt, perPhase } from '@/utils/format';
 import clsx from 'clsx';
 
 /**
@@ -45,7 +43,6 @@ export function FinlitDesignControls() {
   );
   const apply = useGame((s) => s.apply);
   const phase = useGame((s) => s.meta.phase);
-
   if (!line) {
     return <div className="body-sm text-text-2 p-2">Add a notebook first, then design it here.</div>;
   }
@@ -60,16 +57,17 @@ export function FinlitDesignControls() {
     addon: line.finlitSpec?.addon ?? DEFAULT_SPEC.addon,
     cover: line.finlitSpec?.cover ?? DEFAULT_SPEC.cover,
   };
+  // Channels from globalInputSelections (backend-driven, company-wide).
+  const activeChannels = useGame((s) =>
+    s.globalInputSelections
+      .filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null)
+      .map((sel) => sel.selectedStepKey as ChannelId),
+  );
+  const channelLabel = activeChannels.map((c) => CHANNEL_META[c].name).join(' + ');
+  const stickersSpend = Math.min((line.addOnsByArchetype?.[line.archetype] ?? []).length * 0.15, 100);
   const capacity = prodPerDay(spec, 0);
   const uCost = unitCost(spec);
   const margin = line.price - uCost;
-
-  // Local demand estimate: neutral fallbacks (sellBonus=0, channels=offline,
-  // marketingMult=1). GlobalInputSelections are server-authoritative.
-  const demand = genreDemand(genre, GAME_PHASE_TO_DEMAND[phase]);
-  const fit = vocFit(spec, line.price, ['offline'], genre);
-  const demand30d = customersPer30dFor(genre, 'offline', demand, 0);
-  const demandPerDay = (demand30d * fit * DEMAND_SCALE) / 30;
 
   return (
     <div className="flex flex-col gap-4">
@@ -109,14 +107,14 @@ export function FinlitDesignControls() {
 
       {/* ── Live feedback (the numbers the engine uses) ── */}
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Capacity" value={`${capacity.toFixed(1)}/d`} tone="info" />
+        <Stat label="Capacity" value={`${fmtInt(perPhase(capacity))} / phase`} tone="info" />
         <Stat label="Unit cost" value={fmt$(uCost)} tone="warn" />
         <Stat label="Margin" value={fmt$(margin)} tone={margin > 0 ? 'good' : 'bad'} />
       </div>
 
       {/* Signpost — these used to live here; tell the player where they went. */}
       <div className="hint border-t border-border-soft pt-3">
-        Selling through <span className="strong text-text-2">your active channels</span>.
+        Selling through <span className="strong text-text-2">{channelLabel}</span>.
         Set sales channels in <span className="strong text-text-2">Business ▸ Operations</span>,
         and how many to make in <span className="strong text-text-2">Business ▸ Inventory</span>.
       </div>

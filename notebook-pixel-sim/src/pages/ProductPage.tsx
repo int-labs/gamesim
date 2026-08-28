@@ -15,6 +15,11 @@ import { ProductLineList } from '@/components/panels/ProductLineList';
 import { EdgeDock, type DockItem } from '@/components/hud/EdgeDock';
 import { Drawer } from '@/components/hud/Drawer';
 
+/** Horizontal space the open left drawer needs: the edge dock's rail, the
+ *  384px panel and a gutter. The right drawer subtracts this so the two sit
+ *  side by side instead of one across the other. */
+const LEFT_DRAWER_RESERVE = 516;
+
 /**
  * Product page — WIDE CANVAS shell.
  *
@@ -37,15 +42,17 @@ const LEFT_META: Record<string, { title: string; icon: string }> = {
 };
 
 /**
- * `details` shares the left-drawer slot in state (the canvas/gallery Details
- * buttons still call `openDrawer('left', 'details')`) but renders as a
- * near-fullscreen modal rather than a 384px drawer — it's a reference sheet
- * with hero art, not a control panel.
+ * `details` owns the RIGHT drawer slot. It used to share the left slot, which
+ * is why opening Details closed whatever you were editing and vice versa —
+ * exactly the two panels you want side by side, since Details is the reference
+ * sheet you read WHILE designing. It is a wide, backdrop-less drawer so the
+ * canvas and the left drawer both stay live behind it.
  */
 const DETAILS_ID = 'details';
 
 export function ProductPage() {
   const leftDrawer = useGame((s) => s.ui.leftDrawer);
+  const rightDrawer = useGame((s) => s.ui.rightDrawer);
   const viewMode = useGame((s) => s.ui.viewMode);
   const toggleDrawer = useGame((s) => s.toggleDrawer);
   const closeDrawer = useGame((s) => s.closeDrawer);
@@ -143,6 +150,24 @@ export function ProductPage() {
       <Drawer
         side="left"
         open={!!leftDrawer && leftDrawer !== DETAILS_ID}
+        zClassName="z-40"
+        escYields={rightDrawer === DETAILS_ID}
+        // It lost its backdrop (below), so it needs the same outside-pointer
+        // close the right drawer has - otherwise nothing dismisses it but the
+        // ✕ and Esc. Presses on the dock or the other drawer are ignored, so
+        // hopping Items → Design and reading Details both still work.
+        closeOnOutsidePointer
+        // NEVER dims. The left drawer is a work surface you keep open while
+        // using the canvas and the Details drawer, so it must not blank the
+        // page behind it.
+        //
+        // Gating this on `rightDrawer !== DETAILS_ID` (the first attempt) was
+        // backwards: with Details CLOSED the dim was on, and the Details
+        // button sits under it — so you could never reach the control that
+        // opens the second drawer. Raising the button to z-45 does not help,
+        // because it lives inside the canvas subtree and the backdrop is in
+        // the drawer's own stacking context; z-index cannot cross that.
+        backdrop={false}
         title={leftDrawer ? LEFT_META[leftDrawer]?.title : ''}
         icon={leftDrawer ? LEFT_META[leftDrawer]?.icon : undefined}
         onClose={() => closeDrawer('left')}
@@ -166,10 +191,50 @@ export function ProductPage() {
         </motion.div>
       </Drawer>
 
-      <ArchetypeDetailModal
-        open={leftDrawer === DETAILS_ID}
-        onClose={() => closeDrawer('left')}
-      />
+      {/* Details - a wide RIGHT drawer, no backdrop, stacked above everything
+          else on this page. Both drawers can be open together: read the market
+          data on the right while you change the spec on the left.
+
+          Stacking scale for this page, highest last:
+            z-40  left drawer
+            z-45  Details trigger, above the left drawer so it stays clickable
+                  while that drawer is open - the whole point
+            z-50  EdgeDock, which must outrank the left drawer to work as a
+                  live tab rail
+            z-60  Details drawer - above the dock, since at narrow widths the
+                  92% panel overlaps it and must not be punched through. */}
+      <Drawer
+        side="right"
+        open={rightDrawer === DETAILS_ID}
+        title="Notebook Details"
+        onClose={() => closeDrawer('right')}
+        // The whole point of this drawer is that it opens ALONGSIDE the left
+        // one, and at 92% it did not: measured at a 1440px viewport, the left
+        // panel ended at x=488 and this one started at x=390, so it sat 98px
+        // on top of the panel it is meant to be read next to - clipping the
+        // items list mid-sentence.
+        //
+        // `LEFT_DRAWER_RESERVE` is the space the left drawer occupies (the
+        // edge dock's rail + the 384px panel + a gutter), so the cap below is
+        // "as wide as you like, but never into the left drawer". The floor
+        // keeps this readable on a small screen, where the two genuinely do
+        // not both fit: below ~1030px it overlaps again, which is the old
+        // behaviour and the best available on that width.
+        width={
+          leftDrawer && leftDrawer !== DETAILS_ID
+            ? `min(1040px, max(520px, calc(100% - ${LEFT_DRAWER_RESERVE}px)))`
+            : 'min(1040px, 92%)'
+        }
+        backdrop={false}
+        closeOnOutsidePointer
+        zClassName="z-[60]"
+        // The sheet owns its own scroll regions (rail, panel), so the drawer
+        // body neither pads nor scrolls - otherwise you get a scrollbar inside
+        // a scrollbar and the rail scrolls away from its tabs.
+        bodyFill
+      >
+        <ArchetypeDetailModal fill open onClose={() => closeDrawer('right')} />
+      </Drawer>
 
       {/* The dragged tile's ghost. dropAnimation={null} because the add-on
           lands at its category default, not under the cursor — animating the

@@ -42,6 +42,8 @@ import type {
   LedgerEntry, Segment, ProductLine, Archetype, AddOnInstance,
   FinlitGenreId, FinlitProductionSpec, FinlitVendorId,
 } from '@/types';
+import { hireLevel } from '@/engine/finlit/core/config/hiring';
+import type { ChannelId } from '@/engine/finlit/core/config';
 import { resolveEventOption } from './eventEffects';
 import { calcRawPurchaseUnitCostForLine, getActiveLine, getLineOrThrow } from './cost';
 import { finite } from './validation';
@@ -430,6 +432,7 @@ export const setSegment = (s: GameState, seg: Segment, lineId?: string) => {
 
 /** Set price on a line. `lineId` defaults to active. */
 export const setPrice = (s: GameState, n: number, lineId?: string) => {
+  console.log('[decision] setPrice', n);
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   line.price = clamp(finite(n, line.price), 1, 30);
   s.history.push({ day: s.meta.day, text: `${line.name} price $${line.price}`, cause: 'price' });
@@ -468,6 +471,7 @@ export const setFinlitAxis = (
   optionId: string,
   lineId?: string,
 ) => {
+  console.log('[decision] setFinlitAxis', axis, '→', optionId);
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   line.finlitSpec = { ...(line.finlitSpec ?? {}), [axis]: optionId };
   s.history.push({ day: s.meta.day, text: `${line.name} ${axis} → ${optionId}`, cause: 'finlit_spec' });
@@ -481,6 +485,7 @@ export const setGlobalInputSelection = (
   selectedStepKey: string | null,
   energyDelta = 0,
 ): boolean => {
+  console.log('[decision] setGlobalInputSelection', key, '→', selectedStepKey);
   if (energyDelta !== 0 && !applyEnergyDelta(s, energyDelta, key)) return false;
   const idx = s.globalInputSelections.findIndex((sel) => sel.key === key);
   if (idx >= 0) {
@@ -573,9 +578,8 @@ export const engageFinlitVendor = (
   lineId?: string,
 ): boolean => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  const level = s.meta.phase >= 2 ? 2 : 1;
-  const newCost = finlitVendorById(vendor).energyByLevel[level];
-  const oldCost = line.vendor ? finlitVendorById(line.vendor).energyByLevel[level] : 0;
+  const newCost = finlitVendorById(vendor)?.energy ?? 0;
+  const oldCost = line.vendor ? (finlitVendorById(line.vendor)?.energy ?? 0) : 0;
   if (!applyEnergyDelta(s, newCost - oldCost, 'shipping')) return false;
   line.vendor = vendor;
   s.history.push({ day: s.meta.day, text: `${line.name} vendor → ${vendor} - ${newCost}⚡`, cause: 'finlit_vendor' });
@@ -586,8 +590,7 @@ export const engageFinlitVendor = (
 export const clearFinlitVendor = (s: GameState, lineId?: string): void => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   if (!line.vendor) return;
-  const level = s.meta.phase >= 2 ? 2 : 1;
-  const refund = finlitVendorById(line.vendor).energyByLevel[level];
+  const refund = finlitVendorById(line.vendor)?.energy ?? 0;
   s.player.energy = clamp(s.player.energy + refund, 0, s.player.maxEnergy);
   line.vendor = undefined;
   s.history.push({ day: s.meta.day, text: `${line.name} vendor cleared - +${refund}⚡ refunded`, cause: 'finlit_vendor' });
@@ -799,6 +802,122 @@ function pushLedger(
 }
 
 import { computeFinalScore } from './scoring';
+// ── V3 FinLit company decisions → globalInputSelections ──────────────────
+// Replaces s.finlit.hire / marketingBudget / salesBudget (removed in v13).
+// All decisions write to globalInputSelections so the local preview engine
+// and the gamesim backend share the same source of truth.
+
+const CHANNEL_ENERGY = 12; // matches globalInputs MongoDB (channel.inputs[*].energy)
+
+/** Engage or upgrade a hiring candidate. Spends only the energy delta vs the
+ *  current level so upgrading costs the difference, not the full new amount.
+ *  Pass maxSelections from the hydrated availableGlobalInputs at the call site. */
+export const engageFinlitHire = (
+  s: GameState,
+  candidateId: string,
+  level: 1 | 2 | 3 | 4,
+  maxSelections = 3,
+  inputId?: string,
+): boolean => {
+  console.log('[decision] engageFinlitHire', candidateId, 'L' + level);
+  const lv = hireLevel(candidateId, level);
+  const activeHires = s.globalInputSelections.filter((sel) => sel.key === 'hiring');
+  const existing = activeHires.find((sel) => sel.selectedStepKey === candidateId);
+  if (!existing && activeHires.length >= maxSelections) return false;
+  const oldEnergy = existing?.selectedLevel
+    ? hireLevel(candidateId, existing.selectedLevel as 1 | 2 | 3 | 4).energy
+    : 0;
+  if (!applyEnergyDelta(s, lv.energy - oldEnergy, `hire ${candidateId}`)) return false;
+  if (existing) {
+    existing.selectedLevel = level;
+    if (inputId) existing.inputId = inputId;
+  } else {
+    s.globalInputSelections.push({ key: 'hiring', selectedStepKey: candidateId, inputId, selectedLevel: level });
+  }
+  s.history.push({ day: s.meta.day, text: `Hired ${candidateId} L${level}`, cause: 'finlit_hire' });
+  return true;
+};
+
+/** Release a candidate and refund their energy. Pass no candidateId to clear all. */
+export const clearFinlitHire = (s: GameState, candidateId?: string): void => {
+  console.log('[decision] clearFinlitHire', candidateId ?? 'all');
+  const targets = s.globalInputSelections.filter(
+    (sel) => sel.key === 'hiring' && (candidateId == null || sel.selectedStepKey === candidateId),
+  );
+  for (const sel of targets) {
+    if (sel.selectedStepKey && sel.selectedLevel) {
+      const refund = hireLevel(sel.selectedStepKey!, sel.selectedLevel!).energy;
+      s.player.energy = clamp(s.player.energy + refund, 0, s.player.maxEnergy);
+    }
+  }
+  s.globalInputSelections = s.globalInputSelections.filter(
+    (sel) => !(sel.key === 'hiring' && (candidateId == null || sel.selectedStepKey === candidateId)),
+  );
+  s.history.push({ day: s.meta.day, text: `Released hire: ${candidateId ?? 'all'}`, cause: 'finlit_hire_clear' });
+};
+
+/** Set the marketing slider step (e.g. "1", "-2", "0"). No energy gate —
+ *  marketing has energy: 0 in the backend globalInputs schema. */
+export const setFinlitMarketingBudget = (s: GameState, stepKey: string, inputId?: string): void => {
+  console.log('[decision] setFinlitMarketingBudget', stepKey);
+  const level = parseInt(stepKey, 10);
+  const entry = {
+    key: 'marketing',
+    selectedStepKey: stepKey,
+    inputId,
+    selectedLevel: Number.isFinite(level) ? level : 0,
+  };
+  const idx = s.globalInputSelections.findIndex((sel) => sel.key === 'marketing');
+  if (idx >= 0) Object.assign(s.globalInputSelections[idx], entry);
+  else s.globalInputSelections.push(entry);
+  s.history.push({ day: s.meta.day, text: `Marketing → step ${stepKey}`, cause: 'finlit_marketing' });
+};
+
+/** No-op stub. Sales boost comes from hiring (candidates B/D impact sales_channel),
+ *  not a separate budget slider — there is no salesBudget in globalInputs. */
+export const setFinlitSalesBudget = (_s: GameState, _v: unknown): void => {};
+
+/** Pure selector — returns active ChannelIds from globalInputSelections. */
+export const finlitCompanyChannels = (s: GameState): ChannelId[] =>
+  s.globalInputSelections
+    .filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null)
+    .map((sel) => sel.selectedStepKey as ChannelId);
+
+/** Toggle a sales channel. Enforces maxSelections from the backend config.
+ *  Pass maxSelections from the hydrated availableGlobalInputs at the call site.
+ *  The UI is responsible for preventing removal of the last active channel. */
+export const toggleFinlitChannelAll = (
+  s: GameState,
+  channelId: ChannelId,
+  maxSelections = 1,
+): boolean => {
+  console.log('[decision] toggleFinlitChannelAll', channelId);
+  const active = s.globalInputSelections.filter(
+    (sel) => sel.key === 'channel' && sel.selectedStepKey != null,
+  );
+  const idx = s.globalInputSelections.findIndex(
+    (sel) => sel.key === 'channel' && sel.selectedStepKey === channelId,
+  );
+  if (idx >= 0) {
+    s.globalInputSelections.splice(idx, 1);
+    s.player.energy = clamp(s.player.energy + CHANNEL_ENERGY, 0, s.player.maxEnergy);
+    s.history.push({ day: s.meta.day, text: `Channel ${channelId} removed`, cause: 'finlit_channel' });
+  } else {
+    if (active.length >= maxSelections) return false;
+    if (!applyEnergyDelta(s, CHANNEL_ENERGY, `channel ${channelId}`)) return false;
+    s.globalInputSelections.push({ key: 'channel', selectedStepKey: channelId });
+    s.history.push({ day: s.meta.day, text: `Channel ${channelId} added`, cause: 'finlit_channel' });
+  }
+  return true;
+};
+
+/** Set the player's own demand estimate for a line (units/phase). Pure UI input —
+ *  coaches production targets without affecting the engine simulation. */
+export const setLineDemandEst = (s: GameState, units: number, lineId?: string): void => {
+  const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
+  line.demandEstPerPhase = Math.max(0, Math.round(finite(units, 0)));
+};
+
 export const finalScore = (s: GameState) => {
   const r = computeFinalScore(s);
   return {

@@ -15,6 +15,7 @@ import { CanvasStatusStrip } from '@/components/canvas/CanvasStatusStrip';
 import { MusicOffIcon } from '@/components/icons/MusicOffIcon';
 import { audio, playSfx } from '@/audio/audioManager';
 import { useGame } from '@/state/store';
+import { selectProjectedCash } from '@/engine/selectors';
 import { fmt$ } from '@/utils/format';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { SafeImage } from '@/components/primitives/SafeImage';
@@ -82,6 +83,8 @@ export function TopHUD() {
   const phase = useGame((s) => s.meta.phase);
   const hasLines = useGame((s) => s.portfolio.productLines.length > 0);
   const cash = useGame((s) => s.player.cash);
+  const projectedCash = useGame((s) => selectProjectedCash(s).projected);
+  const projectedCashDelta = useGame((s) => selectProjectedCash(s).delta);
   const energy = useGame((s) => s.player.energy);
   const maxEnergy = useGame((s) => s.player.maxEnergy);
   const mascotMin = useGame((s) => s.mascot.minimized);
@@ -104,7 +107,15 @@ export function TopHUD() {
   useEffect(() => { audio.setSfxEnabled(sfxEnabled); }, [sfxEnabled]);
   useEffect(() => { audio.setMusicEnabled(musicEnabled); }, [musicEnabled]);
 
-  const cashTone: KpiTone = cash < 0 ? 'danger' : cash < 200 ? 'warning' : 'success';
+  useEffect(() => {
+    if (projectedCashDelta === 0) return;
+    const s = useGame.getState();
+    const breakdown = selectProjectedCash(s).breakdown;
+    const label = breakdown.map((b) => `${b.decision} (-$${b.cost.toFixed(2)})`).join(', ');
+    console.log(`[cash] updated by $${projectedCashDelta.toFixed(2)} from: ${label}`);
+  }, [projectedCashDelta]);
+
+  const cashTone: KpiTone = projectedCash < 0 ? 'danger' : projectedCash < 200 ? 'warning' : 'success';
   const energyTone: KpiTone = energy / maxEnergy < 0.2 ? 'danger' : 'warning';
 
   // Phase-change pulse on the phase chip
@@ -219,13 +230,13 @@ export function TopHUD() {
           <Chip
             icon={Wallet}
             label="Cash"
-            numValue={cash}
+            numValue={projectedCash}
             format={fmt$}
             tone={cashTone}
             variant="success"
             tooltip={HUD_TOOLTIPS.cash}
             ghostFormat={(d) => `${d > 0 ? '+' : '−'}${fmt$(Math.abs(d))}`}
-            pulseDanger={cash < 0}
+            pulseDanger={projectedCash < 0}
           />
         </div>
         {/* Compact-only: Cash chip on its own (no Energy) */}
@@ -233,13 +244,13 @@ export function TopHUD() {
           <Chip
             icon={Wallet}
             label="Cash"
-            numValue={cash}
+            numValue={projectedCash}
             format={fmt$}
             tone={cashTone}
             compact
             tooltip={HUD_TOOLTIPS.cash}
             ghostFormat={(d) => `${d > 0 ? '+' : '−'}${fmt$(Math.abs(d))}`}
-            pulseDanger={cash < 0}
+            pulseDanger={projectedCash < 0}
           />
         </div>
 

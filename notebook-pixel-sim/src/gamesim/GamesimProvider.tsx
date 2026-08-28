@@ -10,6 +10,10 @@ import {
 } from 'react';
 import * as gamesim from './client';
 import { hydratePlayerConfig } from './configHydrator';
+import { hydrateFieldConfig } from '@/engine/finlit/core/config/fieldConfig';
+import { hydrateCandidates } from '@/engine/finlit/core/config/hiring';
+import { hydrateVendors } from '@/engine/finlit/core/config/vendors';
+import { hydrateChannels } from '@/engine/finlit/core/config/channels';
 import { useGame } from '@/state/store';
 import { computeFinalScore } from '@/engine/mockEngine';
 import { PassKeyScreen } from '@/components/passkey/PassKeyScreen';
@@ -18,10 +22,12 @@ import { GamesimStatusScreen } from '@/components/gamesim/GamesimStatusScreen';
 import {
   fetchOfficialFinancials,
   fetchOfficialResults,
+  fetchServerProjection,
   fetchSubmittedDecision,
   type OfficialFinancials,
   type OfficialRoundResults,
   type RoundContext,
+  type ServerProjectionResult,
 } from './sync';
 import type {
   BaseDataDto,
@@ -210,6 +216,14 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
           gamesim.getGlobalInputs(simulation.simulationTypeId).catch(() => []),
         ]);
         if (cancelled) return;
+        hydrateFieldConfig(products);
+        useGame.getState().setAvailableGlobalInputs(globalInputs);
+        const hiringInput = globalInputs.find((g) => g.key === 'hiring');
+        if (hiringInput) hydrateCandidates(hiringInput.inputs);
+        const vendorInput = globalInputs.find((g) => g.key === 'supply_chain');
+        if (vendorInput) hydrateVendors(vendorInput.inputs, products);
+        const channelInput = globalInputs.find((g) => g.key === 'channel');
+        if (channelInput) hydrateChannels(channelInput.inputs, products);
 
         setBootstrap({
           teamId: session.teamId,

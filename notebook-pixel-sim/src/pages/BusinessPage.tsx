@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { StudioPanel } from '@/components/panels/StudioPanel';
 import { InventoryPanel } from '@/components/panels/InventoryPanel';
 import { FinanceTable, PortfolioMetrics } from '@/components/hud/MetricsTable';
+import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import { BUSINESS_PAGE } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
@@ -26,10 +27,11 @@ const TABS: { id: SubTab; label: string; icon: PixelIconKind; sub: string; expla
  * inactive tabs sit shorter and behind, manila-toned, each with its pastel
  * sticky-note icon — like labelled folders in a drawer.
  */
-export function BusinessPage() {
+export function BusinessPage({ liveProjectionState }: { liveProjectionState: LiveProjectionState }) {
   const [tab, setTab] = useState<SubTab>('operations');
   const activeTab = TABS.find((x) => x.id === tab);
   const reduced = useReducedMotion();
+  const { liveProjection } = liveProjectionState;
 
   // Listen for cross-component "go to audience" / "go to operations"
   // events so deep-linked CTAs (e.g. the disabled-Confirm warning
@@ -69,7 +71,7 @@ export function BusinessPage() {
           <div className="px-4 py-2.5 border-b border-border-soft bg-surface flex items-start justify-between gap-4">
             <p className="body-xs text-text-2 leading-relaxed min-w-0 measure">{activeTab.explainer}</p>
             <span className="hidden lg:block hint text-text-3 text-right leading-snug shrink-0 max-w-[240px]">
-              Decisions here don't advance days — confirm a phase to simulate.
+              Decisions here don't advance days - confirm a phase to simulate.
             </span>
           </div>
         )}
@@ -80,12 +82,12 @@ export function BusinessPage() {
           transition={{ duration: 0.18, ease: [0.2, 1, 0.4, 1] }}
           className="p-4"
         >
-          {tab === 'operations' && <StudioPanel />}
+          {tab === 'operations' && <StudioPanel liveProjection={liveProjection} />}
           {tab === 'inventory' && <InventoryPanel />}
           {tab === 'performance' && (
             <div className="flex flex-col gap-5">
               <FinanceTable />
-              <PortfolioMetrics />
+              <PortfolioMetrics liveProjection={liveProjection} />
             </div>
           )}
         </motion.div>

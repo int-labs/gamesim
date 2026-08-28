@@ -20,19 +20,21 @@
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { GENRES, genreGrowth, type GenreDef, type GenreId } from '@/engine/finlit/core/config/genres';
+import { FIELD_CONFIG } from '@/engine/finlit/core/config/fieldConfig';
 import { GENRE_TO_SEGMENT } from '@/engine/mockEngine';
 import { segmentById } from '@/data/segments';
 import { ARCHETYPE_INFO } from '@/data/notebookArchetypes';
 import { PixelBadge } from '@/components/primitives';
 import type { Archetype } from '@/types';
 
-/** The five decision axes every market weighs, in the engine's own order. */
+/** Decision axes shown in the "What they weigh" VoC bars — backend field keys + display labels. */
 const VOC_AXES = [
-  { key: 'design', label: 'Design', hint: 'Cover, page design and add-ons' },
-  { key: 'paper', label: 'Paper', hint: 'Paper stock quality' },
-  { key: 'price', label: 'Price', hint: 'How hard price mismatch is punished' },
-  { key: 'size', label: 'Size', hint: 'Format and page count' },
-  { key: 'channel', label: 'Channel', hint: 'Where it is actually stocked' },
+  { key: 'stickers',       label: 'Stickers',      hint: 'Decorative stickers and charms on the cover' },
+  { key: 'addons',         label: 'Add-Ons',        hint: 'Physical add-ons: pen holder, spiral case, paper pocket' },
+  { key: 'page_design',    label: 'Page Design',    hint: 'Ruling style: lined, dotted, grid, blank' },
+  { key: 'cover_page',     label: 'Cover',          hint: 'Cover material and finish' },
+  { key: 'paper_material', label: 'Paper',          hint: 'Paper stock quality' },
+  { key: 'page_size',      label: 'Size',           hint: 'Format and page count' },
 ] as const;
 
 const PHASES = [
@@ -123,7 +125,7 @@ function MarketCard({ genre, arch, index }: { genre: GenreDef; arch: Archetype; 
               key={axis.key}
               label={axis.label}
               hint={axis.hint}
-              value={genre.voc[axis.key]}
+              value={FIELD_CONFIG[genre.id]?.[axis.key]?.direction ?? 0}
               delay={0.05 * index + 0.04 * i}
             />
           ))}

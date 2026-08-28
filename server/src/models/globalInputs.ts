@@ -1,8 +1,14 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
+export interface GlobalInputImpactSelection {
+  productId: Types.ObjectId;
+  value:     number;
+}
+
 export interface GlobalInputImpact {
-  type:  "relative" | "absolute";
-  value: number;
+  type:       "relative" | "absolute";
+  value:      number;
+  selections?: GlobalInputImpactSelection[];
 }
 
 export interface GlobalInputItem {
@@ -35,6 +41,12 @@ export interface GlobalInputInterface extends Document {
   updatedAt:        Date;
 }
 
+const isValidSelection = (s: any): boolean =>
+  s &&
+  typeof s === "object" &&
+  (typeof s.productId === "string" || s.productId instanceof Types.ObjectId) &&
+  typeof s.value === "number";
+
 const impactsValidator = {
   validator: (v: any) =>
     v == null ||
@@ -46,9 +58,12 @@ const impactsValidator = {
           val &&
           typeof val === "object" &&
           ["relative", "absolute"].includes(val.type) &&
-          typeof val.value === "number"
+          typeof val.value === "number" &&
+          (val.selections == null ||
+            (Array.isArray(val.selections) && val.selections.every(isValidSelection)))
       )),
-  message: "impacts must be a record of { type: 'relative' | 'absolute', value: number }",
+  message:
+    "impacts must be a record of { type: 'relative' | 'absolute', value: number, selections?: { productId, value }[] }",
 };
 
 const globalInputItemSchema = new Schema<GlobalInputItem>(

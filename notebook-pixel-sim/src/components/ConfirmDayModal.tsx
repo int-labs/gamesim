@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '@/state/store';
-import { advanceDay, calcDemandToday } from '@/engine/mockEngine';
+import { advanceDay } from '@/engine/mockEngine';
 import { PixelModal } from '@/components/primitives/PixelModal';
 import { PixelButton, PixelBadge } from '@/components/primitives';
 import { MetricIcon, MetricIconKind } from '@/components/icons/MetricIcon';
 import { fmt$, fmtInt } from '@/utils/format';
-import { mulberry32, seedFrom } from '@/utils/rng';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
@@ -37,16 +36,16 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
     if (open) setPhase('preview');
   }, [open]);
 
-  // Estimate next-day deltas
-  const rand = mulberry32(seedFrom(useGame.getState().meta.seed + ':preview:' + (day + 1)));
-  const demand = calcDemandToday(useGame.getState(), rand);
-  const intDemand = Math.round(demand.total);
-  const expectedSold = Math.min(intDemand, finished);
+  // Estimate next-day deltas using the player's own demand estimate.
+  const lines = useGame((s) => s.portfolio.productLines);
+  const demandEstPerPhase = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
+  const expectedSold = demandEstPerPhase > 0 ? Math.min(demandEstPerPhase, finished) : finished;
   // product is undefined with an EMPTY portfolio (this component stays
   // mounted while closed) — degrade to $0 instead of crashing the tree.
+  // expectedSold is per-phase; expenses scaled to match.
   const expectedRevenue = expectedSold * (product?.price ?? 0);
-  const dailyExpenses = ops.hires * 12 + channels.marketingPerDay;
-  const expectedCashChange = expectedRevenue - dailyExpenses;
+  const phaseExpenses = (ops.hires * 12 + channels.marketingPerDay) * 30;
+  const expectedCashChange = expectedRevenue - phaseExpenses;
 
   const onConfirm = () => {
     setPhase('animating');
@@ -101,7 +100,7 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <PreviewRow icon="cash" label="Cash now" value={fmt$(cash)} />
               <PreviewRow icon="capacity" label="Energy" value={`${energy}`} />
-              <PreviewRow icon="demand" label="Demand est." value={fmtInt(intDemand)} hint="next day" />
+              <PreviewRow icon="demand" label="Demand est." value={demandEstPerPhase > 0 ? fmtInt(demandEstPerPhase) : '—'} hint="your estimate / phase" />
               <PreviewRow icon="stock" label="Finished stock" value={fmtInt(finished)} hint="available to sell" />
             </div>
 
@@ -110,7 +109,7 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
               <ul className="body-xs text-ink-900 leading-snug space-y-0.5">
                 <li>· Likely sold: <strong>{expectedSold}</strong> units</li>
                 <li>· Revenue est.: <strong>{fmt$(expectedRevenue)}</strong></li>
-                <li>· Daily expenses: <strong>{fmt$(dailyExpenses)}</strong></li>
+                <li>· Expenses / phase: <strong>{fmt$(phaseExpenses)}</strong></li>
                 <li>
                   · Net cash change:{' '}
                   <strong className={expectedCashChange >= 0 ? 'text-success' : 'text-error'}>
@@ -125,10 +124,10 @@ export function ConfirmDayModal({ open, onClose, days }: Props) {
               {expectedSold === 0 && finished === 0 && (
                 <PixelBadge tone="error">No stock - set Produce / day first</PixelBadge>
               )}
-              {finished > intDemand * 5 && intDemand > 0 && (
+              {finished > demandEstPerPhase * 5 && demandEstPerPhase > 0 && (
                 <PixelBadge tone="warn">Overstock risk</PixelBadge>
               )}
-              {intDemand > finished && finished > 0 && (
+              {demandEstPerPhase > finished && finished > 0 && demandEstPerPhase > 0 && (
                 <PixelBadge tone="warn">Stockout risk - demand &gt; stock</PixelBadge>
               )}
             </div>

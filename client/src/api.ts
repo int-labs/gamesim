@@ -13,7 +13,7 @@ export const setAuthToken = (token: string) => {
 // authentication.ts does no DB lookup, so this works even with zero
 // users in the database. Remove once real login is wired in — see
 // the matching TODO(auth) comments on the locked-down routers.
-const DEV_ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODQ2OTYxMzYsImV4cCI6MTc4NzI4ODEzNn0.180JKpUCHYY65dGSSb9CQXf0XlJMX4d5Uf31asaYvTo";
+const DEV_ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODc3MjY1NjEsImV4cCI6MTc5Mjk3MjgwMH0.QMyTKUNzQPZkf9yQrgGvGe-oKVyomKX6lUcBWTrG05M";
 
 api.defaults.headers.common["Authorization"] = `Bearer ${DEV_ADMIN_TOKEN}`;
 
@@ -165,6 +165,13 @@ export const getGlobalInputItems = (id: string) => api.get(`/global-inputs/${id}
 export const updateGlobalInputItem = (id: string, itemId: string, data: object) => api.patch(`/global-inputs/${id}/items/${itemId}`, data);
 export const deleteGlobalInputItem = (id: string, itemId: string) => api.delete(`/global-inputs/${id}/items/${itemId}`);
 
+
+// ── Player Config ─────────────────────────────────────────────
+export const getPlayerConfig = (simulationTypeId: string) =>
+  api.get(`/player-config/${simulationTypeId}`);
+export const createPlayerConfig = (data: object) => api.post("/player-config", data);
+export const updatePlayerConfig = (id: string, data: object) => api.patch(`/player-config/${id}`, data);
+export const deletePlayerConfig = (id: string) => api.delete(`/player-config/${id}`);
 
 // ── Projection ─────────────────────────────────────────────────
 export const recalcProjections = (data: {

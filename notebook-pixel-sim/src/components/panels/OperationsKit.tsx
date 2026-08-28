@@ -2,7 +2,7 @@
 //
 // The old page ran every section together: a tiny uppercase caption, a hint,
 // then controls, with costs and energy buried as muted inline text like
-// "reach 30% · $10/day". Nothing framed a section, so the eye had no idea where
+// "reach 30% · $300/phase". Nothing framed a section, so the eye had no idea where
 // one decision ended and the next began, and the numbers you actually decide on
 // were the least visible thing on screen.
 //
@@ -27,17 +27,40 @@ import { EnergyValue } from '@/components/primitives/EnergyValue';
 
 type ChipTone = 'money' | 'energy' | 'reach' | 'good' | 'muted';
 
-// Chip tints stay inside the warm palette — walnut, caramel, cream, sage,
-// amber. `reach` used to be `bg-info-soft`, the plum tint, and it repeats on
-// every channel card and every vendor row: three lavender boxes sitting in a
-// row of caramel and sage on a cream card was the one cold colour on screen
-// and read as an accident. Reach is a neutral descriptor — not good, not bad,
-// not money — so it takes the deeper caramel, which separates it from
-// `money`'s pale amber without introducing a fourth hue.
+// CHIP TONES — colour encodes MEANING, and each meaning has exactly one hue.
+//
+// This used to be four tones over two colours: `money` and `energy` were both
+// amber, `reach` and `muted` were both caramel. Colour therefore told you
+// nothing, while three adjacent chips could still come out three different
+// shades — a gain, a rate and a threshold each tinted differently in one row,
+// which is what made these read as a rainbow rather than a table.
+//
+//   good    sage    something you GAIN     (output, sell-rate lift)
+//   money   amber   money OUT or a money threshold (cost, breakeven, fees)
+//   energy  caramel the other currency you spend — warm and adjacent to
+//                   money because it is also a cost, but its own shade so a
+//                   ⚡ never reads as a $
+//   reach   surface a neutral descriptor: not good, not bad, not a cost
+//   muted   quiet   a de-emphasised value. NOT the off-card treatment: an
+//                   off card fades its whole content with opacity, so its
+//                   chips keep their normal tint and fade with everything
+//                   else. Bleaching each chip instead left labels sitting on
+//                   almost no fill, which read as a missing background.
+// The TRAY is the tone. A flat variant was tried - caption over figure, colour
+// moved onto the value's ink, no fill - on the theory that a tinted box inside
+// a card was one nested fill too many. It reads calmer in isolation and it is
+// the wrong trade: without the fill the labels stop being grouped objects and
+// the row turns into loose text, so the cost/energy coding that is supposed to
+// organise the card at a glance has to be READ rather than seen. The fill stays.
+//
+// (If it is ever revisited: `text-success` / `text-warning` are the ink classes.
+// tailwind.config maps textColor.success straight to the --c-*-ink weight, so
+// `text-success-ink` is not a class, compiles to nothing, and silently leaves
+// every value on the default ink.)
 const CHIP_TONE: Record<ChipTone, string> = {
   money: 'bg-warning-soft text-text',
-  energy: 'bg-warning-soft text-text',
-  reach: 'bg-surface-muted text-text',
+  energy: 'bg-surface-muted text-text',
+  reach: 'bg-surface-2 text-text',
   good: 'bg-success-soft text-text',
   muted: 'bg-surface-2 text-text-2',
 };
@@ -59,19 +82,26 @@ export function StatChip({
   className?: string;
 }) {
   return (
-    // No border. A chip carrying a number is not pressable, and giving it the
+    // No BORDER - a chip carrying a number is not pressable, and giving it the
     // same 2px frame as the buttons beside it is most of why the page was hard
-    // to read as a set of controls. `.readout`'s inset shadow says "display",
-    // the tint still groups label + value, and the only 2px frames left on the
-    // page are things you can actually click.
-    <div className={clsx('readout px-2.5 py-1.5 min-w-0', CHIP_TONE[tone], className)}>
-      {/* One line, always. .stat-label carries `white-space: nowrap`, so a long
-          caption clips at the chip edge instead of pushing the figure down and
-          leaving one chip in a row taller than its neighbours. */}
-      <div className="stat-label stat-label-on-tint truncate">{label}</div>
-      {/* Values wrap rather than truncate: a clipped "$11.50/day + $…" hides
-          exactly the number the player needs. */}
-      <div className="num-sm mt-1 leading-tight break-words">{value}</div>
+    // to read as a set of controls. But it keeps its FILL: `.readout`'s inset
+    // shadow says "display", and the tint is what makes label + value read as
+    // one object instead of two loose lines.
+    // SIDE BY SIDE, not stacked. A caption over its figure made every chip two
+    // lines tall, so five facts became a five-storey block and the card was
+    // mostly chips. On one baseline a chip is a row in a table - caption left,
+    // figure right - which is how you read a set of numbers against each other.
+    // The label truncates and the FIGURE never does: a clipped "$11.50 / uni"
+    // hides exactly what the player came for, so the value keeps its width and
+    // the caption gives way.
+    <div className={clsx('readout px-2.5 py-1.5 min-w-0 flex items-baseline justify-between gap-2', CHIP_TONE[tone], className)}>
+      {/* WRAPS rather than truncates. Side by side there is far less room for a
+          caption than there was stacked, and "OUTPUT / P…" / "BREAKEVEN…" tells
+          you nothing - the words are the only thing naming the figure. The grid
+          row stretches its cells, so a caption taking two lines lifts its whole
+          row and the chips stay level. */}
+      <div className="stat-label stat-label-on-tint min-w-0 leading-tight">{label}</div>
+      <div className="num-sm leading-tight shrink-0 text-right">{value}</div>
     </div>
   );
 }
@@ -111,17 +141,21 @@ export function OpsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="border border-border-soft bg-cream-50">
-      {/* The masthead carries the section's weight. It used to be a 32px mark
-          beside a 16px caption — smaller than the card titles underneath it —
-          so five stacked sections read as one undifferentiated column. Bigger
-          art, a heading that outranks its children, and a caramel band that is
-          tall enough to register as a header rather than a divider. */}
+    // NO frame of its own. Reading one figure on this page meant parsing FIVE
+    // nested boxes - chip inside card inside section inside sheet inside page -
+    // each drawing its own edge and fill. That is the structural reason the
+    // screen read as cluttered, and no amount of colour tuning fixes it; a
+    // level has to go. The section is identified by its masthead band and the
+    // space around it, which is enough, so its border comes off and the count
+    // drops to four.
+    <section className="bg-cream-50">
+      {/* The masthead carries the section's weight: bigger art and a heading
+          that outranks the card titles underneath it. */}
       <header className="flex items-center gap-3.5 px-4 py-3 border-b border-border-soft bg-cream-200">
         <img
           src={icon}
           alt=""
-          className="w-14 h-14 object-contain shrink-0"
+          className="w-20 h-20 object-contain shrink-0"
           style={{ imageRendering: 'pixelated' }}
           draggable={false}
         />
@@ -167,7 +201,7 @@ export interface DetailInput {
   /** Option name, e.g. "Offline" or "Ains L2". */
   name: string;
   description: string;
-  /** $/day or one-off money cost. Omit when the option is free. */
+  /** Per-phase or one-off money cost. Omit when the option is free. */
   cost?: string;
   /** Energy to activate. Omit when it costs none. */
   energy?: number;
@@ -231,7 +265,7 @@ export function OperationsDetailModal({
     <PixelModal open={open} onClose={onClose} title={title} size="lg" playful>
       <div className="flex flex-col gap-5">
         {intro && (
-          <p className="body-sm text-text-2 leading-relaxed border-l-4 border-brand-400 pl-3">{intro}</p>
+          <p className="body-sm text-text-2 leading-relaxed border-l-4 border-info pl-3">{intro}</p>
         )}
 
         {/* The two halves answer different questions — "what can I choose?" and
@@ -250,7 +284,11 @@ export function OperationsDetailModal({
             {inputs.map((inp, i) => (
               <motion.div
                 key={inp.name}
-                className="border-2 border-ink-900 bg-cream-50"
+                // Hairline, not a 2px ink frame. This is a REFERENCE card in a
+                // read-only sheet — nothing here is pressable — and it was
+                // wearing the same frame as the buttons on the page behind it.
+                // Its own header band already separates one entry from the next.
+                className="border border-border-soft bg-cream-50"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04, type: 'spring', stiffness: 280, damping: 22 }}
@@ -290,7 +328,14 @@ export function OperationsDetailModal({
             {tables.map((t, i) => (
               <motion.div
                 key={i}
-                className="border-2 border-ink-900 bg-cream-50 overflow-x-auto"
+                // The caption sits OUTSIDE the scroll container. Inside it, a
+                // wide table scrolled the caption along with the columns and
+                // clipped it ("…VEL 1)"), because a block inside an
+                // overflow-x-auto box scrolls with its content rather than
+                // pinning to the visible width. Only the table scrolls now.
+                // Border also drops to the static weight (RULE 5) — this is a
+                // panel, not a control.
+                className="border border-border-soft bg-cream-50"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.08 + i * 0.04, type: 'spring', stiffness: 280, damping: 22 }}
@@ -300,6 +345,7 @@ export function OperationsDetailModal({
                     <span className="stat-label text-text">{t.caption}</span>
                   </div>
                 )}
+                <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-cream-100 border-b border-border-soft">
@@ -339,6 +385,7 @@ export function OperationsDetailModal({
                     ))}
                   </tbody>
                 </table>
+                </div>
               </motion.div>
             ))}
           </div>

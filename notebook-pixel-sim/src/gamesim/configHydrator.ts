@@ -35,8 +35,6 @@ import {
   ADDON_OPTIONS,
   applyConstantOverrides,
   CANDIDATES,
-  CHANNEL_META,
-  CHANNELS_BY_GENRE,
   COVER_OPTIONS,
   GENRES,
   MARKETING_TEAMS,
@@ -50,6 +48,12 @@ import {
   TYPE_OPTIONS,
   VENDORS,
 } from '@/data/finlit';
+import {
+  CANDIDATE_STUDIES,
+  VENDOR_STUDIES,
+  MARKETING_STUDIES,
+  type CaseStudy,
+} from '@/content/finlitCaseStudies';
 import {
   applyBalanceOverrides,
   BINDING_COST,
@@ -138,6 +142,17 @@ function replaceObject(target: Dict, next: Dict): void {
   Object.assign(target, next);
 }
 
+/** Patch a CaseStudy record entry in place; creates the entry if absent. */
+function patchCaseStudy(map: Record<string, CaseStudy>, id: string, src: Dict): void {
+  if (!isObj(src)) return;
+  if (!map[id]) map[id] = { title: '', brief: '', bestWhen: '', watchOut: '' };
+  const entry = map[id];
+  if (typeof src.title === 'string') entry.title = src.title;
+  if (typeof src.brief === 'string') entry.brief = src.brief;
+  if (typeof src.bestWhen === 'string') entry.bestWhen = src.bestWhen;
+  if (typeof src.watchOut === 'string') entry.watchOut = src.watchOut;
+}
+
 const idsOf = (rows: Array<{ id?: unknown }>): Set<string> =>
   new Set(rows.map((r) => String(r?.id)));
 
@@ -185,73 +200,23 @@ function mergeById(
 
 // ── The structural guard for the coupled core ───────────────────────────
 /**
- * `genres`, `channelMeta`, `channelsByGenre`, `vendors` and `productionOptions`
- * reference each other by id: channel rows are indexed by genre, vendor
- * coverage is indexed by [level][genre], and a saved design holds production
- * option ids. Validating them one at a time would let a half-consistent set
- * through, so they pass or fail as a graph.
+ * `genres`, `vendors`, and `productionOptions` are validated together because
+ * a saved design holds production option ids and vendor ids that must remain
+ * resolvable. channelMeta and channelsByGenre have been removed — those are
+ * now fully owned by the backend `channel` GlobalInput and hydrated at
+ * bootstrap via hydrateChannels().
  */
 function coupledCoreIsSafe(cfg: Dict): string | null {
-  const { genres, channelMeta, channelsByGenre, vendors, productionOptions } = cfg;
-
-  // Anything absent simply keeps its bundled value — that's not a failure,
-  // but the cross-checks below then run against the bundle.
-  const genreRows = genres ?? GENRES;
-  const metaRows =
-    channelMeta ?? Object.entries(CHANNEL_META).map(([id, v]) => ({ id, ...v }));
+  const { genres, vendors, productionOptions } = cfg;
 
   if (genres !== undefined && !keepsAllIds(GENRES, genres))
     return 'genres would drop a bundled genre';
-  if (channelMeta !== undefined && !keepsAllIds(Object.keys(CHANNEL_META).map((id) => ({ id })), channelMeta))
-    return 'channelMeta would drop a bundled channel';
-
-  const genreIds = idsOf(genreRows);
-  const channelIds = idsOf(metaRows);
-
-  if (channelsByGenre !== undefined) {
-    if (!Array.isArray(channelsByGenre)) return 'channelsByGenre is not a list';
-    const covered = new Set(channelsByGenre.map((g: Dict) => String(g?.genreId)));
-    for (const g of genreIds)
-      if (!covered.has(g)) return `channelsByGenre has no rows for genre "${g}"`;
-    for (const g of channelsByGenre) {
-      if (!Array.isArray(g?.rows)) return `channelsByGenre["${g?.genreId}"] has no rows`;
-      const have = new Set(g.rows.map((r: Dict) => String(r?.channel)));
-      for (const c of channelIds)
-        if (!have.has(c)) return `genre "${g.genreId}" is missing a "${c}" channel row`;
-      for (const r of g.rows)
-        if (!num(r?.split) || !num(r?.sellRate))
-          return `genre "${g.genreId}" has a non-numeric channel row`;
-    }
-  } else {
-    // Bundled rows must still cover any NEW genre or channel the config adds.
-    for (const g of genreIds) {
-      const rows = (CHANNELS_BY_GENRE as Dict)[g];
-      if (!Array.isArray(rows)) return `new genre "${g}" has no bundled channel rows`;
-      const have = new Set(rows.map((r: Dict) => String(r.channel)));
-      for (const c of channelIds)
-        if (!have.has(c)) return `new channel "${c}" has no row under genre "${g}"`;
-    }
-  }
 
   if (vendors !== undefined) {
-    if (!keepsAllIds(VENDORS as any, vendors)) return 'vendors would drop a bundled vendor';
-    for (const v of vendors as Dict[]) {
-      if (!Array.isArray(v.coverage)) return `vendor "${v.id}" has no coverage`;
-      const seen = new Set(v.coverage.map((c: Dict) => `${c?.level}|${c?.genreId}`));
-      for (const level of [1, 2])
-        for (const g of genreIds)
-          if (!seen.has(`${level}|${g}`))
-            return `vendor "${v.id}" has no level-${level} coverage for genre "${g}"`;
-      if (!num(v.energyByLevel?.l1) || !num(v.energyByLevel?.l2))
-        return `vendor "${v.id}" has non-numeric energy`;
-    }
-  } else {
-    for (const v of VENDORS) {
-      for (const level of [1, 2] as const)
-        for (const g of genreIds)
-          if (!(v.coverage as Dict)[level]?.[g])
-            return `new genre "${g}" has no coverage on bundled vendor "${v.id}"`;
-    }
+    // Vendors are backend-hydrated from globalInputs (supply_chain); the
+    // PlayerConfig vendor section carries image and caseStudy only.
+    if (!Array.isArray(vendors) || vendors.some((r) => !isObj(r) || typeof r.id !== 'string' || !r.id))
+      return 'vendors must be an array of objects with string ids';
   }
 
   if (productionOptions !== undefined) {
@@ -300,47 +265,12 @@ function applyCoupledCore(cfg: Dict, applied: string[]): void {
     applied.push('productionOptions');
   }
 
-  if (Array.isArray(cfg.channelMeta)) {
-    const next: Dict = {};
-    for (const c of cfg.channelMeta) next[c.id] = { name: c.name, blurb: c.blurb ?? '' };
-    replaceObject(CHANNEL_META as Dict, next);
-    applied.push('channelMeta');
-  }
-
-  if (Array.isArray(cfg.channelsByGenre)) {
-    const next: Dict = {};
-    for (const g of cfg.channelsByGenre) {
-      next[g.genreId] = g.rows.map((r: Dict) => ({
-        channel: r.channel,
-        split: r.split,
-        maintenance: r.maintenance,
-        consignment: r.consignment,
-        inventoryCost: r.inventoryCost,
-        sellRate: r.sellRate,
-      }));
-    }
-    replaceObject(CHANNELS_BY_GENRE as Dict, next);
-    applied.push('channelsByGenre');
-  }
-
   if (Array.isArray(cfg.vendors)) {
-    // Config stores coverage flat so it can be edited as a table; the engine
-    // indexes it as coverage[level][genre].
-    mergeById(VENDORS as any, cfg.vendors, ['name'], {
+    // name/cost/energy/prodBonus all come from globalInputs (hydrateVendors).
+    // PlayerConfig carries image and caseStudy only.
+    mergeById(VENDORS as any, cfg.vendors, [], {
       image: 'imgPath',
-      after: (row, src) => {
-        row.energyByLevel = { 1: src.energyByLevel.l1, 2: src.energyByLevel.l2 };
-        const coverage: Dict = { 1: {}, 2: {} };
-        for (const c of src.coverage) {
-          coverage[c.level][c.genreId] = {
-            cost: c.cost,
-            quality: c.quality,
-            sellBonus: c.sellBonus,
-            prodBonus: c.prodBonus,
-          };
-        }
-        row.coverage = coverage;
-      },
+      after: (row, src) => patchCaseStudy(VENDOR_STUDIES, row.id, src.caseStudy),
     });
     applied.push('vendors');
   }
@@ -363,13 +293,28 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
     applied.push(name);
   };
 
-  section('hiringCandidates', CANDIDATES as any, (rows) =>
-    mergeById(CANDIDATES as any, rows, ['name', 'blurb', 'levels'], { image: 'imgPath' }),
+  section('marketingTeams', MARKETING_TEAMS as any, (rows) =>
+    mergeById(MARKETING_TEAMS as any, rows, ['name', 'blurb', 'cost', 'sellBonus', 'energy'], {
+      image: 'imgPath',
+      after: (row, src) => patchCaseStudy(MARKETING_STUDIES, row.id, src.caseStudy),
+    }),
   );
 
-  section('marketingTeams', MARKETING_TEAMS as any, (rows) =>
-    mergeById(MARKETING_TEAMS as any, rows, ['name', 'blurb', 'cost', 'sellBonus', 'energy']),
-  );
+  // Candidates are backend-hydrated from globalInputs (hiring); PlayerConfig
+  // carries image and caseStudy only. No keepsAllIds guard — the bundle has
+  // none (CANDIDATES is fully runtime-populated from globalInputs).
+  if (Array.isArray(cfg.candidates)) {
+    for (const src of cfg.candidates as Dict[]) {
+      if (!isObj(src) || typeof src.id !== 'string' || !src.id) continue;
+      const candidate = (CANDIDATES as any[]).find((c) => c.id === src.id);
+      if (candidate) {
+        const url = imageFor(src);
+        if (url) candidate.imgPath = url;
+      }
+      patchCaseStudy(CANDIDATE_STUDIES, src.id, src.caseStudy);
+    }
+    applied.push('candidates');
+  }
 
   section('scenarios', SCENARIOS as any, (rows) =>
     mergeById(SCENARIOS as any, rows, ['phase', 'title', 'body'], {
@@ -689,7 +634,7 @@ export async function hydratePlayerConfig(simulationTypeId: string): Promise<Hyd
   try {
     const unsafe = coupledCoreIsSafe(cfg);
     if (unsafe) {
-      for (const s of ['genres', 'productionOptions', 'channelMeta', 'channelsByGenre', 'vendors'])
+      for (const s of ['genres', 'productionOptions', 'vendors'])
         if (cfg[s] !== undefined) skipped.push({ section: s, why: unsafe });
     } else {
       applyCoupledCore(cfg, applied);

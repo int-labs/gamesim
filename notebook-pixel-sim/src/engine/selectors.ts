@@ -490,3 +490,51 @@ const FINLIT_SIZE_TO_SIZE: Record<string, Size> = { a5: 's', b5: 'm', b4: 'l' };
 
 export const lineSize = (line?: { size?: Size; finlitSpec?: { size?: string } }): Size =>
   FINLIT_SIZE_TO_SIZE[line?.finlitSpec?.size ?? ''] ?? line?.size ?? 'm';
+
+// ── Projected cash ────────────────────────────────────────────────────────
+//
+// How much cash the player would have if they confirmed the phase right now,
+// given all current decision selections. Purely subtractive: current cash
+// minus the total cost of every active globalInput selection.
+//
+// This is reactive — any change to globalInputSelections recalculates it.
+// Used for display only; actual cash is always s.player.cash after a phase runs.
+
+export interface ProjectedCashResult {
+  /** Current cash on hand. */
+  current: number;
+  /** Estimated cash after paying for all current decision selections. */
+  projected: number;
+  /** Delta: projected - current (always <= 0). */
+  delta: number;
+  /** Breakdown of each cost contributing to the delta. */
+  breakdown: Array<{ decision: string; cost: number }>;
+}
+
+export function selectProjectedCash(s: GameState): ProjectedCashResult {
+  const current = s.player.cash;
+  const breakdown: Array<{ decision: string; cost: number }> = [];
+
+  for (const sel of s.globalInputSelections) {
+    if (!sel.selectedStepKey) continue;
+
+    const container = s.availableGlobalInputs.find((g) => g.key === sel.key);
+    if (!container) continue;
+
+    const item = container.inputs.find((inp) => inp.key === sel.selectedStepKey);
+    if (!item || item.cost === 0) continue;
+
+    // Hiring cost scales by level
+    let cost = item.cost;
+    if (sel.key === 'hiring' && sel.selectedLevel != null && sel.selectedLevel > 1) {
+      cost = item.cost * Math.pow(2, sel.selectedLevel - 1);
+    }
+
+    breakdown.push({ decision: item.label, cost });
+  }
+
+  const delta = -breakdown.reduce((sum, b) => sum + b.cost, 0);
+  const projected = current + delta;
+
+  return { current, projected, delta, breakdown };
+}

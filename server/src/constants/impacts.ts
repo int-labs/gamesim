@@ -6,6 +6,7 @@ export type ImpactTarget =
   | "sales_channel"
   | "marketing"
   | "pnl"
+  | "dynamic_cost"
 
 export interface ImpactConfig {
   target:  ImpactTarget;
@@ -33,5 +34,10 @@ export const IMPACT_CONFIG: Record<string, ImpactConfig> = {
     target:  "pnl",
     affects: "pnl",
     via:     "absolute",
+  },
+  dynamic_cost: {
+    target:  "dynamic_cost",
+    affects: "dynamicCost",
+    via:     "relative",
   },
 };

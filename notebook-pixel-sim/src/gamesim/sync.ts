@@ -92,7 +92,7 @@ export async function fetchServerProjection(
   try {
     let projection: ProjectionDto | null = null;
     for (const input of inputs) {
-      projection = await gamesim.recalcProjections({
+      const raw = await gamesim.recalcProjections({
         simulationId: ctx.simulationId,
         simulationTypeId: ctx.simulationTypeId,
         teamId: ctx.teamId,
@@ -101,6 +101,8 @@ export async function fetchServerProjection(
         fields: input.fields,
         globalInputs,
       });
+      // The endpoint sometimes returns an array; unwrap if needed.
+      projection = Array.isArray(raw) ? (raw[0] ?? null) : raw;
     }
     if (!projection) return null;
     return { projection, byProduct: collectByProduct(projection, inputs) };

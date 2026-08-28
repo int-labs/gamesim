@@ -16,6 +16,7 @@ import BaseDataPage from "./pages/BaseDataPage";
 import ImageAssetsPage from "./pages/ImageAssetsPage";
 import ProductFieldsPage from "./pages/ProductFieldsPage";
 import GlobalInputsPage from "./pages/GlobalInputsPage";
+import PlayerConfigPage from "./pages/PlayerConfigPage";
 import MainSimPage from "./pages/MainSimPage";
 
 type View =
@@ -36,7 +37,8 @@ type View =
   | "results"
   | "base-data"
   | "sim-page"
-  | "image-assets";
+  | "image-assets"
+  | "player-config";
 
 const NAV: { label: string; view: View }[] = [
   { label: "Simulations", view: "simulations" },
@@ -56,6 +58,7 @@ const NAV: { label: string; view: View }[] = [
   { label: "Results", view: "results" },
   { label: "Base Data", view: "base-data" },
   { label: "Image Assets", view: "image-assets" },
+  { label: "Player Config", view: "player-config" },
   { label: "Sim Page (Preview)", view: "sim-page" },
 ];
 
@@ -81,6 +84,7 @@ export default function App() {
       case "image-assets": return <ImageAssetsPage />;
       case "product-fields": return <ProductFieldsPage />;
       case "global-inputs": return <GlobalInputsPage />;
+      case "player-config": return <PlayerConfigPage />;
       case "sim-page": return <MainSimPage />;
     }
   };

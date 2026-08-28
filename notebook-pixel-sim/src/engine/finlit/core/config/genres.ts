@@ -19,22 +19,12 @@
  */
 export type GenreId = string;
 
-/** VoC importance per decision axis (0..1). Higher = this market cares more. */
-export interface VoCPreference {
-  design: number;
-  price: number;
-  channel: number;
-  size: number;
-  paper: number;
-}
-
 export interface GenreDef {
   id: GenreId;
   /** Display name, e.g. "Cute Notebook". */
   name: string;
   /** Total addressable market demand per phase (units of "market need"). */
   demand: { pMinus1: number; p0: number; p1: number; p2: number; p3: number };
-  voc: VoCPreference;
   /** One line on who buys it. */
   blurb: string;
   /** Short hook shown under the title in the details modal. */
@@ -58,8 +48,6 @@ export const GENRES: GenreDef[] = [
     id: 'cute',
     name: 'Cute Notebook',
     demand: { pMinus1: 10115, p0: 12212, p1: 14507, p2: 17115, p3: 20759 },
-    // Cute buyers: decoration/design-led, mid price sensitivity.
-    voc: { design: 0.95, price: 0.7, channel: 0.6, size: 0.4, paper: 0.5 },
     blurb: 'Decoration-led buyers who want charm and personality on the cover.',
     tagline: 'Charming, decorated, hard to put down.',
     description:
@@ -79,8 +67,6 @@ export const GENRES: GenreDef[] = [
     id: 'anime',
     name: 'Anime Notebook',
     demand: { pMinus1: 9752, p0: 11506, p1: 14093, p2: 17108, p3: 21023 },
-    // Anime fans: design + collectible cover, willing to pay for the right art.
-    voc: { design: 1.0, price: 0.55, channel: 0.65, size: 0.5, paper: 0.6 },
     blurb: 'Fandom collectors chasing the right art - design and cover matter most.',
     tagline: 'Collectible cover art, and fans who know it.',
     description:
@@ -100,8 +86,6 @@ export const GENRES: GenreDef[] = [
     id: 'minimalist',
     name: 'Minimalist Notebook',
     demand: { pMinus1: 12503, p0: 14022, p1: 16409, p2: 18552, p3: 21543 },
-    // Minimalist: paper quality + function over decoration; price-tolerant.
-    voc: { design: 0.4, price: 0.5, channel: 0.55, size: 0.7, paper: 0.95 },
     blurb: 'Function-first writers who value clean paper and restraint over flourish.',
     tagline: 'No decoration. Just very good paper.',
     description:
@@ -121,8 +105,6 @@ export const GENRES: GenreDef[] = [
     id: 'indie',
     name: 'Indie Notebook',
     demand: { pMinus1: 11594, p0: 14233, p1: 17562, p2: 19527, p3: 22511 },
-    // Indie: balanced, channel-savvy, paper + design both count.
-    voc: { design: 0.75, price: 0.6, channel: 0.8, size: 0.6, paper: 0.75 },
     blurb: 'Taste-driven independents who reward a coherent, well-placed product.',
     tagline: 'Well made, well placed, nothing wasted.',
     description:

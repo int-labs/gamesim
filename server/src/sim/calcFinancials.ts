@@ -335,9 +335,17 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
         
         if (config.affects === "customersObtained") {
           if (impact.type === "relative") {
-            customersObtainedAugment *= (impact.value * effectiveMultiplier);
+            customersObtainedAugment *= (1 + impact.value * effectiveMultiplier);
           } else {
             customersObtainedAugment += (impact.value * effectiveMultiplier);
+          }
+        }
+
+        if (config.affects === "dynamicCost") {
+          if (impact.type === "relative") {
+            dynamicCost = Math.max(0, dynamicCost * (1 - impact.value * effectiveMultiplier));
+          } else {
+            dynamicCost = Math.max(0, dynamicCost - impact.value * effectiveMultiplier);
           }
         }
         // console.log(effectiveMultiplier);

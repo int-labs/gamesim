@@ -6,7 +6,7 @@
 // Pure engine + bridge underneath; this file only does the state plumbing.
 
 import type { GameState } from '@/state/store';
-import { ENERGY_PER_PHASE, ENERGY_CAP } from '@/data/finlit';
+import { ENERGY_PER_PHASE, ENERGY_CAP, type ChannelId } from '@/data/finlit';
 import { simulatePhase } from './simulate';
 import { toFinlitLines, toFinlitDecisions, type LineInput } from './adapter';
 import { phaseResultToLedger, phaseResultToSeries } from './bridge';
@@ -16,7 +16,14 @@ let ledgerSeq = 0;
 const ledgerId = () => `fl-${Date.now().toString(36)}-${(ledgerSeq++).toString(36)}`;
 
 /** Map a store ProductLine into the adapter's narrow LineInput. */
-function lineInput(l: GameState['portfolio']['productLines'][number]): LineInput {
+function lineInput(
+  l: GameState['portfolio']['productLines'][number],
+  activeChannels: ChannelId[],
+): LineInput {
+  const stickersSpend = Math.min(
+    ((l.addOnsByArchetype?.[l.archetype ?? l.genre ?? 'indie'] ?? []).length) * 0.15,
+    100,
+  );
   return {
     id: l.id,
     name: l.name,
@@ -27,31 +34,54 @@ function lineInput(l: GameState['portfolio']['productLines'][number]): LineInput
     targetPerDay: l.targetPerDay,
     finished: l.inventory.finished,
     targetSegment: l.targetSegment,
+    stickersSpend,
+    channels: activeChannels,
+  };
+}
+
+function activeChannels(s: GameState): ChannelId[] {
+  return s.globalInputSelections
+    .filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null)
+    .map((sel) => sel.selectedStepKey as ChannelId);
+}
+
+/** Derive hire + marketing decisions from globalInputSelections + availableGlobalInputs. */
+function resolveDecisionInputs(s: GameState): Parameters<typeof toFinlitDecisions>[0] {
+  const hires = s.globalInputSelections
+    .filter((sel) => sel.key === 'hiring' && sel.selectedStepKey != null && sel.selectedLevel != null)
+    .map((sel) => ({ candidate: sel.selectedStepKey!, level: sel.selectedLevel as 1 | 2 | 3 | 4 }));
+
+  const marketingSel = s.globalInputSelections.find(
+    (sel) => sel.key === 'marketing' && sel.selectedStepKey != null,
+  );
+  const marketingGI = s.availableGlobalInputs.find((g) => g.key === 'marketing');
+  const marketingMult = marketingSel?.selectedStepKey != null
+    ? (marketingGI?.inputs[0]?.options?.[marketingSel.selectedStepKey] ?? 1)
+    : 1;
+
+  return {
+    route: s.meta.route ?? 'self',
+    hires,
+    marketingMult,
+    demandMult: s.finlit.demandMult,
+    sellMult: s.finlit.sellMult,
   };
 }
 
 /** Pure preview — the phase result for the CURRENT state, WITHOUT mutating it.
  *  Used by the confirm modal to show an accurate estimate before the run. */
 export function previewFinlitPhase(s: GameState): FinlitPhaseResult {
-  const lines = toFinlitLines(s.portfolio.productLines.map(lineInput));
-  const decisions = toFinlitDecisions({
-    route: s.meta.route ?? 'self',
-    // hire/marketingBudget/salesBudget now in globalInputSelections;
-    // local preview uses neutral fallbacks — calcFinancials is authoritative.
-    demandMult: s.finlit.demandMult,
-    sellMult: s.finlit.sellMult,
-  });
+  const channels = activeChannels(s);
+  const lines = toFinlitLines(s.portfolio.productLines.map((l) => lineInput(l, channels)));
+  const decisions = toFinlitDecisions(resolveDecisionInputs(s));
   return simulatePhase(lines, decisions, s.meta.phase);
 }
 
 export function runFinlitPhase(s: GameState): FinlitPhaseResult {
   const phase = s.meta.phase;
-  const lines = toFinlitLines(s.portfolio.productLines.map(lineInput));
-  const decisions = toFinlitDecisions({
-    route: s.meta.route ?? 'self',
-    demandMult: s.finlit.demandMult,
-    sellMult: s.finlit.sellMult,
-  });
+  const channels = activeChannels(s);
+  const lines = toFinlitLines(s.portfolio.productLines.map((l) => lineInput(l, channels)));
+  const decisions = toFinlitDecisions(resolveDecisionInputs(s));
 
   const result = simulatePhase(lines, decisions, phase);
   const startDay = (phase - 1) * 30 + 1;

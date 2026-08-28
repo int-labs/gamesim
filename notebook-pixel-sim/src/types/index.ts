@@ -223,6 +223,9 @@ export interface ProductLine {
   vendor?: FinlitVendorId;
   /** Units/day the player commits to producing (LP2 lever; ≤ capacity). */
   targetPerDay?: number;
+  /** Player's own demand estimate for this line (units/phase). Pure UI input —
+   *  used to coach production targets; does not affect the engine simulation. */
+  demandEstPerPhase?: number;
 }
 
 export type AddOnCategory =

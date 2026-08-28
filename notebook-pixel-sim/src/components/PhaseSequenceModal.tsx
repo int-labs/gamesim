@@ -28,12 +28,12 @@ import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import clsx from 'clsx';
 import {
-  fetchServerProjection,
   GamesimSyncError,
   submitRoundDecision,
-  type ServerProjectionResult,
 } from '@/gamesim/sync';
+import { selectProjectedCash } from '@/engine/selectors';
 import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { useLiveProjection } from '@/gamesim/useLiveProjection';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
 
 const PHASE_END = { 1: 30, 2: 60, 3: 90 } as const;
@@ -71,10 +71,23 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   );
   const channels = useGame((s) => s.channels);
   const ops = useGame((s) => s.ops);
+  const lines = useGame((s) => s.portfolio.productLines);
   const pendingEventId = useGame((s) => s.meta.pendingEventId);
   const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
   const setScreen = useGame((s) => s.setScreen);
   const { canSubmit, canAdvance, bootstrap, roundContext, submittedDecision, refreshOfficial } = useGamesimSession();
+  const { liveProjection } = useLiveProjection();
+  // Snapshot projected cash at the moment the decision is submitted so the modal
+  // shows the locked-in numbers even as live projections continue updating elsewhere.
+  const liveCashValue = useGame((s) => selectProjectedCash(s).projected);
+  const liveCashDelta = useGame((s) => selectProjectedCash(s).delta);
+  const snapshotRef = useRef<{ value: number; delta: number } | null>(null);
+  if (submittedDecision && !snapshotRef.current) {
+    snapshotRef.current = { value: liveCashValue, delta: liveCashDelta };
+  }
+  const frozen = !!submittedDecision;
+  const projectedCashValue = frozen ? (snapshotRef.current?.value ?? liveCashValue) : liveCashValue;
+  const projectedCashDelta = frozen ? (snapshotRef.current?.delta ?? liveCashDelta) : liveCashDelta;
 
   const [step, setStep] = useState<Step>('preview');
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -147,36 +160,15 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, phase]);
 
-  // Server projection for the same decision — a DIFFERENT model (the gamesim
-  // backend's calcFinancials), so it does not replace the local estimate; both
-  // are shown, clearly labelled. The local one renders immediately so a slow or
-  // unreachable server never blocks the preview step.
-  const [serverProjection, setServerProjection] = useState<ServerProjectionResult | null>(null);
-  useEffect(() => {
-    setServerProjection(null);
-    if (!open || !roundContext) return;
-    let cancelled = false;
-    fetchServerProjection(roundContext, {
-      state: useGame.getState() as any,
-      products: bootstrap?.products ?? [],
-      availableGlobalInputs: bootstrap?.globalInputs ?? [],
-    }).then((res) => {
-      if (!cancelled) setServerProjection(res);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, phase, roundContext, bootstrap?.products]);
-
-  const serverRevenue = serverProjection?.byProduct.reduce((a, p) => a + (p.revenue ?? 0), 0) ?? null;
-  const serverGrossProfit =
-    serverProjection?.byProduct.reduce((a, p) => a + (p.grossProfit ?? 0), 0) ?? null;
-  const serverCustomers =
-    serverProjection?.byProduct.reduce((a, p) => a + (p.customersObtained ?? 0), 0) ?? null;
+  const serverRevenue = liveProjection?.byProduct.reduce((a, p) => a + (p.revenue ?? 0), 0) ?? null;
+  const serverGrossProfit = liveProjection?.byProduct.reduce((a, p) => a + (p.grossProfit ?? 0), 0) ?? null;
+  const serverCustomers = liveProjection?.byProduct.reduce((a, p) => a + (p.customersObtained ?? 0), 0) ?? null;
 
   const finlitPreview = localFinlitPreview;
-  const intDemand = Math.round((finlitPreview?.demandTotal ?? 0) / 30); // per day
+  // Show the player's own demand estimate (from InventoryPanel) — the same
+  // value displayed in "Demand est. / phase" there. Fall back to 0 (shown as
+  // '—') when the player hasn't entered an estimate yet.
+  const intDemand = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
   const expectedSold = Math.round(finlitPreview?.soldTotal ?? 0);
   const expectedRevenue = Math.round(finlitPreview?.revenue ?? 0);
   const dailyExpenses = Math.round((finlitPreview?.opex ?? 0) + (finlitPreview?.channelCost ?? 0));
@@ -189,7 +181,13 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
    *  the machine rumbles — then the engine applies in one go. */
   const simFromDayRef = useRef(1);
   const tick = async () => {
-    if (!canAdvance || !roundContext) {
+    // `roundContext` is only needed to SUBMIT. Demanding it to advance was the
+    // same conflation as `canAdvance` itself, one level down: standalone play
+    // has no round context and needs none, so the guard bounced the player
+    // back to step 1 with "this round is not accepting decisions" — about a
+    // round that does not exist — immediately after the event they had just
+    // answered. The POST below is already gated on `canSubmit`.
+    if (!canAdvance || (canSubmit && !roundContext)) {
       setSyncError('Cannot submit: this round is not accepting decisions.');
       setStep('preview');
       return;
@@ -207,11 +205,12 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
       // anyway. Re-sending would 409, but the player still has 30 days of their
       // own simulation to watch and an evaluation to answer; the send being done
       // is not a reason to stop the game.
-      if (canSubmit) {
+      if (canSubmit && roundContext) {
+        const _gs2 = useGame.getState();
         await submitRoundDecision(roundContext, {
-          state: useGame.getState() as any,
+          state: _gs2 as any,
           products: bootstrap?.products ?? [],
-          availableGlobalInputs: bootstrap?.globalInputs ?? [],
+          availableGlobalInputs: _gs2.availableGlobalInputs,
         });
         void refreshOfficial();
       }
@@ -398,9 +397,15 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Stat icon="cash" label="Cash now" value={fmt$(cash)} tone="cash" />
+              <Stat
+                icon="cash"
+                label="Cash now"
+                value={fmt$(projectedCashValue)}
+                sub={projectedCashDelta < 0 ? `after decisions (${fmt$(projectedCashDelta)})` : fmt$(cash)}
+                tone={projectedCashValue < 0 ? 'warn' : 'cash'}
+              />
               <Stat icon="energy" label="Energy" value={`${energy}`} tone="warn" />
-              <Stat icon="demand" label="Demand est." value={fmtInt(intDemand)} sub="per day" tone="info" />
+              <Stat icon="demand" label="Demand est." value={intDemand > 0 ? fmtInt(intDemand) : '—'} sub="your estimate" tone="info" />
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 
@@ -421,10 +426,11 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
               />
             </div>
 
-            {serverProjection && (
+            {liveProjection && (
               <div className="panel-muted px-3.5 py-3">
                 <div className="panel-title text-text mb-2">
                   Official projection · from the simulation server
+                  {frozen && <span className="stat-label text-success ml-2">· Locked in</span>}
                 </div>
                 <CostTiles
                   tiles={[
@@ -443,7 +449,8 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
             <div className="flex flex-col gap-2 pt-1">
               {submittedDecision && (
-                <div className="flex items-start gap-2 border-2 border-success/45 bg-success-soft/40 px-3 py-2">
+                // No frame: a note is read, not pressed.
+                <div className="flex items-start gap-2 bg-success-soft/40 px-3 py-2">
                   <span className="stat-label text-success shrink-0 mt-0.5">Sent</span>
                   <span className="body-xs text-text">
                     Round {bootstrap?.round?.roundNumber} is already with your facilitator and
@@ -493,7 +500,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
                 <MascotAvatar mood="warning" size={66} />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="eyebrow eyebrow-sm text-brand-500">
+                    <span className="eyebrow eyebrow-sm text-info">
                       Key Scenario {allPhaseScenarios.length > 1 ? `${resolvedThisPhase + 1}/${allPhaseScenarios.length}` : ''}
                     </span>
                   </div>
@@ -617,12 +624,17 @@ function Stat({
   // the revenue beside it — the one number the player most needed to notice was
   // the one carrying no signal at all. `warn` now tints the whole chip, the way
   // every other chip in the app already states its tone.
+  // The tone is carried by the FILL, not by a frame. These tiles used to wear a
+  // 2px border like the Cancel/Confirm buttons two rows below them, which is the
+  // one frame weight reserved for things you can press. The neutral tile had
+  // nothing else to show for it either: `border-border-soft` at 2px was its only
+  // definition, so dropping the frame means neutral needs a fill of its own.
   const toneChip =
-    tone === 'warn' ? 'border-warning bg-warning-soft/50'
-    : tone === 'cash' ? 'border-success/50 bg-success-soft/30'
-    : 'border-border-soft';
+    tone === 'warn' ? 'bg-warning-soft/50'
+    : tone === 'cash' ? 'bg-success-soft/30'
+    : 'bg-surface-2/50';
   return (
-    <div className={clsx('px-3 py-2 flex flex-col gap-0.5 border-2', toneChip)}>
+    <div className={clsx('px-3 py-2 flex flex-col gap-0.5', toneChip)}>
       <div className="flex items-center gap-1.5">
         <PixelIcon kind={icon} size={11} color={color} />
         <span className="kpi-label">{label}</span>
