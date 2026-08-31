@@ -7,6 +7,7 @@ import { computeFinalScore, type FinalScore } from './scoring';
 import { mulberry32, seedFrom } from '@/utils/rng';
 import { totalReceivables, totalPayables } from './cashflow';
 import { aggregateActive } from './modifiers';
+import { stepMultiplier } from '@/gamesim/impacts';
 import type { Phase, Segment, Size } from '@/types';
 import { SEGMENTS } from '@/data/segments';
 import { GENRES } from '@/data/finlit';
@@ -515,22 +516,28 @@ export function selectProjectedCash(s: GameState): ProjectedCashResult {
   const current = s.player.cash;
   const breakdown: Array<{ decision: string; cost: number }> = [];
 
+  // Resolve each selection to its backend item BY ID. This used to match
+  // `inp.key === sel.selectedStepKey` — a frontend key match against a field
+  // that now holds an options key, so every cost would have silently vanished
+  // from the projection. It also required a non-null `selectedStepKey`, which
+  // would have dropped binary selections (channels) that legitimately have none.
   for (const sel of s.globalInputSelections) {
-    if (!sel.selectedStepKey) continue;
+    if (!sel.inputId) continue;
 
-    const container = s.availableGlobalInputs.find((g) => g.key === sel.key);
-    if (!container) continue;
-
-    const item = container.inputs.find((inp) => inp.key === sel.selectedStepKey);
+    const item = s.availableGlobalInputs
+      .flatMap((g) => g.inputs)
+      .find((inp) => String(inp._id) === sel.inputId);
     if (!item || item.cost === 0) continue;
 
-    // Hiring cost scales by level
-    let cost = item.cost;
-    if (sel.key === 'hiring' && sel.selectedLevel != null && sel.selectedLevel > 1) {
-      cost = item.cost * Math.pow(2, sel.selectedLevel - 1);
-    }
-
-    breakdown.push({ decision: item.label, cost });
+    // The step multiplier scales the cost — replacing an invented
+    // `item.cost * 2^(level-1)` doubling curve the backend never specified.
+    // Through the shared util so this matches the server's own cost partition,
+    // including its treatment of a binary item (multiplier 1) and of a stepKey
+    // that is not a configured option (0).
+    breakdown.push({
+      decision: item.label,
+      cost: Math.ceil(item.cost * stepMultiplier(item, sel.selectedStepKey)),
+    });
   }
 
   const delta = -breakdown.reduce((sum, b) => sum + b.cost, 0);

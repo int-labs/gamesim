@@ -13,6 +13,7 @@ import type {
   DecisionGlobalInputDto,
   DecisionProductInput,
   GlobalInputDto,
+  GlobalInputItemDto,
   ProductDto,
   ProductFieldDto,
 } from './types';
@@ -156,28 +157,61 @@ export function toDecisionInputs({
     };
   });
 
-  const selectionMap = new Map(
-    (state.globalInputSelections ?? []).map((sel) => [sel.key, sel.selectedStepKey]),
-  );
-  const globalInputs: DecisionGlobalInputDto[] = [];
+  // ── Selections → globalInput snapshots, resolved BY BACKEND ID ───────────
+  //
+  // This used to build `new Map(selections.map(sel => [sel.key, ...]))` and then
+  // match each backend item's `key` against it. Two defects, both silent:
+  //
+  //   1. `Map` dedupes by key, and `globalInputSelections` is a FLAT array in
+  //      which several entries legitimately share one key — that is what
+  //      `maxSelections` exists for. Two hires, two vendors or three channels
+  //      collapsed to whichever was written last; the rest never left the
+  //      browser. The emit loop compounded it by pushing at most one entry per
+  //      item, so the payload could not represent more than one either.
+  //
+  //   2. The join was a frontend-authored string. The backend's `_id` is the
+  //      only identifier both sides agree on, and the server looks entries up
+  //      by `globalInputItemId` — so id is what the payload must be built from.
+  //
+  // Every field below is copied from the backend item. Nothing frontend-side
+  // enters the snapshot except WHICH item was selected and which of that item's
+  // own option keys was chosen.
+  const itemsById = new Map<string, { item: GlobalInputItemDto; category: string }>();
   for (const container of availableGlobalInputs) {
     for (const item of container.inputs) {
-      if (!selectionMap.has(item.key)) continue;
-      globalInputs.push({
-        globalInputItemId: item._id,
-        category:          container.category,
-        key:               item.key,
-        label:             item.label,
-        description:       item.description ?? null,
-        selectedStepKey:   selectionMap.get(item.key) ?? null,
-        cost:              item.cost,
-        energy:            item.energy,
-        productsImpacted:  item.productsImpacted,
-        impacts:           item.impacts,
-        impactLevel:       item.impactLevel ?? null,
-        options:           item.options,
-      });
+      itemsById.set(String(item._id), { item, category: container.category });
     }
+  }
+
+  const globalInputs: DecisionGlobalInputDto[] = [];
+  for (const sel of state.globalInputSelections ?? []) {
+    const found = sel.inputId ? itemsById.get(String(sel.inputId)) : undefined;
+    if (!found) {
+      // Not sendable: the server resolves the entry by `globalInputItemId`, so
+      // an unresolvable selection would be scored as unselected (quantity 0),
+      // and `calcFinancials` skips EVERY impact on a zero-quantity entry. Left
+      // out loudly rather than submitted as a snapshot the server will discard.
+      console.warn(
+        '[gamesim] a global input selection carries no backend inputId and was not submitted',
+        sel,
+      );
+      continue;
+    }
+    const { item, category } = found;
+    globalInputs.push({
+      globalInputItemId: item._id,
+      category,
+      key:               item.key,
+      label:             item.label,
+      description:       item.description ?? null,
+      selectedStepKey:   sel.selectedStepKey,
+      cost:              item.cost,
+      energy:            item.energy,
+      productsImpacted:  item.productsImpacted,
+      impacts:           item.impacts,
+      impactLevel:       item.impactLevel ?? null,
+      options:           item.options,
+    });
   }
 
   return { inputs, globalInputs };

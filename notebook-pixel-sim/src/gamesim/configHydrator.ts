@@ -34,7 +34,6 @@ import { A } from '@/assets';
 import {
   ADDON_OPTIONS,
   applyConstantOverrides,
-  CANDIDATES,
   COVER_OPTIONS,
   GENRES,
   MARKETING_TEAMS,
@@ -46,8 +45,9 @@ import {
   SCENARIOS_PER_PHASE,
   SIZE_OPTIONS,
   TYPE_OPTIONS,
-  VENDORS,
 } from '@/data/finlit';
+import { setCandidateImage } from '@/engine/finlit/core/config/hiring';
+import { setVendorImage } from '@/engine/finlit/core/config/vendors';
 import {
   CANDIDATE_STUDIES,
   VENDOR_STUDIES,
@@ -134,12 +134,6 @@ function assignKnown(dst: Dict, src: Dict, keys: string[]): void {
 function replaceArray<T>(target: T[], next: T[]): void {
   target.length = 0;
   target.push(...next);
-}
-
-/** Same, for a plain object used as a map. */
-function replaceObject(target: Dict, next: Dict): void {
-  for (const k of Object.keys(target)) delete target[k];
-  Object.assign(target, next);
 }
 
 /** Patch a CaseStudy record entry in place; creates the entry if absent. */
@@ -265,13 +259,17 @@ function applyCoupledCore(cfg: Dict, applied: string[]): void {
     applied.push('productionOptions');
   }
 
+  // Vendor NUMBERS come from the supply_chain globalInput and are read straight
+  // off it — there is no local vendor table to merge into. PlayerConfig owns the
+  // presentation only, keyed by the same id the vendor item uses. Same shape as
+  // the candidates block above.
   if (Array.isArray(cfg.vendors)) {
-    // name/cost/energy/prodBonus all come from globalInputs (hydrateVendors).
-    // PlayerConfig carries image and caseStudy only.
-    mergeById(VENDORS as any, cfg.vendors, [], {
-      image: 'imgPath',
-      after: (row, src) => patchCaseStudy(VENDOR_STUDIES, row.id, src.caseStudy),
-    });
+    for (const src of cfg.vendors as Dict[]) {
+      if (!isObj(src) || typeof src.id !== 'string' || !src.id) continue;
+      const url = imageFor(src);
+      if (url) setVendorImage(src.id, url);
+      patchCaseStudy(VENDOR_STUDIES, src.id, src.caseStudy);
+    }
     applied.push('vendors');
   }
 }
@@ -300,17 +298,17 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
     }),
   );
 
-  // Candidates are backend-hydrated from globalInputs (hiring); PlayerConfig
-  // carries image and caseStudy only. No keepsAllIds guard — the bundle has
-  // none (CANDIDATES is fully runtime-populated from globalInputs).
+  // Candidate NUMBERS come from the hiring globalInput and are read straight
+  // off it — there is no local candidate table to merge into any more. What the
+  // backend globalInput does NOT carry is presentation, so PlayerConfig owns
+  // image and caseStudy, keyed by the same id the hiring item uses. This is the
+  // whole reason PlayerConfigPage exists. No keepsAllIds guard: there is no
+  // bundled fallback set to protect.
   if (Array.isArray(cfg.candidates)) {
     for (const src of cfg.candidates as Dict[]) {
       if (!isObj(src) || typeof src.id !== 'string' || !src.id) continue;
-      const candidate = (CANDIDATES as any[]).find((c) => c.id === src.id);
-      if (candidate) {
-        const url = imageFor(src);
-        if (url) candidate.imgPath = url;
-      }
+      const url = imageFor(src);
+      if (url) setCandidateImage(src.id, url);
       patchCaseStudy(CANDIDATE_STUDIES, src.id, src.caseStudy);
     }
     applied.push('candidates');

@@ -1,4 +1,3 @@
-import clsx from 'clsx';
 import {
   motion,
   useAnimationControls,
@@ -13,7 +12,7 @@ import { EnvironmentBackground } from './EnvironmentBackground';
 import { Notebook, sizeScale } from './Notebook';
 import { lineSize } from '@/engine/selectors';
 import { AddOnLayer } from './AddOnLayer';
-import { removeAddOn, currentAddOns, setActiveLine, renameProductLine, setShopName } from '@/engine/mockEngine';
+import { currentAddOns, setActiveLine, renameProductLine, setShopName } from '@/engine/mockEngine';
 import { archetypeLabel } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { ChevronDown, Pencil } from 'lucide-react';
@@ -470,8 +469,9 @@ export function NotebookCanvas() {
         )}
       </div>
 
-      {/* "Stats ↓" — smooth-scrolls to the in-flow stats & P&L tables below
-          the canvas (they're plain page content now, not a drawer). */}
+      {/* Smooth-scrolls to the in-flow projection & P&L tables below the canvas
+          (they're plain page content now, not a drawer). Label tracks that
+          section's own heading so the chip and its destination agree. */}
       <button
         onClick={() => {
           playSfx('click-soft');
@@ -479,7 +479,7 @@ export function NotebookCanvas() {
         }}
         className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 h-[34px] bg-surface border-2 border-border text-text eyebrow eyebrow-sm shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:text-primary active:scale-95 transition-all cursor-pointer"
       >
-        Stats &amp; P&amp;L
+        Projection &amp; P&amp;L
         <NavIcon icon={ChevronDown} size={13} color="currentColor" />
       </button>
 

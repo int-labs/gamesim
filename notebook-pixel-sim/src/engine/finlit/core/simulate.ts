@@ -15,7 +15,7 @@ import {
   PHASE_LENGTH_DAYS, GAME_PHASE_TO_DEMAND, BASE_MARKET_SHARE, DEMAND_SCALE,
   HOLDING_RATE_PER_DAY,
   prodPerDay, unitCost, customersPer30d, genreDemand,
-  channelRow, hireLevel, vendorById,
+  channelRow,
   type GenreId,
 } from './config';
 import { vocFit } from './fit';
@@ -50,20 +50,29 @@ export function simulatePhase(
   // Company-wide costs + hire augments (multiplicative, matching backend pattern).
   // Each hired candidate contributes to a running multiplier; applying them
   // multiplicatively means two hires stack as (1+a)*(1+b), not (a+b) additive.
-  const hireLevels = decisions.hires.map((h) => hireLevel(h.candidate, h.level));
-  const companyOpexDay = hireLevels.reduce((sum, h) => sum + h.cost, 0);
-  const hireSellMult = hireLevels.reduce((m, h) => m * (1 + h.sellBonus), 1);
-  const hireProdMult = hireLevels.reduce((m, h) => m * (1 + h.prodBonus), 1);
-  const hireCostMult = hireLevels.reduce((m, h) => m * (1 - h.costReduction), 1);
+  // HIRING IS NOT MODELLED HERE ANY MORE. This engine used to re-derive hire
+  // effects from a local candidate table while the server derived them from the
+  // operator's `impacts` — two implementations of one rule, with the local one
+  // driving the display and the server's driving the score. Hire effects now
+  // live solely in `calcFinancials`. The neutral multipliers leave this engine's
+  // remaining job (the day-tick series) identical to an unhired run; nothing
+  // that displays money reads it.
+  const companyOpexDay = 0;
+  const hireSellMult = 1;
+  const hireProdMult = 1;
+  const hireCostMult = 1;
   const marketingMult = decisions.marketingMult ?? 1;
 
   // Build a per-line plan.
   const plans: LinePlan[] = lines.map((line) => {
     // Vendor: production-only augment, applied multiplicatively (backend pattern).
     // Cost is per-phase, amortised to daily so it flows into the series correctly.
-    const vend = line.vendor ? vendorById(line.vendor) : null;
-    const vendorProdMult = vend ? (1 + vend.prodBonus) : 1;
-    const vendorDayCost = vend ? (vend.cost / PHASE_LENGTH_DAYS) : 0;
+    // Vendors are not modelled here either, for the same reason as hiring: they
+    // are a company-wide globalInput whose effect belongs to calcFinancials,
+    // reached through `impacts` (including the per-product `selections`
+    // override). This engine no longer keeps a second opinion on it.
+    const vendorProdMult = 1;
+    const vendorDayCost = 0;
 
     // Hire prod and vendor prod both stack as multipliers on the base rate.
     const capacity = prodPerDay(line.spec) * vendorProdMult * hireProdMult;

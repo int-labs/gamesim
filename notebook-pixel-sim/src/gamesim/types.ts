@@ -193,9 +193,19 @@ export interface ProductProjectionDto {
   dynamicCost?: number;
   sellingPrice?: number;
   productScore?: number;
+  /** Production capacity the server derived for this product — the ceiling on
+   *  what the player can make. Server-owned: the local engine's `prodPerDay` /
+   *  `targetPerDay` do not feed into it. */
+  inventoryQty?: number;
+  /** Units sold = min(customersObtained, inventoryQty). */
+  unitsSold?: number;
   revenue?: number;
   COGS?: number;
   grossProfit?: number;
+  /** Period costs — inventory holding on the unsold remainder plus every
+   *  globalInput cost declared as opex. Sits BELOW the gross-profit line. */
+  operatingExpenses?: number;
+  operatingProfit?: number;
   productCostBreakdown?: Record<string, number>;
   incurredCosts?: Record<string, number> | number;
   /** Only written by the operator's round calculation, not by /projections/recalc. */

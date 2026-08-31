@@ -11,6 +11,7 @@ import { NotebookGallery } from '@/components/canvas/NotebookGallery';
 import { ArchetypeDetailModal } from '@/components/canvas/ArchetypeDetailModal';
 import { AddOnGallery } from '@/components/panels/ProductPanel';
 import { FinlitDesignControls } from '@/components/panels/FinlitDesignControls';
+import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
 import { ProductLineList } from '@/components/panels/ProductLineList';
 import { EdgeDock, type DockItem } from '@/components/hud/EdgeDock';
 import { Drawer } from '@/components/hud/Drawer';
@@ -50,7 +51,7 @@ const LEFT_META: Record<string, { title: string; icon: string }> = {
  */
 const DETAILS_ID = 'details';
 
-export function ProductPage() {
+export function ProductPage({ liveProjectionState }: { liveProjectionState?: LiveProjectionState }) {
   const leftDrawer = useGame((s) => s.ui.leftDrawer);
   const rightDrawer = useGame((s) => s.ui.rightDrawer);
   const viewMode = useGame((s) => s.ui.viewMode);
@@ -186,7 +187,9 @@ export function ProductPage() {
           transition={{ duration: 0.16, ease: [0.2, 1, 0.4, 1] }}
         >
           {leftDrawer === 'items' && <ProductLineList />}
-          {leftDrawer === 'design' && <FinlitDesignControls />}
+          {leftDrawer === 'design' && (
+            <FinlitDesignControls liveProjection={liveProjectionState?.liveProjection ?? null} />
+          )}
           {leftDrawer === 'addons' && <AddOnGallery />}
         </motion.div>
       </Drawer>

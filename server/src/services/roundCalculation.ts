@@ -31,6 +31,8 @@ import {
   DecisionGlobalInputEntry,
   ProductField,
   calcFinancials,
+  readCostTreatment,
+  toProjectionMetrics,
 } from "../sim/calcFinancials";
 
 export interface RoundCalcSuccess {
@@ -156,8 +158,14 @@ export async function runRoundCalculation(
         const teamDecision = decisionDocs.find((d: any) => d.teamId.equals(teamId));
         if (!teamDecision) continue;
 
+        // Normalised through the SAME reader the live-projection path uses, so
+        // a stored decision cannot be interpreted one way here and another way
+        // by /projections/recalc.
         const globalInputEntries: DecisionGlobalInputEntry[] =
-          (teamDecision as any).globalInputs ?? [];
+          ((teamDecision as any).globalInputs ?? []).map((gi: any) => ({
+            ...(typeof gi?.toObject === "function" ? gi.toObject() : gi),
+            costTreatment: readCostTreatment(gi),
+          }));
 
         const baseVariables: BaseVariables = {
           ...((product.baseVariables as BaseVariables) ?? {}),
@@ -194,17 +202,9 @@ export async function runRoundCalculation(
 
         if (!projectionsToUpdate[tidStr]) projectionsToUpdate[tidStr] = {};
 
+        // Shared shape, plus the competed share that only the round close has.
         projectionsToUpdate[tidStr][productKey] = {
-          customersObtained: financials.customersObtained,
-          sellingPrice: financials.sellingPrice,
-          dynamicPrice: financials.dynamicPrice,
-          productScore: financials.productScore,
-          dynamicCost: financials.dynamicCost,
-          revenue: financials.revenue,
-          COGS: financials.COGS,
-          grossProfit: financials.grossProfit,
-          productCostBreakdown: financials.productCostBreakdown,
-          incurredCosts: financials.incurredCosts,
+          ...toProjectionMetrics(financials),
           marketShare,
         };
       }

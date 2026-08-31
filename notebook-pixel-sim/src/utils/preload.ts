@@ -42,7 +42,6 @@ export function preloadImage(src: string): Promise<HTMLImageElement | null> {
     img.onload = () => resolve(img);
     img.onerror = () => {
       // Surface in dev only — tree-shaken in production builds.
-      // eslint-disable-next-line no-console
       if ((import.meta as any).env?.DEV) console.warn('[preloadImage] failed:', src);
       resolve(null);
     };

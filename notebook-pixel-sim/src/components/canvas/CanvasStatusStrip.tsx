@@ -1,112 +1,52 @@
-import { useMemo } from 'react';
 import { useGame } from '@/state/store';
 import { fmt$ } from '@/utils/format';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
-import { previewFinlitPhase } from '@/engine/mockEngine';
-import { vocFit } from '@/engine/finlit/fit';
-import type { GenreId, ProductionSpec } from '@/data/finlit';
+import { computeUserProjection } from '@/gamesim/computeUserProjection';
+import type { ServerProjectionResult } from '@/gamesim/sync';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import clsx from 'clsx';
 
-const DEFAULT_SPEC: ProductionSpec = {
-  type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
-};
-
-const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
-
 /**
- * Top-bar dashboard — the run's THREE headline outcomes, projected from the
- * live FinLit engine at the player's current settings:
+ * Top-bar dashboard — a SUMMARY of the "User Projection" section below the
+ * canvas, never a second opinion on it. Both call `computeUserProjection`, so
+ * the chip and the sheet are the same numbers by construction.
  *
- *   • Projected Revenue  — gross sales if this phase ran now
- *   • Projected Profit   — net profit (revenue − COGS − opex − channel)
- *   • Customer Satisfaction — blends product fit (do they like it?) with
- *                             fill-rate (could they buy it?)
+ * This used to run the local FinLit engine (`previewFinlitPhase`) at the
+ * player's current settings, which gave the header its own demand model, its
+ * own price and its own unit cost — none of them the ones the section showed,
+ * and none of them aware of the business page's `dynamic_cost` impacts. That
+ * engine is no longer read here.
  *
- * Replaces the old per-line config pills (Market/Fit/Price/Stock/…) — those
- * live on the Product page where you edit; the top bar answers "how am I
- * doing?", not "what am I building?".
+ * The old Customer Satisfaction figure went with it: it was computed from the
+ * FinLit fit model and never rendered.
  */
-export function CanvasStatusStrip() {
-  const hasLines = useGame((s) => s.portfolio.productLines.length > 0);
+export function CanvasStatusStrip({ liveProjection }: { liveProjection: ServerProjectionResult | null }) {
+  const lines = useGame((s) => s.portfolio.productLines);
+  if (lines.length === 0) return null;
 
-  // A compact signature of everything the projection depends on — the memo
-  // recomputes only when one of these actually changes (price/spec/target/
-  // channels/genre/hire/marketing/decision-mults/stock), never per render.
-  const sig = useGame((s) => {
-    const parts: string[] = [
-      `p${s.meta.phase}`,
-      `h${s.globalInputSelections.filter(sel => sel.key === 'hiring').map(sel => `${sel.selectedStepKey}:${sel.selectedLevel}`).join(',')}`,
-      `mb${s.globalInputSelections.find(sel => sel.key === 'marketing')?.selectedStepKey ?? ''}`,
-      `dm${s.finlit.demandMult ?? 1}`,
-      `sm${s.finlit.sellMult ?? 1}`,
-    ];
-    for (const l of s.portfolio.productLines) {
-      const stickers = (l.addOnsByArchetype?.[l.archetype] ?? []).length;
-      parts.push(
-        `${l.id}|${l.genre ?? ''}|${l.price}|${l.targetPerDay ?? ''}|` +
-        `${stickers}|${JSON.stringify(l.finlitSpec ?? {})}|${l.inventory.finished}`,
-      );
-    }
-    return parts.join(';');
-  });
-
-  const dash = useMemo(() => {
-    if (!hasLines) return null;
-    try {
-      const st = useGame.getState();
-      const res = previewFinlitPhase(st);
-      const fill = res.demandTotal > 0 ? Math.min(1, res.soldTotal / res.demandTotal) : 1;
-
-      // Demand-weighted average product fit across the portfolio.
-      let wSum = 0;
-      let fitSum = 0;
-      for (const l of st.portfolio.productLines) {
-        const genre = (l.genre ?? 'indie') as GenreId;
-        const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(l.finlitSpec ?? {}) };
-        const stickersSpend = Math.min((l.addOnsByArchetype?.[l.archetype] ?? []).length * 0.15, 100);
-        const f = vocFit(spec, l.price, stickersSpend, genre);
-        const w = Math.max(1, res.byLine.find((b) => b.lineId === l.id)?.demand ?? 1);
-        wSum += w;
-        fitSum += f * w;
-      }
-      const avgFit = wSum > 0 ? fitSum / wSum : 1;
-      // Map VoC fit (0.6–1.2, 1.0 = neutral) onto a 0–1 desirability score.
-      const fitScore = clamp01((avgFit - 0.6) / 0.55);
-      const satisfaction = Math.round(100 * (0.5 * fill + 0.5 * fitScore));
-
-      return {
-        revenue: Math.round(res.revenue),
-        profit: Math.round(res.netProfit),
-        satisfaction,
-      };
-    } catch {
-      return null;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sig, hasLines]);
-
-  if (!dash) return null;
-
-  const profitTone: Tone = dash.profit >= 0 ? 'good' : 'bad';
-  const satTone: Tone = dash.satisfaction >= 80 ? 'good' : dash.satisfaction >= 55 ? 'warn' : 'bad';
+  const { revenue, profit } = computeUserProjection(lines, liveProjection?.byProduct);
+  const profitTone: Tone = profit == null ? 'warn' : profit >= 0 ? 'good' : 'bad';
 
   return (
     <div className="flex items-stretch gap-1.5 min-w-0">
       <Kpi
         icon="revenue"
         label="Proj. Revenue"
-        value={fmt$(dash.revenue)}
+        value={fmt$(Math.round(revenue))}
         tone="revenue"
-        tip="Projected gross sales if this phase ran at your current settings."
+        tip="Your price against your own demand estimate, capped by what each line can produce. Same figure as Est. revenue in User Projection below."
       />
       <Kpi
         icon="profit"
         label="Proj. Profit"
-        value={`${dash.profit >= 0 ? '' : '−'}${fmt$(Math.abs(dash.profit))}`}
+        value={profit == null ? '–' : `${profit >= 0 ? '' : '−'}${fmt$(Math.abs(profit))}`}
         tone={profitTone}
-        tip="Projected net profit this phase - revenue minus materials, wages, marketing and channel costs."
+        tip={
+          profit == null
+            ? 'Waiting for the server projection — the per-unit cost comes from there.'
+            : 'Gross profit: projected revenue minus the cost of the same units. Operating expenses are not deducted — those land in Actual Results.'
+        }
       />
     </div>
   );

@@ -33,7 +33,6 @@ import {
   BRAND_MIN,
 } from './config';
 import {
-  vendorById as finlitVendorById,
   scenarioById as finlitScenarioById,
   GENRES,
 } from '@/data/finlit';
@@ -42,7 +41,9 @@ import type {
   LedgerEntry, Segment, ProductLine, Archetype, AddOnInstance,
   FinlitGenreId, FinlitProductionSpec, FinlitVendorId,
 } from '@/types';
-import { hireLevel } from '@/engine/finlit/core/config/hiring';
+import { hireStep } from '@/engine/finlit/core/config/hiring';
+import { vendorStep } from '@/engine/finlit/core/config/vendors';
+import type { GlobalInputItemDto } from '@/gamesim/types';
 import type { ChannelId } from '@/engine/finlit/core/config';
 import { resolveEventOption } from './eventEffects';
 import { calcRawPurchaseUnitCostForLine, getActiveLine, getLineOrThrow } from './cost';
@@ -572,28 +573,70 @@ export const resolveFinlitScenario = (s: GameState, scenarioId: string, optId: '
 };
 
 /** Engage a shipping vendor for a line (spends the vendor's phase energy). */
+/**
+ * Engage a supply-chain vendor. COMPANY-WIDE, like every other global input:
+ * one selection for the business, not one per line. `productsImpacted` on the
+ * item decides which products actually receive the bonus, and the server already
+ * enforces that when it filters globalInputs per product.
+ *
+ * This used to write `line.vendor` on a ProductLine, which meant a vendor
+ * decision never became a globalInputSelection and so NEVER REACHED THE SERVER
+ * at all — the supply-chain lever had no effect on any official number.
+ */
 export const engageFinlitVendor = (
   s: GameState,
-  vendor: FinlitVendorId,
-  lineId?: string,
+  item: GlobalInputItemDto,
+  stepKey: string | null = null,
+  maxSelections = 1,
 ): boolean => {
-  const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  const newCost = finlitVendorById(vendor)?.energy ?? 0;
-  const oldCost = line.vendor ? (finlitVendorById(line.vendor)?.energy ?? 0) : 0;
-  if (!applyEnergyDelta(s, newCost - oldCost, 'shipping')) return false;
-  line.vendor = vendor;
-  s.history.push({ day: s.meta.day, text: `${line.name} vendor → ${vendor} - ${newCost}⚡`, cause: 'finlit_vendor' });
+  const step = vendorStep(item, stepKey);
+  if (!step) return false;
+  const itemId = String(item._id);
+  const active = s.globalInputSelections.filter((sel) => sel.key === 'supply_chain');
+  const existing = active.find((sel) => sel.inputId === itemId);
+  if (!existing && active.length >= maxSelections) {
+    // At the cap and this is a NEW vendor: swap the oldest out rather than
+    // silently refusing, since the cap is usually 1 and the player is choosing.
+    const outgoing = active[0];
+    const outgoingItem = s.availableGlobalInputs
+      .find((g) => g.key === 'supply_chain')
+      ?.inputs.find((i) => String(i._id) === outgoing.inputId);
+    const refund = outgoingItem
+      ? vendorStep(outgoingItem, outgoing.selectedStepKey ?? null)?.energy ?? 0
+      : 0;
+    s.player.energy = clamp(s.player.energy + refund, 0, s.player.maxEnergy);
+    s.globalInputSelections = s.globalInputSelections.filter((sel) => sel !== outgoing);
+  }
+  const oldEnergy = existing
+    ? vendorStep(item, existing.selectedStepKey ?? null)?.energy ?? 0
+    : 0;
+  if (!applyEnergyDelta(s, step.energy - oldEnergy, `vendor ${item.key}`)) return false;
+  if (existing) {
+    existing.selectedStepKey = step.stepKey;
+  } else {
+    s.globalInputSelections.push({
+      key: 'supply_chain',
+      selectedStepKey: step.stepKey,
+      inputId: itemId,
+    });
+  }
+  s.history.push({ day: s.meta.day, text: `Vendor → ${item.label}`, cause: 'finlit_vendor' });
   return true;
 };
 
-/** Un-engage a line's shipping vendor and refund its energy. */
-export const clearFinlitVendor = (s: GameState, lineId?: string): void => {
-  const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  if (!line.vendor) return;
-  const refund = finlitVendorById(line.vendor)?.energy ?? 0;
-  s.player.energy = clamp(s.player.energy + refund, 0, s.player.maxEnergy);
-  line.vendor = undefined;
-  s.history.push({ day: s.meta.day, text: `${line.name} vendor cleared - +${refund}⚡ refunded`, cause: 'finlit_vendor' });
+/** Un-engage a vendor and refund its energy. Pass no item to clear all. */
+export const clearFinlitVendor = (s: GameState, item?: GlobalInputItemDto): void => {
+  const itemId = item ? String(item._id) : null;
+  const matches = (sel: { key: string; inputId?: string }) =>
+    sel.key === 'supply_chain' && (itemId == null || sel.inputId === itemId);
+  if (item) {
+    for (const sel of s.globalInputSelections.filter(matches)) {
+      const refund = vendorStep(item, sel.selectedStepKey ?? null)?.energy ?? 0;
+      if (refund > 0) s.player.energy = clamp(s.player.energy + refund, 0, s.player.maxEnergy);
+    }
+  }
+  s.globalInputSelections = s.globalInputSelections.filter((sel) => !matches(sel));
+  s.history.push({ day: s.meta.day, text: `Vendor cleared: ${item?.label ?? 'all'}`, cause: 'finlit_vendor' });
 };
 
 /**
@@ -812,101 +855,139 @@ const CHANNEL_ENERGY = 12; // matches globalInputs MongoDB (channel.inputs[*].en
 /** Engage or upgrade a hiring candidate. Spends only the energy delta vs the
  *  current level so upgrading costs the difference, not the full new amount.
  *  Pass maxSelections from the hydrated availableGlobalInputs at the call site. */
+/**
+ * Engage or re-level a hiring item. Takes the BACKEND item and one of its own
+ * `options` keys — never a frontend-invented candidate id, which the server
+ * cannot resolve and scores as unselected (dropping every impact on it).
+ *
+ * One selection per backend item, identified by `inputId` (`item._id`), so a
+ * re-level updates in place and the payload carries every hire rather than
+ * collapsing them.
+ */
 export const engageFinlitHire = (
   s: GameState,
-  candidateId: string,
-  level: 1 | 2 | 3 | 4,
+  item: GlobalInputItemDto,
+  stepKey: string,
   maxSelections = 3,
-  inputId?: string,
 ): boolean => {
-  console.log('[decision] engageFinlitHire', candidateId, 'L' + level);
-  const lv = hireLevel(candidateId, level);
+  console.log('[decision] engageFinlitHire', item.key, '→ step', stepKey);
+  const step = hireStep(item, stepKey);
+  if (!step) return false; // not a configured option on this item
+  const itemId = String(item._id);
   const activeHires = s.globalInputSelections.filter((sel) => sel.key === 'hiring');
-  const existing = activeHires.find((sel) => sel.selectedStepKey === candidateId);
+  const existing = activeHires.find((sel) => sel.inputId === itemId);
   if (!existing && activeHires.length >= maxSelections) return false;
-  const oldEnergy = existing?.selectedLevel
-    ? hireLevel(candidateId, existing.selectedLevel as 1 | 2 | 3 | 4).energy
-    : 0;
-  if (!applyEnergyDelta(s, lv.energy - oldEnergy, `hire ${candidateId}`)) return false;
+  // Charge only the DIFFERENCE, so re-levelling costs the delta, not the full
+  // new amount. The previous energy comes from the step already stored.
+  const oldEnergy = hireStep(item, existing?.selectedStepKey ?? null)?.energy ?? 0;
+  if (!applyEnergyDelta(s, step.energy - oldEnergy, `hire ${item.key}`)) return false;
   if (existing) {
-    existing.selectedLevel = level;
-    if (inputId) existing.inputId = inputId;
+    existing.selectedStepKey = stepKey;
   } else {
-    s.globalInputSelections.push({ key: 'hiring', selectedStepKey: candidateId, inputId, selectedLevel: level });
+    s.globalInputSelections.push({ key: 'hiring', selectedStepKey: stepKey, inputId: itemId });
   }
-  s.history.push({ day: s.meta.day, text: `Hired ${candidateId} L${level}`, cause: 'finlit_hire' });
+  s.history.push({ day: s.meta.day, text: `Hired ${item.label} (${stepKey})`, cause: 'finlit_hire' });
   return true;
 };
 
-/** Release a candidate and refund their energy. Pass no candidateId to clear all. */
-export const clearFinlitHire = (s: GameState, candidateId?: string): void => {
-  console.log('[decision] clearFinlitHire', candidateId ?? 'all');
-  const targets = s.globalInputSelections.filter(
-    (sel) => sel.key === 'hiring' && (candidateId == null || sel.selectedStepKey === candidateId),
-  );
-  for (const sel of targets) {
-    if (sel.selectedStepKey && sel.selectedLevel) {
-      const refund = hireLevel(sel.selectedStepKey!, sel.selectedLevel!).energy;
-      s.player.energy = clamp(s.player.energy + refund, 0, s.player.maxEnergy);
+/**
+ * Release a hire and refund its energy. Pass no item to clear all — in which
+ * case nothing is refunded, because working out each refund needs the item that
+ * priced it and the caller did not supply one.
+ */
+export const clearFinlitHire = (s: GameState, item?: GlobalInputItemDto): void => {
+  const itemId = item ? String(item._id) : null;
+  console.log('[decision] clearFinlitHire', item?.key ?? 'all');
+  const matches = (sel: { key: string; inputId?: string }) =>
+    sel.key === 'hiring' && (itemId == null || sel.inputId === itemId);
+  if (item) {
+    for (const sel of s.globalInputSelections.filter(matches)) {
+      const refund = hireStep(item, sel.selectedStepKey ?? null)?.energy ?? 0;
+      if (refund > 0) s.player.energy = clamp(s.player.energy + refund, 0, s.player.maxEnergy);
     }
   }
-  s.globalInputSelections = s.globalInputSelections.filter(
-    (sel) => !(sel.key === 'hiring' && (candidateId == null || sel.selectedStepKey === candidateId)),
-  );
-  s.history.push({ day: s.meta.day, text: `Released hire: ${candidateId ?? 'all'}`, cause: 'finlit_hire_clear' });
+  s.globalInputSelections = s.globalInputSelections.filter((sel) => !matches(sel));
+  s.history.push({ day: s.meta.day, text: `Released hire: ${item?.label ?? 'all'}`, cause: 'finlit_hire_clear' });
 };
 
 /** Set the marketing slider step (e.g. "1", "-2", "0"). No energy gate —
  *  marketing has energy: 0 in the backend globalInputs schema. */
-export const setFinlitMarketingBudget = (s: GameState, stepKey: string, inputId?: string): void => {
+export const setFinlitMarketingBudget = (
+  s: GameState,
+  item: GlobalInputItemDto,
+  stepKey: string,
+): boolean => {
   console.log('[decision] setFinlitMarketingBudget', stepKey);
-  const level = parseInt(stepKey, 10);
-  const entry = {
-    key: 'marketing',
-    selectedStepKey: stepKey,
-    inputId,
-    selectedLevel: Number.isFinite(level) ? level : 0,
-  };
+  // `stepKey` must be a key of the item's own `options` map — the caller reads it
+  // from there. It used to be a raw slider integer (0…40, from a hardcoded
+  // frontend BUDGET_MAX) that the server could not look up.
+  //
+  // ENERGY: this used to charge nothing, on the since-outdated grounds that
+  // marketing had `energy: 0` in the schema. Energy now comes from the item and
+  // scales with the step, exactly like a hire, and only the DELTA is charged so
+  // moving between steps costs the difference and stepping back down refunds.
+  const stepEnergy = (key: string | null | undefined): number =>
+    key == null ? 0 : Math.ceil((item.energy ?? 0) * (item.options?.[key] ?? 0));
+
   const idx = s.globalInputSelections.findIndex((sel) => sel.key === 'marketing');
+  const oldEnergy = idx >= 0 ? stepEnergy(s.globalInputSelections[idx].selectedStepKey) : 0;
+  if (!applyEnergyDelta(s, stepEnergy(stepKey) - oldEnergy, 'marketing')) return false;
+
+  const entry = { key: 'marketing', selectedStepKey: stepKey, inputId: String(item._id) };
   if (idx >= 0) Object.assign(s.globalInputSelections[idx], entry);
   else s.globalInputSelections.push(entry);
   s.history.push({ day: s.meta.day, text: `Marketing → step ${stepKey}`, cause: 'finlit_marketing' });
+  return true;
 };
 
 /** No-op stub. Sales boost comes from hiring (candidates B/D impact sales_channel),
  *  not a separate budget slider — there is no salesBudget in globalInputs. */
 export const setFinlitSalesBudget = (_s: GameState, _v: unknown): void => {};
 
-/** Pure selector — returns active ChannelIds from globalInputSelections. */
-export const finlitCompanyChannels = (s: GameState): ChannelId[] =>
-  s.globalInputSelections
-    .filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null)
-    .map((sel) => sel.selectedStepKey as ChannelId);
+/**
+ * Pure selector — active ChannelIds from globalInputSelections.
+ *
+ * Channel selections identify the backend ITEM by `inputId`; the ChannelId the
+ * local tables key on is that item's `key`, so it is resolved here rather than
+ * stored. Storing it would put a frontend id back in the selection, which is
+ * what the server cannot resolve.
+ */
+export const finlitCompanyChannels = (s: GameState): ChannelId[] => {
+  const channelItems = s.availableGlobalInputs.find((g) => g.key === 'channel')?.inputs ?? [];
+  return s.globalInputSelections
+    .filter((sel) => sel.key === 'channel')
+    .map((sel) => channelItems.find((item) => String(item._id) === sel.inputId)?.key)
+    .filter((key): key is ChannelId => key != null);
+};
 
 /** Toggle a sales channel. Enforces maxSelections from the backend config.
  *  Pass maxSelections from the hydrated availableGlobalInputs at the call site.
  *  The UI is responsible for preventing removal of the last active channel. */
 export const toggleFinlitChannelAll = (
   s: GameState,
-  channelId: ChannelId,
+  item: GlobalInputItemDto,
   maxSelections = 1,
 ): boolean => {
-  console.log('[decision] toggleFinlitChannelAll', channelId);
-  const active = s.globalInputSelections.filter(
-    (sel) => sel.key === 'channel' && sel.selectedStepKey != null,
-  );
+  // A channel is one backend ITEM, toggled on or off. It carries no option
+  // steps, so `selectedStepKey` stays null and the server treats the entry as
+  // binary (selected ⇒ multiplier 1). `inputId` is mandatory: without it the
+  // payload builder cannot resolve the entry and drops the selection.
+  const itemId = String(item._id);
+  console.log('[decision] toggleFinlitChannelAll', item.key);
+  const active = s.globalInputSelections.filter((sel) => sel.key === 'channel');
   const idx = s.globalInputSelections.findIndex(
-    (sel) => sel.key === 'channel' && sel.selectedStepKey === channelId,
+    (sel) => sel.key === 'channel' && sel.inputId === itemId,
   );
+  const energy = item.energy || CHANNEL_ENERGY;
   if (idx >= 0) {
     s.globalInputSelections.splice(idx, 1);
-    s.player.energy = clamp(s.player.energy + CHANNEL_ENERGY, 0, s.player.maxEnergy);
-    s.history.push({ day: s.meta.day, text: `Channel ${channelId} removed`, cause: 'finlit_channel' });
+    s.player.energy = clamp(s.player.energy + energy, 0, s.player.maxEnergy);
+    s.history.push({ day: s.meta.day, text: `Channel ${item.label} removed`, cause: 'finlit_channel' });
   } else {
     if (active.length >= maxSelections) return false;
-    if (!applyEnergyDelta(s, CHANNEL_ENERGY, `channel ${channelId}`)) return false;
-    s.globalInputSelections.push({ key: 'channel', selectedStepKey: channelId });
-    s.history.push({ day: s.meta.day, text: `Channel ${channelId} added`, cause: 'finlit_channel' });
+    if (!applyEnergyDelta(s, energy, `channel ${item.key}`)) return false;
+    s.globalInputSelections.push({ key: 'channel', selectedStepKey: null, inputId: itemId });
+    s.history.push({ day: s.meta.day, text: `Channel ${item.label} added`, cause: 'finlit_channel' });
   }
   return true;
 };

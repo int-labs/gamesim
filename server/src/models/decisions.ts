@@ -19,7 +19,14 @@ const decisionGlobalInputSchema = new Schema(
     label:             { type: String, required: true },
     description:       { type: String, default: null },
     selectedStepKey:   { type: String, default: null },
+    // `cost` is retained ONLY so pre-existing decisions still read. New writes
+    // populate costTreatment; nothing reads `cost` except the legacy branch of
+    // readCostTreatment() in sim/calcFinancials.ts.
     cost:              { type: Number, default: 0 },
+    costTreatment: {
+      cogs: { type: Number, default: 0 },
+      opex: { type: Number, default: 0 },
+    },
     energy:            { type: Number, default: 0 },
     productsImpacted:  { type: [Schema.Types.ObjectId], ref: "Product", default: [] },
     impacts:           { type: Schema.Types.Mixed, default: {} },
@@ -71,7 +78,9 @@ export interface IDecisionGlobalInput {
   label:             string;
   description:       string | null;
   selectedStepKey:   string | null;
+  /** Legacy total. Read only via `readCostTreatment`; new writes use costTreatment. */
   cost:              number;
+  costTreatment:     { cogs: number; opex: number };
   energy:            number;
   productsImpacted:  Types.ObjectId[];
   impacts:           Record<string, { type: "relative" | "absolute"; value: number }>;

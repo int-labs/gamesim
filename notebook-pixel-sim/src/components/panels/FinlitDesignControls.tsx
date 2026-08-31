@@ -1,13 +1,12 @@
 import { useGame } from '@/state/store';
+import { setFinlitAxis, setPrice } from '@/engine/mockEngine';
 import {
-  setLineGenre, setFinlitAxis, setPrice,
-} from '@/engine/mockEngine';
-import {
-  GENRES, CONFIG_TABLES, CHANNEL_META, prodPerDay, unitCost,
+  CONFIG_TABLES, CHANNEL_META, prodPerDay, unitCost,
   type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
 } from '@/data/finlit';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
 import { fmt$, fmtInt, perPhase } from '@/utils/format';
+import type { ServerProjectionResult } from '@/gamesim/sync';
 import clsx from 'clsx';
 
 /**
@@ -37,12 +36,21 @@ const DEFAULT_SPEC: ProductionSpec = {
   type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
 };
 
-export function FinlitDesignControls() {
+export function FinlitDesignControls({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
   const line = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
   );
+  const lineIndex = useGame((s) =>
+    s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId),
+  );
   const apply = useGame((s) => s.apply);
-  const phase = useGame((s) => s.meta.phase);
+  // Channels from globalInputSelections (backend-driven, company-wide).
+  const activeChannels = useGame((s) =>
+    s.globalInputSelections
+      .filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null)
+      .map((sel) => sel.selectedStepKey as ChannelId),
+  );
+
   if (!line) {
     return <div className="body-sm text-text-2 p-2">Add a notebook first, then design it here.</div>;
   }
@@ -57,16 +65,18 @@ export function FinlitDesignControls() {
     addon: line.finlitSpec?.addon ?? DEFAULT_SPEC.addon,
     cover: line.finlitSpec?.cover ?? DEFAULT_SPEC.cover,
   };
-  // Channels from globalInputSelections (backend-driven, company-wide).
-  const activeChannels = useGame((s) =>
-    s.globalInputSelections
-      .filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null)
-      .map((sel) => sel.selectedStepKey as ChannelId),
-  );
   const channelLabel = activeChannels.map((c) => CHANNEL_META[c].name).join(' + ');
-  const stickersSpend = Math.min((line.addOnsByArchetype?.[line.archetype] ?? []).length * 0.15, 100);
-  const capacity = prodPerDay(spec, 0);
-  const uCost = unitCost(spec);
+
+  // Unit cost and capacity come from the SERVER's projection for this line.
+  // The local `unitCost(spec)` / `prodPerDay(spec)` tables know only the spec
+  // above — they are blind to every business-page choice (hiring, vendors, the
+  // `dynamic_cost` impacts), so the margin shown while setting price was being
+  // computed against a cost the actual P&L never used. They remain as the
+  // offline fallback, which is the only case where the spec is all we know.
+  const proj = liveProjection?.byProduct[lineIndex] ?? liveProjection?.byProduct[0] ?? null;
+  const fromServer = proj?.dynamicCost != null;
+  const uCost = proj?.dynamicCost ?? unitCost(spec);
+  const capacityPerPhase = proj?.inventoryQty ?? perPhase(prodPerDay(spec, 0));
   const margin = line.price - uCost;
 
   return (
@@ -105,12 +115,18 @@ export function FinlitDesignControls() {
         />
       </Section>
 
-      {/* ── Live feedback (the numbers the engine uses) ── */}
+      {/* ── Live feedback — the server's figures for this line, so the margin
+           you price against is the one the P&L will actually use. ── */}
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Capacity" value={`${fmtInt(perPhase(capacity))} / phase`} tone="info" />
+        <Stat label="Capacity" value={`${fmtInt(Math.round(capacityPerPhase))} / phase`} tone="info" />
         <Stat label="Unit cost" value={fmt$(uCost)} tone="warn" />
         <Stat label="Margin" value={fmt$(margin)} tone={margin > 0 ? 'good' : 'bad'} />
       </div>
+      {!fromServer && (
+        <div className="hint text-text-3">
+          Estimated from the spec alone - business decisions are not reflected until the server projection loads.
+        </div>
+      )}
 
       {/* Signpost — these used to live here; tell the player where they went. */}
       <div className="hint border-t border-border-soft pt-3">

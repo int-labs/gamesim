@@ -5,7 +5,7 @@ import Projection from "../models/projections";
 import { ROLES } from "../constants/roles";
 import BaseData from "../models/baseData";
 import Round from "../models/rounds";
-import { calcFinancials, ProductField, BaseVariables } from "../sim/calcFinancials";
+import { calcFinancials, readCostTreatment, toProjectionMetrics, ProductField, BaseVariables } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
 export const getProjectionsByTeam = async (req: Request, res: Response): Promise<void> => {
@@ -205,6 +205,7 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
           impacts:           gi.impacts,
           impactLevel:       gi.impactLevel,
           cost:              gi.cost,
+          costTreatment:     readCostTreatment(gi),
           energy:            gi.energy,
           productsImpacted:  (gi.productsImpacted ?? []).map((id: any) => new mongoose.Types.ObjectId(id)),
         })),
@@ -230,21 +231,11 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
         baseVariables,
       });
 
-      const { customersObtained, dynamicPrice, dynamicCost, productCostBreakdown, revenue, COGS, grossProfit, incurredCosts, sellingPrice, productScore } = results[0];
       const productKey = String(product._id);
 
-      projectionUpdates[`projections.${productKey}`] = {
-        customersObtained,
-        dynamicPrice,
-        dynamicCost,
-        sellingPrice,
-        productScore,
-        revenue,
-        COGS,
-        grossProfit,
-        productCostBreakdown,
-        incurredCosts,
-      };
+      // Shared shape — see toProjectionMetrics. Do not inline a literal here;
+      // the round-close writer must stay in step with this one.
+      projectionUpdates[`projections.${productKey}`] = toProjectionMetrics(results[0]);
     }
 
     // ── Upsert all product projections in one operation ───────────────────

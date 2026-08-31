@@ -8,6 +8,7 @@ import type { LedgerEntry } from '@/types';
 import { GENRES, type GenreId } from '@/data/finlit';
 import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
 import type { ServerProjectionResult, ServerProductProjection } from '@/gamesim/sync';
+import { computeUserProjection } from '@/gamesim/computeUserProjection';
 
 /**
  * The single home for every number the sim shows the player, rendered as
@@ -39,55 +40,96 @@ const toneText: Record<Tone, string> = {
   cash: 'text-fin-cash',
 };
 
+/** Desk dressing — faint scattered blank sheets behind the documents. */
+function DeskDressing() {
+  return (
+    <div aria-hidden className="absolute inset-0 pointer-events-none">
+      <div className="absolute left-[6%] top-24 w-64 h-44 bg-cream-100/[0.05] border border-cream-100/10 -rotate-6" />
+      <div className="absolute right-[8%] top-16 w-72 h-48 bg-cream-100/[0.05] border border-cream-100/10 rotate-3" />
+      <div className="absolute left-[38%] bottom-10 w-80 h-40 bg-cream-100/[0.04] border border-cream-100/10 rotate-1" />
+    </div>
+  );
+}
+
+/** Section heading — icon, title, and a line saying where the numbers came from. */
+function DeskHeader({ icon, title, blurb, note }: { icon: string; title: string; blurb: string; note?: React.ReactNode }) {
+  return (
+    <header className="relative flex items-center gap-2.5 mb-6">
+      <span className="inline-flex items-center justify-center w-9 h-9 border border-cream-100/25 bg-black/25">
+        <img src={icon} alt="" className="w-6 h-6 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
+      </span>
+      <div className="min-w-0">
+        <div className="pixel-caption text-cream-100">{title}</div>
+        <div className="body-xs text-cream-100/80 hidden md:block mt-1">{blurb}</div>
+      </div>
+      {note}
+    </header>
+  );
+}
+
 /**
- * BottomStats — the stats & P&L as DOCUMENTS ON A DESK. Scrolling down the
- * page reveals three paper sheets (Active Notebook, Portfolio, P&L) that
- * LIFT off the desk as they enter view — rising, straightening from a
- * scattered tilt, each held down by tape strips — like picking up paperwork
- * to read it. `id="stats-section"` is the scroll anchor for the canvas
- * "Stats ↓" chip. Reduced-motion renders everything settled instantly.
+ * BottomStats — the paperwork as DOCUMENTS ON A DESK. Scrolling down the page
+ * reveals paper sheets that LIFT off the desk as they enter view — rising,
+ * straightening from a scattered tilt, each held down by tape strips — like
+ * picking up paperwork to read it. Reduced-motion renders everything settled
+ * instantly.
+ *
+ * TWO sections, deliberately not one. `User Projection` holds what the player
+ * expects — their own demand estimates and the revenue those imply. `Actual
+ * Results` holds what happened once the round was scored. The figures do not
+ * match and are not supposed to: they answer different questions, and running
+ * them under one heading read as a single ledger disagreeing with itself.
+ *
+ * `id="stats-section"` stays the scroll anchor for the canvas chip, landing on
+ * the projection; `id="pnl-section"` anchors the results.
  */
 export function BottomStats({ liveProjectionState }: { liveProjectionState: LiveProjectionState }) {
   const { liveProjection, loading } = liveProjectionState;
 
   return (
-    <section
-      id="stats-section"
-      aria-label="Stats and profit &amp; loss"
-      className="relative shrink-0 px-3 sm:px-8 pt-8 pb-16 overflow-hidden"
-    >
-      {/* Desk dressing — faint scattered blank sheets behind the documents. */}
-      <div aria-hidden className="absolute inset-0 pointer-events-none">
-        <div className="absolute left-[6%] top-24 w-64 h-44 bg-cream-100/[0.05] border border-cream-100/10 -rotate-6" />
-        <div className="absolute right-[8%] top-16 w-72 h-48 bg-cream-100/[0.05] border border-cream-100/10 rotate-3" />
-        <div className="absolute left-[38%] bottom-10 w-80 h-40 bg-cream-100/[0.04] border border-cream-100/10 rotate-1" />
-      </div>
+    <>
+      <section
+        id="stats-section"
+        aria-label="User projection"
+        className="relative shrink-0 px-3 sm:px-8 pt-8 pb-10 overflow-hidden"
+      >
+        <DeskDressing />
+        <DeskHeader
+          icon={A.ui.sidebar.metrics}
+          title="User Projection"
+          blurb="What you expect this phase - your own estimates for the active notebook and the whole portfolio"
+          note={loading ? <span className="body-xs text-cream-100/50 ml-2">Updating…</span> : undefined}
+        />
 
-      <header className="relative flex items-center gap-2.5 mb-6">
-        <span className="inline-flex items-center justify-center w-9 h-9 border border-cream-100/25 bg-black/25">
-          <img src={A.ui.sidebar.metrics} alt="" className="w-6 h-6 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
-        </span>
-        <div className="min-w-0">
-          <div className="pixel-caption text-cream-100">Stats &amp; P&amp;L</div>
-          <div className="body-xs text-cream-100/80 hidden md:block mt-1">
-            Your paperwork - the active notebook, the whole portfolio, and the run's finances
-          </div>
+        <div className="relative grid gap-5 lg:grid-cols-2 items-start">
+          <PaperSheet title="Active Notebook" icon={A.ui.sidebar.product} tilt={-0.6}>
+            <NotebookMetrics liveProjection={liveProjection} />
+          </PaperSheet>
+          <PaperSheet title="Portfolio" icon={A.ui.sidebar.metrics} tilt={0.5} delay={0.08}>
+            <PortfolioMetrics liveProjection={liveProjection} />
+          </PaperSheet>
         </div>
-        {loading && <span className="body-xs text-cream-100/50 ml-2">Updating…</span>}
-      </header>
+      </section>
 
-      <div className="relative grid gap-5 lg:grid-cols-2 mb-6 items-start">
-        <PaperSheet title="Active Notebook" icon={A.ui.sidebar.product} tilt={-0.6}>
-          <NotebookMetrics liveProjection={liveProjection} />
+      {/* A separate section, with its own heading and its own rule above it —
+          the divider is the point. Everything below it is recorded outcome. */}
+      <section
+        id="pnl-section"
+        aria-label="Actual results"
+        className="relative shrink-0 px-3 sm:px-8 pt-8 pb-16 overflow-hidden border-t border-cream-100/15"
+      >
+        <DeskDressing />
+        <DeskHeader
+          icon={A.ui.pnl.operating_profit}
+          title="Actual Results"
+          blurb="What actually happened - recorded once each phase was scored, not an estimate"
+        />
+
+        <PaperSheet title="Profit & Loss · by phase" icon={A.ui.pnl.operating_profit} tilt={0.35} delay={0.05} className="relative">
+          <FinanceTable />
         </PaperSheet>
-        <PaperSheet title="Portfolio" icon={A.ui.sidebar.metrics} tilt={0.5} delay={0.08}>
-          <PortfolioMetrics liveProjection={liveProjection} />
-        </PaperSheet>
-      </div>
-      <PaperSheet title="Profit & Loss · by phase" icon={A.ui.pnl.operating_profit} tilt={0.35} delay={0.05} className="relative">
-        <FinanceTable />
-      </PaperSheet>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -240,7 +282,6 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
   const lineIndex = useGame((s) =>
     s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId),
   );
-  const finished = useGame((s) => s.inventory.totalFinished);
   const channelCount = useGame((s) =>
     s.globalInputSelections.filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null).length,
   );
@@ -253,21 +294,60 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
   // Server projection for this specific line (index-aligned with portfolio order).
   const proj: ServerProductProjection | null = liveProjection?.byProduct[lineIndex] ?? liveProjection?.byProduct[0] ?? null;
 
-  const revenue = proj?.revenue;
-  const customers = proj?.customersObtained;
   const unitCost = proj?.dynamicCost;
-  const grossProfit = proj?.grossProfit;
+  const capacity = proj?.inventoryQty;
   const price = proj?.sellingPrice ?? line.price;
 
   const marginPct = unitCost != null && price > 0 ? Math.round(((price - unitCost) / price) * 100) : null;
   const marginTone: Tone = marginPct == null ? 'neutral' : marginPct >= 40 ? 'success' : marginPct >= 15 ? 'info' : 'warn';
 
+  // Projected demand is the PLAYER's figure — the per-line estimate typed into
+  // the Business panel and stored as ProductLine.demandEstPerPhase. It is not
+  // the server's `customersObtained`: that is the model's own forecast, and
+  // showing it under this label put a number the player never entered where
+  // they expect to read back their own. Being local, it renders with or without
+  // a server projection.
+  const demandEst = line.demandEstPerPhase ?? 0;
+
+  // Projected revenue is the PLAYER's arithmetic, not the server's: their price
+  // against their own demand estimate, clamped to the production capacity the
+  // current spec can actually deliver. Above capacity the extra demand is
+  // unsellable, so the ceiling — never the estimate — sets the revenue.
+  // With no server projection there is no known ceiling, so the estimate stands
+  // unclamped rather than being silently treated as zero capacity.
+  const sellableUnits = capacity != null ? Math.min(demandEst, capacity) : demandEst;
+  const projRevenue = price * sellableUnits;
+  const cappedByCapacity = capacity != null && demandEst > capacity;
+
+  // Gross profit on the projection's own terms: cost charged against the very
+  // units the revenue came from. Operating expenses stay out — they are the
+  // server's to compute and belong to Actual Results, not to a forecast.
+  const projProfit = unitCost != null ? sellableUnits * (price - unitCost) : null;
+
+  const demandRow: KVRow = {
+    key: 'demand',
+    label: 'Projected demand',
+    num: demandEst,
+    format: fmtInt,
+    tone: demandEst === 0 ? 'warn' : 'neutral',
+    sub: demandEst === 0 ? 'set an estimate in the Business panel' : 'your estimate for this phase',
+  };
+
+  // Three figures only. The full breakdown lives in the Finance tab; repeating
+  // COGS / gross profit / opex here was the redundancy that let two panels tell
+  // two stories about the same round. Profit is the OPERATING profit — the
+  // server's bottom line, not the gross-profit midpoint.
   const projRows: KVRow[] = proj ? [
-    { key: 'revenue',   label: 'Revenue',      num: Math.round(revenue ?? 0),    format: fmt$,   tone: 'revenue' },
-    { key: 'customers', label: 'Customers',     num: Math.round(customers ?? 0),  format: fmtInt, tone: 'neutral' },
-    { key: 'ucost',     label: 'Unit cost',     num: unitCost ?? 0,               format: fmt$,   tone: 'cost',   sub: 'per notebook (incl. modifiers)' },
-    { key: 'gprofit',   label: 'Gross profit',  num: Math.round(grossProfit ?? 0), format: fmt$,  tone: (grossProfit ?? 0) >= 0 ? 'profit' : 'danger' },
+    { key: 'revenue',  label: 'Projected revenue', num: Math.round(projRevenue), format: fmt$, tone: 'revenue',
+      sub: cappedByCapacity
+        ? `capacity caps this at ${Math.round(sellableUnits).toLocaleString()} × ${fmt$(price)}`
+        : `${Math.round(sellableUnits).toLocaleString()} × ${fmt$(price)}` },
+    demandRow,
+    { key: 'gprofit', label: 'Projected profit', num: Math.round(projProfit ?? 0), format: fmt$,
+      tone: (projProfit ?? 0) >= 0 ? 'profit' : 'danger',
+      emphasis: 'highlight', sub: 'revenue − COGS on the same units' },
   ] : [
+    demandRow,
     { key: 'pending', label: 'Waiting for server projection…', value: '–', tone: 'neutral' },
   ];
 
@@ -279,8 +359,15 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
       rows: [
         { key: 'genre',    label: 'Genre',          value: genreName,                              tone: 'info' },
         { key: 'price',    label: 'Price',           num: line.price, format: fmt$,                 tone: 'neutral' },
-        { key: 'channels', label: 'Channels active', value: `${channelCount}/3`,                   tone: channelCount === 0 ? 'warn' : 'neutral' },
+        // Price → unit cost → margin, in the order the margin is worked out.
+        // The Portfolio sheet shows the average across lines; this is the one
+        // line the player is editing, which is the figure that average is made
+        // of and the one the design choices actually move.
+        ...(unitCost != null
+          ? [{ key: 'ucost', label: 'Unit cost', num: unitCost, format: fmt$, tone: 'cost' as Tone, sub: 'per notebook, from this spec' } as KVRow]
+          : []),
         ...(marginPct != null ? [{ key: 'margin', label: 'Margin', value: `${marginPct}%`, tone: marginTone } as KVRow] : []),
+        { key: 'channels', label: 'Channels active', value: `${channelCount}/3`,                   tone: channelCount === 0 ? 'warn' : 'neutral' },
       ],
     },
     {
@@ -293,8 +380,14 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
       key: 'inventory',
       icon: A.ui.metrics.inventory,
       title: 'Inventory',
+      // Capacity, not local finished stock. The server derives this ceiling from
+      // the product's own field values and clamps units sold to it, so it is the
+      // only figure that explains the projection above. The local engine's
+      // prodPerDay / targetPerDay do NOT feed it.
       rows: [
-        { key: 'stock', label: 'Stock on hand', num: finished, format: fmtInt, tone: finished === 0 ? 'danger' : 'neutral', sub: finished === 0 ? 'Confirm the phase to produce' : undefined },
+        capacity != null
+          ? { key: 'capacity', label: 'Capacity', num: Math.round(capacity), format: fmtInt, tone: capacity === 0 ? 'danger' : 'neutral', sub: 'units this line can make this phase' }
+          : { key: 'capacity', label: 'Capacity', value: '–', tone: 'neutral', sub: 'waiting for server projection' },
       ],
     },
   ];
@@ -311,22 +404,30 @@ interface PnLRow {
   kinds: LedgerEntry['kind'][];
   sign: 'plus' | 'minus';
   emphasis?: RowEmphasis;
-  computed?: 'gross-profit' | 'op-profit' | 'cash';
+  computed?: 'gross-profit' | 'op-ex' | 'op-profit' | 'cash';
   cause: string;
-  group: 'revenue' | 'cost' | 'profit' | 'cash';
+  group: 'revenue' | 'cogs' | 'opex' | 'profit' | 'cash';
 }
 
+// Row order IS the sheet. `cogs` rows must precede the Gross Profit subtotal and
+// `opex` rows must follow it — the server's calcFinancials computes exactly this
+// partition (COGS on units sold; holding + period costs below the line), and a
+// row rendered on the wrong side reads as a different formula than it computes.
 const PNL_ROWS: PnLRow[] = [
   { label: 'Gross Revenue',        icon: A.ui.pnl.gross_revenue,    kinds: ['revenue'],       sign: 'plus',  group: 'revenue', cause: 'Units sold × price' },
-  { label: 'Material Cost',        icon: A.ui.pnl.material_cost,    kinds: ['cogs-material'], sign: 'minus', group: 'cost',    cause: 'Paper, cover, binding, add-ons' },
-  { label: 'Labor Cost',           icon: A.ui.pnl.labor_cost,       kinds: ['cogs-labor'],    sign: 'minus', group: 'cost',    cause: 'Wages × hires' },
-  { label: 'Marketing / Ops',      icon: A.ui.pnl.marketing_spend,  kinds: ['opex-marketing'],sign: 'minus', group: 'cost',    cause: 'Marketing team + hiring cost' },
-  { label: 'Channel & Holding',    icon: A.ui.pnl.fulfillment_cost, kinds: ['opex-rent'],     sign: 'minus', group: 'cost',    cause: 'Channel maintenance + consignment + unsold-stock holding' },
-  { label: 'Packaging / Fulfill.', icon: A.ui.pnl.packaging_cost,   kinds: ['cogs-packaging','cogs-fulfillment'], sign: 'minus', group: 'cost', cause: 'Per-unit packaging + shipping' },
-  { label: 'Tools / Upgrades',     icon: A.ui.sidebar.studio,       kinds: ['opex-tool'],     sign: 'minus', group: 'cost',    cause: 'One-off equipment, supplier deals' },
-  { label: 'Gross Profit',         icon: A.ui.metrics.profit,       kinds: [], sign: 'plus', emphasis: 'subtotal',  computed: 'gross-profit', group: 'profit', cause: 'Revenue minus all COGS' },
-  { label: 'Operating Profit',     icon: A.ui.pnl.operating_profit, kinds: [], sign: 'plus', emphasis: 'highlight', computed: 'op-profit',    group: 'profit', cause: 'Gross profit minus operating expenses' },
-  { label: 'Cash Balance',         icon: A.ui.pnl.net_revenue,      kinds: [], sign: 'plus', emphasis: 'highlight', computed: 'cash',         group: 'cash',   cause: 'Cash on hand right now (timing-aware)' },
+  { label: 'Material Cost',        icon: A.ui.pnl.material_cost,    kinds: ['cogs-material'], sign: 'minus', group: 'cogs',    cause: 'Paper, cover, binding, add-ons' },
+  { label: 'Labor Cost',           icon: A.ui.pnl.labor_cost,       kinds: ['cogs-labor'],    sign: 'minus', group: 'cogs',    cause: 'Wages × hires — direct labor' },
+  { label: 'Packaging / Fulfill.', icon: A.ui.pnl.packaging_cost,   kinds: ['cogs-packaging','cogs-fulfillment'], sign: 'minus', group: 'cogs', cause: 'Per-unit packaging + shipping' },
+  { label: 'Gross Profit',         icon: A.ui.metrics.profit,       kinds: [], sign: 'plus', emphasis: 'subtotal',  computed: 'gross-profit', group: 'profit', cause: 'Revenue − COGS' },
+  // Channel & holding is NOT itemised separately: in the V3 economy the other
+  // two opex kinds are $0, so a `Channel & Holding` line item and an
+  // `Operating Expenses` subtotal rendered the identical figure twice. The
+  // subtotal absorbs it, and stays correct if marketing/tools ever go live.
+  { label: 'Marketing / Ops',      icon: A.ui.pnl.marketing_spend,  kinds: ['opex-marketing'],sign: 'minus', group: 'opex',    cause: 'Marketing team + hiring cost' },
+  { label: 'Tools / Upgrades',     icon: A.ui.sidebar.studio,       kinds: ['opex-tool'],     sign: 'minus', group: 'opex',    cause: 'One-off equipment, supplier deals' },
+  { label: 'Operating Expenses',   icon: A.ui.pnl.fulfillment_cost, kinds: [], sign: 'minus', emphasis: 'subtotal',  computed: 'op-ex',     group: 'profit', cause: 'Channel maintenance + consignment + holding on unsold stock, plus marketing and tools' },
+  { label: 'Operating Profit',     icon: A.ui.pnl.operating_profit, kinds: [], sign: 'plus', emphasis: 'highlight', computed: 'op-profit', group: 'profit', cause: 'Gross profit − operating expenses' },
+  { label: 'Cash Balance',         icon: A.ui.pnl.net_revenue,      kinds: [], sign: 'plus', emphasis: 'highlight', computed: 'cash',      group: 'cash',   cause: 'Cash on hand right now (timing-aware)' },
 ];
 
 export function FinanceTable() {
@@ -352,6 +453,13 @@ export function FinanceTable() {
       const get = (ph: 1 | 2 | 3) =>
         sumKindForPhase(['revenue'], ph) +
         sumKindForPhase(['cogs-material', 'cogs-packaging', 'cogs-fulfillment', 'cogs-labor'], ph);
+      return p === 'total' ? get(1) + get(2) + get(3) : get(p);
+    }
+    if (r.computed === 'op-ex') {
+      // Shown as a positive expense figure, to read as a deduction under Gross
+      // Profit. Ledger costs are stored negative, hence the leading minus.
+      const get = (ph: 1 | 2 | 3) =>
+        -sumKindForPhase(['opex-marketing', 'opex-rent', 'opex-tool'], ph);
       return p === 'total' ? get(1) + get(2) + get(3) : get(p);
     }
     if (r.computed === 'op-profit') {
@@ -406,7 +514,11 @@ export function FinanceTable() {
             {PNL_ROWS
               // Hide cost lines that are $0 across the whole run (the V2 rows -
               // labor / packaging / tools - are always 0 in the V3 economy).
-              .filter((r) => r.group !== 'cost' || Math.abs(computeRow(r, 'total') ?? 0) > 0.005)
+              .filter(
+                (r) =>
+                  (r.group !== 'cogs' && r.group !== 'opex') ||
+                  Math.abs(computeRow(r, 'total') ?? 0) > 0.005,
+              )
               .map((r, i, arr) => {
               const values = {
                 p1: computeRow(r, 1),
@@ -434,7 +546,7 @@ export function FinanceTable() {
                     emphasisCls,
                   )}
                 >
-                  <td className={clsx('py-2 pl-3 pr-2', r.group === 'cost' ? 'text-text-2' : 'text-text')}>
+                  <td className={clsx('py-2 pl-3 pr-2', r.group === 'cogs' || r.group === 'opex' ? 'text-text-2' : 'text-text')}>
                     <span className="inline-flex items-center gap-2.5 min-w-0">
                       <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2/60 shrink-0">
                         <img src={r.icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
@@ -466,15 +578,19 @@ function PnLCell({ value, row, emphasis, live }: { value: number | null; row: Pn
   if (value === null) {
     return <td className={clsx('py-2 px-2 text-right num-xs text-text-3', liveCls)}>-</td>;
   }
+  // `sign` rather than `group`: it catches the COGS and OpEx line items AND the
+  // Operating Expenses subtotal, which sits in the `profit` group structurally
+  // but must read as a deduction.
+  const isDeduction = row.sign === 'minus';
+
   let color = 'text-text';
-  if (row.group === 'cost') color = value !== 0 ? 'text-fin-cost' : 'text-text-3';
+  if (isDeduction) color = value !== 0 ? 'text-fin-cost' : 'text-text-3';
   else if (row.group === 'revenue') color = value > 0 ? 'text-fin-revenue' : 'text-text-3';
   else if (row.group === 'profit')
     color = value > 0 ? 'text-fin-profit' : value < 0 ? 'text-danger' : 'text-text';
   else if (row.group === 'cash') color = value < 0 ? 'text-danger' : 'text-fin-cash';
 
-  const display =
-    row.group === 'cost' && value !== 0 ? `−${fmt$(Math.abs(value))}` : fmt$(value);
+  const display = isDeduction && value !== 0 ? `−${fmt$(Math.abs(value))}` : fmt$(value);
 
   return (
     <td className={clsx('py-2 px-2 text-right num-xs whitespace-nowrap', color, liveCls, emphasis && 'pr-3')}>
@@ -497,8 +613,7 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
   const avgCost = bp.length
     ? bp.reduce((a, p) => a + (p.dynamicCost ?? 0), 0) / bp.length
     : null;
-  const totalRevenue   = bp.length ? Math.round(bp.reduce((a, p) => a + (p.revenue ?? 0), 0))           : null;
-  const totalCustomers = bp.length ? Math.round(bp.reduce((a, p) => a + (p.customersObtained ?? 0), 0)) : null;
+  const { revenue: totalRevenue, demand: totalCustomers } = computeUserProjection(lines, bp);
 
   const groups: KVGroup[] = [
     {
@@ -517,11 +632,13 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
       key: 'output',
       icon: A.ui.pnl.operating_profit,
       title: 'Output / phase',
-      rows: bp.length ? [
-        { key: 'revenue',   label: 'Est. revenue',   num: totalRevenue!,   format: fmt$,   tone: 'revenue' as Tone },
-        { key: 'customers', label: 'Est. customers', num: totalCustomers!, format: fmtInt, tone: 'neutral' as Tone },
-      ] : [
-        { key: 'pending', label: 'Awaiting projection…', value: '–', tone: 'neutral' as Tone },
+      // No projection gate: both figures come from the player's own estimates,
+      // so they stand on their own. A server projection only sharpens them, by
+      // supplying each line's capacity ceiling and its modified selling price.
+      rows: [
+        { key: 'revenue',   label: 'Est. revenue',   num: Math.round(totalRevenue),   format: fmt$,   tone: 'revenue' as Tone },
+        { key: 'customers', label: 'Est. customers', num: Math.round(totalCustomers), format: fmtInt, tone: totalCustomers === 0 ? 'warn' : 'neutral' as Tone,
+          sub: totalCustomers === 0 ? 'no demand estimates set yet' : 'sum of your per-line estimates' },
       ],
     },
     {
@@ -529,7 +646,9 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
       icon: A.ui.metrics.inventory,
       title: 'Inventory',
       rows: [
-        { key: 'finished', label: 'Finished stock', num: finished, format: fmtInt, tone: finished === 0 ? 'warn' : 'neutral' },
+        { key: 'stock', label: 'Stock on hand', num: finished, format: fmtInt,
+          tone: finished === 0 ? 'danger' : 'neutral',
+          sub: finished === 0 ? 'Confirm the phase to produce' : undefined },
       ],
     },
   ];

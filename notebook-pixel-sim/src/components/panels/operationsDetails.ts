@@ -7,8 +7,8 @@
 
 import { CHANNELS_BY_GENRE, CHANNEL_META, type ChannelId } from '@/engine/finlit/core/config/channels';
 import { GENRES, type GenreId } from '@/engine/finlit/core/config/genres';
-import { CANDIDATES } from '@/engine/finlit/core/config/hiring';
-import { VENDORS } from '@/engine/finlit/core/config/vendors';
+import { hireSteps } from '@/engine/finlit/core/config/hiring';
+import { vendorSteps, vendorQuality } from '@/engine/finlit/core/config/vendors';
 import type { DetailInput, DetailTable } from './OperationsKit';
 import type { GlobalInputDto } from '@/gamesim/types';
 import { perPhase } from '@/utils/format';
@@ -86,46 +86,57 @@ export function channelDetail(gi?: GlobalInputDto): SectionDetail {
 
 // ── Marketing & sales budget ─────────────────────────────────────────────────
 
-export function budgetDetail(
-  leverEnergy: number,
-  budgetMax: number,
-  demandMult: (v: number) => number,
-  sellBonus: (v: number) => number,
-): SectionDetail {
-  const steps = [0, Math.round(budgetMax * 0.25), Math.round(budgetMax * 0.5), Math.round(budgetMax * 0.75), budgetMax];
+/**
+ * Marketing reference sheet, built from the item's own `options` steps. It used
+ * to be derived from a hardcoded frontend ceiling (`BUDGET_MAX = 40`) sliced
+ * into quarters, and from the local `marketingDemandMult` curve — so the sheet
+ * documented a spend range and an effect the server never applied.
+ */
+export function budgetDetail(gi?: GlobalInputDto): SectionDetail {
+  const item = gi?.inputs[0];
+  const impact = item?.impacts?.['marketing']?.value ?? 0;
+  // Each step is a key of `options`; its value is the multiplier the server
+  // applies to both the cost and the impact.
+  const steps = Object.entries(item?.options ?? {}).map(([stepKey, mult]) => ({
+    stepKey,
+    spend: Math.ceil((item?.cost ?? 0) * mult),
+    demand: impact * mult,
+  }));
+  const top = steps.reduce<typeof steps[number] | null>(
+    (best, s) => (best == null || s.demand > best.demand ? s : best),
+    null,
+  );
   return {
-    title: 'Marketing & Sales Budget',
-    intro:
-      'Two separate levers. Marketing makes more people want the notebook; sales converts more of the people who already do. Both are priced per phase and both cost energy to switch on, refunded when you set them back to zero.',
+    title: gi?.label ?? 'Marketing & Sales Budget',
+    intro: gi?.description
+      ?? 'Marketing makes more people want the notebook. It is priced per phase and costs energy to switch on, refunded when you set it back to zero.',
     inputs: [
       {
-        name: 'Marketing budget',
-        description: 'Awareness. Lifts demand, so more people want what you make.',
-        cost: `up to ${money(perPhase(budgetMax))} / phase`,
-        energy: leverEnergy,
+        name: item?.label ?? 'Marketing budget',
+        description: item?.description ?? 'Awareness. Lifts demand, so more people want what you make.',
+        cost: top ? `up to ${money(top.spend)} / phase` : NO_DESC,
+        energy: item?.energy ?? 0,
         impacts: 'All notebooks',
-        effect: `+${Math.round((demandMult(budgetMax) - 1) * 100)}%`,
+        effect: top ? `+${(top.demand * 100).toFixed(1)}%` : '—',
       },
       {
         name: 'Sales budget',
-        description: 'Conversion. Lifts sell-rate, so more of the interested actually buy.',
-        cost: `up to ${money(perPhase(budgetMax))} / phase`,
-        energy: leverEnergy,
+        description: 'Conversion. Lifts sell-rate, so more of the interested actually buy. Comes from hiring, not a budget of its own.',
+        cost: '—',
+        energy: 0,
         impacts: 'All notebooks',
-        effect: `+${(sellBonus(budgetMax) * 100).toFixed(1)}%`,
+        effect: '—',
       },
     ],
-    tables: [
-      {
-        caption: 'What your spend buys',
-        columns: ['Spend / phase', 'Demand', 'Sell-rate'],
-        rows: steps.map((v) => [
-          money(perPhase(v)),
-          `+${Math.round((demandMult(v) - 1) * 100)}%`,
-          `+${(sellBonus(v) * 100).toFixed(1)}%`,
-        ]),
-      },
-    ],
+    tables: steps.length
+      ? [
+          {
+            caption: 'What your spend buys',
+            columns: ['Step', 'Spend / phase', 'Demand'],
+            rows: steps.map((s) => [s.stepKey, money(s.spend), `+${(s.demand * 100).toFixed(1)}%`]),
+          },
+        ]
+      : [],
   };
 }
 
@@ -135,28 +146,37 @@ export function hiringDetail(gi?: GlobalInputDto): SectionDetail {
   return {
     title: gi?.label ?? NO_DESC,
     intro: gi?.description ?? NO_DESC,
-    inputs: CANDIDATES.map((c) => {
-      const top = c.levels[c.levels.length - 1];
+    // Straight off the backend items — label, description, and the steps its
+    // own `options` map configures. Items with no options are binary hires and
+    // contribute no level table.
+    inputs: (gi?.inputs ?? []).map((item) => {
+      const steps = hireSteps(item);
+      const first = steps[0];
+      const top = steps[steps.length - 1];
       return {
-        name: c.name,
-        description: c.blurb,
-        cost: `${money(perPhase(c.levels[0].cost))} to ${money(perPhase(top.cost))} / phase`,
-        energy: c.levels[0].energy,
+        name: item.label,
+        description: item.description ?? NO_DESC,
+        cost: first
+          ? `${money(perPhase(first.cost))} to ${money(perPhase(top.cost))} / phase`
+          : money(perPhase(item.cost)),
+        energy: first?.energy ?? item.energy,
         impacts: 'All notebooks',
-        effect: `+${top.prodBonus.toFixed(1)}`,
+        effect: top ? `+${top.prodBonus.toFixed(1)}` : '—',
       };
     }),
-    tables: CANDIDATES.map((c) => ({
-      caption: `${c.name} levels`,
-      columns: ['Level', 'Output', 'Sell', 'Energy', 'Cost / phase'],
-      rows: c.levels.map((lv) => [
-        `L${lv.level}`,
-        `+${lv.prodBonus.toFixed(2)}`,
-        `+${(lv.sellBonus * 100).toFixed(1)}%`,
-        `${lv.energy}⚡`,
-        money(perPhase(lv.cost)),
-      ]),
-    })),
+    tables: (gi?.inputs ?? [])
+      .filter((item) => hireSteps(item).length > 0)
+      .map((item) => ({
+        caption: `${item.label} levels`,
+        columns: ['Level', 'Output', 'Sell', 'Energy', 'Cost / phase'],
+        rows: hireSteps(item).map((st) => [
+          st.stepKey,
+          `+${st.prodBonus.toFixed(2)}`,
+          `+${(st.sellBonus * 100).toFixed(1)}%`,
+          `${st.energy}⚡`,
+          money(perPhase(st.cost)),
+        ]),
+      })),
   };
 }
 
@@ -166,27 +186,42 @@ export function vendorDetail(gi?: GlobalInputDto): SectionDetail {
   return {
     title: gi?.label ?? NO_DESC,
     intro: gi?.description ?? NO_DESC,
-    inputs: VENDORS.map((v) => ({
-      name: v.name,
-      description: v.coveredGenres.length
-        ? `Supplies ${v.coveredGenres.map((g) => GENRES.find((x) => x.id === g)?.name ?? g).join(', ')}.`
-        : 'Supplies all markets.',
-      cost: `${money(v.cost)} / phase`,
-      energy: v.energy,
-      impacts: 'Production rate',
-      effect: `+${(v.prodBonus * 100).toFixed(0)}% prod (${v.quality})`,
-    })),
+    // Built from the backend items. `productsImpacted` is stated as a COUNT of
+    // products rather than translated into genre names — it is a list of product
+    // ids, and the old code guessed genres by testing whether a product's name
+    // contained a genre id as a substring.
+    inputs: (gi?.inputs ?? []).map((item) => {
+      const top = vendorSteps(item).reduce<ReturnType<typeof vendorSteps>[number] | null>(
+        (best, s) => (best == null || s.prodBonus > best.prodBonus ? s : best),
+        null,
+      );
+      const scoped = (item.productsImpacted ?? []).length;
+      return {
+        name: item.label,
+        description: item.description
+          ?? (scoped ? `Supplies ${scoped} of your products.` : 'Supplies all markets.'),
+        cost: `${money(top?.cost ?? item.cost)} / phase`,
+        energy: top?.energy ?? item.energy,
+        impacts: scoped ? `Production rate (${scoped} products)` : 'Production rate',
+        effect: top
+          ? `+${(top.prodBonus * 100).toFixed(0)}% prod (${vendorQuality(top.prodBonus)})`
+          : '—',
+      };
+    }),
     tables: [
       {
         caption: 'Production boost by vendor',
-        columns: ['Vendor', 'Prod boost', 'Quality', 'Cost / phase', 'Energy'],
-        rows: VENDORS.map((v) => [
-          v.name,
-          `+${(v.prodBonus * 100).toFixed(0)}%`,
-          v.quality,
-          money(v.cost),
-          String(v.energy),
-        ]),
+        columns: ['Vendor', 'Step', 'Prod boost', 'Quality', 'Cost / phase', 'Energy'],
+        rows: (gi?.inputs ?? []).flatMap((item) =>
+          vendorSteps(item).map((s) => [
+            item.label,
+            s.stepKey ?? '—',
+            `+${(s.prodBonus * 100).toFixed(0)}%`,
+            vendorQuality(s.prodBonus),
+            money(s.cost),
+            String(s.energy),
+          ]),
+        ),
       },
     ],
   };

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '@/state/store';
-import { A } from '@/assets';
 import type { Archetype } from '@/types';
 import { ARCHETYPE_INFO, notebookCatalogue, defaultArchetype } from '@/data/notebookArchetypes';
 import { PixelModal } from '@/components/primitives/PixelModal';
@@ -49,7 +48,7 @@ interface Props {
   hideViews?: boolean;
 }
 
-export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews }: Props) {
+export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _hideViews }: Props) {
   // May be undefined with an EMPTY portfolio (deleting the last notebook is
   // permitted) — Details can open in that state, so every access below the
   // guard must stay behind `if (!product)`.

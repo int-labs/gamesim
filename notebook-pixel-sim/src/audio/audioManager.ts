@@ -328,7 +328,7 @@ class AudioManager {
       const t = (Date.now() - startedAt) / 600;
       if (t >= 1) {
         el.volume = 0;
-        try { el.pause(); el.src = ''; } catch {}
+        try { el.pause(); el.src = ''; } catch { /* swallow AudioContext pause errors */ }
         return;
       }
       el.volume = startVol * (1 - t);

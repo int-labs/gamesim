@@ -8,7 +8,6 @@ import { PixelPanel, PixelBadge } from '@/components/primitives';
 import { fmt$, fmtInt, perPhase } from '@/utils/format';
 import { BUSINESS_PAGE } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
-import clsx from 'clsx';
 
 const DEFAULT_SPEC: ProductionSpec = {
   type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',

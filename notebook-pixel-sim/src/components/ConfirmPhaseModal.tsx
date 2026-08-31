@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { useGame } from '@/state/store';
 import { advanceDay } from '@/engine/mockEngine';
 import { PixelModal } from '@/components/primitives/PixelModal';

@@ -10,7 +10,6 @@ import type { GameState } from '@/state/store';
 import {
   ACTIVE_DAYS_TOTAL,
   INVESTOR_BONUS,
-  INVESTOR_DEBT,
   INVESTOR_PENALTY,
   MAX_EXPECTED_NET_PROFIT,
 } from './config';

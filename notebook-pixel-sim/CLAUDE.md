@@ -6,7 +6,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A 90-day pixel-art entrepreneurship simulation (notebook business). The player runs a portfolio of notebook product lines across three 30-day phases, making decisions about product design, pricing, target segments, channels, inventory, and upgrades. Days 30/60/90 trigger evaluations with charts and an insight-check question; day 90 ends the run with a scored result.
 
-It runs as the **player client of the gamesim backend** (`../server`), which is treated as final: the integration adds no server files, no shared package, and no new routes. `src/gamesim/` is the only seam — login, decision submission, the official numbers, and the operator's content overlay (`configHydrator.ts`, see **Tunable game data** below). The local FinLit engine stays authoritative for gameplay feel but **not** for scoring; market share/score come from the server's `calcMarketModel` and financials from `calcFinancials`. See `docs/gamesim-integration.md` (endpoint table, the proposed field mapping still awaiting confirmation, and what `main` does *not* have — notably no round-calculate route and no socket events).
+It runs as the **player client of the gamesim backend** (`../server`). `src/gamesim/` is the only seam — login, decision submission, the official numbers, and the operator's content overlay (`configHydrator.ts`, see **Tunable game data** below). See `docs/gamesim-integration.md` for the endpoint table.
+
+### The backend is the sole authority for money — read this before touching any figure
+
+The server's `calcFinancials` owns every monetary number; `calcMarketModel` owns
+market share and score. **The local FinLit engine (`src/engine/finlit/`) is slated
+for removal.** Two calculation implementations authored by two parties is the
+defect that produced months of numbers that did not add up — do not extend the
+local engine, do not add a second formula for anything the server computes, and
+prefer reading a server field over deriving an equivalent locally.
+
+The authoritative P&L, computed server-side and to be displayed verbatim:
+
+```
+  Revenue           unitsSold × sellingPrice
+− COGS              unitsSold × dynamicCost + globalInput costs declared 'cogs'
+= Gross Profit
+− OpEx              unsold-inventory holding + globalInput costs declared 'opex'
+= Operating Profit
+```
+
+Notes that will bite otherwise:
+
+- **`inventoryQty` is the player's capacity**, derived server-side from the
+  product's own field values. `prodPerDay` / `targetPerDay` / the produce
+  slider do **not** feed it. Read `ProductProjectionDto.inventoryQty`.
+- **COGS is on units SOLD**, never on the whole build. Unsold stock is a holding
+  cost in OpEx, charged at the operator's per-unit `inventory_cost` (configured
+  on the *channel* globalInput's impacts).
+- **`readCostTreatment()` and `toProjectionMetrics()` in `sim/calcFinancials.ts`
+  are single-reader / single-shape functions on purpose.** Both money paths
+  (`/projections/recalc` and round close) must call them, or the live projection
+  and the official score will interpret the same decision differently.
+- **`POST /projections/recalc` UPSERTS** the team's projection document — it is
+  not a read-only what-if. `useLiveProjection` currently calls it on a 200 ms
+  debounce for every decision edit, which contradicts the warning in
+  `sync.ts`. Known; not yet resolved.
+- The per-product seeds (`customersObtainedBase` ?? 0.3, `dynamicPriceBase` ??
+  0.55) live in `Product.baseVariables`. `INVENTORY_BASE = 1000` is still a
+  module constant awaiting the same treatment.
+
+**`FinanceTable` in `MetricsTable.tsx` currently renders opex rows above a Gross
+Profit subtotal that excludes them** — the sheet reads one way and computes
+another. Unfixed; it is the first item of the frontend display work.
+
+See the `project_projection_divergence` memory for the full diagnosis and the
+decision log.
 
 ## Commands
 
@@ -16,9 +62,19 @@ npm run dev          # Vite dev server at http://127.0.0.1:5173
 npm run build        # tsc -b (type-check) + vite build → ./dist
 npm run preview      # serve the production build (port 4173)
 npx tsc -b           # type-check only, no bundle
+npm run lint         # eslint src
 ```
 
-There is **no test runner and no linter configured** — `tsc -b` (via `npm run build`) is the only automated check. Don't suggest `npm test`/`npm run lint`; they don't exist.
+There is **no test runner** — don't suggest `npm test`; it doesn't exist. The two
+automated checks are `tsc -b` (via `npm run build`) and `npm run lint`.
+
+ESLint uses a flat config (`eslint.config.js`). Neither check is wired to CI, so
+neither gates a deploy. The lint baseline is **0 errors**; keep it there.
+`react-hooks/rules-of-hooks` and `exhaustive-deps` are **errors** on purpose —
+a broken hook index risks memory leaks. `react-hooks/set-state-in-effect` and
+`react-hooks/purity` are deliberately downgraded to **warnings**: the `fx/`,
+mascot and modal components need those extra render cycles for animation.
+Unused vars are warnings. See the `project_eslint_governance` memory.
 
 Deploys to **Vercel** (project linked in `.vercel/`).
 

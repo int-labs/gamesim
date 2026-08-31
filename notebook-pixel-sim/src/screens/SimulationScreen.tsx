@@ -62,7 +62,7 @@ export function SimulationScreen() {
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      <TopHUD />
+      <TopHUD liveProjectionState={liveProjectionState} />
       {/* Live commentary — Amelia reacts to fit jumps, maxed add-ons and
           bold pricing (renders nothing; one-shot per notebook). */}
       <AmeliaReactions />
@@ -88,7 +88,7 @@ export function SimulationScreen() {
               content grows the page and THIS scrollbar handles it all, so
               there's no scroll-within-scroll. */}
           <div className={page === 'product' ? 'h-full flex flex-col' : 'min-h-full flex flex-col'}>
-            {page === 'product' && <ProductPage />}
+            {page === 'product' && <ProductPage liveProjectionState={liveProjectionState} />}
             {page === 'business' && <BusinessPage liveProjectionState={liveProjectionState} />}
             {page === 'results' && <ResultsPage />}
           </div>

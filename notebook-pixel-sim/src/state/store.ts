@@ -2,26 +2,19 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type {
-  Archetype,
-  Binding,
   ChannelId,
-  Cover,
   LedgerEntry,
   MascotMessage,
-  PaperQuality,
   Phase,
-  PricePoint,
   Route,
   ScreenId,
   Segment,
   SidebarCategory,
-  Size,
-  AddOnInstance,
   MascotMood,
   BubbleType,
   ProductLine,
 } from '@/types';
-import { PHASE_MAX_ENERGY, STARTING_CASH, STARTING_DEBT } from '@/data/balance';
+import { STARTING_CASH, STARTING_DEBT } from '@/data/balance';
 import { ENERGY_START, ENERGY_CAP, GENRES } from '@/data/finlit';
 import { segmentForGenre } from '@/engine/finlit/core/config/genreSegments';
 import type { ActiveModifier } from '@/engine/modifiers';
@@ -441,7 +434,7 @@ export type Store = GameState & Actions;
 
 export const useGame = create<Store>()(
   persist(
-    immer((set, get) => ({
+    immer((set) => ({
       ...startingState(),
       reset: () => set(() => startingState()),
       setScreen: (s) => set((st) => { st.meta.screen = s; }),
@@ -589,7 +582,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 14,
+      version: 15,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -929,6 +922,15 @@ export const useGame = create<Store>()(
         // Reset the array so stale entries without these fields don't persist —
         // the player re-makes selections on the next session (same as v13 did).
         if (fromVersion < 14) {
+          persisted.globalInputSelections = [];
+        }
+        // v15: `selectedStepKey` MEANING changed. It used to hold whatever id the
+        // frontend had invented (a candidate id, a ChannelId); it now holds a key
+        // of the backend item's own `options` map, which is what the server looks
+        // up. A pre-v15 selection would resolve to quantity 0 there and have
+        // every one of its impacts silently discarded, so the array is reset and
+        // the player re-makes selections — same approach as v13 and v14.
+        if (fromVersion < 15) {
           persisted.globalInputSelections = [];
         }
         if (fromVersion < 12 && Array.isArray(persisted?.portfolio?.productLines)) {

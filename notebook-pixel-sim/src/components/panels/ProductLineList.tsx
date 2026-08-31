@@ -12,7 +12,6 @@ import {
   archetypeLabel,
 } from '@/engine/mockEngine';
 import type { ProductLine, Archetype } from '@/types';
-import { A } from '@/assets';
 import { notebookCatalogue, ARCHETYPE_INFO } from '@/data/notebookArchetypes';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { playSfx } from '@/audio/audioManager';

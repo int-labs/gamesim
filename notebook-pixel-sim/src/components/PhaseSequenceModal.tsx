@@ -18,7 +18,6 @@ import { PHASE_MAX_ENERGY } from '@/data/balance';
 import { ENERGY_REPLENISH } from '@/engine/config';
 import { fmt$, fmtInt } from '@/utils/format';
 import { playSfx } from '@/audio/audioManager';
-import { mulberry32, seedFrom } from '@/utils/rng';
 import type { Phase } from '@/types';
 import { PixelModal } from '@/components/primitives/PixelModal';
 import { PixelButton, PixelBadge } from '@/components/primitives';
@@ -65,12 +64,6 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   const cash = useGame((s) => s.player.cash);
   const energy = useGame((s) => s.player.energy);
   const finished = useGame((s) => s.inventory.totalFinished);
-  const product = useGame(
-    (s) => s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId)
-      ?? s.portfolio.productLines[0],
-  );
-  const channels = useGame((s) => s.channels);
-  const ops = useGame((s) => s.ops);
   const lines = useGame((s) => s.portfolio.productLines);
   const pendingEventId = useGame((s) => s.meta.pendingEventId);
   const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
@@ -81,19 +74,21 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   // shows the locked-in numbers even as live projections continue updating elsewhere.
   const liveCashValue = useGame((s) => selectProjectedCash(s).projected);
   const liveCashDelta = useGame((s) => selectProjectedCash(s).delta);
-  const snapshotRef = useRef<{ value: number; delta: number } | null>(null);
-  if (submittedDecision && !snapshotRef.current) {
-    snapshotRef.current = { value: liveCashValue, delta: liveCashDelta };
-  }
+  const [cashSnapshot, setCashSnapshot] = useState<{ value: number; delta: number } | null>(null);
+  useEffect(() => {
+    if (submittedDecision && !cashSnapshot) {
+      setCashSnapshot({ value: liveCashValue, delta: liveCashDelta });
+    }
+  }, [submittedDecision]); // intentionally excludes live values — captures at submission only
   const frozen = !!submittedDecision;
-  const projectedCashValue = frozen ? (snapshotRef.current?.value ?? liveCashValue) : liveCashValue;
-  const projectedCashDelta = frozen ? (snapshotRef.current?.delta ?? liveCashDelta) : liveCashDelta;
+  const projectedCashValue = frozen ? (cashSnapshot?.value ?? liveCashValue) : liveCashValue;
+  const projectedCashDelta = frozen ? (cashSnapshot?.delta ?? liveCashDelta) : liveCashDelta;
 
   const [step, setStep] = useState<Step>('preview');
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const phaseAtOpenRef = useRef<Phase>(phase);
-  const cashAtOpenRef = useRef<number>(cash);
+  const [phaseAtOpen, setPhaseAtOpen] = useState<Phase>(phase);
+  const [cashAtOpen, setCashAtOpen] = useState<number>(cash);
 
   // Key scenarios (P5) — the phase's unresolved scenarios, shown before the sim.
   // The list is SELF-CONSUMING: resolving one removes it from `pendingScenarios`
@@ -134,8 +129,8 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     setStep('preview');
     setSyncError(null);
     setSyncing(false);
-    phaseAtOpenRef.current = phase;
-    cashAtOpenRef.current = cash;
+    setPhaseAtOpen(phase);
+    setCashAtOpen(cash);
     apply((s) => { s.meta.sequenceActive = true; });
     // Cleared in a CLEANUP, not an else-branch. This modal is keyed on
     // `openCount`, so it remounts rather than re-renders, and its parent can
@@ -179,7 +174,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   /** Advance the engine and route to the next step based on engine flags.
    *  The 1.6s delay is pure showtime — the day counter races, coins rain,
    *  the machine rumbles — then the engine applies in one go. */
-  const simFromDayRef = useRef(1);
+  const [simFromDay, setSimFromDay] = useState(1);
   const tick = async () => {
     // `roundContext` is only needed to SUBMIT. Demanding it to advance was the
     // same conflation as `canAdvance` itself, one level down: standalone play
@@ -193,7 +188,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
       return;
     }
     playSfx('confirm');
-    simFromDayRef.current = useGame.getState().meta.day;
+    setSimFromDay(useGame.getState().meta.day);
     setSyncing(true);
     setSyncError(null);
     try {
@@ -241,7 +236,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
   const finishPhase = () => {
     const after = useGame.getState();
-    const phaseDelta = after.player.cash - cashAtOpenRef.current;
+    const phaseDelta = after.player.cash - cashAtOpen;
     // Triumphant SFX on positive phase, gentle warning on dip — pairs
     // with the confetti so the player feels the outcome.
     playSfx(phaseDelta >= 0 ? 'phase-up' : 'warning');
@@ -267,7 +262,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     const after = useGame.getState();
     if (after.meta.pendingEvalPhase !== null) {
       setStep('evaluation');
-    } else if (after.meta.day < PHASE_END[phaseAtOpenRef.current]) {
+    } else if (after.meta.day < PHASE_END[phaseAtOpen]) {
       // Continue simulating remaining days
       tick();
     } else {
@@ -303,7 +298,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
   const onContinueFromEval = () => {
     playSfx('whoosh');
-    const evalPhase = pendingEvalPhase ?? phaseAtOpenRef.current;
+    const evalPhase = pendingEvalPhase ?? phaseAtOpen;
     apply((s) => {
       s.meta.pendingEvalPhase = null;
       s.evaluations.resolved.push({
@@ -326,7 +321,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
   const onResultContinue = () => {
     playSfx('whoosh');
-    const wasFinalPhase = phaseAtOpenRef.current === 3;
+    const wasFinalPhase = phaseAtOpen === 3;
     if (wasFinalPhase) {
       apply((s) => { s.meta.ended = true; });
       onClose();
@@ -354,7 +349,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
       hideClose={step !== 'preview'}
       title={
         <span className="flex items-center gap-2">
-          <span>Phase {phaseAtOpenRef.current} simulation</span>
+          <span>Phase {phaseAtOpen} simulation</span>
           <span className="text-text-3 font-normal">·</span>
           <span className="body-xs text-text-3">
             Step {stepIndex} of 4
@@ -544,9 +539,9 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
 
         {step === 'simulating' && (
           <SimulatingShow
-            fromDay={simFromDayRef.current}
-            toDay={PHASE_END[phaseAtOpenRef.current]}
-            phase={phaseAtOpenRef.current}
+            fromDay={simFromDay}
+            toDay={PHASE_END[phaseAtOpen]}
+            phase={phaseAtOpen}
           />
         )}
 
@@ -571,7 +566,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
         {step === 'evaluation' && insight && (
           <div className="flex flex-col gap-3">
             <EvaluationStep
-              phase={(pendingEvalPhase ?? phaseAtOpenRef.current) as Phase}
+              phase={(pendingEvalPhase ?? phaseAtOpen) as Phase}
               insight={insight}
               answer={insightAnswer}
               revealed={insightRevealed}
@@ -585,8 +580,8 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
         {step === 'result' && (
           <div className="flex flex-col gap-3">
             <ResultStep
-              phaseJustFinished={phaseAtOpenRef.current}
-              cashStart={cashAtOpenRef.current}
+              phaseJustFinished={phaseAtOpen}
+              cashStart={cashAtOpen}
               onContinue={onResultContinue}
             />
             {/* Anything the facilitator wrote for this round. Renders nothing

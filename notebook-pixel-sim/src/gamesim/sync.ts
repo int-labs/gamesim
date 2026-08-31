@@ -18,7 +18,6 @@ import { toDecisionInputs, type DecisionPayload, type ToDecisionInputsArgs } fro
 import type {
   DecisionDto,
   DecisionProductInput,
-  GlobalInputDto,
   Id,
   ProductProjectionDto,
   ProjectionDto,
@@ -275,6 +274,9 @@ export interface OfficialFinancials {
   revenue: number;
   cogs: number;
   grossProfit: number;
+  /** Below the gross-profit line: holding on unsold stock + opex globalInputs. */
+  operatingExpenses: number;
+  operatingProfit: number;
   customersObtained: number;
   byProduct: ServerProductProjection[];
   raw: ProjectionDto;
@@ -314,6 +316,8 @@ export async function fetchOfficialFinancials(args: {
     revenue: sum((p) => p.revenue),
     cogs: sum((p) => p.COGS),
     grossProfit: sum((p) => p.grossProfit),
+    operatingExpenses: sum((p) => p.operatingExpenses),
+    operatingProfit: sum((p) => p.operatingProfit),
     customersObtained: sum((p) => p.customersObtained),
     byProduct,
     raw,

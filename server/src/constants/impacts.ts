@@ -10,7 +10,7 @@ export type ImpactTarget =
 
 export interface ImpactConfig {
   target:  ImpactTarget;
-  affects: "inventoryRate" | "customersObtained" | "dynamicPrice" | "dynamicCost" | "pnl";
+  affects: "inventoryRate" | "customersObtained" | "dynamicPrice" | "dynamicCost" | "inventoryCost" | "pnl";
   via:     "relative" | "absolute";
 }
 
@@ -39,5 +39,14 @@ export const IMPACT_CONFIG: Record<string, ImpactConfig> = {
     target:  "dynamic_cost",
     affects: "dynamicCost",
     via:     "relative",
+  },
+  /** Per-unit carrying cost on inventory that did NOT sell. Configured by the
+   *  operator on the channel globalInput (`channels → impacts → inventory_cost`)
+   *  and already consumed by both finlit engines; this entry is what lets
+   *  calcFinancials — the authoritative money path — see it at all. */
+  inventory_cost: {
+    target:  "inventory",
+    affects: "inventoryCost",
+    via:     "absolute",
   },
 };

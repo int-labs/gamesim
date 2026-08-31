@@ -3,17 +3,11 @@ import {
   Flag,
   Zap,
   Wallet,
-  Package,
-  History as HistoryIcon,
-  CircleHelp,
-  Volume2,
-  VolumeX,
-  Music,
   type LucideIcon,
 } from 'lucide-react';
 import { CanvasStatusStrip } from '@/components/canvas/CanvasStatusStrip';
-import { MusicOffIcon } from '@/components/icons/MusicOffIcon';
-import { audio, playSfx } from '@/audio/audioManager';
+import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
+import { audio } from '@/audio/audioManager';
 import { useGame } from '@/state/store';
 import { selectProjectedCash } from '@/engine/selectors';
 import { fmt$ } from '@/utils/format';
@@ -79,10 +73,9 @@ const successChipInk: Record<KpiTone, string> = {
  * Read-only chips have `cursor-default` and no hover lift; utility buttons
  * have `cursor-pointer` and hover translate.
  */
-export function TopHUD() {
+export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProjectionState }) {
   const phase = useGame((s) => s.meta.phase);
   const hasLines = useGame((s) => s.portfolio.productLines.length > 0);
-  const cash = useGame((s) => s.player.cash);
   const projectedCash = useGame((s) => selectProjectedCash(s).projected);
   const projectedCashDelta = useGame((s) => selectProjectedCash(s).delta);
   const energy = useGame((s) => s.player.energy);
@@ -93,9 +86,6 @@ export function TopHUD() {
   const pushMascot = useGame((s) => s.pushMascot);
   const sfxEnabled = useGame((s) => s.audio.sfxEnabled);
   const musicEnabled = useGame((s) => s.audio.musicEnabled);
-  const toggleSfx = useGame((s) => s.toggleSfx);
-  const toggleMusic = useGame((s) => s.toggleMusic);
-
   // Mirror store audio prefs into the AudioManager singleton on
   // mount + on rehydration. NOTE: for music in particular we ALSO
   // call audio.setMusicEnabled directly from the click handlers
@@ -268,7 +258,7 @@ export function TopHUD() {
             chip on the left and the utility menu on the right. A flex child
             cannot overflow a track that clips. */}
         <div className="flex-1 min-w-0 overflow-hidden hidden lg:flex justify-center px-2">
-          {hasLines && <CanvasStatusStrip />}
+          {hasLines && <CanvasStatusStrip liveProjection={liveProjectionState?.liveProjection ?? null} />}
         </div>
         <div className="flex-1 min-w-0 lg:hidden" />
 
@@ -439,32 +429,3 @@ function Chip({
   );
 }
 
-/* Utility icon button — cream square matching Figma 1's right-side
-   History/Help buttons. Uses shared `.game-hud-iconbtn` token. */
-function UtilityIconButton({
-  icon,
-  title,
-  onClick,
-  badge,
-}: {
-  icon: LucideIcon;
-  title: string;
-  onClick: () => void;
-  badge?: boolean | null;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={title}
-      className="game-hud-iconbtn relative"
-    >
-      <NavIcon icon={icon} size={15} color="currentColor" />
-      {badge && (
-        <span
-          aria-hidden
-          className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-danger rounded-full border border-surface"
-        />
-      )}
-    </button>
-  );
-}

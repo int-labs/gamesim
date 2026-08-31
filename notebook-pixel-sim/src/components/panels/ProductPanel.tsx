@@ -9,7 +9,6 @@ import {
 } from '@/engine/mockEngine';
 import { PixelChip, PixelBadge } from '@/components/primitives';
 import { ADDONS, addOnById } from '@/data/addOns';
-import { A } from '@/assets';
 import { notebookCatalogue } from '@/data/notebookArchetypes';
 import type { AddOnDef, Archetype, Binding, Cover, PaperQuality, Size } from '@/types';
 import clsx from 'clsx';

@@ -109,7 +109,6 @@ export function HudMenu({ onOpenStats, onHelp }: Props) {
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   return (

@@ -5,7 +5,6 @@ import { useGame } from '@/state/store';
 import { setActiveLine } from '@/engine/mockEngine';
 import { archetypeLabel } from '@/engine/mockEngine';
 import { fmt$ } from '@/utils/format';
-import { SEGMENTS } from '@/data/segments';
 import { playSfx } from '@/audio/audioManager';
 import { ViewToggle } from './ViewToggle';
 import { Notebook, sizeScale } from './Notebook';
@@ -15,11 +14,11 @@ import { addOnById } from '@/data/addOns';
 import { genreById, configOption, type GenreId, type ProductionSpec } from '@/data/finlit';
 import { lineSize } from '@/engine/selectors';
 import { vocFit } from '@/engine/finlit/fit';
+import type { ProductLine, Segment } from '@/types';
 
 const GALLERY_DEFAULT_SPEC: ProductionSpec = {
   type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
 };
-import type { ProductLine, Segment } from '@/types';
 
 /**
  * NotebookGallery — the SHELF view. Browse every notebook in the portfolio at
@@ -39,19 +38,6 @@ const SHELF_BG: CSSProperties = {
   ].join(','),
 };
 
-function segName(s: Segment): string {
-  return s === 'students' ? 'Students' : s === 'creators' ? 'Creators' : s === 'professionals' ? 'Professionals' : 'Gift Buyers';
-}
-function archLabel(a: string): string {
-  // Live catalogue: a published notebook labels itself.
-  return archetypeLabel(a);
-}
-function coverBind(l: ProductLine): string {
-  const cover = l.cover === 'leather' ? 'Leather' : 'Hardcover';
-  const bind = l.binding === 'ring' ? 'Ring' : 'Staple';
-  const size = configOption('size', l.finlitSpec?.size ?? 'b5').name;
-  return `${cover} · ${bind} · ${size}`;
-}
 
 export function NotebookGallery() {
   const lines = useGame((s) => s.portfolio.productLines);
@@ -61,7 +47,6 @@ export function NotebookGallery() {
   const apply = useGame((s) => s.apply);
   const setViewMode = useGame((s) => s.setViewMode);
   const openDrawer = useGame((s) => s.openDrawer);
-  const detailsOpen = useGame((s) => s.ui.rightDrawer === 'details');
   const reduced = useReducedMotion();
 
   const focus = (id: string) => {

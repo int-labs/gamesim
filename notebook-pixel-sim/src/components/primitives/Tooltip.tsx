@@ -111,8 +111,8 @@ export function Tooltip({
     if (place === 'left' && r.left - tw - gap < margin) place = 'right';
     if (place === 'right' && r.right + tw + gap > window.innerWidth - margin) place = 'left';
 
-    let x = 0;
-    let y = 0;
+    let x: number;
+    let y: number;
     if (place === 'top' || place === 'bottom') {
       x = r.left + r.width / 2 - tw / 2;
       y = place === 'top' ? r.top - th - gap : r.bottom + gap;

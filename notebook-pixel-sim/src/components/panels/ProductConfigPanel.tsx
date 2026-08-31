@@ -1,7 +1,6 @@
 import { useGame } from '@/state/store';
 import { PixelChip, PixelPanel, PixelBadge } from '@/components/primitives';
 import { setProductField } from '@/engine/mockEngine';
-import { A } from '@/assets';
 import type { Archetype, Binding, Cover, PaperQuality, Size } from '@/types';
 import { fmt$ } from '@/utils/format';
 import { calcUnitCost, calcUnitTime } from '@/engine/mockEngine';

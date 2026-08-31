@@ -121,7 +121,6 @@ export function SmartPixelImage({
           setStage('failed');
         }
         // Surface the failure once in dev so missing assets are visible.
-        // eslint-disable-next-line no-console
         if ((import.meta as any).env?.DEV) console.warn(`[SmartPixelImage] failed to load:`, effectiveSrc);
         onError?.(e);
       }}

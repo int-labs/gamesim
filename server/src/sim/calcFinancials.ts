@@ -64,13 +64,24 @@ export interface DecisionProductInput {
 // this is the minimal shape this function needs from it.
 export interface DecisionGlobalInputEntry {
   globalInputItemId: mongoose.Types.ObjectId;
+  category:          string;
   key:               string;
   label:             string;
   selectedStepKey:   string | null;
   options:           Record<string, number>;
-  impacts:           Record<string, { type: "relative" | "absolute"; value: number }>;
+  impacts:           Record<string, {
+    type:  "relative" | "absolute";
+    value: number;
+    /** Per-product multiplier on `value`, keyed by productId. 0.5 halves this
+     *  impact for that product; absent means the base value stands. */
+    selections?: Array<{ productId: unknown; value: number }>;
+  }>;
   impactLevel:       string | null;
   cost:              number;
+  /** Already normalised by `readCostTreatment` at the entry point — this
+   *  function never falls back or defaults, so the live projection and the
+   *  official round close cannot interpret the same decision differently. */
+  costTreatment:     { cogs: number; opex: number };
   energy:            number;
   productsImpacted:  mongoose.Types.ObjectId[];
 }
@@ -87,19 +98,24 @@ export interface TeamShare {
   value:  number;
 }
 
-export interface DecisionGlobalInputEntry {
-  globalInputItemId: mongoose.Types.ObjectId;
-  category:          string;
-  key:               string;
-  label:             string;
-  selectedStepKey:   string | null;
-  options:           Record<string, number>;
-  impacts:           Record<string, { type: "relative" | "absolute"; value: number }>;
-  impactLevel:       string | null;
-  cost:              number;
-  energy:            number;
-  productsImpacted:  mongoose.Types.ObjectId[];
-}
+/** The single interpreter of a globalInput entry's cost.
+ *
+ *  Legacy documents carry a flat `cost` and no treatment; those are period
+ *  costs — that is precisely what the old code did with them, so this fallback
+ *  restates history rather than rewriting it. Documents written from here on
+ *  carry `costTreatment`.
+ *
+ *  Both money paths must call this — /projections/recalc (client payload) and
+ *  roundCalculation (stored Decision). Sharing one reader is what makes it
+ *  impossible for the live projection and the official score to interpret the
+ *  same decision differently. */
+export const readCostTreatment = (gi: {
+  cost?: number;
+  costTreatment?: { cogs?: number; opex?: number };
+}): { cogs: number; opex: number } =>
+  gi.costTreatment
+    ? { cogs: gi.costTreatment.cogs ?? 0, opex: gi.costTreatment.opex ?? 0 }
+    : { cogs: 0, opex: gi.cost ?? 0 };
 
 export interface IncurredCostBreakdown {
   key:          string;
@@ -109,6 +125,10 @@ export interface IncurredCostBreakdown {
   leftover:     number;
   costPerUnit:  number;
   incurredCost: number;
+  /** Which side of the gross-profit line this entry falls on, so the frontend
+   *  can group the breakdown into COGS and OpEx sections without re-deriving
+   *  the classification. */
+  treatment:    "cogs" | "opex";
 }
 
 export interface TeamFinancials {
@@ -119,12 +139,50 @@ export interface TeamFinancials {
   productScore:        number;
   csatScore:           number; // raw bell curve score before marketing augmentation
   dynamicCost:         number;
+  /** Production capacity for the round — what the player can actually make.
+   *  Derived from the product's own field values against the per-product
+   *  INVENTORY_BASE. The frontend reads this as the ceiling on its produce
+   *  controls; nothing the frontend computes feeds back into it. */
+  inventoryQty:        number;
+  /** Units actually sold — demand clamped by what exists to sell. */
+  unitsSold:           number;
   revenue:             number;
   COGS:                number;
   grossProfit:         number;
+  /** Period costs: inventory holding on the unsold remainder, plus every
+   *  globalInput cost declared as opex. Sits BELOW the gross-profit line. */
+  operatingExpenses:   number;
+  operatingProfit:     number;
   productCostBreakdown: ProductCostBreakdown[];
   incurredCosts:       IncurredCostBreakdown[];
 }
+
+/** The metric block persisted under `projections[productId]`.
+ *
+ *  Both writers call this — /projections/recalc and roundCalculation — so a
+ *  field added to the sheet reaches the live projection and the official round
+ *  close together, or not at all. They hand-maintained near-identical literals
+ *  before, and the sets had already fallen out of order.
+ *
+ *  `marketShare` is deliberately NOT here: recalc has no competed share to
+ *  write, and inventing one would let a what-if overwrite a scored result. The
+ *  round close spreads it in on top. */
+export const toProjectionMetrics = (f: TeamFinancials) => ({
+  customersObtained: f.customersObtained,
+  sellingPrice:      f.sellingPrice,
+  dynamicPrice:      f.dynamicPrice,
+  productScore:      f.productScore,
+  dynamicCost:       f.dynamicCost,
+  inventoryQty:      f.inventoryQty,
+  unitsSold:         f.unitsSold,
+  revenue:           f.revenue,
+  COGS:              f.COGS,
+  grossProfit:       f.grossProfit,
+  operatingExpenses: f.operatingExpenses,
+  operatingProfit:   f.operatingProfit,
+  productCostBreakdown: f.productCostBreakdown,
+  incurredCosts:     f.incurredCosts,
+});
 
 export interface CostBreakdownEntry {
   category:     string;
@@ -309,9 +367,10 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     });
 
     let inventoryAugmentation = 1;
-    let customersObtainedAugment = 0.3;
-    let dynamicPriceAugment      = 0.55; // quality augmentation from inventory-affecting global inputs
-    
+    let customersObtainedAugment = baseVariables.customersObtainedBase ?? 0.3;
+    let dynamicPriceAugment      = baseVariables.dynamicPriceBase      ?? 0.55; // quality augmentation from inventory-affecting global inputs
+    let inventoryCostPerUnit     = 0;   // currency per unsold unit, not a rate
+
     globalInputs.forEach((entry) => {
       const stepMultiplier = getGlobalInputQuantity(decision, entry);
       const hasOptions     = entry.options && Object.keys(entry.options).length > 0;
@@ -322,33 +381,64 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       Object.entries(entry.impacts).forEach(([metricKey, impact]) => {
         const config = IMPACT_CONFIG[metricKey];
         if (!config) return;
-        
+
+        // ── Per-product override ───────────────────────────────────────────
+        // `impacts[k].selections[]` carries a per-product adjustment keyed by
+        // productId. The operator's admin client writes it and the GlobalInput
+        // validator accepts it, but NOTHING read it — so every configured
+        // override moved no number at all.
+        //
+        // `undefined` when this impact declares no override, or declares none
+        // for this product — NOT defaulted to a neutral value, because the two
+        // impact types do not consume it the same way:
+        //
+        //   • relative is a RATE     → the override MULTIPLIES it (0.5 halves)
+        //   • absolute is a QUANTITY → the override ADDS to it
+        //
+        // With no override, `impactValue` is `impact.value` and each branch
+        // below runs exactly as it did before this was wired.
+        const override = impact.selections?.find(
+          (sel) => String(sel.productId) === String(productId)
+        )?.value;
+
+        const impactValue =
+          override == null       ? impact.value
+          : impact.type === "relative" ? impact.value * override
+          :                              impact.value + override;
+
         if (config.affects === "inventoryRate") {
           if (impact.type === "relative") {
-            inventoryAugmentation *= (1 + impact.value * effectiveMultiplier);
-            dynamicPriceAugment   *= (1 + impact.value * effectiveMultiplier);
+            inventoryAugmentation *= (1 + impactValue * effectiveMultiplier);
+            dynamicPriceAugment   *= (1 + impactValue * effectiveMultiplier);
           } else {
-            inventoryAugmentation += (impact.value * effectiveMultiplier);
-            dynamicPriceAugment   += (impact.value * effectiveMultiplier);
+            inventoryAugmentation += (impactValue * effectiveMultiplier);
+            dynamicPriceAugment   += (impactValue * effectiveMultiplier);
           }
         }
-        
+
         if (config.affects === "customersObtained") {
           if (impact.type === "relative") {
-            customersObtainedAugment *= (1 + impact.value * effectiveMultiplier);
+            customersObtainedAugment *= (1 + impactValue * effectiveMultiplier);
           } else {
-            customersObtainedAugment += (impact.value * effectiveMultiplier);
+            customersObtainedAugment += (impactValue * effectiveMultiplier);
           }
         }
 
         if (config.affects === "dynamicCost") {
           if (impact.type === "relative") {
-            dynamicCost = Math.max(0, dynamicCost * (1 - impact.value * effectiveMultiplier));
+            dynamicCost = Math.max(0, dynamicCost * (1 - impactValue * effectiveMultiplier));
           } else {
-            dynamicCost = Math.max(0, dynamicCost - impact.value * effectiveMultiplier);
+            dynamicCost = Math.max(0, dynamicCost - impactValue * effectiveMultiplier);
           }
         }
-        // console.log(effectiveMultiplier);
+
+        if (config.affects === "inventoryCost") {
+          if (impact.type === "relative") {
+            inventoryCostPerUnit *= (1 + impactValue * effectiveMultiplier);
+          } else {
+            inventoryCostPerUnit += impactValue * effectiveMultiplier;
+          }
+        }
       });
     });
     
@@ -384,26 +474,55 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     
     customersObtained = customersObtained * customersObtainedAugment;
     
-    const leftover      = Math.round(Math.max(0, inventoryQty - customersObtained));
-    const inventoryCost = inventoryQty * dynamicCost;
-      
-    // ── GlobalInput cost breakdown (aggregated by category) ───────────────────
+    // ── Units actually sold ──────────────────────────────────────────────────
+    // Demand is capped by what exists to sell. The old code applied this clamp
+    // inline in the revenue ternary ONLY — so revenue was capped by inventory
+    // but COGS was not, which is the arithmetic root of the sheet mismatch.
+    const unitsSold = Math.min(customersObtained, inventoryQty);
+    const leftover  = Math.round(Math.max(0, inventoryQty - customersObtained));
+
+    // COGS: direct cost of the units SOLD. Was `inventoryQty * dynamicCost` —
+    // the entire build, sold or not.
+    const unitCOGS = unitsSold * dynamicCost;
+
+    // Holding: the UNSOLD remainder at the operator's per-unit inventory cost
+    // (channels → impacts → `inventory_cost`). Leftover-only — charging
+    // inventoryQty here would double-bill every unit already in unitCOGS.
+    const holdingCost = leftover * inventoryCostPerUnit;
+
+    // ── Cost breakdown, partitioned by declared treatment ────────────────────
     const incurredCosts: IncurredCostBreakdown[] = [];
 
-    // Inventory entry — always first
     incurredCosts.push({
       key:          "inventory",
-      label:        "Inventory",
+      label:        "Cost of goods sold",
       category:     "inventory",
-      inputQty:     Math.round(inventoryQty),
-      leftover,
+      inputQty:     Math.round(unitsSold),
+      leftover:     0,
       costPerUnit:  dynamicCost,
-      incurredCost: inventoryCost,
+      incurredCost: unitCOGS,
+      treatment:    "cogs",
     });
 
-    // Group global inputs by category, aggregate cost within each group
+    incurredCosts.push({
+      key:          "holding",
+      label:        "Inventory holding",
+      category:     "inventory",
+      inputQty:     leftover,
+      leftover,
+      costPerUnit:  inventoryCostPerUnit,
+      incurredCost: holdingCost,
+      treatment:    "opex",
+    });
+
+    // Group global inputs by category. No branch and no default: the entry
+    // arrives already normalised by readCostTreatment at the entry point.
+    let globalInputCOGS = 0;
+    let globalInputOpex = 0;
+
     const categoryMap: Record<string, {
-      totalCost:   number;
+      cogs:        number;
+      opex:        number;
       label:       string;
       stepValues:  number[];
     }> = {};
@@ -411,46 +530,53 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     globalInputs.forEach((entry) => {
       const stepMultiplier = getGlobalInputQuantity(decision, entry);
       const hasOptions     = entry.options && Object.keys(entry.options).length > 0;
+      // slider — cost scales with the selected step; radio/checkbox — full cost
+      const m    = hasOptions ? stepMultiplier : 1;
+      const cogs = entry.costTreatment.cogs * m;
+      const opex = entry.costTreatment.opex * m;
 
       if (!categoryMap[entry.category]) {
-        categoryMap[entry.category] = { totalCost: 0, label: entry.category, stepValues: [] };
+        categoryMap[entry.category] = { cogs: 0, opex: 0, label: entry.category, stepValues: [] };
       }
+      categoryMap[entry.category].cogs += cogs;
+      categoryMap[entry.category].opex += opex;
+      categoryMap[entry.category].stepValues.push(m);
 
-      if (hasOptions) {
-        // slider — cost scales with selected step multiplier
-        categoryMap[entry.category].totalCost  += entry.cost * stepMultiplier;
-        categoryMap[entry.category].stepValues.push(stepMultiplier);
-      } else {
-        // radio/checkbox — binary selection, full cost applies, no multiplier
-        categoryMap[entry.category].totalCost  += entry.cost;
-        categoryMap[entry.category].stepValues.push(1);
-      }
+      globalInputCOGS += cogs;
+      globalInputOpex += opex;
     });
 
-    // Push one entry per category
-    Object.entries(categoryMap).forEach(([category, { totalCost, label, stepValues }]) => {
+    // Push one entry per category, per side of the line it lands on.
+    Object.entries(categoryMap).forEach(([category, { cogs, opex, label, stepValues }]) => {
       const avgStepValue = stepValues.length > 0
         ? stepValues.reduce((a, b) => a + b, 0) / stepValues.length
         : 0;
+      const divisor = stepValues.length || 1;
 
-      incurredCosts.push({
-        key:          category,
-        label:        label,
-        category:     category,
-        inputQty:     avgStepValue,
-        leftover:     0,
-        costPerUnit:  totalCost / (stepValues.length || 1),
-        incurredCost: totalCost,
-      });
+      if (cogs !== 0) {
+        incurredCosts.push({
+          key: category, label, category,
+          inputQty: avgStepValue, leftover: 0,
+          costPerUnit: cogs / divisor, incurredCost: cogs, treatment: "cogs",
+        });
+      }
+      if (opex !== 0) {
+        incurredCosts.push({
+          key: category, label, category,
+          inputQty: avgStepValue, leftover: 0,
+          costPerUnit: opex / divisor, incurredCost: opex, treatment: "opex",
+        });
+      }
     });
 
-    const totalIncurredCost = incurredCosts.reduce((sum, e) => sum + e.incurredCost, 0);
-
-    const revenue     = customersObtained > inventoryQty ? inventoryQty * sellingPrice : customersObtained * sellingPrice;
-    const COGS        = totalIncurredCost;
-    const grossProfit = revenue - COGS;
-
-    // console.log(COGS);
+    // ── The sheet ────────────────────────────────────────────────────────────
+    // Revenue is arithmetically identical to the old ternary: unitsSold is
+    // min(customersObtained, inventoryQty), which is what that branch computed.
+    const revenue           = unitsSold * sellingPrice;
+    const COGS              = unitCOGS + globalInputCOGS;
+    const grossProfit       = revenue - COGS;
+    const operatingExpenses = holdingCost + globalInputOpex;
+    const operatingProfit   = grossProfit - operatingExpenses;
 
     return {
       teamId,
@@ -460,9 +586,13 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       productScore,
       csatScore,
       dynamicCost,
+      inventoryQty,
+      unitsSold,
       revenue,
       COGS,
       grossProfit,
+      operatingExpenses,
+      operatingProfit,
       productCostBreakdown,
       incurredCosts,
     };

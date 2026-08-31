@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useGame, DEFAULT_SHOP_NAME, MAX_SHOP_NAME } from '@/state/store';
 import { setShopName } from '@/engine/mockEngine';
 import { A } from '@/assets';
-import { PixelButton, PixelBadge, PixelPanel } from '@/components/primitives';
+import { PixelButton, PixelBadge } from '@/components/primitives';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
 import type { Route } from '@/types';
 import { motion } from 'framer-motion';

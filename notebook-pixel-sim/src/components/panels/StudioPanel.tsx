@@ -6,12 +6,17 @@ import {
   finlitCompanyChannels, toggleFinlitChannelAll, setShopName,
 } from '@/engine/mockEngine';
 import {
-  CANDIDATES, VENDORS, hireLevel,
-  BUDGET_MAX, BUDGET_LEVER_ENERGY, marketingDemandMult, salesSellBonus,
+  BUDGET_LEVER_ENERGY,
   CHANNEL_META, channelRow,
-  type VendorId, type GenreId, type ChannelId,
+  type GenreId, type ChannelId,
 } from '@/data/finlit';
-import { fmt$, perPhase, fmtUnitsPerPhase } from '@/utils/format';
+import { hireSteps, hireStep, CANDIDATE_IMAGE } from '@/engine/finlit/core/config/hiring';
+import {
+  vendorStep, vendorQuality, vendorCoversProduct, VENDOR_IMAGE,
+} from '@/engine/finlit/core/config/vendors';
+import type { GlobalInputItemDto } from '@/gamesim/types';
+import { impactFor } from '@/gamesim/impacts';
+import { fmt$ } from '@/utils/format';
 import type { ServerProjectionResult } from '@/gamesim/sync';
 import { DAYS_PER_PHASE } from '@/engine/config';
 import { playSfx } from '@/audio/audioManager';
@@ -65,34 +70,42 @@ const VENDOR_ICON: Record<string, string> = {
 // A pending pick — set when the player taps an option; the case-study modal
 // then gates the actual engage (the PDF's "read before choosing").
 type Pending =
-  | { kind: 'candidate'; id: string; level: 1 | 2 | 3 | 4; energy: number; study: CaseStudy }
-  | { kind: 'vendor'; id: VendorId; energy: number; study: CaseStudy };
+  // A hire carries the backend ITEM and one of its own `options` keys — the two
+  // things the server can actually resolve. No frontend candidate id.
+  | { kind: 'candidate'; item: GlobalInputItemDto; stepKey: string; energy: number; study: CaseStudy }
+  // A vendor likewise carries the backend item. It is a COMPANY-WIDE selection;
+  // `productId` is only what the per-product override and coverage are read
+  // against for display.
+  | { kind: 'vendor'; item: GlobalInputItemDto; productId: string | null; energy: number; study: CaseStudy };
 
 // Turn a pending pick into the prominent cost tiles + impact chips the modal
 // shows — energy to unlock (⚡) and ongoing $ cost kept as SEPARATE tiles.
-function engageSummary(
-  p: Pending,
-  genre: GenreId | undefined,
-): { tiles: CostTile[]; effects: string[] } {
+// No `genre` argument any more: vendor coverage is decided by `productsImpacted`
+// against the product id, not by guessing a genre from a product name.
+function engageSummary(p: Pending): { tiles: CostTile[]; effects: string[] } {
   const tiles: CostTile[] = [{ label: 'Energy to unlock', value: `${p.energy}`, tone: 'energy', icon: 'energy' }];
   const effects: string[] = [];
   if (p.kind === 'candidate') {
-    const lv = hireLevel(p.id, p.level);
-    tiles.push({ label: 'Wage / phase', value: fmt$(lv.cost), tone: 'cost', icon: 'cash' });
-    if (lv.prodBonus > 0) effects.push(`+${(lv.prodBonus * 100).toFixed(0)}% production`);
-    if (lv.sellBonus > 0) effects.push(`+${(lv.sellBonus * 100).toFixed(1)}% sell-rate`);
-    if (lv.costReduction > 0) effects.push(`−${(lv.costReduction * 100).toFixed(0)}% unit cost`);
-    if (lv.marketingBonus > 0) effects.push(`+${(lv.marketingBonus * 100).toFixed(1)}% demand`);
+    const lv = hireStep(p.item, p.stepKey);
+    if (lv) {
+      tiles.push({ label: 'Wage / phase', value: fmt$(lv.cost), tone: 'cost', icon: 'cash' });
+      if (lv.prodBonus > 0) effects.push(`+${(lv.prodBonus * 100).toFixed(0)}% production`);
+      if (lv.sellBonus > 0) effects.push(`+${(lv.sellBonus * 100).toFixed(1)}% sell-rate`);
+      if (lv.costReduction > 0) effects.push(`−${(lv.costReduction * 100).toFixed(0)}% unit cost`);
+      if (lv.marketingBonus > 0) effects.push(`+${(lv.marketingBonus * 100).toFixed(1)}% demand`);
+    }
   } else {
-    const v = VENDORS.find((x) => x.id === p.id);
+    // Scoped to the active product, so the bonus quoted is the one that product
+    // actually receives once the per-product override is applied.
+    const v = vendorStep(p.item, null, p.productId);
     if (v) {
       tiles.push({ label: 'Cost / phase', value: fmt$(v.cost), tone: 'cost', icon: 'cash' });
       effects.push(
         `+${(v.prodBonus * 100).toFixed(0)}% production`,
-        `${v.quality} quality`,
+        `${vendorQuality(v.prodBonus)} quality`,
       );
-      if (genre && v.coveredGenres.length > 0 && !v.coveredGenres.includes(genre)) {
-        effects.push(`⚠ Does not supply ${genre}`);
+      if (!vendorCoversProduct(p.item, p.productId)) {
+        effects.push(`⚠ Does not supply this notebook`);
       }
     }
   }
@@ -107,11 +120,13 @@ function engageSummary(
  */
 export function StudioPanel({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
   const energy = useGame((s) => s.player.energy);
-  const hireSelections = useGame((s) => s.globalInputSelections.filter((sel) => sel.key === 'hiring' && sel.selectedStepKey != null && sel.selectedLevel != null));
-  const marketingSel = useGame((s) => s.globalInputSelections.find((sel) => sel.key === 'marketing' && sel.selectedStepKey != null));
+  // Keyed by `inputId` now — `selectedStepKey` holds the backend options key
+  // (the level), not an identity, so it can no longer identify which hire.
+  const hireSelections = useGame((s) =>
+    s.globalInputSelections.filter((sel) => sel.key === 'hiring' && sel.inputId != null),
+  );
+  const marketingSel = useGame((s) => s.globalInputSelections.find((sel) => sel.key === 'marketing'));
   const marketingGI = useGame((s) => s.availableGlobalInputs.find((g) => g.key === 'marketing'));
-  const marketingStep = parseInt(marketingSel?.selectedStepKey ?? '0', 10);
-  const marketingMult = marketingGI?.inputs[0]?.options?.[marketingSel?.selectedStepKey ?? '0'] ?? 1;
   const phase = useGame((s) => s.meta.phase);
   const activeLine = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
@@ -138,6 +153,33 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
   const vendorGI  = availableGlobalInputs.find((g) => g.key === 'supply_chain');
   const channelMaxSelections = channelGI?.maxSelections ?? 1;
   const hiringMaxSelections  = hiringGI?.maxSelections ?? 3;
+  // ── Marketing budget ────────────────────────────────────────────────────
+  //
+  // The lever's domain is the ITEM'S OWN `options` keys. It used to be a raw
+  // `0…BUDGET_MAX` integer slider (a hardcoded frontend 40) whose value was
+  // submitted as `selectedStepKey` — so unless the operator happened to key
+  // options "0".."40", the server's `options[selectedStepKey] ?? 0` missed,
+  // yielded 0, and skipped every marketing impact. The slider is now an INDEX
+  // into the configured steps and submits the step's own key.
+  const marketingItem = marketingGI?.inputs[0] ?? null;
+  const marketingStepKeys = Object.keys(marketingItem?.options ?? {});
+  const marketingIdx = Math.max(0, marketingStepKeys.indexOf(marketingSel?.selectedStepKey ?? ''));
+  const marketingStepKey = marketingStepKeys[marketingIdx] ?? null;
+  const marketingMult = marketingStepKey != null
+    ? marketingItem?.options?.[marketingStepKey] ?? 0
+    : 0;
+  // Through the shared util rather than open-coded, so this lever cannot drift
+  // from the server's rule. Marketing is company-wide, hence productId null.
+  // The old display read `options[stepKey] - 1`, which ignored `impacts`
+  // entirely and so showed a demand lift unrelated to the one being applied.
+  const marketingDemandLift = marketingItem
+    ? impactFor(marketingItem, 'marketing', marketingStepKey, null)
+    : 0;
+  const marketingSpend = Math.ceil((marketingItem?.cost ?? 0) * marketingMult);
+  // Scaled by the step, matching what setFinlitMarketingBudget actually charges.
+  // A flat `item.energy` here would show a figure the mutator never deducts.
+  const marketingEnergy = Math.ceil((marketingItem?.energy ?? 0) * marketingMult);
+
   const [pending, setPending] = useState<Pending | null>(null);
   // Raw text per candidate so the field can be empty mid-typing; it is parsed
   // and clamped before anything reaches the engine.
@@ -156,15 +198,28 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
   const day = useGame((s) => s.meta.day);
   const daysLeftInPhase = Math.max(0, phase * DAYS_PER_PHASE - day + 1);
 
-  const vendorRefund = activeLine?.vendor ? (VENDORS.find((v) => v.id === activeLine.vendor)?.energy ?? 0) : 0;
+  // Vendor selections are company-wide, keyed by the backend item id.
+  const vendorSelections = useGame((s) =>
+    s.globalInputSelections.filter((sel) => sel.key === 'supply_chain' && sel.inputId != null),
+  );
+  const vendorMaxSelections = vendorGI?.maxSelections ?? 1;
+  // The product the active line is paired with — what `productsImpacted` and the
+  // per-product override are resolved against. Comes from the server projection,
+  // which is the only place the line↔product pairing is known here.
+  const activeProductId =
+    (liveProjection?.byProduct[activeLineIndex] ?? liveProjection?.byProduct[0])?.productId ?? null;
+  const vendorRefund = vendorSelections.reduce((sum, sel) => {
+    const item = vendorGI?.inputs.find((i) => String(i._id) === sel.inputId);
+    return sum + (item ? vendorStep(item, sel.selectedStepKey ?? null)?.energy ?? 0 : 0);
+  }, 0);
 
   const commit = () => {
     if (!pending) return;
     const ok = pending.energy <= energy;
     playSfx(ok ? 'confirm' : 'fail');
     apply((s) => {
-      if (pending.kind === 'candidate') engageFinlitHire(s, pending.id, pending.level, hiringMaxSelections);
-      else engageFinlitVendor(s, pending.id);
+      if (pending.kind === 'candidate') engageFinlitHire(s, pending.item, pending.stepKey, hiringMaxSelections);
+      else engageFinlitVendor(s, pending.item, null, vendorMaxSelections);
     });
     setPending(null);
   };
@@ -232,8 +287,11 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
                 key={ch}
                 onClick={() => {
                   if (isLastOn) { playSfx('fail'); return; }
+                  // No backend item ⇒ nothing the server could resolve, so the
+                  // toggle is refused rather than writing an unsendable selection.
+                  if (!channelItem) { playSfx('fail'); return; }
                   playSfx('click-soft');
-                  apply((s) => toggleFinlitChannelAll(s, ch, channelMaxSelections));
+                  apply((s) => toggleFinlitChannelAll(s, channelItem, channelMaxSelections));
                 }}
                 title={isLastOn ? 'You need at least one channel to sell through.' : undefined}
                 whileHover={{ y: -3 }}
@@ -336,26 +394,45 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
         icon={SECTION_ICON.budget}
         title="Marketing & Sales Budget"
         hint="Budget to grow, shown per phase. Set back to $0 to switch off and refund the energy."
-        onDetails={() => setDetail(budgetDetail(BUDGET_LEVER_ENERGY, BUDGET_MAX, marketingDemandMult, salesSellBonus))}
+        onDetails={() => setDetail(budgetDetail(marketingGI))}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <BudgetLever
             label="Marketing budget"
             hint="Awareness - lifts DEMAND (more people want it)."
-            value={marketingStep}
-            energy={BUDGET_LEVER_ENERGY}
+            value={marketingIdx}
+            max={Math.max(0, marketingStepKeys.length - 1)}
+            stepLabel={marketingStepKey ?? '—'}
+            spend={marketingSpend}
+            energy={marketingEnergy}
             effectLabel="Demand"
-            effect={`+${((marketingMult - 1) * 100).toFixed(0)}%`}
-            canActivate={marketingStep !== 0 || energy >= BUDGET_LEVER_ENERGY}
-            onChange={(v) => { playSfx('tick'); apply((s) => setFinlitMarketingBudget(s, String(v))); }}
+            effect={`+${(marketingDemandLift * 100).toFixed(1)}%`}
+            // The affordability decision belongs to the mutator, which knows the
+            // step it is moving TO and charges only the delta. Gating here on the
+            // CURRENT step's energy would let every move through, since the
+            // current step is free once already paid for.
+            canActivate={marketingStepKeys.length > 0}
+            onChange={(i) => {
+              const key = marketingStepKeys[i];
+              if (key == null || !marketingItem) return;
+              let ok = false;
+              apply((s) => { ok = setFinlitMarketingBudget(s, marketingItem, key); });
+              playSfx(ok ? 'tick' : 'fail');
+            }}
           />
           <BudgetLever
             label="Sales budget"
             hint="Conversion - lifts SELL-RATE (more of them buy). Comes from hiring."
             value={0}
+            max={0}
+            stepLabel="—"
+            spend={0}
             energy={BUDGET_LEVER_ENERGY}
             effectLabel="Sell-rate"
-            effect={`+${(hireSelections.reduce((sum, sel) => sum + hireLevel(sel.selectedStepKey!, sel.selectedLevel!).sellBonus, 0) * 100).toFixed(1)}%`}
+            effect={`+${(hireSelections.reduce((sum, sel) => {
+              const item = hiringGI?.inputs.find((i) => String(i._id) === sel.inputId);
+              return sum + (item ? hireStep(item, sel.selectedStepKey)?.sellBonus ?? 0 : 0);
+            }, 0) * 100).toFixed(1)}%`}
             canActivate={false}
             onChange={(v) => { playSfx('tick'); apply((s) => setFinlitSalesBudget(s, v)); }}
           />
@@ -389,17 +466,33 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
             Paired up they read as a roster you compare across, and the whole
             section fits without scrolling. */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
-          {CANDIDATES.map((c) => {
-            const engagedSel = hireSelections.find((sel) => sel.selectedStepKey === c.id);
+          {(hiringGI?.inputs ?? []).map((item) => {
+            // The roster IS the backend's hiring items. `options` gives the
+            // steps; the level control is a 1-based INDEX into them, so an
+            // operator can name the keys anything and the ceiling follows the
+            // configuration rather than a hardcoded 4.
+            const itemId = String(item._id);
+            const steps = hireSteps(item);
+            const engagedSel = hireSelections.find((sel) => sel.inputId === itemId);
             const engaged = engagedSel != null;
-            const curLevel = engagedSel?.selectedLevel ?? 0;
-            // Ceiling comes from the config table, which the operator can
-            // extend from the backend — not from a hard-coded 4.
-            const maxLevel = c.levels.length;
-            const draftRaw = levelDraft[c.id] ?? String(engaged ? curLevel : 1);
+            const engagedIdx = engaged
+              ? steps.findIndex((s) => s.stepKey === engagedSel.selectedStepKey)
+              : -1;
+            const curLevel = engagedIdx >= 0 ? engagedIdx + 1 : 0;
+            const maxLevel = Math.max(1, steps.length);
+            const draftRaw = levelDraft[itemId] ?? String(curLevel || 1);
             const parsed = parseInt(draftRaw, 10);
             const level = Number.isFinite(parsed) ? Math.min(maxLevel, Math.max(1, parsed)) : 1;
-            const lv = hireLevel(c.id, level);
+            const lv = steps[level - 1] ?? null;
+            // Presentation only. Name and blurb are the backend's label and
+            // description; the portrait comes from PlayerConfig via
+            // configHydrator, falling back to the bundled mark.
+            const c = {
+              id: itemId,
+              name: item.label,
+              blurb: item.description ?? '',
+              img: CANDIDATE_IMAGE[item.key] ?? CANDIDATE_ICON[item.key],
+            };
             return (
               // A roster CARD. The controls are the level input and the
               // hire button inside it; the card itself is never clickable.
@@ -434,12 +527,12 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
                   </div>
                 </div>
 
-                {/* LEVEL — typed, not picked from a fixed row of tiers. The
-                    ceiling is `c.levels.length`, which comes from the operator's
-                    published config (configHydrator merges `hiringCandidates`),
-                    so adding a level in the backend widens this input with no
-                    code change. `hireLevel()` throws on an unknown level, so the
-                    value is clamped before it ever reaches the engine. */}
+                {/* LEVEL — typed, not picked from a fixed row of tiers. The value
+                    is a 1-based INDEX into the item's `options` steps, so the
+                    ceiling is whatever the operator configured and adding a step
+                    in the backend widens this input with no code change. It is
+                    clamped to that range, and the step's own key — never the
+                    typed number — is what gets submitted. */}
                 {/* One line, baseline-aligned. This was four boxes of three
                     different heights jammed together with `items-end` — an
                     input, two tinted chips and a button — which read as
@@ -486,15 +579,27 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
                     <PixelButton
                       variant="ghost"
                       size="sm"
-                      onClick={() => { playSfx('click-soft'); apply((s2) => clearFinlitHire(s2)); }}
+                      onClick={() => { playSfx('click-soft'); apply((s2) => clearFinlitHire(s2, item)); }}
                     >
                       Release
                     </PixelButton>
                   ) : (
                     <PixelButton
                       size="sm"
-                      disabled={energy < lv.energy}
-                      onClick={() => { playSfx('click-soft'); setPending({ kind: 'candidate', id: c.id, level: lv.level, energy: lv.energy, study: studyFor('candidate', c.id) }); }}
+                      disabled={lv == null || energy < lv.energy}
+                      onClick={() => {
+                        if (!lv) return;
+                        playSfx('click-soft');
+                        // Case studies are still keyed by the operator's own id
+                        // (`item.key`), which is what PlayerConfig sets them under.
+                        setPending({
+                          kind: 'candidate',
+                          item,
+                          stepKey: lv.stepKey,
+                          energy: lv.energy,
+                          study: studyFor('candidate', item.key),
+                        });
+                      }}
                     >
                       Hire
                     </PixelButton>
@@ -537,27 +642,55 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
         </div>
       </OpsSection>
 
-      {/* ── Shipping vendor (active line) ── */}
+      {/* ── Shipping vendor — COMPANY-WIDE, like every other global input. The
+           active notebook is still needed to render the cards, because coverage
+           (`productsImpacted`) and the per-product override are shown relative
+           to a product; the decision itself is not per line. ── */}
       <OpsSection
         icon={SECTION_ICON.vendor}
         title="Vendor"
-        hint={activeLine ? `For ${activeLine.name}. Only helps if it stocks that market.` : 'Add a notebook first.'}
+        hint={
+          activeLine
+            ? `Company-wide. Figures shown for ${activeLine.name} — some vendors only supply certain notebooks.`
+            : 'Add a notebook first.'
+        }
         onDetails={() => setDetail(vendorDetail(vendorGI))}
       >
         {activeLine ? (
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
-              {VENDORS.map((v) => {
-                const lineGenre = activeLine.genre ?? 'indie';
-                const stocks = v.coveredGenres.length === 0 || v.coveredGenres.includes(lineGenre);
-                const on = activeLine.vendor === v.id;
-                const cost = v.energy;
+              {(vendorGI?.inputs ?? []).map((item) => {
+                const itemId = String(item._id);
+                // Scoped to the active product: coverage from `productsImpacted`,
+                // bonus through the per-product `selections` override.
+                const step = vendorStep(item, null, activeProductId);
+                const stocks = vendorCoversProduct(item, activeProductId);
+                const on = vendorSelections.some((sel) => sel.inputId === itemId);
+                const cost = step?.energy ?? item.energy;
                 const affordable = energy >= cost || on;
+                const v = {
+                  id: itemId,
+                  name: item.label,
+                  cost: step?.cost ?? item.cost,
+                  prodBonus: step?.prodBonus ?? 0,
+                  quality: vendorQuality(step?.prodBonus ?? 0),
+                  img: VENDOR_IMAGE[item.key] ?? VENDOR_ICON[item.key],
+                };
                 return (
                   <button
                     key={v.id}
                     disabled={!stocks || (!affordable && !on)}
-                    onClick={() => { playSfx('click-soft'); setPending({ kind: 'vendor', id: v.id as VendorId, energy: cost, study: studyFor('vendor', v.id) }); }}
+                    onClick={() => {
+                      playSfx('click-soft');
+                      setPending({
+                        kind: 'vendor',
+                        item,
+                        productId: activeProductId,
+                        energy: cost,
+                        // Case studies stay keyed by the operator's own id.
+                        study: studyFor('vendor', item.key),
+                      });
+                    }}
                     className={clsx(
                       'ctl-btn text-left px-2 py-2 border-2 transition-all active:scale-[0.98]',
                       on ? 'border-primary-strong bg-surface'
@@ -569,7 +702,7 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
                     <div className={clsx('contents', !on && '[&>*]:opacity-60')}>
                     <div className="flex items-center gap-2.5">
                       <SafeImage
-                        src={VENDOR_ICON[v.id]}
+                        src={v.img}
                         alt=""
                         className={clsx('shrink-0 w-20 h-20 object-contain', !on && 'grayscale')}
                         fallbackIcon="box"
@@ -601,14 +734,28 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
                 );
               })}
             </div>
-            {activeLine.vendor && (
+            {/* Gated on the SELECTIONS, not on `activeLine.vendor` — that field
+                is no longer written now vendors are company-wide, so keying the
+                button on it hid it permanently. Each vendor is released with the
+                item that priced its step, because that is what
+                `clearFinlitVendor` needs in order to refund the energy. */}
+            {vendorSelections.length > 0 && (
               <PixelButton
                 variant="ghost"
                 size="sm"
                 className="self-start"
-                onClick={() => { playSfx('click-soft'); apply((s) => clearFinlitVendor(s)); }}
+                onClick={() => {
+                  playSfx('click-soft');
+                  apply((s) => {
+                    for (const sel of vendorSelections) {
+                      const item = vendorGI?.inputs.find((i) => String(i._id) === sel.inputId);
+                      if (item) clearFinlitVendor(s, item);
+                    }
+                  });
+                }}
               >
-                Clear vendor · refund <EnergyValue amount={vendorRefund} className="ml-1" />
+                {vendorSelections.length > 1 ? 'Clear vendors' : 'Clear vendor'} · refund{' '}
+                <EnergyValue amount={vendorRefund} className="ml-1" />
               </PixelButton>
             )}
           </div>
@@ -635,7 +782,7 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
       >
         {pending && (() => {
           const short = pending.energy > energy;
-          const { tiles, effects } = engageSummary(pending, activeLine?.genre);
+          const { tiles, effects } = engageSummary(pending);
           return (
           <div className="flex flex-col gap-4">
             {/* Who this is about. A case study with no face was just a wall of
@@ -644,7 +791,7 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
             <div className="flex items-start gap-3.5">
               {pending.kind === 'candidate' && (
                 <SafeImage
-                  src={CANDIDATE_ICON[pending.id]}
+                  src={CANDIDATE_IMAGE[pending.item.key] ?? CANDIDATE_ICON[pending.item.key]}
                   alt=""
                   className="shrink-0 w-20 h-20 object-contain"
                   fallbackIcon="hire"
@@ -706,6 +853,9 @@ function BudgetLever({
   label,
   hint,
   value,
+  max,
+  stepLabel,
+  spend,
   energy,
   effectLabel,
   effect,
@@ -714,7 +864,14 @@ function BudgetLever({
 }: {
   label: string;
   hint: string;
+  /** INDEX into the backend item's configured option steps — not a dollar amount. */
   value: number;
+  /** Highest valid index, i.e. `options` key count − 1. */
+  max: number;
+  /** The option key at the current index, shown so the operator's own step label reads back. */
+  stepLabel: string;
+  /** Money this step costs per phase: `item.cost × options[stepKey]`. */
+  spend: number;
   energy: number;
   /** What the spend moves, e.g. "Demand". */
   effectLabel: string;
@@ -723,7 +880,7 @@ function BudgetLever({
   canActivate: boolean;
   onChange: (v: number) => void;
 }) {
-  const active = value > 0;
+  const active = spend > 0;
   return (
     // The lever's CONTROL is the slider; the card around it is a panel — same
     // `readout` + `bg-surface` as every other card in this panel. It used to
@@ -741,7 +898,10 @@ function BudgetLever({
           number — the spend — and say nothing about what that money bought.
           The effect chip is the whole point of the lever. */}
       <div className="grid grid-cols-3 gap-2">
-        <StatChip label="Spend / phase" value={fmt$(perPhase(value))} tone={active ? 'money' : 'muted'} />
+        {/* `spend` is already a per-phase figure — the step's configured cost —
+            so it is NOT run through perPhase() the way the old daily-dollar
+            slider value was. */}
+        <StatChip label={`Spend / phase (${stepLabel})`} value={fmt$(spend)} tone={active ? 'money' : 'muted'} />
         <StatChip label={effectLabel} value={effect} tone={active ? 'good' : 'muted'} />
         <StatChip
           label={active ? 'Running on' : 'To activate'}
@@ -753,10 +913,10 @@ function BudgetLever({
       <input
         type="range"
         min={0}
-        max={BUDGET_MAX}
+        max={max}
         step={1}
         value={value}
-        disabled={!canActivate}
+        disabled={!canActivate || max === 0}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
         className="w-full accent-ui-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
       />

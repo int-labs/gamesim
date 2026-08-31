@@ -29,7 +29,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: unknown) {
     // Surface in the console for diagnosis; never rethrow.
-    // eslint-disable-next-line no-console
     console.error('[ErrorBoundary] caught a render error:', error, info);
   }
 

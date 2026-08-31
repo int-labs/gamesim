@@ -40,16 +40,23 @@ function lineInput(
 }
 
 function activeChannels(s: GameState): ChannelId[] {
+  // A channel selection identifies the backend ITEM by `inputId`; the ChannelId
+  // the local tables key on is that item's `key`. Reading `selectedStepKey` here
+  // returned null for every channel (they are binary and carry no step).
+  const channelItems = s.availableGlobalInputs.find((g) => g.key === 'channel')?.inputs ?? [];
   return s.globalInputSelections
-    .filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null)
-    .map((sel) => sel.selectedStepKey as ChannelId);
+    .filter((sel) => sel.key === 'channel')
+    .map((sel) => channelItems.find((item) => String(item._id) === sel.inputId)?.key)
+    .filter((key): key is ChannelId => key != null);
 }
 
 /** Derive hire + marketing decisions from globalInputSelections + availableGlobalInputs. */
 function resolveDecisionInputs(s: GameState): Parameters<typeof toFinlitDecisions>[0] {
-  const hires = s.globalInputSelections
-    .filter((sel) => sel.key === 'hiring' && sel.selectedStepKey != null && sel.selectedLevel != null)
-    .map((sel) => ({ candidate: sel.selectedStepKey!, level: sel.selectedLevel as 1 | 2 | 3 | 4 }));
+  // Hiring is no longer modelled by this engine — `simulate.ts` applies neutral
+  // multipliers and hire effects live solely in the server's calcFinancials, via
+  // globalInputs[].impacts. Kept as an empty list rather than deleted, because
+  // `toFinlitDecisions` still declares the field.
+  const hires: Array<{ candidate: string; level: 1 | 2 | 3 | 4 }> = [];
 
   const marketingSel = s.globalInputSelections.find(
     (sel) => sel.key === 'marketing' && sel.selectedStepKey != null,

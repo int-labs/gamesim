@@ -1,7 +1,7 @@
 // V3 FinLit engine — decision + result types. Pure data; no store coupling, so
 // the simulator can be unit-verified in isolation.
 
-import type { GenreId, ProductionSpec, ChannelId, MarketingId, VendorId } from './config';
+import type { GenreId, ProductionSpec, ChannelId, VendorId } from './config';
 
 /** 'self' = bootstrapped/self-funded, 'investor' = took outside investment. Ported verbatim from notebook-pixel-sim src/types/index.ts. */
 export type Route = 'self' | 'investor';
