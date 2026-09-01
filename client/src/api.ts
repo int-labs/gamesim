@@ -23,6 +23,23 @@ export const getImageAssetById = (image_id: string) => api.get(`/image-assets/${
 export const uploadImageAsset = (formData: FormData) =>
   api.post("/image-assets", formData, { headers: { "Content-Type": "multipart/form-data" } });
 export const deleteImageAsset = (image_id: string) => api.delete(`/image-assets/${image_id}`);
+/**
+ * Which storage driver is actually live, verified against Supabase rather than
+ * inferred from env vars. When `durable` is false, uploads land on the API's
+ * local disk and are lost on the next redeploy — so the URLs written into
+ * PlayerConfig would be dead. Call this BEFORE an upload session.
+ */
+export const getStorageStatus = () =>
+  api.get<{ driver: "supabase" | "local"; durable: boolean; message: string }>(
+    "/image-assets/storage",
+  );
+/**
+ * Buckets an upload may target. There is NO default — the operator must choose,
+ * because storage is partitioned by simulation type and no bucket is right to
+ * guess. `buckets` is EMPTY on the local driver, where buckets do not apply.
+ */
+export const getStorageBuckets = () =>
+  api.get<{ buckets: { name: string; public: boolean }[] }>("/image-assets/buckets");
 
 // ── Simulations ───────────────────────────────────────────────
 export const getSimulations = () => api.get("/simulations");

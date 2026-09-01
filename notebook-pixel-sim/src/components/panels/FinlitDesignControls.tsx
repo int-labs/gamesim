@@ -1,11 +1,11 @@
 import { useGame } from '@/state/store';
 import { setFinlitAxis, setPrice } from '@/engine/mockEngine';
 import {
-  CONFIG_TABLES, CHANNEL_META, prodPerDay, unitCost,
+  CONFIG_TABLES, CHANNEL_META,
   type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
 } from '@/data/finlit';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
-import { fmt$, fmtInt, perPhase } from '@/utils/format';
+import { fmt$, fmtInt } from '@/utils/format';
 import type { ServerProjectionResult } from '@/gamesim/sync';
 import clsx from 'clsx';
 
@@ -67,17 +67,23 @@ export function FinlitDesignControls({ liveProjection }: { liveProjection?: Serv
   };
   const channelLabel = activeChannels.map((c) => CHANNEL_META[c].name).join(' + ');
 
-  // Unit cost and capacity come from the SERVER's projection for this line.
-  // The local `unitCost(spec)` / `prodPerDay(spec)` tables know only the spec
-  // above — they are blind to every business-page choice (hiring, vendors, the
-  // `dynamic_cost` impacts), so the margin shown while setting price was being
-  // computed against a cost the actual P&L never used. They remain as the
-  // offline fallback, which is the only case where the spec is all we know.
+  // Unit cost and capacity come from the SERVER's projection, with NO local
+  // fallback.
+  //
+  // There used to be one — `unitCost(spec)` / `prodPerDay(spec, 0)` — and it was
+  // worse than showing nothing. Those tables know only the spec above: they are
+  // blind to every business-page choice (hiring, vendors, the `dynamic_cost`
+  // impacts), and `prodPerDay(spec, 0)` passes a ZERO production bonus, so the
+  // figure understated capacity even on its own terms. It rendered
+  // indistinguishably from a real number, so the player priced against a margin
+  // the P&L never used and had no way to know.
+  //
+  // Absent data now reads as absent. `null` here means "the server has not said
+  // yet", and the display shows that rather than inventing an answer.
   const proj = liveProjection?.byProduct[lineIndex] ?? liveProjection?.byProduct[0] ?? null;
-  const fromServer = proj?.dynamicCost != null;
-  const uCost = proj?.dynamicCost ?? unitCost(spec);
-  const capacityPerPhase = proj?.inventoryQty ?? perPhase(prodPerDay(spec, 0));
-  const margin = line.price - uCost;
+  const uCost = proj?.dynamicCost ?? null;
+  const capacityPerPhase = proj?.inventoryQty ?? null;
+  const margin = uCost != null ? line.price - uCost : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -118,13 +124,21 @@ export function FinlitDesignControls({ liveProjection }: { liveProjection?: Serv
       {/* ── Live feedback — the server's figures for this line, so the margin
            you price against is the one the P&L will actually use. ── */}
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Capacity" value={`${fmtInt(Math.round(capacityPerPhase))} / phase`} tone="info" />
-        <Stat label="Unit cost" value={fmt$(uCost)} tone="warn" />
-        <Stat label="Margin" value={fmt$(margin)} tone={margin > 0 ? 'good' : 'bad'} />
+        <Stat
+          label="Capacity"
+          value={capacityPerPhase != null ? `${fmtInt(Math.round(capacityPerPhase))} / phase` : '—'}
+          tone="info"
+        />
+        <Stat label="Unit cost" value={uCost != null ? fmt$(uCost) : '—'} tone="warn" />
+        <Stat
+          label="Margin"
+          value={margin != null ? fmt$(margin) : '—'}
+          tone={margin == null ? 'info' : margin > 0 ? 'good' : 'bad'}
+        />
       </div>
-      {!fromServer && (
+      {uCost == null && (
         <div className="hint text-text-3">
-          Estimated from the spec alone - business decisions are not reflected until the server projection loads.
+          Waiting for the server projection - these figures come from it, not from the spec.
         </div>
       )}
 

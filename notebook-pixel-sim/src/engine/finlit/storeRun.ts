@@ -6,7 +6,7 @@
 // Pure engine + bridge underneath; this file only does the state plumbing.
 
 import type { GameState } from '@/state/store';
-import { ENERGY_PER_PHASE, ENERGY_CAP, type ChannelId } from '@/data/finlit';
+import { ENERGY_PER_PHASE, ENERGY_CAP, PHASE_LENGTH_DAYS, type ChannelId } from '@/data/finlit';
 import { simulatePhase } from './simulate';
 import { toFinlitLines, toFinlitDecisions, type LineInput } from './adapter';
 import { phaseResultToLedger, phaseResultToSeries } from './bridge';
@@ -30,8 +30,11 @@ function lineInput(
     price: l.price,
     genre: l.genre,
     finlitSpec: l.finlitSpec,
-    vendor: l.vendor,
-    targetPerDay: l.targetPerDay,
+    // The local day-tick scheduler genuinely works in units/day, so the /30
+    // lives HERE — at the boundary where a per-day consumer needs it — and
+    // nowhere in the UI, which is per phase throughout.
+    targetPerDay:
+      l.targetPerPhase != null ? l.targetPerPhase / PHASE_LENGTH_DAYS : undefined,
     finished: l.inventory.finished,
     targetSegment: l.targetSegment,
     stickersSpend,

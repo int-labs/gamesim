@@ -293,10 +293,11 @@ const starterLine = (): ProductLine => {
     targetSegment: starterSegment(),
     inventory: { raw: 2, finished: 1, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
     finlitSpec: { type: genre.id, paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
-    // Start producing near demand (not full capacity) so a fresh, untouched run
-    // opens modestly in the black rather than underwater on overstock holding —
-    // the player optimises up from a sane, positive baseline.
-    targetPerDay: 4,
+    // No `targetPerPhase`. Absent means "half the server's capacity" (see
+    // `statsFor` in InventoryPanel) — the old "open modestly in the black"
+    // intent, now expressed against the ceiling that actually bounds
+    // production. A literal here could only be a number from a model that no
+    // longer applies.
   };
 };
 
@@ -582,7 +583,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 15,
+      version: 17,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -932,6 +933,26 @@ export const useGame = create<Store>()(
         // the player re-makes selections — same approach as v13 and v14.
         if (fromVersion < 15) {
           persisted.globalInputSelections = [];
+        }
+        // v16: `ProductLine.vendor` removed. Vendors are a company-wide
+        // globalInput selection, so the per-line field is dropped rather than
+        // migrated — there is nowhere on a line for it to go. Stripped from old
+        // saves so the shape matches the type and nothing reads a ghost field.
+        if (fromVersion < 16 && Array.isArray(persisted?.portfolio?.productLines)) {
+          for (const line of persisted.portfolio.productLines) {
+            delete line.vendor;
+          }
+        }
+        // v17: `targetPerDay` is DROPPED, not converted. It was units/day for the
+        // local day-tick throttle — never submitted, never part of any server
+        // figure — and it was tuned against a capacity model that no longer
+        // bounds production. Carrying it over would preserve a stale plan and
+        // shadow the new default (half the server's capacity), so the field just
+        // goes.
+        if (fromVersion < 17 && Array.isArray(persisted?.portfolio?.productLines)) {
+          for (const line of persisted.portfolio.productLines) {
+            delete line.targetPerDay;
+          }
         }
         if (fromVersion < 12 && Array.isArray(persisted?.portfolio?.productLines)) {
           const RETIRED_LABELS = new Set(['Student', 'Planner', 'Daily Journal']);

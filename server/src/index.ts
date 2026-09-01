@@ -1,6 +1,18 @@
+// MUST BE FIRST. Import declarations are hoisted and evaluated in source order
+// BEFORE any statement in this module body, so a `dotenv.config()` call further
+// down runs too late: `./routes` pulls in services/storage.ts, which reads
+// SUPABASE_URL / SUPABASE_KEY at MODULE SCOPE. With the call below the imports,
+// those were always undefined, `client` stayed null, and the storage driver was
+// pinned to local disk no matter what .env contained — while the fallback
+// message told the operator to set variables that were already set.
+//
+// `dotenv/config` is dotenv's own side-effect entry point: importing it loads
+// the file. Keep it above every other import, and do not convert it into a
+// named import that a formatter is free to reorder.
+import "dotenv/config";
+
 import cookieParser from "cookie-parser";
 import cors from "cors"; // Import CORS middleware
-import dotenv from "dotenv";
 import express, { Request, RequestHandler, Response } from "express";
 import fs from "fs";
 import { createServer } from "http";
@@ -8,8 +20,6 @@ import path from "path";
 import connectToDatabase from "./db/db";
 import routes from "./routes";
 import { initSocket } from "./utils/socket";
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000; // Will be 3000 in docker-compose

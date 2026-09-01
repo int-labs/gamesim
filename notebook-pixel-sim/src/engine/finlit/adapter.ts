@@ -5,7 +5,7 @@
 
 import {
   TYPE_OPTIONS, PAPER_OPTIONS, SIZE_OPTIONS, PAGE_DESIGN_OPTIONS, ADDON_OPTIONS, COVER_OPTIONS,
-  type GenreId, type ProductionSpec, type VendorId,
+  type GenreId, type ProductionSpec,
 } from '@/data/finlit';
 import type { FinlitLine, FinlitDecisions, Route } from './types';
 
@@ -16,7 +16,6 @@ export interface LineInput {
   price: number;
   genre?: GenreId;
   finlitSpec?: Partial<ProductionSpec>;
-  vendor?: VendorId;
   targetPerDay?: number;
   finished?: number;
   /** Legacy hint used only to pick a default genre when `genre` is unset. */
@@ -67,7 +66,6 @@ export function toFinlitLine(l: LineInput): FinlitLine {
     price: l.price > 0 ? l.price : 16,
     channels: l.channels?.length ? l.channels : ['offline'],
     stickersSpend: l.stickersSpend ?? 0,
-    vendor: l.vendor,
     targetPerDay: l.targetPerDay,
     finished: l.finished ?? 0,
   };

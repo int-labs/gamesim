@@ -22,7 +22,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 
-const SUPABASE_BUCKET = "imageAsset";
+/**
+ * THERE IS NO DEFAULT BUCKET, deliberately.
+ *
+ * Storage is partitioned by simulation type — `JournalSim` for player-facing
+ * art, `imageAssets` for private key assets, more as further simulations are
+ * built. There is no bucket that is right to guess, so a caller that names none
+ * gets an error rather than having a file filed somewhere arbitrary. A wrong
+ * default is worse than a refusal: it succeeds, and the misfiling is only
+ * discovered later by whoever cannot find the asset.
+ */
 const UPLOAD_DIR = path.join(__dirname, "../../uploads");
 
 export type StorageDriver = "supabase" | "local";
@@ -75,6 +84,35 @@ export interface StorageHealth {
  */
 const REPROBE_AFTER_MS = 60_000;
 
+/**
+ * A dead project fails fast — undici reports "fetch failed" as soon as DNS
+ * gives up — but a PAUSED or merely unresponsive one leaves the request open,
+ * and the storage client sets no deadline of its own. Without this bound the
+ * probe never settles, so `resolveStorage()` never resolves and every caller
+ * awaiting it hangs: the upload route, and `GET /image-assets/storage`, which
+ * holds the socket open and answers nothing.
+ *
+ * An unreachable project is exactly the case this module exists to degrade
+ * gracefully, so a timeout is treated as unhealthy, not as an error.
+ */
+const PROBE_TIMEOUT_MS = 5_000;
+
+/** Reject if `p` has not settled within `ms`. The timer is always cleared, so a
+ *  slow-but-successful probe cannot leave a handle keeping the process alive. */
+async function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 const LOCAL_DETAIL =
   "Uploads are written to the server's local disk. On a container host they are lost on redeploy — set SUPABASE_URL and SUPABASE_KEY for durable storage.";
 
@@ -87,19 +125,41 @@ async function probeSupabase(): Promise<StorageHealth> {
   }
 
   try {
-    // Cheapest call that touches both DNS and the bucket: if the project is
-    // gone this rejects, and if the bucket is missing it returns an error.
-    const { error } = await client.storage.from(SUPABASE_BUCKET).list("", { limit: 1 });
+    // `listBuckets()`, NOT `from(bucket).list()`.
+    //
+    // The latter was chosen as "the cheapest call that touches both DNS and the
+    // bucket", on the belief that a missing bucket returns an error. It does
+    // not — it answers `{ error: null, data: [] }` for any name at all,
+    // including one that has never existed. So the probe reported a healthy,
+    // durable driver for a bucket that was not there, and the "bucket could not
+    // be read" branch below was unreachable.
+    //
+    // Health is now what it can actually establish: the project resolves, the
+    // credentials work, and the storage API answers. WHICH bucket an upload
+    // targets is validated per-upload against `listBuckets()`, which is the
+    // authoritative check — and the right place for it, since buckets are
+    // partitioned by simulation type and there is no single "the" bucket.
+    const { error } = await withTimeout(
+      client.storage.listBuckets(),
+      PROBE_TIMEOUT_MS,
+      "Supabase storage probe",
+    );
     if (error) throw new Error(error.message);
     return { driver: "supabase", durable: true, detail: "Uploads go to Supabase storage." };
   } catch (err: any) {
     const reason = String(err?.message ?? err);
     // "fetch failed" is undici's message for a host that doesn't resolve — the
-    // signature of a project that was deleted rather than merely paused.
+    // signature of a project that was deleted rather than merely paused. A
+    // TIMEOUT is its own case: the host answered nothing at all, which says
+    // nothing about whether the bucket exists, so it must not be reported as a
+    // bucket problem.
+    const timedOut = /timed out/i.test(reason);
     const gone = /fetch failed|ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(reason);
-    const detail = gone
+    const detail = timedOut
+      ? `Supabase is configured but the project at ${SUPABASE_URL} did not respond within ${PROBE_TIMEOUT_MS}ms (${reason}). Uploads are falling back to the server's local disk, which is lost on redeploy.`
+      : gone
       ? `Supabase is configured but the project at ${SUPABASE_URL} is unreachable (${reason}). Uploads are falling back to the server's local disk, which is lost on redeploy.`
-      : `Supabase is configured but the "${SUPABASE_BUCKET}" bucket could not be read (${reason}). Uploads are falling back to the server's local disk, which is lost on redeploy.`;
+      : `Supabase is configured but its storage API could not be read (${reason}). Uploads are falling back to the server's local disk, which is lost on redeploy.`;
     console.warn(`[storage] ${detail}`);
     return { driver: "local", durable: false, detail };
   }
@@ -120,6 +180,33 @@ export async function resolveStorage(): Promise<StorageHealth> {
  */
 export const activeDriver = (): StorageDriver =>
   cached ? cached.driver : client ? "supabase" : "local";
+
+export interface StorageBucket {
+  name: string;
+  /** A private bucket's public URL resolves to nothing the player can load. */
+  public: boolean;
+}
+
+/**
+ * The buckets an upload may target.
+ *
+ * Empty on the local driver — local disk has no buckets, and returning a
+ * fabricated one would let the console offer a choice that means nothing. The
+ * caller should read that emptiness as "no choice to make", not as a failure.
+ */
+export async function listBuckets(): Promise<StorageBucket[]> {
+  const { driver } = await resolveStorage();
+  if (driver !== "supabase" || !client) return [];
+
+  const { data, error } = await withTimeout(
+    client.storage.listBuckets(),
+    PROBE_TIMEOUT_MS,
+    "Supabase bucket list",
+  );
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((b: any) => ({ name: b.name, public: Boolean(b.public) }));
+}
 
 /**
  * Absolute base for locally-served files. The player app runs on a different
@@ -148,18 +235,22 @@ const safeKey = (key: string): string => {
 export async function putObject(
   buffer: Buffer,
   key: string,
-  contentType = "application/octet-stream"
+  contentType: string,
+  /** Required. No fallback exists — see the note at the top of this file. */
+  bucket: string
 ): Promise<string> {
   const name = safeKey(key);
+  const target = bucket?.trim();
+  if (!target) throw new Error("A storage bucket is required; there is no default.");
   const { driver } = await resolveStorage();
 
   if (driver === "supabase" && client) {
     const { error } = await client.storage
-      .from(SUPABASE_BUCKET)
+      .from(target)
       .upload(name, buffer, { contentType, upsert: false });
     if (error) throw new Error(`Upload failed: ${error.message}`);
 
-    const { data } = client.storage.from(SUPABASE_BUCKET).getPublicUrl(name);
+    const { data } = client.storage.from(target).getPublicUrl(name);
     return data.publicUrl;
   }
 
@@ -170,12 +261,44 @@ export async function putObject(
 
 /** Remove a stored object. A missing file is not an error — the caller is
  *  deleting the record either way, and a half-deleted pair helps nobody. */
-export async function deleteObject(key: string): Promise<void> {
+/**
+ * Is `key` actually in `bucket`?
+ *
+ * Worth asking before a delete, because Supabase's `remove()` does NOT error on
+ * a missing object — it reports success having removed nothing. Without this
+ * check the console would happily drop the database row for a file that is
+ * still sitting in some other bucket, and the only pointer to it goes with it.
+ *
+ * Always true on the local driver, where the delete path tolerates a missing
+ * file already.
+ */
+export async function objectExists(key: string, bucket: string): Promise<boolean> {
   const name = safeKey(key);
+  const target = bucket?.trim();
+  if (!target) return false;
+  const { driver } = await resolveStorage();
+  if (driver !== "supabase" || !client) return true;
+
+  const { data, error } = await withTimeout(
+    client.storage.from(target).list("", { search: name, limit: 1 }),
+    PROBE_TIMEOUT_MS,
+    "Supabase object lookup",
+  );
+  if (error) throw new Error(error.message);
+  return (data ?? []).some((o: any) => o.name === name);
+}
+
+export async function deleteObject(key: string, bucket: string): Promise<void> {
+  const name = safeKey(key);
+  // MUST match the bucket the object was written to. Guessing would delete from
+  // the wrong bucket — silently leaving the real object behind while reporting
+  // success — so an unknown bucket is refused instead.
+  const target = bucket?.trim();
+  if (!target) throw new Error("A storage bucket is required; there is no default.");
   const { driver } = await resolveStorage();
 
   if (driver === "supabase" && client) {
-    const { error } = await client.storage.from(SUPABASE_BUCKET).remove([name]);
+    const { error } = await client.storage.from(target).remove([name]);
     if (error) throw new Error(`Delete failed: ${error.message}`);
     return;
   }

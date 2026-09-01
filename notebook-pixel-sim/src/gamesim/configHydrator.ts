@@ -112,9 +112,11 @@ const assetUrl = (path?: string | null): string | undefined => {
 };
 
 /**
- * An uploaded asset wins over a bundled sprite key. `imageAssetId` is an
- * absolute URL written by the console's uploader; `imagePath` is a key into
- * `A`, which URL-encodes the segments containing spaces / `&` / em-dashes.
+ * An uploaded asset wins over a bundled sprite key. `imageAssetId` holds the
+ * asset's full URL, as stored by the console's picker; the server's GET also
+ * resolves any legacy ImageAsset id to a URL before responding, so this is
+ * always a URL by the time it arrives. `imagePath` is a key into `A`, which
+ * URL-encodes the segments containing spaces / `&` / em-dashes.
  */
 const imageFor = (row: Dict): string | undefined =>
   (typeof row.imageAssetId === 'string' && row.imageAssetId) || assetUrl(row.imagePath);

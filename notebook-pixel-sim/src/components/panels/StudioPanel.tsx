@@ -507,7 +507,7 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
               <div key={c.id} className="readout p-3 flex flex-col gap-3 bg-surface">
                 <div className="flex items-start gap-3">
                   <SafeImage
-                    src={CANDIDATE_ICON[c.id]}
+                    src={c.img}
                     alt=""
                     className={clsx('shrink-0 w-24 h-24 object-contain', !engaged && 'grayscale-[45%] opacity-80')}
                     fallbackIcon="hire"

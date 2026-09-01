@@ -221,10 +221,21 @@ export interface ProductLine {
   genre?: FinlitGenreId;
   /** Multiplicative production spec (type/paper/size/pageDesign/addon/cover). */
   finlitSpec?: Partial<FinlitProductionSpec>;
-  /** Shipping vendor engaged for this line. */
-  vendor?: FinlitVendorId;
-  /** Units/day the player commits to producing (LP2 lever; ≤ capacity). */
-  targetPerDay?: number;
+  // No `vendor` field: a shipping vendor is a COMPANY-WIDE globalInput
+  // selection, not a property of one notebook. Which products a vendor's bonus
+  // reaches is decided by `productsImpacted` on the backend item.
+  /**
+   * Units per PHASE the player commits to producing (LP2 lever), bounded by the
+   * server's `inventoryQty` for this line.
+   *
+   * Was `targetPerDay`. Every figure the player ever read was per phase; the
+   * per-day unit survived only as the local day-tick scheduler's internal
+   * representation, and it made the produce plan the one control that did not
+   * speak the same units as the capacity bounding it. Never submitted to the
+   * server — `unitsSold = min(customersObtained, inventoryQty)` is what actually
+   * limits sales.
+   */
+  targetPerPhase?: number;
   /** Player's own demand estimate for this line (units/phase). Pure UI input —
    *  used to coach production targets; does not affect the engine simulation. */
   demandEstPerPhase?: number;

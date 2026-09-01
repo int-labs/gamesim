@@ -5,6 +5,7 @@ import {
   getImageAssets,
   getImageAssetById,
   getStorageStatus,
+  getStorageBuckets,
   deleteImageAsset,
 } from "../controllers/imageAssetsControllers";
 import { upload } from "../constants/multer";
@@ -40,8 +41,9 @@ const handleUploadErrors = (
 
 router.post("/", upload.single("image"), handleUploadErrors, uploadImageAsset);
 router.get("/", getImageAssets);
-// Must precede "/:image_id", which would otherwise swallow it.
+// Must precede "/:image_id", which would otherwise swallow them.
 router.get("/storage", getStorageStatus);
+router.get("/buckets", getStorageBuckets);
 router.get("/:image_id", getImageAssetById);
 router.delete("/:image_id", deleteImageAsset);
 

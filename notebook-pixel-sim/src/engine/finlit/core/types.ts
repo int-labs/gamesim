@@ -1,7 +1,7 @@
 // V3 FinLit engine — decision + result types. Pure data; no store coupling, so
 // the simulator can be unit-verified in isolation.
 
-import type { GenreId, ProductionSpec, ChannelId, VendorId } from './config';
+import type { GenreId, ProductionSpec, ChannelId } from './config';
 
 /** 'self' = bootstrapped/self-funded, 'investor' = took outside investment. Ported verbatim from notebook-pixel-sim src/types/index.ts. */
 export type Route = 'self' | 'investor';
@@ -19,7 +19,8 @@ export interface FinlitLine {
   /** Stickers spend derived from placed canvas add-on instances × unitCost (0.15). */
   stickersSpend: number;
   /** Shipping vendor engaged for this line (adds sell/prod bonus if it covers the genre). */
-  vendor?: VendorId;
+  // No `vendor`: vendors are company-wide globalInputs, applied server-side.
+
   /**
    * Units/day the player commits to producing (the LP2 "how much to produce"
    * lever). Actual output = min(target, capacity). Undefined = run at full

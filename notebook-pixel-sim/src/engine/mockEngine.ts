@@ -39,7 +39,7 @@ import {
 import { clamp, phaseOf } from '@/utils/format';
 import type {
   LedgerEntry, Segment, ProductLine, Archetype, AddOnInstance,
-  FinlitGenreId, FinlitProductionSpec, FinlitVendorId,
+  FinlitGenreId, FinlitProductionSpec,
 } from '@/types';
 import { hireStep } from '@/engine/finlit/core/config/hiring';
 import { vendorStep } from '@/engine/finlit/core/config/vendors';
@@ -523,19 +523,16 @@ export const setShopName = (s: GameState, name: string) => {
   s.history.push({ day: s.meta.day, text: `Shop renamed: ${prev} → ${next}`, cause: 'shop_name' });
 };
 
-/** Set the line's daily production target (LP2 lever). Undefined = full capacity. */
-export const setLineTargetPerDay = (s: GameState, units: number | undefined, lineId?: string) => {
+/** Set the line's per-PHASE production target (LP2 lever). Undefined = full
+ *  capacity. Units match the server's `inventoryQty`, which is what bounds it. */
+export const setLineTargetPerPhase = (s: GameState, units: number | undefined, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  line.targetPerDay = units === undefined ? undefined : clamp(finite(units, 0), 0, 100000);
+  line.targetPerPhase = units === undefined ? undefined : clamp(finite(units, 0), 0, 100000);
   s.history.push({ day: s.meta.day, text: `${line.name} production target ${units ?? 'max'}`, cause: 'finlit_target' });
 };
 
-/** Set the shipping vendor engaged for a line (undefined = none). */
-export const setLineVendor = (s: GameState, vendor: FinlitVendorId | undefined, lineId?: string) => {
-  const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  line.vendor = vendor;
-  s.history.push({ day: s.meta.day, text: `${line.name} vendor → ${vendor ?? 'none'}`, cause: 'finlit_vendor' });
-};
+// `setLineVendor` is gone with `ProductLine.vendor`: a vendor is a company-wide
+// globalInput selection, not a property of a notebook. See engageFinlitVendor.
 
 // ── Energy-gated "engage" decisions ────────────────────────────────────────
 // Each key decision spends ENERGY (the scarce per-phase resource). Decisions

@@ -1,38 +1,49 @@
 import { useGame } from '@/state/store';
-import { setLineTargetPerDay, setLineDemandEst } from '@/engine/mockEngine';
-import {
-  genreById, prodPerDay,
-  type GenreId, type ProductionSpec,
-} from '@/data/finlit';
+import { setLineTargetPerPhase, setLineDemandEst } from '@/engine/mockEngine';
+import { genreById, type GenreId } from '@/data/finlit';
 import { PixelPanel, PixelBadge } from '@/components/primitives';
-import { fmt$, fmtInt, perPhase } from '@/utils/format';
+import { fmt$, fmtInt } from '@/utils/format';
 import { BUSINESS_PAGE } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
-
-const DEFAULT_SPEC: ProductionSpec = {
-  type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
-};
+import type { ServerProjectionResult } from '@/gamesim/sync';
 
 interface LineStats {
   genre: GenreId;
-  capacity: number;
+  /** Per phase, from the server's `inventoryQty`. Null until it answers. */
+  capacity: number | null;
   finished: number;
   target: number;
   /** Read-only here — price is set on the Product page (it pairs with unit cost). */
   price: number;
 }
 
+/**
+ * Per-line figures for the production planner. Everything is PER PHASE.
+ *
+ * `capacity` is the server's `inventoryQty` — the only real ceiling, since
+ * `unitsSold = min(customersObtained, inventoryQty)`. It used to be
+ * `prodPerDay(spec, 0)` from the local spec table: a different model, in
+ * per-day units, with a hardcoded ZERO production bonus, which is why this
+ * panel and the metrics never agreed. `null` when the server has not answered
+ * yet — there is no local fallback, because a fabricated ceiling reads exactly
+ * like a real one.
+ */
 function statsFor(
-  line: { genre?: GenreId; finlitSpec?: Partial<ProductionSpec>; price: number; targetPerDay?: number; inventory: { finished: number } },
+  line: { genre?: GenreId; price: number; targetPerPhase?: number; inventory: { finished: number } },
+  capacity: number | null,
 ): LineStats {
   const genre = (line.genre ?? 'indie') as GenreId;
-  const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line.finlitSpec ?? {}) };
-  const capacity = prodPerDay(spec, 0);
   return {
     genre,
     capacity,
     finished: line.inventory.finished,
-    target: line.targetPerDay ?? Math.ceil(capacity),
+    // Default to HALF the server's capacity — the old intent ("open modestly in
+    // the black rather than underwater on overstock holding") expressed against
+    // the ceiling that actually bounds production, instead of the invented
+    // per-day figure it used to be. Floored, so the default never rounds up past
+    // half. 0 until capacity is known, so the slider cannot suggest a plan
+    // against a ceiling nobody has stated.
+    target: line.targetPerPhase ?? (capacity != null ? Math.floor(capacity * 0.5) : 0),
     price: line.price,
   };
 }
@@ -44,7 +55,7 @@ function statsFor(
  * This panel surfaces that control per notebook (previously only on the
  * Product page), plus a live stock/output overview and the trend charts.
  */
-export function InventoryPanel() {
+export function InventoryPanel({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
   const lines = useGame((s) => s.portfolio.productLines);
   const finished = useGame((s) => s.inventory.totalFinished);
   const stockoutDays = useGame((s) => s.inventory.stockoutDays);
@@ -52,9 +63,17 @@ export function InventoryPanel() {
   const apply = useGame((s) => s.apply);
 
 
-  const stats = lines.map((l) => statsFor(l));
+  // `byProduct` is index-aligned with portfolio order, the same assumption the
+  // rest of the gamesim bridge makes.
+  const stats = lines.map((l, i) =>
+    statsFor(l, liveProjection?.byProduct[i]?.inventoryQty ?? null),
+  );
   const totalTarget = stats.reduce((a, s) => a + s.target, 0);
-  const totalCapacity = stats.reduce((a, s) => a + s.capacity, 0);
+  // Null when ANY line is missing its capacity: a partial sum would read as a
+  // whole-portfolio ceiling while silently omitting lines.
+  const totalCapacity = stats.some((s) => s.capacity == null)
+    ? null
+    : stats.reduce((a, s) => a + (s.capacity ?? 0), 0);
   const totalEstimatedDemand = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
 
   if (lines.length === 0) {
@@ -71,8 +90,13 @@ export function InventoryPanel() {
       <PixelPanel title="Stock & Output">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Box label="Finished goods" value={fmtInt(finished)} tone="success" hint={BUSINESS_PAGE.inventory.finishedHint} />
-          <Box label="Produce / phase" value={`~${fmtInt(perPhase(totalTarget))}`} tone="neutral" hint="Total units per phase you've planned across all notebooks." />
-          <Box label="Capacity / phase" value={`~${fmtInt(perPhase(totalCapacity))}`} tone="info" hint="Most you can make per phase at your current specs + hires." />
+          <Box label="Produce / phase" value={fmtInt(totalTarget)} tone="neutral" hint="Total units per phase you've planned across all notebooks." />
+          <Box
+            label="Capacity / phase"
+            value={totalCapacity != null ? fmtInt(totalCapacity) : '—'}
+            tone="info"
+            hint="Most you can make per phase, from the server's projection for your current specs and business decisions."
+          />
           <Box label="Demand est. / phase" value={totalEstimatedDemand > 0 ? `~${fmtInt(totalEstimatedDemand)}` : '—'} tone="info" hint="Your estimate of units you expect to sell this phase, set per notebook below." />
         </div>
         <div className="flex items-center gap-2 mt-2">
@@ -102,7 +126,7 @@ export function InventoryPanel() {
               stats={stats[i]}
               demandEst={line.demandEstPerPhase ?? 0}
               onDemandEstChange={(v) => apply((s) => setLineDemandEst(s, v, line.id))}
-              onChange={(v) => apply((s) => setLineTargetPerDay(s, v, line.id))}
+              onChange={(v) => apply((s) => setLineTargetPerPhase(s, v, line.id))}
             />
           ))}
         </div>
@@ -126,7 +150,11 @@ function ProductionRow({
   onDemandEstChange: (v: number) => void;
   onChange: (v: number) => void;
 }) {
-  const capMax = Math.max(1, Math.ceil(stats.capacity));
+  // The ceiling is literally `inventoryQty`. With no capacity yet there is
+  // nothing to plan against, so the slider is disabled rather than bounded by a
+  // guess.
+  const known = stats.capacity != null;
+  const capMax = known ? Math.max(1, Math.round(stats.capacity!)) : 1;
   const value = Math.min(stats.target, capMax);
   // Tone production target against the player's own estimate — coaching without revealing real demand.
   const demandEstDay = demandEst / 30;
@@ -174,9 +202,9 @@ function ProductionRow({
       <div>
         <div className="flex items-baseline justify-between gap-3">
           <span className="stat-label">Produce / phase</span>
-          {/* The slider's unit is still units/DAY internally — that is what the
-              engine schedules — but every figure the player reads is per phase. */}
-          <span className="num-sm text-text tabular-nums">{fmtInt(perPhase(value))}</span>
+          {/* Per phase throughout now — the slider's value IS the figure, with
+              no /30 between the control and what the player reads. */}
+          <span className="num-sm text-text tabular-nums">{known ? fmtInt(value) : '—'}</span>
         </div>
         <input
           type="range"
@@ -184,8 +212,9 @@ function ProductionRow({
           max={capMax}
           step={1}
           value={value}
+          disabled={!known}
           onChange={(e) => onChange(parseInt(e.target.value, 10))}
-          className="w-full mt-1.5 accent-ui-primary cursor-pointer"
+          className="w-full mt-1.5 accent-ui-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
       <div className="flex items-center justify-between gap-3 mt-2">
@@ -207,7 +236,9 @@ function ProductionRow({
           </label>
           <span className="flex items-baseline gap-1.5">
             <span className="stat-label">Capacity</span>
-            <span className="num-xs text-text-2">~{fmtInt(perPhase(stats.capacity))}</span>
+            <span className="num-xs text-text-2">
+              {stats.capacity != null ? fmtInt(Math.round(stats.capacity)) : '—'}
+            </span>
           </span>
         </span>
         {demandEst > 0 && (

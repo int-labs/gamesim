@@ -83,7 +83,7 @@ export function BusinessPage({ liveProjectionState }: { liveProjectionState: Liv
           className="p-4"
         >
           {tab === 'operations' && <StudioPanel liveProjection={liveProjection} />}
-          {tab === 'inventory' && <InventoryPanel />}
+          {tab === 'inventory' && <InventoryPanel liveProjection={liveProjection} />}
           {tab === 'performance' && (
             <div className="flex flex-col gap-5">
               <FinanceTable />
