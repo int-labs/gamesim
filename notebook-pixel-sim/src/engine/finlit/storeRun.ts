@@ -161,18 +161,26 @@ export function runFinlitPhase(s: GameState): FinlitPhaseResult {
  * end, and the evaluation is queued — reusing the existing evaluation/insight
  * flow. (Mid-phase key scenarios arrive in P5.)
  */
-export function advanceFinlitPhase(s: GameState): FinlitPhaseResult {
+export function advanceFinlitPhase(s: GameState, totalRounds: number): FinlitPhaseResult {
   const phase = s.meta.phase;
   const result = runFinlitPhase(s);
   // Scenario multipliers apply to THIS phase only — reset so they don't compound.
   s.finlit.demandMult = 1;
   s.finlit.sellMult = 1;
-  const endDay = phase * 30; // 30 / 60 / 90
+  const endDay = phase * PHASE_LENGTH_DAYS;
   s.meta.day = endDay;
 
-  // Energy replenish for the NEXT phase (V3 bypasses the V2 day-tick that used
-  // to do this). +30, capped at 100. maxEnergy stays at the cap.
-  if (phase < 3) {
+  // `totalRounds` is the operator's configured round count, passed in because
+  // this is a pure mutator over the draft and has no session access. It replaces
+  // two hardcoded three-round tests: `phase < 3` for the energy replenish and
+  // `endDay === 90` for the end of the run. Both were false for any other
+  // configuration — a four-round sim would have settled its debt and ended after
+  // round 3, and never replenished energy for round 4.
+  const isFinalRound = phase >= totalRounds;
+
+  // Energy replenish for the NEXT round — skipped on the final one, because
+  // there is no next round to spend it in.
+  if (!isFinalRound) {
     s.player.maxEnergy = ENERGY_CAP;
     s.player.energy = Math.min(ENERGY_CAP, s.player.energy + ENERGY_PER_PHASE);
   }
@@ -180,13 +188,13 @@ export function advanceFinlitPhase(s: GameState): FinlitPhaseResult {
   // Queue the phase evaluation (same flag the V2 flow uses).
   s.meta.pendingEvalPhase = phase;
 
-  // Day 90 — settle any outstanding obligation from cash, then end the run.
-  if (endDay === 90) {
+  // Final round — settle any outstanding obligation from cash, then end the run.
+  if (isFinalRound) {
     if (s.player.debt > 0) {
       const owed = s.player.debt;
       s.player.cash -= owed;
       s.player.debt = 0;
-      s.history.push({ day: 90, text: `Repaid outstanding obligation of $${owed}.`, cause: 'debt_settle' });
+      s.history.push({ day: endDay, text: `Repaid outstanding obligation of $${owed}.`, cause: 'debt_settle' });
     }
     s.meta.ended = true;
   }

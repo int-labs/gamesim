@@ -31,7 +31,7 @@ import {
   submitRoundDecision,
 } from '@/gamesim/sync';
 import { selectProjectedCash } from '@/engine/selectors';
-import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { useGamesimSession, useTotalRounds } from '@/gamesim/GamesimProvider';
 import { useLiveProjection } from '@/gamesim/useLiveProjection';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
 
@@ -92,6 +92,11 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   const [syncing, setSyncing] = useState(false);
   const [phaseAtOpen, setPhaseAtOpen] = useState<Phase>(phase);
   const [cashAtOpen, setCashAtOpen] = useState<number>(cash);
+
+  // Which round is the last. `?? phase` means an unknown round count treats the
+  // CURRENT round as final — the conservative reading: it ends the run rather
+  // than advancing into a round the operator may not have configured.
+  const finalRound = useTotalRounds() ?? phase;
 
   // Key scenarios (P5) — the phase's unresolved scenarios, shown before the sim.
   // The list is SELF-CONSUMING: resolving one removes it from `pendingScenarios`
@@ -224,7 +229,9 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     setStep('simulating');
     setTimeout(() => {
       // V3: the whole phase resolves at once on the FinLit engine.
-      apply((s) => advanceFinlitPhase(s));
+      // `totalRounds` decides which round is the last — the mutator has no
+      // session access, so the round count is passed in.
+      apply((s) => advanceFinlitPhase(s, finalRound));
       const after = useGame.getState();
       if (after.meta.pendingEventId) {
         setStep('event');

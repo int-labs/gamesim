@@ -12,7 +12,7 @@ import type {
   OfficialFinancials,
 } from '@/gamesim/sync';
 import { computeUserProjection } from '@/gamesim/computeUserProjection';
-import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 
 /**
  * The single home for every number the sim shows the player, rendered as
@@ -487,6 +487,8 @@ export function FinanceTable() {
   // from the server's operating profit below. Cash is the one figure with no
   // server field and no other home.
   const openingCash = useGame((s) => s.player.cash);
+  // Per-round opening balances, recorded write-once at each round boundary.
+  const cashOpeningByRound = useGame((s) => s.cashOpeningByRound);
   const phaseNow = useGame((s) => s.meta.phase);
   const reduced = useReducedMotion();
   // `totalRounds` so the sheet spans the whole run, and the server's per-round
@@ -495,7 +497,11 @@ export function FinanceTable() {
   // (`BottomStats` and `BusinessPage`) and neither threads props to it.
   const { bootstrap, financialsByRound } = useGamesimSession();
   const totalRounds = bootstrap?.simulation.config?.totalRounds;
-  const officialFor = (p: number): OfficialFinancials | null => financialsByRound[p] ?? null;
+  // `financialsByRound` is keyed by the server's 0-BASED round number; `p` is a
+  // 1-based display phase. Converting here is the whole reason P1 used to show
+  // round 1 — the second round — while round 0 was never rendered at all.
+  const officialFor = (p: number): OfficialFinancials | null =>
+    financialsByRound[roundNumberFromPhase(p)] ?? null;
 
   // EVERY configured round gets a column, played or not.
   //
@@ -573,15 +579,20 @@ export function FinanceTable() {
     ROW_CASH,
   ];
 
-  // Cash is the running balance: opening capital plus every SCORED round's
-  // operating profit, cumulative — so a negative operating profit drops it.
-  // Unscored rounds contribute 0, which means the balance simply stops moving
-  // until the administrator calculates the round.
+  // Cash is PER ROUND, from the round's own recorded opening — not a cumulative
+  // sum over a live base.
+  //
+  // The cumulative version was wrong in a way the current data hides: its base
+  // was `player.cash`, which scenario and event choices mutate mid-run
+  // (`mockEngine.ts:549`, `:716`, `:721`, `:748`). Any such movement shifted
+  // EVERY column, including rounds the player had already read as settled.
+  //
+  // `cashOpeningByRound[p]` is written once when round p begins and never
+  // recomputed, so an established column is frozen. Adding only THAT round's
+  // operating profit — never a running total — means a later round cannot reach
+  // back and change an earlier one.
   const cashThrough = (p: number) =>
-    openingCash +
-    phases
-      .filter((r) => r <= p)
-      .reduce((a, r) => a + (officialFor(r)?.operatingProfit ?? 0), 0);
+    (cashOpeningByRound[p] ?? openingCash) + (officialFor(p)?.operatingProfit ?? 0);
 
   const computeRow = (r: PnLRow, p: number | 'total'): number | null => {
     if (r.source === 'cash') {

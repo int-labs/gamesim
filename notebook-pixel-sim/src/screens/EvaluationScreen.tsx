@@ -13,10 +13,18 @@ import { fmt$ } from '@/utils/format';
 import clsx from 'clsx';
 import { A } from '@/assets';
 import { playSfx } from '@/audio/audioManager';
+import { useGamesimSession, useTotalRounds, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 
 export function EvaluationScreen() {
   const phase = useGame((s) => s.meta.pendingEvalPhase) ?? 1;
   const cash = useGame((s) => s.player.cash);
+  // The operator's round count and the server's scored figures. `?? phase`
+  // treats an unknown count as "this round is the last", which ends the run
+  // rather than advancing into a round that may not be configured.
+  const { financialsByRound, bootstrap } = useGamesimSession();
+  const finalRound = useTotalRounds() ?? phase;
+  /** Is a server round driving the counter? If so, it — not this screen — advances it. */
+  const hasServerRound = bootstrap?.round?.roundNumber !== undefined;
   const inventory = useGame((s) => s.inventory);
   const apply = useGame((s) => s.apply);
   const setScreen = useGame((s) => s.setScreen);
@@ -57,17 +65,51 @@ export function EvaluationScreen() {
         insightCorrect: revealed ? !!insight.options.find((o) => o.id === answer)?.correct : null,
         day: s.meta.day,
       });
-      // Bump the phase counter and replenish energy now, *before* the player
-      // re-enters simulation. dayTick won't double-replenish because it gates
-      // on `newPhase !== s.meta.phase`.
-      if (phase < 3) {
+      // Bump the round counter and replenish energy now, *before* the player
+      // re-enters simulation.
+      //
+      // THIS IS THE ONLY PLACE THE ROUND ADVANCES. `PhaseSequenceModal` also
+      // contains a `s.meta.phase = next` but that path is not reached: after
+      // confirming, the player goes into limbo and sees nothing of the round's
+      // score until the administrator calculates it. So the cash carry below
+      // lives here and cannot double-apply.
+      if (phase < finalRound) {
         const next = (phase + 1) as Phase;
-        s.meta.phase = next;
+
+        // Cash at ROUND start, carried forward. `player.cash` is not "cash now"
+        // — it moves only at a round boundary, and the movement is the round's
+        // SERVER-scored operating profit. Banking it here is safe because limbo
+        // guarantees the round was calculated before this screen was reachable.
+        //
+        // Indexed by ROUND NUMBER, not phase: `phase` is 1-based and the map is
+        // keyed 0-based, so `financialsByRound[phase]` banked the NEXT round's
+        // profit (or nothing at all on the last phase).
+        const scored = financialsByRound[roundNumberFromPhase(phase)]?.operatingProfit ?? 0;
+        s.player.cash += scored;
+
+        // Write-once. An opening already recorded is never recomputed, which is
+        // what stops a later round from retroactively changing what an earlier
+        // column showed.
+        if (s.cashOpeningByRound[next] === undefined) {
+          s.cashOpeningByRound[next] = s.player.cash;
+        }
+
+        // The ROUND COUNTER IS THE SERVER'S when a round is known — the
+        // provider syncs `meta.phase` from `bootstrap.round.roundNumber`, which
+        // only moves when the administrator ends a round. Incrementing here as
+        // well would race that sync: the local value would jump ahead, then be
+        // corrected back on the next bootstrap, and the sheet would flick
+        // between two rounds.
+        //
+        // The local bump survives only for play with no server attached, where
+        // nothing else can advance the round.
+        if (!hasServerRound) s.meta.phase = next;
+
         s.player.maxEnergy = maxEnergyForPhase(next);
         s.player.energy = Math.min(s.player.maxEnergy, s.player.energy + ENERGY_REPLENISH);
       }
     });
-    if (phase === 3) {
+    if (phase >= finalRound) {
       apply((s) => { s.meta.ended = true; });
       setScreen('final');
     } else {
@@ -75,7 +117,7 @@ export function EvaluationScreen() {
     }
   };
 
-  const isFinal = phase === 3;
+  const isFinal = phase >= finalRound;
   return (
     // z-[60] — must cover the sim's floating chrome underneath (EdgeDock
     // z-50, page tabs z-40) while staying under transitions/toast/VN.

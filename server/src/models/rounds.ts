@@ -69,8 +69,17 @@ RoundSchema.pre("save", async function (next) {
       );
     }
 
-    if (round.roundNumber > totalRounds) {
-      throw new Error(`roundNumber exceeds totalRounds in simulation.`);
+    // `roundNumber` is 0-BASED and `totalRounds` is a COUNT: the valid range is
+    // 0 .. totalRounds - 1. The test was `> totalRounds`, which let a
+    // 3-round simulation create a round 3 — a fourth round, silently.
+    if (round.roundNumber >= totalRounds) {
+      throw new Error(
+        `roundNumber ${round.roundNumber} is out of range: a simulation with ` +
+          `totalRounds ${totalRounds} has rounds 0..${totalRounds - 1}.`
+      );
+    }
+    if (round.roundNumber < 0) {
+      throw new Error(`roundNumber cannot be negative.`);
     }
 
     if (status === "Completed") {

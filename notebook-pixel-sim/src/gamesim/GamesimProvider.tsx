@@ -103,8 +103,29 @@ export function useGamesimSession(): GamesimSessionValue {
 }
 
 /**
+ * THE round-numbering seam. Server round numbers are 0-BASED — round 0 is a real
+ * round and matters (the demand tables carry a `p0` column for it). The client
+ * displays 1-based phases, so P1 is round 0.
+ *
+ * These two functions are the ONLY place that conversion happens. Everything
+ * keyed by the server — `financialsByRound`, `resultsByRound`, any API argument
+ * — is indexed by ROUND NUMBER; everything the player reads is a PHASE.
+ *
+ * This existed as a silent off-by-one before: `meta.phase` started at 1 and was
+ * incremented locally, `financialsByRound` was keyed by the server's 0-based
+ * number, and the P&L indexed the latter with the former. Column P1 therefore
+ * showed round 1 — the SECOND round — and round 0 was never displayed at all.
+ */
+export const phaseFromRoundNumber = (roundNumber: number): number => roundNumber + 1;
+export const roundNumberFromPhase = (phase: number): number => phase - 1;
+
+/**
  * The operator's round count, or `undefined` when it is not known — standalone
  * play with no server, or a simulation configured before the field existed.
+ *
+ * NOTE this is a COUNT, not an index: `totalRounds: 3` means round numbers 0-2,
+ * i.e. phases 1-3. So `phase >= totalRounds` is the correct final-phase test,
+ * while a round-number test needs `roundNumber >= totalRounds - 1`.
  *
  * It lives on `simulation.config`, NOT on the round: `RoundDto` carries only
  * `roundNumber`, because a round does not know how many siblings it has.
@@ -384,6 +405,28 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   // console should say so.
   const runPhase = useGame((s) => s.meta.phase);
   const runEnded = useGame((s) => s.meta.ended);
+
+  // ── The round counter has ONE owner: the server ───────────────────────────
+  //
+  // `meta.phase` used to be incremented locally and never checked against
+  // `bootstrap.round.roundNumber`. Two counters that can drift did drift: the
+  // local one is 1-based from the first render, the server's is 0-based and only
+  // moves when the administrator ends a round, so any pause between them left
+  // the sheet reading a different round than the one being played.
+  //
+  // The server wins whenever a round is known. `applyRoundNumber` is not
+  // conditional on the local value being lower — a correction downward is just
+  // as valid, e.g. after the operator resets a round.
+  const serverRoundNumber = bootstrap?.round?.roundNumber;
+  const applyToStore = useGame((s) => s.apply);
+  useEffect(() => {
+    if (serverRoundNumber === undefined) return;
+    const phase = phaseFromRoundNumber(serverRoundNumber);
+    if (useGame.getState().meta.phase === phase) return;
+    applyToStore((s) => {
+      s.meta.phase = phase;
+    });
+  }, [serverRoundNumber, applyToStore]);
 
   const reportProgress = useCallback(() => {
     if (status !== 'ready' || !bootstrap?.round) return;

@@ -173,6 +173,21 @@ export interface GameState {
     score: { correct: number; total: number };
   };
   ledger: LedgerEntry[];
+  /**
+   * Round → the cash balance that round OPENED with. WRITE-ONCE per round.
+   *
+   * `player.cash` is cash at ROUND start, not cash now, and it moves only at a
+   * round boundary. This map is what makes an already-established column
+   * immutable: once round 2's opening is recorded it can never be recomputed,
+   * so a later event cannot retroactively change what round 1 showed.
+   *
+   * Round 1's entry is the route's starting capital, written by `setRoute`.
+   * Each later entry is the previous round's opening plus that round's
+   * server-scored operating profit — safe to bank at the boundary because limbo
+   * guarantees the administrator has calculated the round before the next one
+   * begins.
+   */
+  cashOpeningByRound: Record<number, number>;
   history: { day: number; text: string; cause: string }[];
   // Daily snapshot lists for charts
   series: {
@@ -385,6 +400,8 @@ const startingState = (): GameState => ({
   evaluations: { resolved: [] },
   insights: { answered: [], score: { correct: 0, total: 0 } },
   ledger: [],
+  // Seeded by `setRoute`, which is where the starting capital is decided.
+  cashOpeningByRound: {},
   history: [{ day: 1, text: 'Started a notebook business out of the dorm.', cause: 'start' }],
   series: { cash: [], revenue: [], profit: [], sold: [], finished: [], raw: [], demand: [], stockout: [], overstock: [] },
   mascot: { queue: [], current: null, history: [], seenScripts: [], mood: 'idle', minimized: false, position: null },
@@ -446,6 +463,10 @@ export const useGame = create<Store>()(
           st.meta.route = r;
           st.player.cash = STARTING_CASH[r];
           st.player.debt = STARTING_DEBT[r];
+          // Round 1 opens on the starting capital. Reset rather than merged —
+          // choosing a route is the start of a run, so any openings recorded by
+          // a previous run must not survive into it.
+          st.cashOpeningByRound = { 1: STARTING_CASH[r] };
         }),
       pushMascot: (m) =>
         set((st) => {
@@ -584,7 +605,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 19,
+      version: 20,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -965,6 +986,19 @@ export const useGame = create<Store>()(
           for (const line of persisted.portfolio.productLines) {
             delete line.demandEstPerPhase;
           }
+        }
+        // v20: `cashOpeningByRound` added.
+        //
+        // Back-filled as `{ 1: player.cash }`, which is a GUESS and worth
+        // naming as one: an existing save's `player.cash` has already had local
+        // engine profit banked into it, so it is that save's CURRENT balance,
+        // not what round 1 opened with. There is no way to recover the true
+        // opening from the persisted state — the ledger held only local
+        // aggregate rows and cash was never snapshotted. A mid-run save
+        // therefore shows round 1 opening at today's balance; a fresh run is
+        // exact, because `setRoute` writes the real figure.
+        if (fromVersion < 20 && persisted && !persisted.cashOpeningByRound) {
+          persisted.cashOpeningByRound = { 1: persisted.player?.cash ?? 0 };
         }
         // v19: LedgerEntry.day → LedgerEntry.roundNumber. Stored entries were
         // stamped with the day the phase ENDED (30/60/90), so the round is that

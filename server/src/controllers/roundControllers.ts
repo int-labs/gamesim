@@ -203,7 +203,12 @@ export const endRound = async (req: Request, res: Response): Promise<void> => {
         currRounds?: number;
       };
       const totalRounds = config.totalRounds ?? 0;
-      const isLastRound = totalRounds > 0 && round.roundNumber >= totalRounds;
+      // `roundNumber` is 0-BASED and `totalRounds` is a COUNT, so the last round
+      // is `totalRounds - 1`. This was `roundNumber >= totalRounds`, which is
+      // never true for a 0-based sequence: a 3-round simulation ran rounds 0-2,
+      // `2 >= 3` was false, the simulation was never marked "Completed", and
+      // `currRounds` climbed to a round that does not exist.
+      const isLastRound = totalRounds > 0 && round.roundNumber >= totalRounds - 1;
 
       if (isLastRound) {
         simulation.status = "Completed";

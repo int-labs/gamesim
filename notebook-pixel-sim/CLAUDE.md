@@ -153,9 +153,38 @@ pending work.
 
 State holds `portfolio.productLines[]` (multiple SKUs), each with its own design, price, target segment, and inventory pool; `activeLineId` is what the canvas/editor reflects. There is **no hard cap on line count per phase** anymore — `complexity.ts` ratchets a capacity/defect penalty as the portfolio grows (soft sanity ceiling `MAX_LINES_HARD_CAP = 20`). `MAX_LINES_BY_PHASE` is kept only for backward compat and returns 20 for every phase.
 
-### Ledger & history are the projection source
+### The ledger is LOCAL data — it is NOT the P&L source
 
-Every money movement appends a `LedgerEntry` with a `cause` tag; every decision appends a `history` entry. The P&L UI and the decision timeline are **projections over `state.ledger` / `state.history`** — preserve their shape and always tag new entries with a meaningful `cause`.
+This section used to say the P&L was a projection over `state.ledger`. That was
+wrong, and enforcing it was a design error: it made a persisted local structure
+hold a copy of authoritative server figures, free to disagree with them — the
+same defect as the second engine.
+
+Three different datasets, three owners:
+
+| Data | Owner | Read from |
+|---|---|---|
+| The P&L sheet ("Actual Results") | **server** | `financialsByRound[r]`, per round |
+| This team's local movements | local | `state.ledger` / `state.history` |
+| Cross-team comparison (final chart) | **server** | `resultsByRound` — a competitor report, not a ledger |
+
+`FinanceTable` reads `financialsByRound` directly and takes the server's own
+`grossProfit` / `operatingProfit` **verbatim** rather than re-deriving them; its
+cost line items are derived from `incurredCosts[]`, whose `treatment`
+(`'cogs' | 'opex'`) decides which side of the Gross Profit line each row sits on
+and whose `category` is deliberately **free-text and operator-owned** — never
+normalised or mapped to a fixed vocabulary in the client.
+
+`state.ledger` keeps only genuinely local money: event and scenario cash. Tag new
+entries with a meaningful `cause` and a `roundNumber`.
+
+**Cash is the one figure with no server field.** `player.cash` is cash at ROUND
+start, not cash now: it moves only at a round boundary, where the round's
+server-scored `operatingProfit` is banked into it (`EvaluationScreen`). Each
+round's opening is then recorded write-once in `cashOpeningByRound`, so an
+already-established column can never be recomputed by a later event. Limbo is
+what makes banking at the boundary safe — a round cannot start until the
+administrator has calculated the previous one.
 
 ### Screen flow
 
