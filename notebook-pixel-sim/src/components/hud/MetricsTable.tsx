@@ -4,11 +4,15 @@ import { useGame } from '@/state/store';
 import { A } from '@/assets';
 import { fmt$, fmtInt } from '@/utils/format';
 import { CountUp } from '@/components/primitives/CountUp';
-import type { LedgerEntry } from '@/types';
 import { GENRES, type GenreId } from '@/data/finlit';
 import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
-import type { ServerProjectionResult, ServerProductProjection } from '@/gamesim/sync';
+import type {
+  ServerProjectionResult,
+  ServerProductProjection,
+  OfficialFinancials,
+} from '@/gamesim/sync';
 import { computeUserProjection } from '@/gamesim/computeUserProjection';
+import { useGamesimSession } from '@/gamesim/GamesimProvider';
 
 /**
  * The single home for every number the sim shows the player, rendered as
@@ -400,93 +404,212 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
 /* ── Finance tab - the classic phase-windowed P&L TABLE, with icons ───── */
 
 type RowEmphasis = 'normal' | 'subtotal' | 'highlight';
+
+/**
+ * Where a row's per-round figure comes from. The named sources read the
+ * server's OWN field; `{ costKey }` reads one aggregated `incurredCosts` entry.
+ *
+ * Nothing is recomputed locally. `grossProfit` and `operatingProfit` are taken
+ * verbatim rather than re-derived from their parts — re-deriving is how a sheet
+ * drifts from `calcFinancials` by arithmetic even when every input agrees.
+ */
+type RowSource =
+  | 'revenue'
+  | 'gross-profit'
+  | 'op-ex'
+  | 'op-profit'
+  | 'cash'
+  | { costKey: string };
+
 interface PnLRow {
   label: string;
   icon: string;
-  kinds: LedgerEntry['kind'][];
   sign: 'plus' | 'minus';
   emphasis?: RowEmphasis;
-  computed?: 'gross-profit' | 'op-ex' | 'op-profit' | 'cash';
   cause: string;
   group: 'revenue' | 'cogs' | 'opex' | 'profit' | 'cash';
+  source: RowSource;
 }
 
-// Row order IS the sheet. `cogs` rows must precede the Gross Profit subtotal and
-// `opex` rows must follow it — the server's calcFinancials computes exactly this
-// partition (COGS on units sold; holding + period costs below the line), and a
-// row rendered on the wrong side reads as a different formula than it computes.
-const PNL_ROWS: PnLRow[] = [
-  { label: 'Gross Revenue',        icon: A.ui.pnl.gross_revenue,    kinds: ['revenue'],       sign: 'plus',  group: 'revenue', cause: 'Units sold × price' },
-  { label: 'Material Cost',        icon: A.ui.pnl.material_cost,    kinds: ['cogs-material'], sign: 'minus', group: 'cogs',    cause: 'Paper, cover, binding, add-ons' },
-  { label: 'Labor Cost',           icon: A.ui.pnl.labor_cost,       kinds: ['cogs-labor'],    sign: 'minus', group: 'cogs',    cause: 'Wages × hires — direct labor' },
-  { label: 'Packaging / Fulfill.', icon: A.ui.pnl.packaging_cost,   kinds: ['cogs-packaging','cogs-fulfillment'], sign: 'minus', group: 'cogs', cause: 'Per-unit packaging + shipping' },
-  { label: 'Gross Profit',         icon: A.ui.metrics.profit,       kinds: [], sign: 'plus', emphasis: 'subtotal',  computed: 'gross-profit', group: 'profit', cause: 'Revenue − COGS' },
-  // Channel & holding is NOT itemised separately: in the V3 economy the other
-  // two opex kinds are $0, so a `Channel & Holding` line item and an
-  // `Operating Expenses` subtotal rendered the identical figure twice. The
-  // subtotal absorbs it, and stays correct if marketing/tools ever go live.
-  { label: 'Marketing / Ops',      icon: A.ui.pnl.marketing_spend,  kinds: ['opex-marketing'],sign: 'minus', group: 'opex',    cause: 'Marketing team + hiring cost' },
-  { label: 'Tools / Upgrades',     icon: A.ui.sidebar.studio,       kinds: ['opex-tool'],     sign: 'minus', group: 'opex',    cause: 'One-off equipment, supplier deals' },
-  { label: 'Operating Expenses',   icon: A.ui.pnl.fulfillment_cost, kinds: [], sign: 'minus', emphasis: 'subtotal',  computed: 'op-ex',     group: 'profit', cause: 'Channel maintenance + consignment + holding on unsold stock, plus marketing and tools' },
-  { label: 'Operating Profit',     icon: A.ui.pnl.operating_profit, kinds: [], sign: 'plus', emphasis: 'highlight', computed: 'op-profit', group: 'profit', cause: 'Gross profit − operating expenses' },
-  { label: 'Cash Balance',         icon: A.ui.pnl.net_revenue,      kinds: [], sign: 'plus', emphasis: 'highlight', computed: 'cash',      group: 'cash',   cause: 'Cash on hand right now (timing-aware)' },
-];
+/** One round's aggregated `incurredCosts` entry. */
+interface CostCell {
+  label: string;
+  treatment: 'cogs' | 'opex';
+  amount: number;
+}
+
+// The server emits two fixed entries with authored labels — `inventory` ("Cost
+// of goods sold") and `holding` ("Inventory holding") — then one per globalInput
+// CATEGORY. Categories are deliberately free-text and operator-owned, so they
+// get a generic icon by side rather than a guessed one, and their label renders
+// verbatim: it is the operator's own wording, not ours to normalise.
+const COST_ICON: Record<string, string> = {
+  inventory: A.ui.pnl.material_cost,
+  holding: A.ui.pnl.fulfillment_cost,
+};
+const costIcon = (key: string, treatment: 'cogs' | 'opex'): string =>
+  COST_ICON[key] ?? (treatment === 'cogs' ? A.ui.pnl.packaging_cost : A.ui.pnl.marketing_spend);
+
+// The FIXED rows. Row order IS the sheet: derived `cogs` cost rows are spliced
+// in ABOVE the Gross Profit subtotal and `opex` rows BELOW it, because that is
+// exactly the partition `calcFinancials` computes, and a row on the wrong side
+// of the line reads as a different formula than the server ran.
+//
+// The cost line items are NOT declared here — they come from each round's
+// `incurredCosts`, whose categories are operator-configured and so cannot be
+// known at build time. The former fixed Material / Labor / Packaging / Tools
+// rows were local ledger `kind`s with no server equivalent, permanently $0.
+const ROW_REVENUE: PnLRow = {
+  label: 'Gross Revenue', icon: A.ui.pnl.gross_revenue, sign: 'plus',
+  group: 'revenue', source: 'revenue', cause: 'Units sold × selling price',
+};
+const ROW_GROSS_PROFIT: PnLRow = {
+  label: 'Gross Profit', icon: A.ui.metrics.profit, sign: 'plus', emphasis: 'subtotal',
+  group: 'profit', source: 'gross-profit', cause: 'Revenue − COGS, as the server computed it',
+};
+const ROW_OPEX: PnLRow = {
+  label: 'Operating Expenses', icon: A.ui.pnl.fulfillment_cost, sign: 'minus', emphasis: 'subtotal',
+  group: 'profit', source: 'op-ex', cause: 'Holding on unsold stock plus every cost declared as opex',
+};
+const ROW_OP_PROFIT: PnLRow = {
+  label: 'Operating Profit', icon: A.ui.pnl.operating_profit, sign: 'plus', emphasis: 'highlight',
+  group: 'profit', source: 'op-profit', cause: 'Gross profit − operating expenses',
+};
+const ROW_CASH: PnLRow = {
+  label: 'Cash Balance', icon: A.ui.pnl.net_revenue, sign: 'plus', emphasis: 'highlight',
+  group: 'cash', source: 'cash', cause: 'Opening cash plus every scored round’s operating profit',
+};
 
 export function FinanceTable() {
-  const ledger = useGame((s) => s.ledger);
-  const cash = useGame((s) => s.player.cash);
+  // `player.cash` is the run's OPENING balance — the route's starting capital
+  // (self $1,000 / investor $2,500, `store.ts:447`). It is not "cash now":
+  // nothing adds profit to it any more, because the running balance is derived
+  // from the server's operating profit below. Cash is the one figure with no
+  // server field and no other home.
+  const openingCash = useGame((s) => s.player.cash);
   const phaseNow = useGame((s) => s.meta.phase);
   const reduced = useReducedMotion();
+  // `totalRounds` so the sheet spans the whole run, and the server's per-round
+  // financials — the ONLY source for every figure below except cash. Read from
+  // the session rather than passed in: `FinanceTable` has two render sites
+  // (`BottomStats` and `BusinessPage`) and neither threads props to it.
+  const { bootstrap, financialsByRound } = useGamesimSession();
+  const totalRounds = bootstrap?.simulation.config?.totalRounds;
+  const officialFor = (p: number): OfficialFinancials | null => financialsByRound[p] ?? null;
 
-  // Bucket ledger entries by ROUND. Entries carry `roundNumber`; this used to
-  // read `e.day <= 30 ? 1 : e.day <= 60 ? 2 : 3`, which both depended on a day
-  // counter that no longer advances AND capped the sheet at three columns no
-  // matter how many rounds the operator configured.
-  const byPhase: Record<number, Record<string, number>> = {};
-  for (const e of ledger) {
-    (byPhase[e.roundNumber] ??= {})[e.kind] =
-      (byPhase[e.roundNumber]?.[e.kind] ?? 0) + e.amount;
-  }
-  // Columns follow the rounds that actually have entries, plus the round being
-  // played — so a fourth round gets a column the moment it exists.
+  // EVERY configured round gets a column, played or not.
+  //
+  // This used to be the rounds with ledger entries plus the round being played,
+  // which meant the sheet only grew a column after a round had been run — the
+  // player could not see the shape of the run ahead of them.
+  //
+  // The empty cells are CORRECT, not a gap to fill. An *actual* figure cannot
+  // exist until the administrator approves and calculates the round in the admin
+  // panel, so a future round legitimately has nothing to show.
+  //
+  // When `totalRounds` is absent — standalone play with no server, or a
+  // simulation configured before the field existed — this falls back to the
+  // round being played, so the sheet still renders what it knows.
   const phases: number[] = (() => {
-    const seen = new Set<number>(Object.keys(byPhase).map(Number));
+    const seen = new Set<number>();
     seen.add(phaseNow);
+    for (let r = 1; r <= (totalRounds ?? 0); r++) seen.add(r);
     return [...seen].filter((p) => p >= 1).sort((a, b) => a - b);
   })();
-  const sumKindForPhase = (kinds: string[], p: number) =>
-    kinds.reduce((a, k) => a + (byPhase[p]?.[k] ?? 0), 0);
-  // Every round that has entries, not a hardcoded three.
-  const sumKindAll = (kinds: string[]) =>
-    phases.reduce((a, p) => a + sumKindForPhase(kinds, p), 0);
+
+  // Per-round cost breakdown, aggregated from the payload.
+  //
+  // `incurredCosts` is PER PRODUCT (`ProductProjectionDto`), so a round's row is
+  // the sum across every product. The grouping key is `treatment:key` because a
+  // single category can legitimately land on BOTH sides of the gross-profit line
+  // — calcFinancials emits one entry per side — and `key` is already unique per
+  // row (`inventory` / `holding` / the category itself).
+  const costByRound = new Map<number, Map<string, CostCell>>();
+  for (const p of phases) {
+    const f = officialFor(p);
+    if (!f) continue;
+    const m = new Map<string, CostCell>();
+    for (const prod of f.byProduct) {
+      for (const c of prod.incurredCosts ?? []) {
+        const k = c.treatment + ':' + c.key;
+        const prev = m.get(k);
+        m.set(k, {
+          label: c.label,
+          treatment: c.treatment,
+          amount: (prev?.amount ?? 0) + (c.incurredCost ?? 0),
+        });
+      }
+    }
+    costByRound.set(p, m);
+  }
+
+  // Cost rows are the UNION across every scored round, so a category that
+  // appears only in round 2 still gets a row for the whole sheet.
+  const costRows: PnLRow[] = (() => {
+    const seen = new Map<string, CostCell>();
+    for (const m of costByRound.values()) {
+      for (const [k, v] of m) if (!seen.has(k)) seen.set(k, v);
+    }
+    return [...seen.entries()].map(([k, v]) => ({
+      label: v.label,
+      icon: costIcon(k.slice(k.indexOf(':') + 1), v.treatment),
+      sign: 'minus' as const,
+      group: v.treatment,
+      source: { costKey: k },
+      cause:
+        v.treatment === 'cogs'
+          ? 'Charged above the gross-profit line, on units produced'
+          : 'Period cost, charged below the gross-profit line',
+    }));
+  })();
+
+  const rows: PnLRow[] = [
+    ROW_REVENUE,
+    ...costRows.filter((r) => r.group === 'cogs'),
+    ROW_GROSS_PROFIT,
+    ...costRows.filter((r) => r.group === 'opex'),
+    ROW_OPEX,
+    ROW_OP_PROFIT,
+    ROW_CASH,
+  ];
+
+  // Cash is the running balance: opening capital plus every SCORED round's
+  // operating profit, cumulative — so a negative operating profit drops it.
+  // Unscored rounds contribute 0, which means the balance simply stops moving
+  // until the administrator calculates the round.
+  const cashThrough = (p: number) =>
+    openingCash +
+    phases
+      .filter((r) => r <= p)
+      .reduce((a, r) => a + (officialFor(r)?.operatingProfit ?? 0), 0);
 
   const computeRow = (r: PnLRow, p: number | 'total'): number | null => {
-    if (r.computed === 'cash') return p === 'total' ? cash : null;
-    if (r.computed === 'gross-profit') {
-      const get = (ph: number) =>
-        sumKindForPhase(['revenue'], ph) +
-        sumKindForPhase(['cogs-material', 'cogs-packaging', 'cogs-fulfillment', 'cogs-labor'], ph);
-      return p === 'total' ? phases.reduce((a, ph) => a + get(ph), 0) : get(p);
+    if (r.source === 'cash') {
+      // Total is the FINAL balance, not a sum of balances.
+      const last = phases[phases.length - 1] ?? phaseNow;
+      return cashThrough(p === 'total' ? last : p);
     }
-    if (r.computed === 'op-ex') {
-      // Shown as a positive expense figure, to read as a deduction under Gross
-      // Profit. Ledger costs are stored negative, hence the leading minus.
-      const get = (ph: number) =>
-        -sumKindForPhase(['opex-marketing', 'opex-rent', 'opex-tool'], ph);
-      return p === 'total' ? phases.reduce((a, ph) => a + get(ph), 0) : get(p);
-    }
-    if (r.computed === 'op-profit') {
-      const get = (ph: number) =>
-        sumKindForPhase(['revenue'], ph) +
-        sumKindForPhase(
-          ['cogs-material','cogs-labor','cogs-packaging','cogs-fulfillment','opex-marketing','opex-rent','opex-tool'],
-          ph,
-        );
-      return p === 'total' ? phases.reduce((a, ph) => a + get(ph), 0) : get(p);
-    }
-    const raw = p === 'total' ? sumKindAll(r.kinds) : sumKindForPhase(r.kinds, p);
-    if (r.sign === 'minus') return -raw; // ledger costs are negative; show as positive expense
-    return raw;
+    // Server figures are POSITIVE for costs as well as revenue, and `PnLCell`
+    // renders the minus sign for a deduction row — which is why nothing here
+    // negates. The old ledger convention stored costs negative and had to flip
+    // them back; there is no sign juggling left to get wrong.
+    const pick = (f: OfficialFinancials): number => {
+      if (typeof r.source === 'object') {
+        return costByRound.get(f.roundNumber)?.get(r.source.costKey)?.amount ?? 0;
+      }
+      switch (r.source) {
+        case 'revenue':      return f.revenue;
+        case 'gross-profit': return f.grossProfit;
+        case 'op-ex':        return f.operatingExpenses;
+        case 'op-profit':    return f.operatingProfit;
+        default:             return 0;
+      }
+    };
+    const at = (q: number) => {
+      const f = officialFor(q);
+      return f ? pick(f) : 0;
+    };
+    return p === 'total' ? phases.reduce((a, q) => a + at(q), 0) : at(p);
   };
 
   return (
@@ -524,14 +647,14 @@ export function FinanceTable() {
             </tr>
           </thead>
           <tbody>
-            {PNL_ROWS
-              // Hide cost lines that are $0 across the whole run (the V2 rows -
-              // labor / packaging / tools - are always 0 in the V3 economy).
-              .filter(
-                (r) =>
-                  (r.group !== 'cogs' && r.group !== 'opex') ||
-                  Math.abs(computeRow(r, 'total') ?? 0) > 0.005,
-              )
+            {/* No zero-hiding filter any more. It existed to suppress the fixed
+                Material / Labor / Packaging / Tools rows, which were always $0.
+                Cost rows are now derived from the payload and only exist when a
+                round actually emitted them — `calcFinancials` guards each push
+                with `if (cogs !== 0)` / `if (opex !== 0)` — so there is nothing
+                left to hide, and hiding would instead drop a real line item
+                that happens to net to zero. */}
+            {rows
               .map((r, i, arr) => {
               const values = {
                 perPhase: phases.map((p) => computeRow(r, p)),

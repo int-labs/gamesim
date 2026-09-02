@@ -9,11 +9,10 @@ import type { GameState } from '@/state/store';
 import { ENERGY_PER_PHASE, ENERGY_CAP, PHASE_LENGTH_DAYS, type ChannelId } from '@/data/finlit';
 import { simulatePhase } from './simulate';
 import { toFinlitLines, toFinlitDecisions, type LineInput } from './adapter';
-import { phaseResultToLedger, phaseResultToSeries } from './bridge';
+// `phaseResultToLedger` is gone from this import with the ledger write, and the
+// `ledgerId` generator with it — nothing here mints ledger ids any more.
+import { phaseResultToSeries } from './bridge';
 import type { FinlitPhaseResult } from './types';
-
-let ledgerSeq = 0;
-const ledgerId = () => `fl-${Date.now().toString(36)}-${(ledgerSeq++).toString(36)}`;
 
 /** Map a store ProductLine into the adapter's narrow LineInput. */
 function lineInput(
@@ -94,13 +93,25 @@ export function runFinlitPhase(s: GameState): FinlitPhaseResult {
   const decisions = toFinlitDecisions(resolveDecisionInputs(s));
 
   const result = simulatePhase(lines, decisions, phase);
-  // Ledger — aggregate P&L entries for the round. `phaseResultToLedger` takes
-  // the ROUND NUMBER now, not the phase's first day; `startDay` is gone with it.
-  for (const draft of phaseResultToLedger(result, phase)) {
-    s.ledger.push({ id: ledgerId(), ...draft });
-  }
 
-  // Series — append the phase's 30 daily points.
+  // THE LEDGER IS NO LONGER WRITTEN FROM HERE.
+  //
+  // This used to push four aggregate P&L rows per round via
+  // `phaseResultToLedger(result, phase)` — revenue, cogs, channel and opex —
+  // taken from `simulatePhase`, i.e. from the LOCAL engine. The P&L sheet then
+  // rendered those under the heading "Actual Results", which they never were:
+  // the actual figures come from the server's `calcFinancials`, and an actual
+  // cannot exist at all until the administrator calculates the round.
+  //
+  // `FinanceTable` now reads `financialsByRound` straight from the session, so
+  // the money rows have exactly one author. `phaseResultToLedger` is left in
+  // `bridge.ts` with no caller rather than deleted in the same change, so this
+  // diff is one decision and not two.
+
+  // Series — append the phase's 30 daily points. STILL LOCAL: `state.series`
+  // feeds `selectCashTrend`, which the evaluation screen charts. The server has
+  // no per-day series to replace it with, so `simulatePhase` cannot be retired
+  // in this change — only unhooked from the money path.
   const ser = phaseResultToSeries(result);
   s.series.revenue.push(...ser.revenue);
   s.series.profit.push(...ser.profit);
@@ -129,8 +140,16 @@ export function runFinlitPhase(s: GameState): FinlitPhaseResult {
   s.inventory.overstockDays += result.overstockDays;
   s.inventory.totalFinished = s.portfolio.productLines.reduce((a, l) => a + l.inventory.finished, 0);
 
-  // Cash — recognise the phase's net profit (series cash already pushed above).
-  s.player.cash = s.player.cash + result.netProfit;
+  // CASH IS NOT ADVANCED HERE ANY MORE.
+  //
+  // This was `s.player.cash = s.player.cash + result.netProfit`, which made
+  // `player.cash` mean "cash right now" and sourced the movement from the local
+  // engine. `player.cash` is now the run's OPENING balance — the route's
+  // starting capital, and nothing else — and the running balance is derived in
+  // `FinanceTable` as opening cash plus every scored round's operating profit.
+  //
+  // Leaving this line in would double-count: the derived balance would add the
+  // server's profit on top of a local profit already banked here.
 
   return result;
 }

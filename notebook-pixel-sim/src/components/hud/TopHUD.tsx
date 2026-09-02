@@ -21,6 +21,7 @@ import { StatsDrawer } from '@/components/hud/StatsDrawer';
 import clsx from 'clsx';
 import { HUD_TOOLTIPS } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
+import { useTotalRounds } from '@/gamesim/GamesimProvider';
 
 type KpiTone = 'neutral' | 'success' | 'warning' | 'danger';
 
@@ -75,6 +76,7 @@ const successChipInk: Record<KpiTone, string> = {
  */
 export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProjectionState }) {
   const phase = useGame((s) => s.meta.phase);
+  const totalRounds = useTotalRounds();
   const hasLines = useGame((s) => s.portfolio.productLines.length > 0);
   const projectedCash = useGame((s) => selectProjectedCash(s).projected);
   const projectedCashDelta = useGame((s) => selectProjectedCash(s).delta);
@@ -185,12 +187,16 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
               phasePulse && 'anim-pulse-on-change',
             )}
             role="status"
-            aria-label={`Phase ${phase} of 3`}
+            // The denominator is the operator's `simulation.config.totalRounds`,
+            // not a fixed 3. When it is unknown the chip shows the phase alone
+            // rather than asserting a total the simulation may not have.
+            aria-label={totalRounds ? `Phase ${phase} of ${totalRounds}` : `Phase ${phase}`}
           >
             <NavIcon icon={Flag} size={14} color="var(--c-primary)" />
             <span className="hidden sm:inline eyebrow eyebrow-sm text-text-2 leading-none">Phase</span>
             <span className="num-sm text-text leading-none">
-              {phase}<span className="body-xs text-text-3"> / 3</span>
+              {phase}
+              {totalRounds && <span className="body-xs text-text-3"> / {totalRounds}</span>}
             </span>
           </div>
         </Tooltip>

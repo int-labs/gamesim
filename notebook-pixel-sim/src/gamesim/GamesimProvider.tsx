@@ -103,6 +103,24 @@ export function useGamesimSession(): GamesimSessionValue {
 }
 
 /**
+ * The operator's round count, or `undefined` when it is not known — standalone
+ * play with no server, or a simulation configured before the field existed.
+ *
+ * It lives on `simulation.config`, NOT on the round: `RoundDto` carries only
+ * `roundNumber`, because a round does not know how many siblings it has.
+ *
+ * `undefined` is deliberately not defaulted to 3 here. Three callers want
+ * different things from a missing value — a loop bound wants 0, a "N of M"
+ * label wants to omit the M rather than assert a wrong one — and a default
+ * buried in this hook would reinstate the hardcoded 3 it replaced.
+ */
+export function useTotalRounds(): number | undefined {
+  const { bootstrap } = useGamesimSession();
+  const n = bootstrap?.simulation.config?.totalRounds;
+  return typeof n === 'number' && n > 0 ? n : undefined;
+}
+
+/**
  * Raw network errors are not player-facing copy. `fetch` rejects with the
  * literal string "Failed to fetch" when the API is unreachable, which told a
  * student nothing and looked like a crash. Anything we don't recognise is

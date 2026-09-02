@@ -12,16 +12,34 @@ import { PHASE_INTRO, LEARNING_POINTS } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
 import { HeartRain, patHeartRain, originOf } from '@/components/fx/HeartRain';
 import clsx from 'clsx';
+import { useTotalRounds } from '@/gamesim/GamesimProvider';
+import { DAYS_PER_PHASE } from '@/engine/config';
 
-const PHASE_BG = { 1: A.env.round1, 2: A.env.round2, 3: A.env.round3 } as const;
+// Round art is a LIST, cycled — not a table keyed 1/2/3.
+//
+// There is a fixed amount of art and an operator-configured number of rounds,
+// so the two cannot be matched one-to-one: past the last drawing, a keyed table
+// yields `undefined` and the screen renders a broken image. Reuse is the only
+// answer that scales, and cycling makes the reuse orderly rather than blank.
+//
+// `round4` (ops pressure) was already drawn and was never referenced by the old
+// three-entry table.
+const ROUND_BG = [A.env.round1, A.env.round2, A.env.round3, A.env.round4];
 
-// Big hero pose per phase — 03_poses ONLY (consistent full-body character).
-// Each gestures toward screen-right, where the panel sits.
-const PHASE_POSE = {
-  1: A.mascot.poses.presenting_open_hand,
-  2: A.mascot.poses.pointing_right_explain,
-  3: A.mascot.poses.presenting,
-} as const;
+// Big hero poses — 03_poses ONLY (consistent full-body character), all
+// gesturing toward screen-right where the panel sits. Cycled by round the same
+// way, so round 1 is always the open hand and round 5 comes back round to it.
+const ROUND_POSE = [
+  A.mascot.poses.presenting_open_hand,
+  A.mascot.poses.pointing_right_explain,
+  A.mascot.poses.presenting,
+  A.mascot.poses.pointing_right,
+  A.mascot.poses.idle_soft_wave,
+];
+
+/** Cycle a list by 1-based round, so it never runs out and never returns undefined. */
+const forRound = <T,>(list: readonly T[], phase: number): T =>
+  list[(Math.max(1, phase) - 1) % list.length];
 
 // Split "Phase 1 · Days 1-30 - Market Positioning" into the small eyebrow
 // ("Phase 1 · Days 1-30") and the big theme ("Market Positioning"). We split on
@@ -69,7 +87,8 @@ function FocusLines({ reduced }: { reduced: boolean }) {
  * pixel-wipe transition (ScreenTransition) plays as the game begins.
  */
 export function PhaseIntroScreen() {
-  const phase = useGame((s) => s.meta.phase) as 1 | 2 | 3;
+  const phase = useGame((s) => s.meta.phase);
+  const totalRounds = useTotalRounds();
   const setScreen = useGame((s) => s.setScreen);
   const apply = useGame((s) => s.apply);
   const reduced = useReducedMotion();
@@ -86,9 +105,28 @@ export function PhaseIntroScreen() {
     patHeartRain(patCount.current, originOf(heroRef.current));
   };
 
-  const info = PHASE_INTRO[phase];
+  // Authored copy exists for rounds 1-3; round 4+ reuses it in the same cycle
+  // as the art. `PHASE_INTRO` stays an object keyed 1/2/3 rather than becoming
+  // an array ON PURPOSE: `configHydrator` resolves operator overrides by dotted
+  // path (`PHASE_INTRO.1.body`), so re-indexing from 0 would silently void every
+  // override an operator has already published.
+  //
+  // Keys are read at call time, not cached at module scope — the hydrator edits
+  // these tables in place and a module-scope derivation would freeze the
+  // bundled values (see CLAUDE.md, "Keep the containers mutable").
+  const introKeys = Object.keys(PHASE_INTRO)
+    .map(Number)
+    .sort((a, b) => a - b) as (keyof typeof PHASE_INTRO)[];
+  const info = PHASE_INTRO[forRound(introKeys, phase)];
   const lp = LEARNING_POINTS[info.learningFocus as keyof typeof LEARNING_POINTS];
-  const [eyebrow, theme] = splitTitle(info.title);
+
+  // Only the THEME half of the authored title is used. Its eyebrow half is
+  // baked with a day range ("Phase 1 · Days 1-30", copy.ts:170) that is wrong
+  // for any reused round, so the eyebrow is COMPOSED from the phase instead.
+  const [, theme] = splitTitle(info.title);
+  const fromDay = (phase - 1) * DAYS_PER_PHASE + 1;
+  const toDay = phase * DAYS_PER_PHASE;
+  const eyebrow = `Phase ${phase} · Days ${fromDay}-${toDay}`;
 
   // ── Parallax: MASCOT ONLY, and gentle. Cursor → [-1, 1], spring, small fan. ──
   const mvx = useMotionValue(0);
@@ -118,7 +156,7 @@ export function PhaseIntroScreen() {
       {/* Scene background — slowest parallax layer, over-scaled so it never
           shows an edge as it drifts. */}
       <img
-        src={PHASE_BG[phase]}
+        src={forRound(ROUND_BG, phase)}
         alt=""
         draggable={false}
         className="pointer-events-none absolute inset-0 h-full w-full object-cover"
@@ -164,7 +202,7 @@ export function PhaseIntroScreen() {
                     idle "breathing" from the feet keeps her alive. */}
                 <motion.img
                   ref={heroRef}
-                  src={PHASE_POSE[phase]}
+                  src={forRound(ROUND_POSE, phase)}
                   alt=""
                   draggable={false}
                   onClick={onPat}
@@ -254,8 +292,11 @@ export function PhaseIntroScreen() {
           <div className="flex items-center justify-between gap-3 border-t border-border-soft bg-cream-200 p-4 sm:px-6">
             {/* eyebrow-muted, not ink-500: the legacy ink ramp bottoms out at
                 2.74:1 on cream, below the 3:1 floor even for a label. */}
+            {/* "of N" comes from the operator's `simulation.config.totalRounds`.
+                With no known total the label drops the "of" clause rather than
+                claiming a three-round run the simulation may not be. */}
             <span className="eyebrow eyebrow-sm eyebrow-muted">
-              Round {phase} of 3
+              {totalRounds ? `Round ${phase} of ${totalRounds}` : `Round ${phase}`}
             </span>
             <motion.button
               type="button"
@@ -276,7 +317,7 @@ export function PhaseIntroScreen() {
                   transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
                 />
               )}
-              <span className="relative">{info.cta}</span>
+              <span className="relative">{`Start Phase ${phase}`}</span>
               <motion.span
                 aria-hidden
                 className="relative"
