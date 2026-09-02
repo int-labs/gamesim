@@ -23,7 +23,7 @@ import { initSocket } from "./utils/socket";
 
 const app = express();
 const PORT = process.env.PORT || 5000; // Will be 3000 in docker-compose
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "https://app.int-labs.com"; // Default to the deployed client URL
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "https://game.int-labs.site"; // Default to the deployed client URL
 const isProdLike = process.env.NODE_ENV !== "development";
 
 // Build dynamic allowed origins list: envs or dev defaults
@@ -47,6 +47,9 @@ const allowedOrigins = new Set(
   "http://localhost:3000",
   "http://localhost:3005",
   "http://localhost:5173",
+  "https://game.int-labs.site",
+  "https://api.int-labs.site",
+  "https://admin.int-labs.site",
 ].forEach((o) => allowedOrigins.add(o));
 
 // Connect to MongoDB
