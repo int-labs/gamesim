@@ -8,17 +8,19 @@ import type { FinlitPhaseResult } from './types';
 export type LedgerDraft = Omit<LedgerEntry, 'id'>;
 
 /**
- * Ledger entries for a completed phase, tagged by cause. `startDay` is the
- * phase's first day (1/31/61) so entries land on real day numbers. One set of
- * aggregate entries per phase keeps the P&L readable (per-day would flood it).
+ * Ledger entries for a completed round, tagged by cause. One set of aggregate
+ * entries per round keeps the P&L readable (per-day would flood it) — and there
+ * is no day loop to flood it with any more.
+ *
+ * Previously took `startDay` and stamped `day = startDay + result.days - 1`.
+ * Entries are keyed on the round now, so the arithmetic is gone with the field.
  */
-export function phaseResultToLedger(result: FinlitPhaseResult, startDay: number): LedgerDraft[] {
-  const day = startDay + result.days - 1; // recognised at phase end
+export function phaseResultToLedger(result: FinlitPhaseResult, roundNumber: number): LedgerDraft[] {
   const out: LedgerDraft[] = [];
-  if (result.revenue > 0) out.push({ day, kind: 'revenue', amount: round2(result.revenue), cause: 'finlit_sales' });
-  if (result.cogs > 0) out.push({ day, kind: 'cogs-material', amount: -round2(result.cogs), cause: 'finlit_cogs' });
-  if (result.channelCost > 0) out.push({ day, kind: 'opex-rent', amount: -round2(result.channelCost), cause: 'finlit_channel' });
-  if (result.opex > 0) out.push({ day, kind: 'opex-marketing', amount: -round2(result.opex), cause: 'finlit_opex' });
+  if (result.revenue > 0) out.push({ roundNumber, kind: 'revenue', amount: round2(result.revenue), cause: 'finlit_sales' });
+  if (result.cogs > 0) out.push({ roundNumber, kind: 'cogs-material', amount: -round2(result.cogs), cause: 'finlit_cogs' });
+  if (result.channelCost > 0) out.push({ roundNumber, kind: 'opex-rent', amount: -round2(result.channelCost), cause: 'finlit_channel' });
+  if (result.opex > 0) out.push({ roundNumber, kind: 'opex-marketing', amount: -round2(result.opex), cause: 'finlit_opex' });
   return out;
 }
 

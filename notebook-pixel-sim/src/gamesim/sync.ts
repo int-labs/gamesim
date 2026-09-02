@@ -98,6 +98,10 @@ export async function fetchServerProjection(
         roundNumber: ctx.roundNumber,
         productId: input.productId,
         fields: input.fields,
+        // Per product, because the endpoint recalculates one at a time. Omitting
+        // it would make the live projection use half capacity while the scored
+        // round uses the team's actual target.
+        produced: input.produced,
         globalInputs,
       });
       // The endpoint sometimes returns an array; unwrap if needed.

@@ -14,8 +14,8 @@ import {
 import { scenariosForPhase } from '@/data/finlit';
 import { selectEvaluationSummary } from '@/engine/selectors';
 import { eventForDay, EVENTS } from '@/data/events';
-import { PHASE_MAX_ENERGY } from '@/data/balance';
-import { ENERGY_REPLENISH } from '@/engine/config';
+import { maxEnergyForPhase } from '@/data/balance';
+import { ENERGY_REPLENISH, DAYS_PER_PHASE } from '@/engine/config';
 import { fmt$, fmtInt } from '@/utils/format';
 import { playSfx } from '@/audio/audioManager';
 import type { Phase } from '@/types';
@@ -35,7 +35,10 @@ import { useGamesimSession } from '@/gamesim/GamesimProvider';
 import { useLiveProjection } from '@/gamesim/useLiveProjection';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
 
-const PHASE_END = { 1: 30, 2: 60, 3: 90 } as const;
+// The end day of a phase is its round number times the phase length. The old
+// three-entry lookup table could not answer for round 4, and the round count is
+// the operator's `config.totalRounds`, not a fixed 3.
+const phaseEndDay = (phase: number) => phase * DAYS_PER_PHASE;
 
 type Step = 'preview' | 'scenario' | 'simulating' | 'event' | 'evaluation' | 'result';
 
@@ -144,7 +147,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const target = PHASE_END[phase];
+  const target = phaseEndDay(phase);
   const daysLeft = Math.max(0, target - day + 1);
 
   // FinLit preview — the actual phase result for the current config, computed
@@ -160,10 +163,10 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   const serverCustomers = liveProjection?.byProduct.reduce((a, p) => a + (p.customersObtained ?? 0), 0) ?? null;
 
   const finlitPreview = localFinlitPreview;
-  // Show the player's own demand estimate (from InventoryPanel) — the same
-  // value displayed in "Demand est. / phase" there. Fall back to 0 (shown as
-  // '—') when the player hasn't entered an estimate yet.
-  const intDemand = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
+  // The player's produce plan (from InventoryPanel) — the same value shown as
+  // "Produce / phase" there. It IS their demand estimate now that the separate
+  // estimate input is gone. 0 renders as '—'.
+  const intProduce = lines.reduce((sum, l) => sum + (l.targetPerPhase ?? 0), 0);
   const expectedSold = Math.round(finlitPreview?.soldTotal ?? 0);
   const expectedRevenue = Math.round(finlitPreview?.revenue ?? 0);
   const dailyExpenses = Math.round((finlitPreview?.opex ?? 0) + (finlitPreview?.channelCost ?? 0));
@@ -262,7 +265,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
     const after = useGame.getState();
     if (after.meta.pendingEvalPhase !== null) {
       setStep('evaluation');
-    } else if (after.meta.day < PHASE_END[phaseAtOpen]) {
+    } else if (after.meta.day < phaseEndDay(phaseAtOpen)) {
       // Continue simulating remaining days
       tick();
     } else {
@@ -312,7 +315,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
       if (evalPhase < 3) {
         const next = (evalPhase + 1) as Phase;
         s.meta.phase = next;
-        s.player.maxEnergy = PHASE_MAX_ENERGY[next];
+        s.player.maxEnergy = maxEnergyForPhase(next);
         s.player.energy = Math.min(s.player.maxEnergy, s.player.energy + ENERGY_REPLENISH);
       }
     });
@@ -400,7 +403,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
                 tone={projectedCashValue < 0 ? 'warn' : 'cash'}
               />
               <Stat icon="energy" label="Energy" value={`${energy}`} tone="warn" />
-              <Stat icon="demand" label="Demand est." value={intDemand > 0 ? fmtInt(intDemand) : '—'} sub="your estimate" tone="info" />
+              <Stat icon="demand" label="Produce" value={intProduce > 0 ? fmtInt(intProduce) : '—'} sub="planned this phase" tone="info" />
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 
@@ -540,7 +543,7 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
         {step === 'simulating' && (
           <SimulatingShow
             fromDay={simFromDay}
-            toDay={PHASE_END[phaseAtOpen]}
+            toDay={phaseEndDay(phaseAtOpen)}
             phase={phaseAtOpen}
           />
         )}

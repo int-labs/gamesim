@@ -51,6 +51,24 @@ RoundSchema.pre("save", async function (next) {
     const { currRounds, totalRounds } = simulation.config;
     const { status } = simulation;
 
+    // Rounds are the last thing holding the simulation together: everything
+    // downstream — decisions, projections, results, carried stock — is keyed on
+    // a round being in a valid state. So an incomplete config is a hard failure,
+    // not a reason to skip the checks.
+    //
+    // This used to pass silently. `config` was typed `Record<string, any>`, so
+    // these reads were `any` and every comparison below was against `undefined`
+    // — `n > undefined` is false — which meant ALL FOUR guards below were
+    // inert for such a simulation: a round beyond `totalRounds`, a Completed
+    // current round, a non-Pending future round and a non-Completed past round
+    // would each have been accepted.
+    if (totalRounds === undefined || currRounds === undefined) {
+      throw new Error(
+        `Simulation with ID "${round.simulationId}" has an incomplete config: ` +
+          `both totalRounds and currRounds are required to validate a round.`
+      );
+    }
+
     if (round.roundNumber > totalRounds) {
       throw new Error(`roundNumber exceeds totalRounds in simulation.`);
     }

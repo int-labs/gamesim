@@ -18,7 +18,18 @@ export type {
   FinlitMarketingId,
 };
 
-export type Phase = 1 | 2 | 3;
+/**
+ * A phase IS a round. One per round the operator configured, so the count comes
+ * from `simulation.config.totalRounds` — it is NOT fixed at three.
+ *
+ * Was `1 | 2 | 3`, which hardcoded a three-part structure while `totalRounds`
+ * was configurable: a five-round simulation had no phase 4 or 5.
+ *
+ * "30 days" survives only as WORDING — each round narrates a month of market
+ * movement. Nothing ticks per day; see the note in `mockEngine` where the
+ * day-tick used to be.
+ */
+export type Phase = number;
 export type Route = 'self' | 'investor';
 export type Segment = 'students' | 'creators' | 'professionals' | 'gift';
 /**
@@ -236,9 +247,12 @@ export interface ProductLine {
    * limits sales.
    */
   targetPerPhase?: number;
-  /** Player's own demand estimate for this line (units/phase). Pure UI input —
-   *  used to coach production targets; does not affect the engine simulation. */
-  demandEstPerPhase?: number;
+  // No `demandEstPerPhase`. It was a separate "how many do you think will sell"
+  // input, which `targetPerPhase` now states by itself: choosing how many to
+  // BUILD *is* the player's demand estimate. Keeping both meant the produce
+  // planner compared the player against themselves — `gap = target - estimate`
+  // — and the projection's sellable units were computed from the estimate while
+  // production came from the target.
 }
 
 export type AddOnCategory =
@@ -280,7 +294,17 @@ export interface Decision {
 
 export interface LedgerEntry {
   id: string;
-  day: number;
+  /**
+   * The round this entry belongs to — the ONLY bucketing key.
+   *
+   * Was `day`, with the P&L bucketing entries by day windows
+   * (`{1:[1,30], 2:[31,60], 3:[61,90]}`). Nothing ticks per day, and those
+   * windows also capped the sheet at three columns regardless of `totalRounds`.
+   *
+   * Also what lets a round's money entries be REPLACED when the operator's
+   * official numbers arrive — they cannot be identified by day.
+   */
+  roundNumber: number;
   kind:
     | 'revenue'
     | 'cogs-material'

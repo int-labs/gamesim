@@ -9,7 +9,21 @@ const BLANK = {
   startDate: "",
   endDate: "",
   totalRounds: 1,
+  // The SELECT below is what constrains this: an operator cannot type a third
+  // value, so the stored `config.mode` is always one of the two and no reader
+  // needs to defend against a typo.
+  mode: "competitive" as SimulationMode,
 };
+
+/** How a simulation is run. Mirrors `SimulationMode` in the server model.
+ *  competitive   — operator scores each round; market share is competed.
+ *  single_player — the team's own projections are the result; no operator. */
+type SimulationMode = "competitive" | "single_player";
+
+const MODE_OPTIONS: { value: SimulationMode; label: string }[] = [
+  { value: "competitive", label: "Competitive — operator calculates each round" },
+  { value: "single_player", label: "Single player — projections are the result" },
+];
 
 export default function SimulationsPage() {
   const [rows, setRows] = useState<Simulation[]>([]);
@@ -17,7 +31,7 @@ export default function SimulationsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ totalRounds: 1, currRounds: 1 });
+  const [editForm, setEditForm] = useState({ totalRounds: 1, currRounds: 1, mode: "competitive" as SimulationMode });
 
   const load = async () => {
     try {
@@ -30,7 +44,13 @@ export default function SimulationsPage() {
 
   const handleUpdate = async (id: string) => {
     try {
-      await updateSimulation(id, { config: { totalRounds: editForm.totalRounds, currRounds: editForm.currRounds } });
+      await updateSimulation(id, {
+        config: {
+          totalRounds: editForm.totalRounds,
+          currRounds: editForm.currRounds,
+          mode: editForm.mode,
+        },
+      });
       setEditingId(null);
       await load(); // reuse whatever the existing fetch/reload function is named
     } catch (e: any) {
@@ -43,6 +63,8 @@ export default function SimulationsPage() {
     setEditForm({
       totalRounds: r.config?.totalRounds ?? 1,
       currRounds:  r.config?.currRounds ?? 1,
+      // Simulations created before this field existed are operator-run.
+      mode:        (r.config?.mode as SimulationMode) ?? "competitive",
     });
   };
 
@@ -54,7 +76,7 @@ export default function SimulationsPage() {
     try {
       await createSimulation({
         ...form,
-        config: { totalRounds: form.totalRounds, currRounds: 1 },
+        config: { totalRounds: form.totalRounds, currRounds: 1, mode: form.mode },
       });
       setForm({ ...BLANK });
       await load();
@@ -113,6 +135,19 @@ export default function SimulationsPage() {
             <td>Total Rounds</td>
             <td><input type="number" min={1} value={form.totalRounds} onChange={e => setForm(f => ({ ...f, totalRounds: Number(e.target.value) }))} /></td>
           </tr>
+          <tr>
+            <td>Mode</td>
+            <td>
+              <select
+                value={form.mode}
+                onChange={e => setForm(f => ({ ...f, mode: e.target.value as SimulationMode }))}
+              >
+                {MODE_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </td>
+          </tr>
         </tbody>
       </table>
       <button onClick={handleCreate} disabled={loading}>Create</button>
@@ -137,10 +172,23 @@ export default function SimulationsPage() {
                 {editingId === r._id ? (
                   <>
                     Total: <input type="number" min={1} style={{ width: 50 }} value={editForm.totalRounds} onChange={e => setEditForm(f => ({ ...f, totalRounds: Number(e.target.value) }))} /><br />
-                    Curr: <input type="number" min={1} style={{ width: 50 }} value={editForm.currRounds} onChange={e => setEditForm(f => ({ ...f, currRounds: Number(e.target.value) }))} />
+                    Curr: <input type="number" min={1} style={{ width: 50 }} value={editForm.currRounds} onChange={e => setEditForm(f => ({ ...f, currRounds: Number(e.target.value) }))} /><br />
+                    Mode:{" "}
+                    <select
+                      value={editForm.mode}
+                      onChange={e => setEditForm(f => ({ ...f, mode: e.target.value as SimulationMode }))}
+                    >
+                      {MODE_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>{o.value}</option>
+                      ))}
+                    </select>
                   </>
                 ) : (
-                  <>Total: {r.config?.totalRounds ?? "—"} / Curr: {r.config?.currRounds ?? "—"}</>
+                  <>
+                    Total: {r.config?.totalRounds ?? "—"} / Curr: {r.config?.currRounds ?? "—"}
+                    <br />
+                    Mode: {(r.config?.mode as string) ?? "competitive"}
+                  </>
                 )}
               </td>
               <td>

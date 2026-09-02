@@ -31,12 +31,30 @@ export interface PasskeyLoginResponse extends Partial<TeamIdentity> {
 export type SimulationStatus = 'Active' | 'Inactive' | 'Completed';
 export type RoundStatus = 'Pending' | 'Active' | 'Completed';
 
+/**
+ * How the simulation is run. Mirrors `SimulationMode` in
+ * `server/src/models/simulations.ts`.
+ *
+ *   competitive   — operator-driven: rounds are scored by the operator, share is
+ *                   competed, and the team waits after confirming.
+ *   single_player — the team's own projections ARE the result; no wait, no
+ *                   competed share, its own final scoring weights.
+ *
+ * ABSENT MEANS COMPETITIVE — see `simulationMode` below.
+ */
+export type SimulationMode = 'single_player' | 'competitive';
+
 export interface SimulationDto {
   _id: Id;
   simulationName: string;
   status: SimulationStatus;
   simulationTypeId: Id;
-  config?: { totalRounds?: number; currRounds?: number } & Record<string, unknown>;
+  /** The operator's settings. `mode` lives here, where they are set. */
+  config?: {
+    totalRounds?: number;
+    currRounds?: number;
+    mode?: SimulationMode;
+  } & Record<string, unknown>;
 }
 
 export interface RoundDto {
@@ -162,6 +180,10 @@ export interface DecisionProductInput {
   productId: Id;
   segmentId: Id;
   productName: string;
+  /** Units to produce this round. Its OWN field, not a `fields[]` entry: it
+   *  feeds neither dynamicPrice (VoC), dynamicCost, nor the inventoryQty
+   *  ceiling. null = not stated; the server then uses half the ceiling. */
+  produced: number | null;
   fields: DecisionFieldEntry[];
 }
 
@@ -187,6 +209,21 @@ export interface DecisionDto extends CreateDecisionBody {
 
 // ── Projections (own financials — authoritative for money) ──────────────
 /** Per-product metrics the server writes under `projections[productId]`. */
+/** One line of the server's cost breakdown. Mirrors `IncurredCostBreakdown` in
+ *  `server/src/sim/calcFinancials.ts` field for field. */
+export interface IncurredCostEntryDto {
+  key: string;
+  label: string;
+  category: string;
+  inputQty: number;
+  leftover: number;
+  costPerUnit: number;
+  incurredCost: number;
+  /** Which side of the gross-profit line this falls on, so the client groups
+   *  the breakdown without re-deriving the classification. */
+  treatment: 'cogs' | 'opex';
+}
+
 export interface ProductProjectionDto {
   customersObtained?: number;
   dynamicPrice?: number;
@@ -197,7 +234,19 @@ export interface ProductProjectionDto {
    *  what the player can make. Server-owned: the local engine's `prodPerDay` /
    *  `targetPerDay` do not feed into it. */
   inventoryQty?: number;
-  /** Units sold = min(customersObtained, inventoryQty). */
+  /** Units actually built this round: min(the team's target, inventoryQty).
+   *  COGS is charged on THIS, not on units sold — cost is recognised when units
+   *  are produced, so carried stock sells later with no further COGS.
+   *
+   *  NOT DISPLAYED, by design. It is the server echoing back what the debounced
+   *  recalc saved; the produce plan the player reads is the client's own
+   *  `targetPerPhase`. The two agree because the client clamps with the same
+   *  `Math.floor(capacity)` the server clamps with. */
+  produced?: number;
+  /** Unsold units at close: (openingStock + produced) − unitsSold. Charged
+   *  holding, and read as the NEXT round's opening stock. */
+  closingStock?: number;
+  /** Units sold = min(customersObtained, openingStock + produced). */
   unitsSold?: number;
   revenue?: number;
   COGS?: number;
@@ -207,7 +256,14 @@ export interface ProductProjectionDto {
   operatingExpenses?: number;
   operatingProfit?: number;
   productCostBreakdown?: Record<string, number>;
-  incurredCosts?: Record<string, number> | number;
+  /**
+   * Per-entry cost breakdown, already partitioned by which side of the
+   * gross-profit line it falls on. An ARRAY — the previous
+   * `Record<string, number> | number` did not describe what the server sends
+   * (`IncurredCostBreakdown[]`), so anything coded to that type got neither the
+   * labels nor `treatment`.
+   */
+  incurredCosts?: IncurredCostEntryDto[];
   /** Only written by the operator's round calculation, not by /projections/recalc. */
   marketShare?: number;
 }
@@ -237,6 +293,9 @@ export interface RecalcProjectionsBody {
    *  contribute nothing on this call. */
   focusedProductId?: Id;
   fields: DecisionFieldEntry[];
+  /** Units to produce for `productId` this round. Sent per product, because the
+   *  endpoint recalculates one product at a time. */
+  produced?: number | null;
   globalInputs?: DecisionGlobalInputDto[];
 }
 

@@ -46,50 +46,33 @@ import { vendorStep } from '@/engine/finlit/core/config/vendors';
 import type { GlobalInputItemDto } from '@/gamesim/types';
 import type { ChannelId } from '@/engine/finlit/core/config';
 import { resolveEventOption } from './eventEffects';
-import { calcRawPurchaseUnitCostForLine, getActiveLine, getLineOrThrow } from './cost';
+import { getActiveLine, getLineOrThrow } from './cost';
 import { finite } from './validation';
 import { makeModifierId } from './modifiers';
 import { defaultPlacementFor, PLACEMENT_BOUNDS } from '@/data/addOnDefaults';
 
 // ---- Public engine API (re-exports) -------------------------------------
-export {
-  calcUnitCost,
-  calcUnitCostForLine,
-  calcUnitTime,
-  calcUnitTimeForLine,
-  calcEffectivePrice,
-  calcEffectivePriceForLine,
-  currentAddOns,
-  currentAddOnsForLine,
-  getActiveLine,
-  getLineOrThrow,
-  portfolioAvgUnitCost,
-} from './cost';
-export { calcCapacityToday, calcDefectRate, planProduction, dailyTargetForLine } from './production';
-export {
-  calcComplexityScore,
-  calcComplexityThreshold,
-  calcComplexityPenalty,
-  calcComplexityLevel,
-  selectComplexity,
-  MAX_LINES_HARD_CAP,
-  type ComplexityState,
-  type ComplexityLevel,
-} from './complexity';
-export {
-  calcSegmentFit,
-  calcSegmentFitForLine,
-  calcDemandToday,
-  calcDemandTodayForLine,
-  cannibalizationFactor,
-  countLinesByTargetSegment,
-} from './demand';
-export { dayTick, advanceDay } from './simulationEngine';
-export { computeFinalScore, type FinalScore } from './scoring';
+// Only what the UI actually imports. The blocks that used to sit here
+// re-exported 21 symbols with no consumer anywhere — the whole `production` and
+// `complexity` blocks among them — and two of the names they forwarded
+// (`selectComplexity`, `calcComplexityPenalty`) are read by importing
+// `./complexity` directly, so even the live ones did not travel through here.
+export { currentAddOns } from './cost';
+export { calcDemandToday } from './demand';
+// `dayTick` / `advanceDay` are GONE, with `simulationEngine.ts`.
+//
+// There is no day-tick. The sim advances by ROUND: `PhaseActionBar` →
+// `PhaseSequenceModal` → `advanceFinlitPhase`. The day loop had no live caller —
+// its only entry points were `ConfirmDayModal` and `ConfirmPhaseModal`, and
+// neither was mounted (`BottomActionBar`, which rendered the first, was itself
+// unreferenced). Deleted rather than left inert, because its presence — and the
+// "Day-tick order of operations" section it earned in CLAUDE.md — kept making
+// readers believe a per-day model was live.
+export { computeFinalScore } from './scoring';
 export { generateInsightQuestion } from './insightGenerator';
 // V3 (FinLit) — the store-facing phase runner. Simulates the current phase with
 // the FinLit engine and writes results into ledger/series/inventory/cash.
-export { runFinlitPhase, advanceFinlitPhase, previewFinlitPhase } from './finlit/storeRun';
+export { advanceFinlitPhase, previewFinlitPhase } from './finlit/storeRun';
 
 // ---- Notebook count cap -------------------------------------------------
 //
@@ -637,28 +620,6 @@ export const clearFinlitVendor = (s: GameState, item?: GlobalInputItemDto): void
 };
 
 /**
- * Buy raw materials for a specific line at that line's unit cost.
- * `lineId` defaults to the active line.
- */
-export const buyRawMaterials = (s: GameState, units: number, lineId?: string) => {
-  if (units <= 0) return false;
-  const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  const unitCost = calcRawPurchaseUnitCostForLine(s, line);
-  const cost = units * unitCost;
-  if (s.player.cash < cost) return false;
-  s.player.cash -= cost;
-  line.inventory.raw += units;
-  s.inventory.totalRaw = s.portfolio.productLines.reduce((acc, l) => acc + l.inventory.raw, 0);
-  pushLedger(s, { kind: 'inventory-purchase', amount: -cost, cause: 'buy_raw', decisionId: line.id });
-  s.history.push({
-    day: s.meta.day,
-    text: `Bought ${units} raw for ${line.name} @ $${unitCost.toFixed(2)}/u`,
-    cause: 'buy_raw',
-  });
-  return true;
-};
-
-/**
  * Acquire a company-wide upgrade. All upgrades are GLOBAL — they affect
  * every product line uniformly:
  *   - hire_*: company capacity
@@ -829,11 +790,11 @@ export const answerInsight = (s: GameState, checkId: string, _optId: 'A' | 'B' |
 
 function pushLedger(
   s: GameState,
-  e: Omit<LedgerEntry, 'id' | 'day'> & Partial<Pick<LedgerEntry, 'id' | 'day'>>,
+  e: Omit<LedgerEntry, 'id' | 'roundNumber'> & Partial<Pick<LedgerEntry, 'id' | 'roundNumber'>>,
 ) {
   s.ledger.push({
     id: 'l-' + Math.random().toString(36).slice(2, 9),
-    day: s.meta.day,
+    roundNumber: e.roundNumber ?? s.meta.phase,
     kind: e.kind,
     amount: finite(e.amount, 0),
     cause: e.cause,
@@ -989,12 +950,8 @@ export const toggleFinlitChannelAll = (
   return true;
 };
 
-/** Set the player's own demand estimate for a line (units/phase). Pure UI input —
- *  coaches production targets without affecting the engine simulation. */
-export const setLineDemandEst = (s: GameState, units: number, lineId?: string): void => {
-  const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  line.demandEstPerPhase = Math.max(0, Math.round(finite(units, 0)));
-};
+// `setLineDemandEst` is gone with `ProductLine.demandEstPerPhase`: the produce
+// target IS the player's demand estimate. See setLineTargetPerPhase.
 
 export const finalScore = (s: GameState) => {
   const r = computeFinalScore(s);

@@ -91,7 +91,7 @@ export const SCENARIOS: FinlitScenario[] = [
   },
 ];
 
-export const scenariosForPhase = (phase: 1 | 2 | 3): FinlitScenario[] =>
+export const scenariosForPhase = (phase: number): FinlitScenario[] =>
   SCENARIOS.filter((s) => s.phase === phase);
 
 export const scenarioById = (id: string): FinlitScenario | undefined =>

@@ -36,7 +36,14 @@ const DEFAULT_SPEC: ProductionSpec = {
   type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
 };
 
-export function FinlitDesignControls({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
+export function FinlitDesignControls({
+  liveProjection,
+  recalc,
+}: {
+  liveProjection?: ServerProjectionResult | null;
+  /** Called at the END of a decision interaction. See useLiveProjection. */
+  recalc?: (reason: string) => void;
+}) {
   const line = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
   );
@@ -101,7 +108,12 @@ export function FinlitDesignControls({ liveProjection }: { liveProjection?: Serv
                 ariaLabel={label}
                 value={spec[axis]}
                 options={CONFIG_TABLES[axis].map((o) => ({ id: o.id, label: o.name, hint: `+${fmt$(o.cost)}` }))}
-                onChange={(id) => apply((s) => setFinlitAxis(s, axis, id))}
+                // A select has no interaction end distinct from its change, so
+                // this is both the edit and the commit.
+                onChange={(id) => {
+                  apply((s) => setFinlitAxis(s, axis, id));
+                  recalc?.(`spec axis ${axis}`);
+                }}
                 className="flex-1 min-w-0"
               />
             </div>
@@ -118,6 +130,7 @@ export function FinlitDesignControls({ liveProjection }: { liveProjection?: Serv
         <Slider
           label="Price" value={line.price} min={1} max={30} step={1}
           fmt={(v) => fmt$(v)} onChange={(v) => apply((s) => setPrice(s, v))}
+          onCommit={() => recalc?.('price slider released')}
         />
       </Section>
 
@@ -170,8 +183,13 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 }
 
 function Slider({
-  label, value, min, max, step, fmt, onChange,
-}: { label: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; onChange: (v: number) => void }) {
+  label, value, min, max, step, fmt, onChange, onCommit,
+}: {
+  label: string; value: number; min: number; max: number; step: number;
+  fmt: (v: number) => string; onChange: (v: number) => void;
+  /** Interaction END — pointer released, or a keyboard drag finished. */
+  onCommit?: () => void;
+}) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
@@ -181,6 +199,11 @@ function Slider({
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
+        // `onPointerUp` covers mouse and touch; `onKeyUp` covers arrow-key
+        // dragging, which never fires a pointer event. A range has no `onBlur`
+        // worth using — the value is committed the moment the drag ends.
+        onPointerUp={onCommit}
+        onKeyUp={onCommit}
         className="w-full accent-ui-primary cursor-pointer"
       />
     </div>

@@ -13,7 +13,6 @@ import { A } from '@/assets';
 import { addOnById } from '@/data/addOns';
 import { genreById, configOption, type GenreId, type ProductionSpec } from '@/data/finlit';
 import { lineSize } from '@/engine/selectors';
-import { vocFit } from '@/engine/finlit/fit';
 import type { ProductLine, Segment } from '@/types';
 
 const GALLERY_DEFAULT_SPEC: ProductionSpec = {
@@ -141,13 +140,17 @@ function BookCard({
 }) {
   const instances = line.addOnsByArchetype[line.archetype] ?? [];
   const stock = line.inventory.finished;
-  // V3 caption — genre market, VoC fit, spec summary, channels.
+  // V3 caption — genre market, spec summary, channels.
+  //
+  // No fit chip. It rendered an unlabelled "104% fit" from the local `vocFit()`
+  // model, which the server does not use: Voice of Customer is the operator's
+  // `field.direction` on the Product, applied in calcFinancials' dynamicPrice.
+  // Removed rather than repointed at `productScore` — that is a 0–1 pricing-fit
+  // score, not vocFit's 0.6–1.2 multiplier, so any thresholds would have been
+  // invented.
   const genre: GenreId = (line.genre ?? 'indie') as GenreId;
   const spec: ProductionSpec = { ...GALLERY_DEFAULT_SPEC, type: genre, ...(line.finlitSpec ?? {}) };
   const stickersSpend = Math.min((line.addOnsByArchetype?.[line.archetype] ?? []).length * 0.15, 100);
-  const vfit = vocFit(spec, line.price, stickersSpend, genre);
-  const fitPct = Math.round(vfit * 100);
-  const fitTone = vfit >= 1.08 ? 'success' : vfit < 0.85 ? 'warn' : 'info';
   const specSummary = `${configOption('paper', spec.paper).name.split(' ')[0]} · ${spec.size.toUpperCase()} · ${configOption('pageDesign', spec.pageDesign).name}`;
   void fit; void segment;
 
@@ -244,7 +247,6 @@ function BookCard({
           {genreById(genre).name} · {specSummary}
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <Chip tone={fitTone}>{fitPct}% fit</Chip>
           <Chip tone="info">{stickersSpend > 0 ? `${stickersSpend.toFixed(0)} stickers` : 'no stickers'}</Chip>
           <Chip tone={stock === 0 ? 'warn' : 'neutral'}>{stock} stock</Chip>
         </div>

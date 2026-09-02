@@ -31,7 +31,7 @@ export function BusinessPage({ liveProjectionState }: { liveProjectionState: Liv
   const [tab, setTab] = useState<SubTab>('operations');
   const activeTab = TABS.find((x) => x.id === tab);
   const reduced = useReducedMotion();
-  const { liveProjection } = liveProjectionState;
+  const { liveProjection, recalc } = liveProjectionState;
 
   // Listen for cross-component "go to audience" / "go to operations"
   // events so deep-linked CTAs (e.g. the disabled-Confirm warning
@@ -82,8 +82,8 @@ export function BusinessPage({ liveProjectionState }: { liveProjectionState: Liv
           transition={{ duration: 0.18, ease: [0.2, 1, 0.4, 1] }}
           className="p-4"
         >
-          {tab === 'operations' && <StudioPanel liveProjection={liveProjection} />}
-          {tab === 'inventory' && <InventoryPanel liveProjection={liveProjection} />}
+          {tab === 'operations' && <StudioPanel liveProjection={liveProjection} recalc={recalc} />}
+          {tab === 'inventory' && <InventoryPanel liveProjection={liveProjection} recalc={recalc} />}
           {tab === 'performance' && (
             <div className="flex flex-col gap-5">
               <FinanceTable />

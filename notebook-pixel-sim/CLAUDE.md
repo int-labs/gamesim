@@ -20,21 +20,43 @@ prefer reading a server field over deriving an equivalent locally.
 The authoritative P&L, computed server-side and to be displayed verbatim:
 
 ```
+  produced      = min(the team's target, inventoryQty)   ← the DECISION
+  sellable      = openingStock + produced                ← carried stock counts
+  unitsSold     = min(customersObtained, sellable)
+  closingStock  = sellable − unitsSold                   ← next round's openingStock
+
   Revenue           unitsSold × sellingPrice
-− COGS              unitsSold × dynamicCost + globalInput costs declared 'cogs'
+− COGS              produced  × dynamicCost + globalInput costs declared 'cogs'
 = Gross Profit
-− OpEx              unsold-inventory holding + globalInput costs declared 'opex'
+− OpEx              closingStock × inventory_cost + globalInput costs declared 'opex'
 = Operating Profit
 ```
 
 Notes that will bite otherwise:
 
-- **`inventoryQty` is the player's capacity**, derived server-side from the
-  product's own field values. `prodPerDay` / `targetPerDay` / the produce
-  slider do **not** feed it. Read `ProductProjectionDto.inventoryQty`.
-- **COGS is on units SOLD**, never on the whole build. Unsold stock is a holding
-  cost in OpEx, charged at the operator's per-unit `inventory_cost` (configured
-  on the *channel* globalInput's impacts).
+- **`inventoryQty` is the CEILING on production**, derived server-side from the
+  product's own field values. It is not the amount produced and is never
+  persisted — it is recomputed every round. Read
+  `ProductProjectionDto.inventoryQty`.
+- **COGS is on units PRODUCED**, not on units sold. Cost is recognised when a
+  unit is BUILT, so carried stock sells later with no further COGS — and a round
+  that sells nothing still expenses its whole build. Reversed on 2026-09-01;
+  earlier notes saying "COGS is on units SOLD" describe the previous rule.
+- **`ProductLine.targetPerPhase` is the produce decision AND the player's demand
+  estimate.** There is no separate `demandEstPerPhase` — one number, per phase,
+  bounded by `inventoryQty`. Submitted as `Decision.inputs[].produced`, its own
+  property outside `fields[]` (everything in `fields[]` feeds dynamicPrice,
+  dynamicCost or the ceiling; production feeds none of them).
+- **`closingStock` carries across rounds** via `Projections{roundNumber}`; round
+  N+1 reads round N as `openingStock`. Both money paths must pass it or the live
+  projection and the score disagree from round 2 on.
+- Holding is charged on `closingStock`, at the operator's per-unit
+  `inventory_cost` (configured on the *channel* globalInput's impacts).
+- **`/projections/recalc` is triggered on interaction END**, not on state change:
+  `onPointerUp`+`onKeyUp` for ranges, `onChange` for selects, `onClick` for
+  buttons, modal commit for hires/vendors — via `liveProjectionState.recalc`,
+  150 ms trailing. There is no state subscription; a new decision control must
+  call it or its edits never reach the server.
 - **`readCostTreatment()` and `toProjectionMetrics()` in `sim/calcFinancials.ts`
   are single-reader / single-shape functions on purpose.** Both money paths
   (`/projections/recalc` and round close) must call them, or the live projection
@@ -47,9 +69,11 @@ Notes that will bite otherwise:
   0.55) live in `Product.baseVariables`. `INVENTORY_BASE = 1000` is still a
   module constant awaiting the same treatment.
 
-**`FinanceTable` in `MetricsTable.tsx` currently renders opex rows above a Gross
-Profit subtotal that excludes them** — the sheet reads one way and computes
-another. Unfixed; it is the first item of the frontend display work.
+The section below the canvas is **two** sections, deliberately: `User Projection`
+(the player's own estimates + server capacity/price/unit cost) and `Actual
+Results` (the recorded P&L). They do not agree and are not meant to — they answer
+different questions. `gamesim/computeUserProjection.ts` is the single place the
+projection is computed; the top-bar chips and the Portfolio sheet both call it.
 
 See the `project_projection_divergence` memory for the full diagnosis and the
 decision log.
@@ -110,9 +134,20 @@ UI code should keep importing from `@/engine/mockEngine`, never from the individ
 - Don't add ad-hoc `set()` calls in components for game logic; route it through an engine mutator + `apply()` so history/ledger stay consistent.
 - **Persistence:** key `intlabs:sim:state:v1`, `version: 8` with a `migrate` chain — bump the version and add a migration step when you change persisted shape. `partialize` deliberately drops transient UI/mascot state, and `screen` is forced back to `'start'` on reload (Continue/New Game re-enter the run).
 
-### Day-tick order of operations (`simulationEngine.ts`)
+### THERE IS NO DAY-TICK
 
-Per advanced day: phase rollover → drain pending cash → expire modifiers → cache fits → roll demand (one seeded RNG for the whole portfolio) → plan production (shared capacity, proportional) → apply production → per-line sales loop → pay opex → update brand/retention → roll up inventory → append daily series → fire interrupts (events/evaluations/end-of-game).
+The sim advances by **round**, not by day: `PhaseActionBar` →
+`PhaseSequenceModal` → `advanceFinlitPhase`.
+
+`simulationEngine.ts` (`dayTick` / `advanceDay`), `ConfirmDayModal`,
+`ConfirmPhaseModal` and `BottomActionBar` were **deleted on 2026-09-01** — none
+had a live caller. This section previously described that day loop in detail,
+which is worse than saying nothing: it read as current architecture and cost
+real time to disbelieve.
+
+`meta.day` and `LedgerEntry.day` still exist but no longer mean anything is
+ticking. Rounds are the unit; converting those fields to `roundNumber` is
+pending work.
 
 ### Portfolio model (not single-product)
 

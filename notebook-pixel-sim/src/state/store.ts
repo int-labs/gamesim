@@ -15,6 +15,7 @@ import type {
   ProductLine,
 } from '@/types';
 import { STARTING_CASH, STARTING_DEBT } from '@/data/balance';
+import { DAYS_PER_PHASE } from '@/engine/config';
 import { ENERGY_START, ENERGY_CAP, GENRES } from '@/data/finlit';
 import { segmentForGenre } from '@/engine/finlit/core/config/genreSegments';
 import type { ActiveModifier } from '@/engine/modifiers';
@@ -583,7 +584,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 17,
+      version: 19,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -952,6 +953,31 @@ export const useGame = create<Store>()(
         if (fromVersion < 17 && Array.isArray(persisted?.portfolio?.productLines)) {
           for (const line of persisted.portfolio.productLines) {
             delete line.targetPerDay;
+          }
+        }
+        // v18: `demandEstPerPhase` removed. The produce target IS the player's
+        // demand estimate, so a second field asked the same question twice —
+        // and every comparison between them was the player against themselves.
+        // Dropped rather than merged into `targetPerPhase`: an old estimate is
+        // not a production decision, and the default (half capacity) is the
+        // honest starting point.
+        if (fromVersion < 18 && Array.isArray(persisted?.portfolio?.productLines)) {
+          for (const line of persisted.portfolio.productLines) {
+            delete line.demandEstPerPhase;
+          }
+        }
+        // v19: LedgerEntry.day → LedgerEntry.roundNumber. Stored entries were
+        // stamped with the day the phase ENDED (30/60/90), so the round is that
+        // day divided by the phase length — not the raw day. An entry with no
+        // usable day falls back to round 1 rather than to `undefined`, which the
+        // P&L would bucket under a phantom column.
+        if (fromVersion < 19 && Array.isArray(persisted?.ledger)) {
+          for (const e of persisted.ledger) {
+            if (e.roundNumber === undefined) {
+              const day = Number(e.day);
+              e.roundNumber = Number.isFinite(day) && day > 0 ? Math.ceil(day / DAYS_PER_PHASE) : 1;
+            }
+            delete e.day;
           }
         }
         if (fromVersion < 12 && Array.isArray(persisted?.portfolio?.productLines)) {

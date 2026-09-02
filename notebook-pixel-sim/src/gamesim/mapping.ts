@@ -153,6 +153,9 @@ export function toDecisionInputs({
       productId:   product._id,
       segmentId:   product.segmentId,
       productName: product.productName,
+      // null when the player never set one — the server then applies half the
+      // ceiling, which is exactly what the planner shows for an untouched line.
+      produced:    line.targetPerPhase ?? null,
       fields:      toDecisionFields(product, lineDecisionValues(line, share)),
     };
   });

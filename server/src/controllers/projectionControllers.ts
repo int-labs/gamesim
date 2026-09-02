@@ -190,6 +190,11 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
         teamId:       teamObjectId,
         inputs:       [{
           productId: product._id,
+          // The client sends this alongside `fields`. Without it the live
+          // projection falls back to half capacity while the scored round uses
+          // the team's actual target — a divergence of exactly the kind this
+          // shared-reader pattern exists to prevent.
+          produced:  typeof req.body?.produced === "number" ? req.body.produced : null,
           fields:    (productFields ?? []).map((f: any) => ({
             fieldId: new mongoose.Types.ObjectId(f.fieldId),
             value:   f.value,
@@ -222,6 +227,23 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
         gi.productsImpacted.some((pid: mongoose.Types.ObjectId) => pid.equals(product._id))
       );
 
+      // Opening stock = last round's closing stock. Read here so the live
+      // projection and the official calculation agree; without it recalc shows
+      // `sellable = produced` while round close uses `openingStock + produced`.
+      // Must stay identical to the read in `roundCalculation`.
+      const prior = Number(roundNumber) > 1
+        ? await Projection.findOne({
+            simulationId,
+            teamId,
+            roundNumber: Number(roundNumber) - 1,
+          }).lean()
+        : null;
+      const openingStock = {
+        [String(teamObjectId)]: Number(
+          (prior as any)?.projections?.[String(product._id)]?.closingStock ?? 0,
+        ),
+      };
+
       const { results } = calcFinancials({
         productId:     product._id,
         marketShares:  [{ teamId: teamObjectId, value: marketShareFraction }],
@@ -229,6 +251,7 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
         decisions:     [draftDecision],
         globalInputs:  relevantGlobalInputs,
         baseVariables,
+        openingStock,
       });
 
       const productKey = String(product._id);

@@ -42,6 +42,23 @@ const DecisionProductInputSchema = new Schema(
     productId:   { type: Schema.Types.ObjectId, ref: "Product", required: true },
     segmentId:   { type: Schema.Types.ObjectId, ref: "Segment", required: true },
     productName: { type: String, required: true },
+    /**
+     * Units the team commits to producing this round, for THIS product.
+     *
+     * Its own property, deliberately OUTSIDE `fields[]`. Every entry in
+     * `fields[]` is addressed by a Product field `_id` and feeds `dynamicPrice`
+     * (VoC), `dynamicCost`, or the `inventoryQty` ceiling — production feeds
+     * none of them. It is a decision about execution, not a property of the
+     * product the customer perceives.
+     *
+     * Read RAW. `getDecisionInput` applies `calcDiminishingReturnsCostFactor`,
+     * and that bell curve exists for the `inventoryQty` ceiling; applying it to
+     * a quantity the player typed would silently change the number.
+     *
+     * null = not stated. `calcFinancials` then uses half the ceiling, which is
+     * what the production planner displays for an untouched line.
+     */
+    produced: { type: Number, default: null },
     // FLAT array of field entries — one level, not two. The previous
     // `[{ type: [DecisionFieldSchema] … }]` had an extra outer [ ], which made
     // Mongoose wrap every entry in its own inner array on save: a body of
@@ -92,11 +109,13 @@ export interface IDecision extends Document {
   simulationId:     Types.ObjectId;
   teamId:           Types.ObjectId;
   roundNumber:      number;
-  inputs:           { 
-    productId: Types.ObjectId; 
-    segmentId: Types.ObjectId; 
-    productName: string; 
-    fields: { fieldId: Types.ObjectId; value: number | string | null; imageAssets: Types.ObjectId[]; }[]; 
+  inputs:           {
+    productId: Types.ObjectId;
+    segmentId: Types.ObjectId;
+    productName: string;
+    /** Units to produce this round. null = not stated; the sim uses half the ceiling. */
+    produced: number | null;
+    fields: { fieldId: Types.ObjectId; value: number | string | null; imageAssets: Types.ObjectId[]; }[];
   }[];
   initiativeInputs: { 
     name: string; 

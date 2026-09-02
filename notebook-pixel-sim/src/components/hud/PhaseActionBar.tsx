@@ -8,8 +8,12 @@ import { expandScript, SCRIPT_BEFORE_PHASE1_CONFIRM } from '@/content/mascotScri
 import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import { SessionChip } from '@/components/hud/SessionChip';
+import { DAYS_PER_PHASE } from '@/engine/config';
 
-const PHASE_END = { 1: 30, 2: 60, 3: 90 } as const;
+// The end day of a phase is its round number times the phase length. The old
+// three-entry lookup table could not answer for round 4, and the round count is
+// the operator's `config.totalRounds`, not a fixed 3.
+const phaseEndDay = (phase: number) => phase * DAYS_PER_PHASE;
 
 /**
  * Action bar that runs the entire current phase to its end day in one click.
@@ -47,7 +51,7 @@ export function PhaseActionBar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const target = PHASE_END[phase];
+  const target = phaseEndDay(phase);
   const daysLeft = Math.max(0, target - day + 1);
 
   // Game-state blocks (engine forces resolution before continuing)

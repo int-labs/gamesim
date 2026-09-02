@@ -61,7 +61,7 @@ const DEFAULT_CHANNEL_AFFINITY = 0.6;
 
 // ---- Cannibalization step function ---------------------------------
 
-export const cannibalizationFactor = (linesOnSameSeg: number): number => {
+const cannibalizationFactor = (linesOnSameSeg: number): number => {
   if (linesOnSameSeg <= 1) return 1.0;
   if (linesOnSameSeg === 2) return 0.85;
   if (linesOnSameSeg === 3) return 0.75;
@@ -69,7 +69,7 @@ export const cannibalizationFactor = (linesOnSameSeg: number): number => {
 };
 
 /** Map of segment → number of lines whose targetSegment is that segment. */
-export const countLinesByTargetSegment = (
+const countLinesByTargetSegment = (
   lines: ProductLine[],
 ): Record<Segment, number> => {
   const out: Record<Segment, number> = { students: 0, creators: 0, professionals: 0, gift: 0 };
@@ -82,7 +82,7 @@ export const countLinesByTargetSegment = (
 // ---- Per-line projections -------------------------------------------
 
 /** Product fit between a specific line and a segment. */
-export const calcSegmentFitForLine = (line: ProductLine, seg: Segment): number => {
+const calcSegmentFitForLine = (line: ProductLine, seg: Segment): number => {
   const def = SEGMENTS.find((x) => x.id === seg);
   if (!def) return 0;
   const list = currentAddOnsForLine(line);
@@ -114,15 +114,15 @@ export const calcSegmentFitForLine = (line: ProductLine, seg: Segment): number =
 };
 
 /** Backwards-compat: fit of the active line. */
-export const calcSegmentFit = (s: GameState, seg: Segment): number => {
+const calcSegmentFit = (s: GameState, seg: Segment): number => {
   const line = s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId);
   return line ? calcSegmentFitForLine(line, seg) : 0;
 };
 
-export const calcBrandFactor = (s: GameState): number =>
+const calcBrandFactor = (s: GameState): number =>
   1 + clamp01(safeDiv(s.player.brand, 100, 0)) * (DEMAND_BRAND_MAX_BOOST - 1);
 
-export const calcChannelAffinity = (s: GameState, seg: Segment): number => {
+const calcChannelAffinity = (s: GameState, seg: Segment): number => {
   const active = s.channels.active;
   if (active.length === 0) return 0.4;
   const sum = active.reduce((acc, id) => {
@@ -133,7 +133,7 @@ export const calcChannelAffinity = (s: GameState, seg: Segment): number => {
   return Math.max(0.1, safeDiv(sum, active.length, DEFAULT_CHANNEL_AFFINITY));
 };
 
-export const calcReach = (s: GameState): number => {
+const calcReach = (s: GameState): number => {
   const r = s.channels.active.reduce(
     (sum, id) => sum + finite(CHANNELS.find((c) => c.id === id)?.reach, 0),
     0,
@@ -141,19 +141,19 @@ export const calcReach = (s: GameState): number => {
   return Math.max(REACH_FLOOR, r);
 };
 
-export const calcPriceFactor = (effectivePrice: number, refPrice: number, sensitivity: number): number => {
+const calcPriceFactor = (effectivePrice: number, refPrice: number, sensitivity: number): number => {
   const ratio = safeDiv(effectivePrice, refPrice, 1);
   if (ratio <= 0) return PRICE_FACTOR_MAX;
   const raw = 2 - Math.pow(ratio, finite(sensitivity, 1));
   return clamp(finite(raw, 1), PRICE_FACTOR_MIN, PRICE_FACTOR_MAX);
 };
 
-export const calcRetentionFactor = (s: GameState, seg: Segment): number => {
+const calcRetentionFactor = (s: GameState, seg: Segment): number => {
   const r = clamp01(finite(s.market.retention?.[seg], 0));
   return 0.85 + r * 0.4;
 };
 
-export const calcAddOnDemandBoostForLine = (line: ProductLine, seg: Segment): number => {
+const calcAddOnDemandBoostForLine = (line: ProductLine, seg: Segment): number => {
   const list = currentAddOnsForLine(line);
   let boost = 0;
   for (const inst of list) {
@@ -165,14 +165,14 @@ export const calcAddOnDemandBoostForLine = (line: ProductLine, seg: Segment): nu
   return 1 + clamp(boost, 0, ADDON_DEMAND_CAP);
 };
 
-export const calcMarketingFactor = (marketingPerDay: number): number => {
+const calcMarketingFactor = (marketingPerDay: number): number => {
   const norm = clamp01(safeDiv(finite(marketingPerDay, 0), MARKETING_FULL_BOOST, 0));
   return 1 + 0.5 * norm;
 };
 
 // ---- Per-line demand vector ----------------------------------------
 
-export interface LineDemandResult {
+interface LineDemandResult {
   /** demand by segment for THIS line */
   bySeg: Record<Segment, number>;
   /** sum across segments — what this line will try to sell today */
@@ -184,7 +184,7 @@ export interface LineDemandResult {
  * passed in so all lines see a consistent count of who else is targeting
  * the same segment (avoids recomputing in a hot loop).
  */
-export const calcDemandTodayForLine = (
+const calcDemandTodayForLine = (
   s: GameState,
   line: ProductLine,
   rand: () => number,
@@ -235,7 +235,7 @@ export const calcDemandTodayForLine = (
 
 // ---- Portfolio-wide demand -----------------------------------------
 
-export interface PortfolioDemandResult {
+interface PortfolioDemandResult {
   /** demand[lineId] = { bySeg, total } */
   byLine: Record<string, LineDemandResult>;
   /** demand by segment summed across all lines */

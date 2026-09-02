@@ -301,13 +301,13 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
   const marginPct = unitCost != null && price > 0 ? Math.round(((price - unitCost) / price) * 100) : null;
   const marginTone: Tone = marginPct == null ? 'neutral' : marginPct >= 40 ? 'success' : marginPct >= 15 ? 'info' : 'warn';
 
-  // Projected demand is the PLAYER's figure — the per-line estimate typed into
-  // the Business panel and stored as ProductLine.demandEstPerPhase. It is not
-  // the server's `customersObtained`: that is the model's own forecast, and
-  // showing it under this label put a number the player never entered where
-  // they expect to read back their own. Being local, it renders with or without
-  // a server projection.
-  const demandEst = line.demandEstPerPhase ?? 0;
+  // Projected demand is the PLAYER's figure — the produce target set on the
+  // Business panel, which IS their demand estimate now that the separate
+  // estimate input is gone. NOT the server's `customersObtained`: that is the
+  // model's own forecast, and showing it under this label put a number the
+  // player never entered where they expect to read back their own. Being local,
+  // it renders with or without a server projection.
+  const demandEst = line.targetPerPhase ?? 0;
 
   // Projected revenue is the PLAYER's arithmetic, not the server's: their price
   // against their own demand estimate, clamped to the production capacity the
@@ -330,7 +330,9 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
     num: demandEst,
     format: fmtInt,
     tone: demandEst === 0 ? 'warn' : 'neutral',
-    sub: demandEst === 0 ? 'set an estimate in the Business panel' : 'your estimate for this phase',
+    sub: demandEst === 0
+      ? 'set how many to produce in the Business panel'
+      : 'how many you plan to produce this phase',
   };
 
   // Three figures only. The full breakdown lives in the Finance tab; repeating
@@ -436,40 +438,51 @@ export function FinanceTable() {
   const phaseNow = useGame((s) => s.meta.phase);
   const reduced = useReducedMotion();
 
-  // Bucket ledger entries by phase - identical math to the old BottomPnL.
-  const byPhase: Record<1 | 2 | 3, Record<string, number>> = { 1: {}, 2: {}, 3: {} };
+  // Bucket ledger entries by ROUND. Entries carry `roundNumber`; this used to
+  // read `e.day <= 30 ? 1 : e.day <= 60 ? 2 : 3`, which both depended on a day
+  // counter that no longer advances AND capped the sheet at three columns no
+  // matter how many rounds the operator configured.
+  const byPhase: Record<number, Record<string, number>> = {};
   for (const e of ledger) {
-    const p = e.day <= 30 ? 1 : e.day <= 60 ? 2 : 3;
-    byPhase[p][e.kind] = (byPhase[p][e.kind] ?? 0) + e.amount;
+    (byPhase[e.roundNumber] ??= {})[e.kind] =
+      (byPhase[e.roundNumber]?.[e.kind] ?? 0) + e.amount;
   }
-  const sumKindForPhase = (kinds: string[], p: 1 | 2 | 3) =>
-    kinds.reduce((a, k) => a + (byPhase[p][k] ?? 0), 0);
+  // Columns follow the rounds that actually have entries, plus the round being
+  // played — so a fourth round gets a column the moment it exists.
+  const phases: number[] = (() => {
+    const seen = new Set<number>(Object.keys(byPhase).map(Number));
+    seen.add(phaseNow);
+    return [...seen].filter((p) => p >= 1).sort((a, b) => a - b);
+  })();
+  const sumKindForPhase = (kinds: string[], p: number) =>
+    kinds.reduce((a, k) => a + (byPhase[p]?.[k] ?? 0), 0);
+  // Every round that has entries, not a hardcoded three.
   const sumKindAll = (kinds: string[]) =>
-    sumKindForPhase(kinds, 1) + sumKindForPhase(kinds, 2) + sumKindForPhase(kinds, 3);
+    phases.reduce((a, p) => a + sumKindForPhase(kinds, p), 0);
 
-  const computeRow = (r: PnLRow, p: 1 | 2 | 3 | 'total'): number | null => {
+  const computeRow = (r: PnLRow, p: number | 'total'): number | null => {
     if (r.computed === 'cash') return p === 'total' ? cash : null;
     if (r.computed === 'gross-profit') {
-      const get = (ph: 1 | 2 | 3) =>
+      const get = (ph: number) =>
         sumKindForPhase(['revenue'], ph) +
         sumKindForPhase(['cogs-material', 'cogs-packaging', 'cogs-fulfillment', 'cogs-labor'], ph);
-      return p === 'total' ? get(1) + get(2) + get(3) : get(p);
+      return p === 'total' ? phases.reduce((a, ph) => a + get(ph), 0) : get(p);
     }
     if (r.computed === 'op-ex') {
       // Shown as a positive expense figure, to read as a deduction under Gross
       // Profit. Ledger costs are stored negative, hence the leading minus.
-      const get = (ph: 1 | 2 | 3) =>
+      const get = (ph: number) =>
         -sumKindForPhase(['opex-marketing', 'opex-rent', 'opex-tool'], ph);
-      return p === 'total' ? get(1) + get(2) + get(3) : get(p);
+      return p === 'total' ? phases.reduce((a, ph) => a + get(ph), 0) : get(p);
     }
     if (r.computed === 'op-profit') {
-      const get = (ph: 1 | 2 | 3) =>
+      const get = (ph: number) =>
         sumKindForPhase(['revenue'], ph) +
         sumKindForPhase(
           ['cogs-material','cogs-labor','cogs-packaging','cogs-fulfillment','opex-marketing','opex-rent','opex-tool'],
           ph,
         );
-      return p === 'total' ? get(1) + get(2) + get(3) : get(p);
+      return p === 'total' ? phases.reduce((a, ph) => a + get(ph), 0) : get(p);
     }
     const raw = p === 'total' ? sumKindAll(r.kinds) : sumKindForPhase(r.kinds, p);
     if (r.sign === 'minus') return -raw; // ledger costs are negative; show as positive expense
@@ -486,7 +499,7 @@ export function FinanceTable() {
                 to the reader to work out from the day counter. */}
             <tr className="bg-cream-200 border-b border-border-soft">
               <th className="stat-label text-left py-2.5 pl-3 pr-2">Line item</th>
-              {([1, 2, 3] as const).map((p) => (
+              {phases.map((p) => (
                 // "You are here" is a COLUMN marker, so it reads as a rule
                 // under the heading, the way a selected tab does — not as a
                 // filled cell. The fill was `bg-info-soft`, a lavender block
@@ -521,9 +534,7 @@ export function FinanceTable() {
               )
               .map((r, i, arr) => {
               const values = {
-                p1: computeRow(r, 1),
-                p2: computeRow(r, 2),
-                p3: computeRow(r, 3),
+                perPhase: phases.map((p) => computeRow(r, p)),
                 total: computeRow(r, 'total'),
               };
               const emphasisCls =
@@ -559,9 +570,9 @@ export function FinanceTable() {
                       three rows into the numbers, which is where you actually
                       read - so the column you are playing carries a tint and
                       side rules for its full height. */}
-                  <PnLCell value={values.p1} row={r} live={phaseNow === 1} />
-                  <PnLCell value={values.p2} row={r} live={phaseNow === 2} />
-                  <PnLCell value={values.p3} row={r} live={phaseNow === 3} />
+                  {phases.map((p, ci) => (
+                    <PnLCell key={p} value={values.perPhase[ci]} row={r} live={phaseNow === p} />
+                  ))}
                   <PnLCell value={values.total} row={r} emphasis />
                 </motion.tr>
               );

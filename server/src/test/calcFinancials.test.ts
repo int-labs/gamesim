@@ -97,6 +97,12 @@ interface ScenarioOpts {
   marketShare?: number;
   globalInputs?: DecisionGlobalInputEntry[];
   baseVariables?: Partial<BaseVariables>;
+  /** Units the team commits to producing. Omitted ⇒ null ⇒ the sim's default of
+   *  half the ceiling. Pass Number.MAX_SAFE_INTEGER to mean "to the ceiling":
+   *  calcFinancials clamps it. */
+  produced?: number;
+  /** Units carried in from the previous round's closing stock. */
+  openingStock?: number;
 }
 
 /**
@@ -111,6 +117,8 @@ function scenario(opts: ScenarioOpts = {}): CalcFinancialsInput {
     marketShare = 0.2,
     globalInputs = [],
     baseVariables = {},
+    produced,
+    openingStock,
   } = opts;
 
   const priceField = field({ key: SELLING_PRICE_KEY, minValue: 1, maxValue: 30 });
@@ -129,6 +137,7 @@ function scenario(opts: ScenarioOpts = {}): CalcFinancialsInput {
         inputs: [
           {
             productId: PRODUCT_ID,
+            produced: produced ?? null,
             fields: [
               { fieldId: priceField._id, value: sellingPrice },
               { fieldId: qualityField._id, value: 4 },
@@ -144,6 +153,9 @@ function scenario(opts: ScenarioOpts = {}): CalcFinancialsInput {
     ],
     globalInputs,
     baseVariables: { availableMarket: AVAILABLE_MARKET, ...baseVariables },
+    ...(openingStock != null
+      ? { openingStock: { [TEAM_ID.toString()]: openingStock } }
+      : {}),
   };
 }
 
@@ -201,13 +213,41 @@ describe("calcFinancials · Layer A — invariants", () => {
 
 // ─── Layer A — the regression this rewrite existed to fix ────────────────────
 
-describe("calcFinancials · COGS is charged on units SOLD", () => {
-  it("does not charge the whole inventory build to COGS", () => {
+describe("calcFinancials · COGS is charged on units PRODUCED", () => {
+  it("charges the build, not the sale", () => {
     const r = run();
+    expect(r.COGS).toBeCloseTo(r.produced * r.dynamicCost);
+  });
 
-    // The scenario overproduces: inventory exceeds demand.
-    expect(r.unitsSold).toBeLessThan(r.unitsSold + 1); // sanity: finite
-    expect(r.COGS).toBeCloseTo(r.unitsSold * r.dynamicCost);
+  it("never produces more than the ceiling allows", () => {
+    const r = run({ produced: Number.MAX_SAFE_INTEGER });
+    expect(r.produced).toBe(r.inventoryQty);
+  });
+
+  it("defaults to half the ceiling when no target is stated", () => {
+    // The same figure the production planner displays, so a team that never
+    // touched the slider is scored on what it was shown.
+    const r = run();
+    expect(r.produced).toBe(Math.floor(r.inventoryQty * 0.5));
+  });
+
+  it("sells carried stock with no additional COGS", () => {
+    // Same decisions and costs — only opening stock differs. Revenue rises with
+    // the extra units sold; COGS does not move, because those units were
+    // expensed in the round that built them.
+    const base    = run({ produced: 100 });
+    const carried = run({ produced: 100, openingStock: 500 });
+
+    expect(carried.unitsSold).toBeGreaterThan(base.unitsSold);
+    expect(carried.COGS).toBeCloseTo(base.COGS);
+    expect(carried.revenue).toBeGreaterThan(base.revenue);
+  });
+
+  it("carries the unsold remainder forward", () => {
+    const r = run({ produced: 100, openingStock: 50 });
+    // Rounded, because `customersObtained` — and therefore `unitsSold` — is
+    // fractional while stock is whole units.
+    expect(r.closingStock).toBe(Math.round(Math.max(0, 50 + r.produced - r.unitsSold)));
   });
 
   it("leaves revenue arithmetically unchanged from the old clamp", () => {
@@ -218,15 +258,14 @@ describe("calcFinancials · COGS is charged on units SOLD", () => {
     expect(r.revenue).toBeCloseTo(r.unitsSold * r.sellingPrice);
   });
 
-  it("bills a sold unit once — COGS entry carries it, holding does not", () => {
+  it("bills a produced unit once — the COGS entry carries the build", () => {
     const r = run();
     const cogsEntry = r.incurredCosts.find((e) => e.key === "inventory");
     const holding = r.incurredCosts.find((e) => e.key === "holding");
 
-    expect(cogsEntry?.inputQty).toBe(Math.round(r.unitsSold));
-    expect(holding?.leftover).toBeGreaterThanOrEqual(0);
-    // The two quantities partition inventory; neither counts the other's units.
-    expect((cogsEntry?.inputQty ?? 0) + (holding?.leftover ?? 0)).toBeGreaterThan(0);
+    expect(cogsEntry?.inputQty).toBe(Math.round(r.produced));
+    // Holding is charged on what is CARRIED, not on the whole build.
+    expect(holding?.leftover).toBe(r.closingStock);
   });
 });
 
@@ -449,13 +488,18 @@ describe("calcFinancials · Layer B1b — per-product impact overrides", () => {
 
 describe("calcFinancials · Layer B2 — the game is playable", () => {
   it("a well-played round lands at or above breakeven", () => {
-    // Sensible price, low unit cost, one marketing input. If this fails the
-    // game is unwinnable no matter what the player does, and every identity
-    // test above still passes.
+    // Sensible price, low unit cost, one marketing input — AND production
+    // matched to demand. Matching is what "well played" MEANS now: under
+    // COGS-on-production, stock nobody buys is expensed in the round that built
+    // it, so this cannot be asserted without stating a target. If this fails the
+    // game is unwinnable no matter what the player does.
+    const base = run({ sellingPrice: 14, materialValue: 1, materialUnitCost: 0.3 });
+
     const r = run({
       sellingPrice: 14,
       materialValue: 1,
       materialUnitCost: 0.3,
+      produced: Math.floor(base.customersObtained),
       globalInputs: [
         gi({
           category: "Marketing",
@@ -466,6 +510,61 @@ describe("calcFinancials · Layer B2 — the game is playable", () => {
     });
 
     expect(r.operatingProfit).toBeGreaterThanOrEqual(0);
+  });
+
+  it("overproducing is strictly worse than matching demand", () => {
+    // THE INVARIANT — relational, deliberately not pinned to a sign. A glut can
+    // still be PROFITABLE at a luxury price: few buyers, high margin, and that
+    // is good pricing rather than a failure. What must always hold is that units
+    // nobody bought cost money — they add COGS (expensed on production) and
+    // holding, and add no revenue. Retuning INVENTORY_BASE, inventory_cost or
+    // the margin cannot redden this.
+    const opts = {
+      sellingPrice: 14,
+      materialValue: 1,
+      materialUnitCost: 0.3,
+      globalInputs: [
+        gi({
+          category: "Channels",
+          costTreatment: { cogs: 0, opex: 0 },
+          impacts: { inventory_cost: { type: "absolute", value: 2 } },
+        }),
+      ],
+    };
+    const demand = run(opts).customersObtained;
+    // CEIL, not floor: `customersObtained` is fractional, so flooring would
+    // leave `matched` production-limited and selling marginally LESS than the
+    // glut — which would make the revenue comparison below fail for a reason
+    // that has nothing to do with overproduction.
+    const matched = run({ ...opts, produced: Math.ceil(demand) });
+    const glut    = run({ ...opts, produced: Number.MAX_SAFE_INTEGER });
+
+    expect(glut.produced).toBe(glut.inventoryQty);
+    expect(glut.revenue).toBeCloseTo(matched.revenue);                        // extra units did not sell
+    expect(glut.COGS).toBeGreaterThan(matched.COGS);                          // but were built
+    expect(glut.operatingExpenses).toBeGreaterThan(matched.operatingExpenses); // and are held
+    expect(glut.operatingProfit).toBeLessThan(matched.operatingProfit);
+  });
+
+  it("a badly-played round lands below breakeven", () => {
+    // Thin margin AND a glut — the combination the inventory lesson is about.
+    // If this passes at >= 0, a bad decision is survivable and the lesson is
+    // absent from the model.
+    const r = run({
+      sellingPrice: 6,
+      materialValue: 1,
+      materialUnitCost: 4,
+      produced: Number.MAX_SAFE_INTEGER,
+      globalInputs: [
+        gi({
+          category: "Channels",
+          costTreatment: { cogs: 0, opex: 0 },
+          impacts: { inventory_cost: { type: "absolute", value: 2 } },
+        }),
+      ],
+    });
+
+    expect(r.operatingProfit).toBeLessThan(0);
   });
 
   it("a strictly dominated decision yields strictly worse profit", () => {
@@ -513,12 +612,18 @@ describe("calcFinancials · Layer B3 — degenerate cases", () => {
 
     expect(r.customersObtained).toBe(0);
     expect(r.revenue).toBe(0);
-    expect(r.COGS).toBe(0);
+    // COGS is NOT zero: the team still produced. Under COGS-on-production, a
+    // round that sells nothing has expensed its whole build — which is the
+    // point. The previous assertion of 0 encoded COGS-on-sale.
+    expect(r.COGS).toBeCloseTo(r.produced * r.dynamicCost);
+    expect(r.COGS).toBeGreaterThan(0);
     expect(r.operatingExpenses).toBeGreaterThan(0);
     expect(r.operatingProfit).toBeLessThan(0);
   });
 
-  it("treats the entire build as leftover when no one buys", () => {
+  // Renamed from "treats the entire build as leftover when no one buys": under
+  // COGS-on-production the build is a COST here, not merely idle stock.
+  it("expenses the whole build when nothing sells", () => {
     const r = run({
       sellingPrice: 0,
       globalInputs: [
@@ -532,8 +637,9 @@ describe("calcFinancials · Layer B3 — degenerate cases", () => {
     const holding = r.incurredCosts.find((e) => e.key === "holding");
 
     expect(r.unitsSold).toBe(0);
-    expect(holding?.leftover).toBeGreaterThan(0);
-    expect(holding?.incurredCost).toBeCloseTo((holding?.leftover ?? 0) * 2);
+    expect(r.COGS).toBeCloseTo(r.produced * r.dynamicCost);
+    expect(holding?.leftover).toBe(r.closingStock);
+    expect(holding?.incurredCost).toBeCloseTo(r.closingStock * 2);
   });
 });
 
@@ -552,7 +658,7 @@ describe("toProjectionMetrics", () => {
     const metrics = toProjectionMetrics(run());
     const required = [
       "customersObtained", "sellingPrice", "dynamicPrice", "productScore",
-      "dynamicCost", "inventoryQty", "unitsSold", "revenue", "COGS",
+      "dynamicCost", "inventoryQty", "produced", "closingStock", "unitsSold", "revenue", "COGS",
       "grossProfit", "operatingExpenses", "operatingProfit",
       "productCostBreakdown", "incurredCosts",
     ];

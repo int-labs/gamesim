@@ -188,7 +188,10 @@ export function ProductPage({ liveProjectionState }: { liveProjectionState?: Liv
         >
           {leftDrawer === 'items' && <ProductLineList />}
           {leftDrawer === 'design' && (
-            <FinlitDesignControls liveProjection={liveProjectionState?.liveProjection ?? null} />
+            <FinlitDesignControls
+              liveProjection={liveProjectionState?.liveProjection ?? null}
+              recalc={liveProjectionState?.recalc}
+            />
           )}
           {leftDrawer === 'addons' && <AddOnGallery />}
         </motion.div>

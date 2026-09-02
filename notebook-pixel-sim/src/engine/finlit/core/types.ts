@@ -75,7 +75,7 @@ export interface FinlitLineResult {
 
 /** Phase-level P&L + operational summary. */
 export interface FinlitPhaseResult {
-  phase: 1 | 2 | 3;
+  phase: number;
   days: number;
   revenue: number;
   cogs: number;

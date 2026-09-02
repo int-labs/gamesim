@@ -12,7 +12,7 @@
 //  key-decision system, not here.)
 
 import {
-  PHASE_LENGTH_DAYS, GAME_PHASE_TO_DEMAND, BASE_MARKET_SHARE, DEMAND_SCALE,
+  PHASE_LENGTH_DAYS, demandKeyForPhase, BASE_MARKET_SHARE, DEMAND_SCALE,
   HOLDING_RATE_PER_DAY,
   prodPerDay, unitCost, customersPer30d, genreDemand,
   channelRow,
@@ -39,10 +39,10 @@ interface LinePlan {
 export function simulatePhase(
   lines: FinlitLine[],
   decisions: FinlitDecisions,
-  phase: 1 | 2 | 3,
+  phase: number,
   opts: { marketShare?: number } = {},
 ): FinlitPhaseResult {
-  const phaseKey = GAME_PHASE_TO_DEMAND[phase];
+  const phaseKey = demandKeyForPhase(phase);
   const share = opts.marketShare ?? BASE_MARKET_SHARE;
   const demandMult = decisions.demandMult ?? 1;
   const sellMult = decisions.sellMult ?? 1;

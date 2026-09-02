@@ -45,10 +45,6 @@ export interface ActiveAggregate {
 
 export const makeModifierId = (): string => `amod-${Math.random().toString(36).slice(2, 10)}`;
 
-/** Filter out modifiers whose endDay has passed. */
-export const expireModifiers = (mods: ActiveModifier[], day: number): ActiveModifier[] =>
-  mods.filter((m) => m.endDay === null || day <= m.endDay);
-
 /** Reduce active modifiers into a single multiplier/additive bundle. */
 export const aggregateActive = (mods: ActiveModifier[]): ActiveAggregate => {
   const out: ActiveAggregate = {

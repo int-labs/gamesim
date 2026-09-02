@@ -55,7 +55,7 @@ const MAX_PENALTY = 0.4;
  */
 export const MAX_LINES_HARD_CAP = 20;
 
-export interface ComplexityState {
+interface ComplexityState {
   score: number;
   threshold: number;
   /** 0..MAX_PENALTY — applied to capacity and defect rate. */
@@ -66,9 +66,9 @@ export interface ComplexityState {
   breakdown: { lines: number; addons: number; archetypes: number };
 }
 
-export type ComplexityLevel = 'low' | 'healthy' | 'strained' | 'overloaded';
+type ComplexityLevel = 'low' | 'healthy' | 'strained' | 'overloaded';
 
-export const calcComplexityScore = (s: GameState): number => {
+const calcComplexityScore = (s: GameState): number => {
   const lines = s.portfolio.productLines;
   if (lines.length === 0) return 0;
   let totalAddOns = 0;
@@ -79,7 +79,7 @@ export const calcComplexityScore = (s: GameState): number => {
     + uniqueArchetypes * ARCHETYPE_WEIGHT;
 };
 
-export const calcComplexityThreshold = (s: GameState): number => {
+const calcComplexityThreshold = (s: GameState): number => {
   const mods = aggregateActive(s.activeModifiers);
   const baseCap = nonNeg(s.ops.capacity);
   // Floor of 2 ensures even a brand-new run with low capacity has a
@@ -102,7 +102,7 @@ export const calcComplexityPenalty = (s: GameState): number => {
 };
 
 /** Bucket the score into a UI-friendly tone. */
-export const calcComplexityLevel = (score: number, threshold: number): ComplexityLevel => {
+const calcComplexityLevel = (score: number, threshold: number): ComplexityLevel => {
   if (threshold <= 0) return 'low';
   const ratio = score / threshold;
   if (ratio < 0.6) return 'low';

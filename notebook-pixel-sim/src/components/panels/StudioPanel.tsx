@@ -118,7 +118,14 @@ function engageSummary(p: Pending): { tiles: CostTile[]; effects: string[] } {
  * ENERGY to set up (separate from the per-phase money cost, which flows through the
  * phase P&L). Every decision is REVERSIBLE — clearing refunds the energy.
  */
-export function StudioPanel({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
+export function StudioPanel({
+  liveProjection,
+  recalc,
+}: {
+  liveProjection?: ServerProjectionResult | null;
+  /** Called at the END of a decision interaction. See useLiveProjection. */
+  recalc?: (reason: string) => void;
+}) {
   const energy = useGame((s) => s.player.energy);
   // Keyed by `inputId` now — `selectedStepKey` holds the backend options key
   // (the level), not an identity, so it can no longer identify which hire.
@@ -221,6 +228,8 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
       if (pending.kind === 'candidate') engageFinlitHire(s, pending.item, pending.stepKey, hiringMaxSelections);
       else engageFinlitVendor(s, pending.item, null, vendorMaxSelections);
     });
+    // Modal commit is the interaction end for a hire or vendor.
+    recalc?.(pending.kind === 'candidate' ? 'hire committed' : 'vendor committed');
     setPending(null);
   };
 
@@ -292,6 +301,8 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
                   if (!channelItem) { playSfx('fail'); return; }
                   playSfx('click-soft');
                   apply((s) => toggleFinlitChannelAll(s, channelItem, channelMaxSelections));
+                  // A button click has no separate interaction end.
+                  recalc?.(`channel toggled · ${channelItem.key}`);
                 }}
                 title={isLastOn ? 'You need at least one channel to sell through.' : undefined}
                 whileHover={{ y: -3 }}
@@ -419,6 +430,7 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
               apply((s) => { ok = setFinlitMarketingBudget(s, marketingItem, key); });
               playSfx(ok ? 'tick' : 'fail');
             }}
+            onCommit={() => recalc?.('marketing lever released')}
           />
           <BudgetLever
             label="Sales budget"
@@ -579,7 +591,13 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
                     <PixelButton
                       variant="ghost"
                       size="sm"
-                      onClick={() => { playSfx('click-soft'); apply((s2) => clearFinlitHire(s2, item)); }}
+                      onClick={() => {
+                        playSfx('click-soft');
+                        apply((s2) => clearFinlitHire(s2, item));
+                        // Releasing a hire removes a globalInput selection — the
+                        // projection is stale until this fires.
+                        recalc?.(`hire released · ${item.key}`);
+                      }}
                     >
                       Release
                     </PixelButton>
@@ -752,6 +770,10 @@ export function StudioPanel({ liveProjection }: { liveProjection?: ServerProject
                       if (item) clearFinlitVendor(s, item);
                     }
                   });
+                  // A button click has no separate interaction end. Releasing a
+                  // vendor removes a globalInput selection, so the projection is
+                  // stale until this fires.
+                  recalc?.('vendors cleared');
                 }}
               >
                 {vendorSelections.length > 1 ? 'Clear vendors' : 'Clear vendor'} · refund{' '}
@@ -861,6 +883,7 @@ function BudgetLever({
   effect,
   canActivate,
   onChange,
+  onCommit,
 }: {
   label: string;
   hint: string;
@@ -879,6 +902,8 @@ function BudgetLever({
   effect: string;
   canActivate: boolean;
   onChange: (v: number) => void;
+  /** Interaction END — pointer released, or a keyboard drag finished. */
+  onCommit?: () => void;
 }) {
   const active = spend > 0;
   return (
@@ -918,6 +943,9 @@ function BudgetLever({
         value={value}
         disabled={!canActivate || max === 0}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
+        // Pointer up covers mouse and touch; key up covers arrow-key dragging.
+        onPointerUp={onCommit}
+        onKeyUp={onCommit}
         className="w-full accent-ui-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
       />
     </div>

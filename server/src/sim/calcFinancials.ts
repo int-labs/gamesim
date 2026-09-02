@@ -57,6 +57,10 @@ export interface DecisionField {
 
 export interface DecisionProductInput {
   productId: mongoose.Types.ObjectId;
+  /** Units the team committed to producing. null = not stated. Read RAW — no
+   *  bell curve; that belongs to the `inventoryQty` ceiling, not to a quantity
+   *  the player typed. */
+  produced:  number | null;
   fields:    DecisionField[];
 }
 
@@ -139,12 +143,17 @@ export interface TeamFinancials {
   productScore:        number;
   csatScore:           number; // raw bell curve score before marketing augmentation
   dynamicCost:         number;
-  /** Production capacity for the round — what the player can actually make.
+  /** Production CEILING for the round — the most the player could make.
    *  Derived from the product's own field values against the per-product
-   *  INVENTORY_BASE. The frontend reads this as the ceiling on its produce
-   *  controls; nothing the frontend computes feeds back into it. */
+   *  INVENTORY_BASE. Never the amount produced; see `produced`. */
   inventoryQty:        number;
-  /** Units actually sold — demand clamped by what exists to sell. */
+  /** Units actually built this round: min(the team's target, inventoryQty).
+   *  This is what COGS is charged on. */
+  produced:            number;
+  /** Unsold units at close: (openingStock + produced) − unitsSold. Charged
+   *  holding, and read as the next round's openingStock. */
+  closingStock:        number;
+  /** Units actually sold — demand clamped by opening stock plus production. */
   unitsSold:           number;
   revenue:             number;
   COGS:                number;
@@ -174,6 +183,10 @@ export const toProjectionMetrics = (f: TeamFinancials) => ({
   productScore:      f.productScore,
   dynamicCost:       f.dynamicCost,
   inventoryQty:      f.inventoryQty,
+  produced:          f.produced,
+  // Read by the NEXT round as its openingStock. Both writers of this shape put
+  // it here, so a round can always find the one before it.
+  closingStock:      f.closingStock,
   unitsSold:         f.unitsSold,
   revenue:           f.revenue,
   COGS:              f.COGS,
@@ -199,6 +212,17 @@ export interface CalcFinancialsInput {
   decisions:     DecisionDocument[];
   globalInputs:  DecisionGlobalInputEntry[]; // flat — category already embedded
   baseVariables: BaseVariables;
+  /**
+   * teamId (as string) → units carried in from the previous round's
+   * `closingStock`. Absent/0 in round 1.
+   *
+   * NOT `inventoryQty`: that is the per-round production CEILING, recomputed
+   * from field values every round and never persisted. BOTH callers must pass
+   * this — `roundCalculation` and `recalcProjections` — or the live projection
+   * computes `sellable = produced` while the scored round uses
+   * `openingStock + produced`.
+   */
+  openingStock?: Record<string, number>;
 }
 
 export interface CalcFinancialsOutput {
@@ -316,7 +340,7 @@ export const calcPricingScore = (
 
 
 export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput {
-  const { productId, marketShares, productFields, decisions, globalInputs, baseVariables } = input;
+  const { productId, marketShares, productFields, decisions, globalInputs, baseVariables, openingStock } = input;
 
   const availableMarket = baseVariables.availableMarket ?? 0;
 
@@ -474,21 +498,42 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     
     customersObtained = customersObtained * customersObtainedAugment;
     
-    // ── Units actually sold ──────────────────────────────────────────────────
-    // Demand is capped by what exists to sell. The old code applied this clamp
-    // inline in the revenue ternary ONLY — so revenue was capped by inventory
-    // but COGS was not, which is the arithmetic root of the sheet mismatch.
-    const unitsSold = Math.min(customersObtained, inventoryQty);
-    const leftover  = Math.round(Math.max(0, inventoryQty - customersObtained));
+    // ── Production, stock, and what actually sells ───────────────────────────
+    // `inventoryQty` is the CEILING on production, never the amount produced.
+    // Conflating the two made the produce planner inert: the model assumed
+    // maximum output every round and billed holding on the remainder, so
+    // over-production was an unavoidable tax rather than a decision.
+    const producedRaw = decision?.inputs
+      .find((inp) => inp.productId.equals(productId))?.produced;
 
-    // COGS: direct cost of the units SOLD. Was `inventoryQty * dynamicCost` —
-    // the entire build, sold or not.
-    const unitCOGS = unitsSold * dynamicCost;
+    // Half the ceiling when unstated — the same default the planner displays, so
+    // a team that never touched the slider is scored on the figure it was shown.
+    // Clamped by the ceiling: a target above capacity cannot be built.
+    const produced = Math.min(
+      producedRaw != null ? producedRaw : Math.floor(inventoryQty * 0.5),
+      inventoryQty,
+    );
 
-    // Holding: the UNSOLD remainder at the operator's per-unit inventory cost
-    // (channels → impacts → `inventory_cost`). Leftover-only — charging
-    // inventoryQty here would double-bill every unit already in unitCOGS.
-    const holdingCost = leftover * inventoryCostPerUnit;
+    const opening  = openingStock?.[String(teamId)] ?? 0;
+    const sellable = opening + produced;
+
+    const unitsSold = Math.min(customersObtained, sellable);
+
+    // What the team carries into the next round.
+    const closingStock = Math.round(Math.max(0, sellable - unitsSold));
+
+    // COGS follows PRODUCTION, not the sale: cost is recognised when units are
+    // BUILT. Carried stock was expensed in the round that produced it, so
+    // selling it later adds no COGS — which is also what stops `dynamicCost`
+    // from retroactively re-pricing last round's leftovers when a team hires a
+    // cost-reducing candidate this round.
+    const unitCOGS = produced * dynamicCost;
+
+    // Holding: the unsold remainder at the operator's per-unit inventory cost
+    // (channels → impacts → `inventory_cost`). Charged on closing stock — a
+    // team that produced conservatively is not billed for units it chose not
+    // to make.
+    const holdingCost = closingStock * inventoryCostPerUnit;
 
     // ── Cost breakdown, partitioned by declared treatment ────────────────────
     const incurredCosts: IncurredCostBreakdown[] = [];
@@ -497,7 +542,8 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       key:          "inventory",
       label:        "Cost of goods sold",
       category:     "inventory",
-      inputQty:     Math.round(unitsSold),
+      // PRODUCED, not sold — COGS is recognised on the build.
+      inputQty:     Math.round(produced),
       leftover:     0,
       costPerUnit:  dynamicCost,
       incurredCost: unitCOGS,
@@ -508,8 +554,8 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       key:          "holding",
       label:        "Inventory holding",
       category:     "inventory",
-      inputQty:     leftover,
-      leftover,
+      inputQty:     closingStock,
+      leftover:     closingStock,
       costPerUnit:  inventoryCostPerUnit,
       incurredCost: holdingCost,
       treatment:    "opex",
@@ -587,6 +633,8 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       csatScore,
       dynamicCost,
       inventoryQty,
+      produced,
+      closingStock,
       unitsSold,
       revenue,
       COGS,

@@ -94,10 +94,9 @@ export function runFinlitPhase(s: GameState): FinlitPhaseResult {
   const decisions = toFinlitDecisions(resolveDecisionInputs(s));
 
   const result = simulatePhase(lines, decisions, phase);
-  const startDay = (phase - 1) * 30 + 1;
-
-  // Ledger — aggregate P&L entries for the phase.
-  for (const draft of phaseResultToLedger(result, startDay)) {
+  // Ledger — aggregate P&L entries for the round. `phaseResultToLedger` takes
+  // the ROUND NUMBER now, not the phase's first day; `startDay` is gone with it.
+  for (const draft of phaseResultToLedger(result, phase)) {
     s.ledger.push({ id: ledgerId(), ...draft });
   }
 

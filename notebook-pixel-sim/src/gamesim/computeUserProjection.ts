@@ -12,7 +12,7 @@ import type { ProductProjectionDto } from './types';
 export interface UserProjectionTotals {
   /** Σ per-line price × min(demand estimate, that line's capacity). */
   revenue: number;
-  /** Σ per-line demand estimate — purely the player's own numbers. */
+  /** Σ per-line produce target, which IS the player's demand estimate. */
   demand: number;
   /**
    * GROSS profit: revenue − COGS, where COGS is the same sellable units the
@@ -44,7 +44,7 @@ export interface UserProjectionTotals {
  * rest of the gamesim bridge makes about portfolio order.
  */
 export function computeUserProjection(
-  lines: Array<{ price: number; demandEstPerPhase?: number }>,
+  lines: Array<{ price: number; targetPerPhase?: number }>,
   byProduct: ProductProjectionDto[] | undefined,
 ): UserProjectionTotals {
   const bp = byProduct ?? [];
@@ -54,7 +54,10 @@ export function computeUserProjection(
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
     const p = bp[i];
-    const est = l.demandEstPerPhase ?? 0;
+    // The produce target IS the player's demand estimate — there is no separate
+    // estimate any more. Clamped by capacity, matching the server's
+    // `produced = min(target, inventoryQty)`.
+    const est = l.targetPerPhase ?? 0;
     const cap = p?.inventoryQty;
     const sellable = cap != null ? Math.min(est, cap) : est;
     const price = p?.sellingPrice ?? l.price;

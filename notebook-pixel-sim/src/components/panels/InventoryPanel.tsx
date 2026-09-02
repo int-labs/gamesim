@@ -1,5 +1,5 @@
 import { useGame } from '@/state/store';
-import { setLineTargetPerPhase, setLineDemandEst } from '@/engine/mockEngine';
+import { setLineTargetPerPhase } from '@/engine/mockEngine';
 import { genreById, type GenreId } from '@/data/finlit';
 import { PixelPanel, PixelBadge } from '@/components/primitives';
 import { fmt$, fmtInt } from '@/utils/format';
@@ -11,6 +11,9 @@ interface LineStats {
   genre: GenreId;
   /** Per phase, from the server's `inventoryQty`. Null until it answers. */
   capacity: number | null;
+  /** Units carried in from last round's `closingStock` — sellable WITHOUT being
+   *  produced again, and already expensed, so they cost no further COGS. */
+  openingStock: number;
   finished: number;
   target: number;
   /** Read-only here — price is set on the Product page (it pairs with unit cost). */
@@ -31,11 +34,13 @@ interface LineStats {
 function statsFor(
   line: { genre?: GenreId; price: number; targetPerPhase?: number; inventory: { finished: number } },
   capacity: number | null,
+  openingStock: number,
 ): LineStats {
   const genre = (line.genre ?? 'indie') as GenreId;
   return {
     genre,
     capacity,
+    openingStock,
     finished: line.inventory.finished,
     // Default to HALF the server's capacity — the old intent ("open modestly in
     // the black rather than underwater on overstock holding") expressed against
@@ -55,7 +60,14 @@ function statsFor(
  * This panel surfaces that control per notebook (previously only on the
  * Product page), plus a live stock/output overview and the trend charts.
  */
-export function InventoryPanel({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
+export function InventoryPanel({
+  liveProjection,
+  recalc,
+}: {
+  liveProjection?: ServerProjectionResult | null;
+  /** Called at the END of a decision interaction. See useLiveProjection. */
+  recalc?: (reason: string) => void;
+}) {
   const lines = useGame((s) => s.portfolio.productLines);
   const finished = useGame((s) => s.inventory.totalFinished);
   const stockoutDays = useGame((s) => s.inventory.stockoutDays);
@@ -65,16 +77,16 @@ export function InventoryPanel({ liveProjection }: { liveProjection?: ServerProj
 
   // `byProduct` is index-aligned with portfolio order, the same assumption the
   // rest of the gamesim bridge makes.
-  const stats = lines.map((l, i) =>
-    statsFor(l, liveProjection?.byProduct[i]?.inventoryQty ?? null),
-  );
+  const stats = lines.map((l, i) => {
+    const p = liveProjection?.byProduct[i];
+    return statsFor(l, p?.inventoryQty ?? null, Math.round(p?.closingStock ?? 0));
+  });
   const totalTarget = stats.reduce((a, s) => a + s.target, 0);
   // Null when ANY line is missing its capacity: a partial sum would read as a
   // whole-portfolio ceiling while silently omitting lines.
   const totalCapacity = stats.some((s) => s.capacity == null)
     ? null
     : stats.reduce((a, s) => a + (s.capacity ?? 0), 0);
-  const totalEstimatedDemand = lines.reduce((sum, l) => sum + (l.demandEstPerPhase ?? 0), 0);
 
   if (lines.length === 0) {
     return (
@@ -97,7 +109,8 @@ export function InventoryPanel({ liveProjection }: { liveProjection?: ServerProj
             tone="info"
             hint="Most you can make per phase, from the server's projection for your current specs and business decisions."
           />
-          <Box label="Demand est. / phase" value={totalEstimatedDemand > 0 ? `~${fmtInt(totalEstimatedDemand)}` : '—'} tone="info" hint="Your estimate of units you expect to sell this phase, set per notebook below." />
+          {/* No "Demand est. / phase" box — "Produce / phase" above is the same
+              number now that the produce plan states the player's estimate. */}
         </div>
         <div className="flex items-center gap-2 mt-2">
           {stockoutDays > 0 && (
@@ -124,9 +137,8 @@ export function InventoryPanel({ liveProjection }: { liveProjection?: ServerProj
               key={line.id}
               name={line.name}
               stats={stats[i]}
-              demandEst={line.demandEstPerPhase ?? 0}
-              onDemandEstChange={(v) => apply((s) => setLineDemandEst(s, v, line.id))}
               onChange={(v) => apply((s) => setLineTargetPerPhase(s, v, line.id))}
+              onCommit={() => recalc?.(`produce slider released · ${line.name}`)}
             />
           ))}
         </div>
@@ -140,36 +152,31 @@ export function InventoryPanel({ liveProjection }: { liveProjection?: ServerProj
 function ProductionRow({
   name,
   stats,
-  demandEst,
-  onDemandEstChange,
   onChange,
+  onCommit,
 }: {
   name: string;
   stats: LineStats;
-  demandEst: number;
-  onDemandEstChange: (v: number) => void;
   onChange: (v: number) => void;
+  /** Interaction END — pointer released, or a keyboard drag finished. */
+  onCommit?: () => void;
 }) {
   // The ceiling is literally `inventoryQty`. With no capacity yet there is
   // nothing to plan against, so the slider is disabled rather than bounded by a
   // guess.
   const known = stats.capacity != null;
-  const capMax = known ? Math.max(1, Math.round(stats.capacity!)) : 1;
+  // FLOOR, matching the server's clamp: `produced = min(target, inventoryQty)`
+  // against the raw value. `Math.round` could hand back a ceiling ABOVE
+  // inventoryQty (round(10.6) = 11), letting the slider offer a build the
+  // server would silently trim.
+  const capMax = known ? Math.max(1, Math.floor(stats.capacity!)) : 1;
   const value = Math.min(stats.target, capMax);
-  // Tone production target against the player's own estimate — coaching without revealing real demand.
-  const demandEstDay = demandEst / 30;
-  const gap = value - demandEstDay;
-  const tone: 'good' | 'warn' | 'over' =
-    demandEst <= 0 ? 'good'
-    : gap < -demandEstDay * 0.2 ? 'warn'
-    : gap > demandEstDay * 0.5 ? 'over'
-    : 'good';
-  const hint =
-    tone === 'warn' ? 'Below your estimate - you may sell out'
-    : tone === 'over' ? 'Above your estimate - stock may pile up'
-    : demandEst > 0 ? 'Matched to your estimate'
-    : 'Enter your demand estimate below';
-  const hintColor = tone === 'warn' ? 'text-warning' : tone === 'over' ? 'text-info' : 'text-success';
+
+  // No tone / hint. It graded the produce target against a separate demand
+  // estimate, and the target IS that estimate now — so every reading was the
+  // player compared with themselves ("Matched to your estimate" was true by
+  // construction). There is no second number to loop back and fill it in, so
+  // the coaching is gone rather than reworded.
 
   return (
     <div className="border border-border-soft bg-surface px-3 py-2.5">
@@ -214,36 +221,33 @@ function ProductionRow({
           value={value}
           disabled={!known}
           onChange={(e) => onChange(parseInt(e.target.value, 10))}
+          // Pointer up covers mouse and touch; key up covers arrow-key dragging.
+          onPointerUp={onCommit}
+          onKeyUp={onCommit}
           className="w-full mt-1.5 accent-ui-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
       <div className="flex items-center justify-between gap-3 mt-2">
         <span className="flex items-center gap-3 min-w-0 flex-wrap">
-          <label className="flex items-baseline gap-1.5">
-            <span className="stat-label shrink-0">Demand est. / phase</span>
-            <input
-              type="number"
-              min={0}
-              step={10}
-              value={demandEst || ''}
-              placeholder="?"
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10);
-                onDemandEstChange(Number.isFinite(n) && n >= 0 ? n : 0);
-              }}
-              className="w-20 bg-cream-50 border border-border text-info num-xs text-center outline-none focus:border-primary px-1 py-0.5"
-            />
-          </label>
+          {/* No "Demand est." input. The produce slider above IS the estimate. */}
           <span className="flex items-baseline gap-1.5">
             <span className="stat-label">Capacity</span>
             <span className="num-xs text-text-2">
               {stats.capacity != null ? fmtInt(Math.round(stats.capacity)) : '—'}
             </span>
           </span>
+          {/* Carried stock is sellable without producing it again, and was
+              already expensed — so without showing it the player cannot explain
+              why sales exceeded what they made this round. */}
+          {stats.openingStock > 0 && (
+            <span className="flex items-baseline gap-1.5">
+              <span className="stat-label">In stock</span>
+              <span className="num-xs text-text-2">
+                {fmtInt(stats.openingStock)} carried
+              </span>
+            </span>
+          )}
         </span>
-        {demandEst > 0 && (
-          <span className={`hint shrink-0 ${hintColor}`}>{hint}</span>
-        )}
       </div>
     </div>
   );

@@ -9,7 +9,11 @@
 // The object-shaped tables above/below stay `const`: hydration edits their
 // CONTENTS in place, which every importer already sees.
 
-export const PHASE_MAX_ENERGY = { 1: 30, 2: 45, 3: 60 } as const;
+// Rounds past 3 have no authored energy budget and inherit the last one, rather
+// than indexing off the end of the table for `undefined` max energy.
+export const PHASE_MAX_ENERGY: Record<number, number> = { 1: 30, 2: 45, 3: 60 };
+export const maxEnergyForPhase = (phase: number): number =>
+  PHASE_MAX_ENERGY[phase] ?? PHASE_MAX_ENERGY[3];
 
 export const PAPER_COST = { cheap: 0.8, standard: 1.4, premium: 2.4 } as const;
 export const COVER_COST = { hardcover: 1.0, leather: 2.6 } as const;

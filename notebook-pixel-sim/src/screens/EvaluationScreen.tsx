@@ -2,7 +2,7 @@ import { useGame } from '@/state/store';
 import { useState, useMemo } from 'react';
 import { answerInsight, generateInsightQuestion } from '@/engine/mockEngine';
 import { selectEvaluationSummary, selectCashTrend } from '@/engine/selectors';
-import { PHASE_MAX_ENERGY } from '@/data/balance';
+import { maxEnergyForPhase } from '@/data/balance';
 import { ENERGY_REPLENISH } from '@/engine/config';
 import type { Phase } from '@/types';
 import { PixelPanel, PixelButton, PixelBadge } from '@/components/primitives';
@@ -63,7 +63,7 @@ export function EvaluationScreen() {
       if (phase < 3) {
         const next = (phase + 1) as Phase;
         s.meta.phase = next;
-        s.player.maxEnergy = PHASE_MAX_ENERGY[next];
+        s.player.maxEnergy = maxEnergyForPhase(next);
         s.player.energy = Math.min(s.player.maxEnergy, s.player.energy + ENERGY_REPLENISH);
       }
     });

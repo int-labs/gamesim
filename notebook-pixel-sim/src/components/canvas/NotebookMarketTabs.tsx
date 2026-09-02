@@ -1,14 +1,24 @@
 // The "who wants this" and "how big is it" halves of the Notebook Details
 // modal.
 //
-// EVERY NUMBER HERE IS LIVE ENGINE DATA, not illustration:
-//   • GENRES[].voc      — the exact weights `vocFit()` uses to score a design,
-//                         so the preference bars literally show what the demand
-//                         multiplier is built from.
+// EVERY NUMBER HERE IS LIVE DATA, not illustration:
+//   • FIELD_CONFIG[genre][field].direction — the operator's Voice-of-Customer
+//                         weight, read off the real Product documents by
+//                         `hydrateFieldConfig`. This is what the SERVER scores
+//                         with, in `calcFinancials`' dynamicPrice:
+//                             sum += resolved × bellFactor × field.direction
+//                         The bars show each axis's SHARE of a market's total
+//                         weight, so they sum to 100% and can be read against
+//                         each other.
 //   • GENRES[].demand   — the per-phase addressable market curve.
 //   • SEGMENTS[]        — buyer economics (price anchor, sensitivity, pull).
-// The genre/segment bridge is GENRE_TO_SEGMENT from the engine facade, so this
-// UI can never drift from what the simulation actually rewards.
+//
+// This header used to claim the bars came from `GENRES[].voc`, "the exact
+// weights vocFit() uses". That was already false: the code reads FIELD_CONFIG,
+// and `vocFit()` is the obsolete local VoC model the server does not use. Do
+// not point these bars back at it.
+//
+// The genre/segment bridge is GENRE_TO_SEGMENT from the engine facade.
 //
 // TYPOGRAPHY: use the shared scale in src/styles/index.css, never ad-hoc sizes.
 //   .h3 / .section-title  headings (VT323, 16-18px)
@@ -55,6 +65,25 @@ function fitsArchetype(genre: GenreId, arch: Archetype): boolean {
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US');
+
+/**
+ * One axis's share of a market's TOTAL weight, 0..1 — so the six bars read
+ * against each other and sum to 100%.
+ *
+ * `field.direction` is the raw VoC weight and is unbounded, while `VocBar`
+ * clamps to 0..1: any weight of 1 or more filled every pip, so changing the
+ * operator's number moved nothing on screen. A share is the only reading that
+ * is both bounded and comparable, and it matches the copy above these bars —
+ * "how much a market cares about each axis".
+ *
+ * Negative weights are floored at 0: a bar cannot show less than nothing, and a
+ * negative in the denominator would distort every other axis on the card.
+ */
+function weightShare(genreId: GenreId, key: string): number {
+  const weightOf = (k: string) => Math.max(0, FIELD_CONFIG[genreId]?.[k]?.direction ?? 0);
+  const total = VOC_AXES.reduce((sum, axis) => sum + weightOf(axis.key), 0);
+  return total > 0 ? weightOf(key) / total : 0;
+}
 
 // ── Tab 2 · Buyer Interest ───────────────────────────────────────────────────
 
@@ -125,7 +154,7 @@ function MarketCard({ genre, arch, index }: { genre: GenreDef; arch: Archetype; 
               key={axis.key}
               label={axis.label}
               hint={axis.hint}
-              value={FIELD_CONFIG[genre.id]?.[axis.key]?.direction ?? 0}
+              value={weightShare(genre.id, axis.key)}
               delay={0.05 * index + 0.04 * i}
             />
           ))}
@@ -155,6 +184,28 @@ function Stat({ label, value, note, delay = 0 }: { label: string; value: string;
 }
 
 /** A 10-pip pixel meter, same visual language as the HUD's energy/cash bars. */
+/**
+ * FLAGGED — the meter form is wrong for this data, and it is not a tuning issue.
+ *
+ * `value` is a share of a market's total weight across SIX axes, so the shares
+ * sum to 1 and the average is ~0.167. Against a 0–1 pip scale that is 1–2 pips
+ * filled, and even a dominant axis at 40% only reaches 4 of 10. The bar can
+ * never fill, which reads as "everything is low" rather than "this is the split".
+ *
+ * The numbers and the distribution are correct; the CONTAINER is the problem.
+ * Candidates, not yet decided:
+ *
+ *   • A single stacked 100% bar — six segments in one track. This is what a
+ *     share-of-total actually is, it fills by construction, and
+ *     `PixelStackedBar` already exists (used for the cost mix).
+ *   • Normalise each bar against the market's largest axis, so the top axis is
+ *     always full. Shows shape within a market, but loses comparability BETWEEN
+ *     markets — two markets with identical shapes look identical even if one
+ *     weighs everything twice as hard.
+ *   • Drop the meter and rank the axes with percentages only.
+ *
+ * Do NOT "fix" this by scaling `value` up — that would misreport the share.
+ */
 function VocBar({ label, hint, value, delay }: { label: string; hint: string; value: number; delay: number }) {
   const pips = 10;
   const filled = Math.round(Math.max(0, Math.min(1, value)) * pips);
@@ -180,7 +231,10 @@ function VocBar({ label, hint, value, delay }: { label: string; hint: string; va
           />
         ))}
       </div>
-      <div className="num-xs text-ink-900 w-[32px] text-right shrink-0">{Math.round(value * 100)}</div>
+      {/* `value` is a SHARE now, so this is a real percentage. It previously
+          printed `direction × 100` — an unbounded raw weight, e.g. "200" beside
+          a bar already pinned at 10/10 pips. */}
+      <div className="num-xs text-ink-900 w-[40px] text-right shrink-0">{Math.round(value * 100)}%</div>
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function FinalResultsScreen() {
   // Server-finalized result (if an operator has run it) — additive, shown
   // alongside the local celebration screen without changing its own score/
   // animation, which stay driven by the local engine as before.
-  const { latestResults, latestFinancials, bootstrap } = useGamesimSession();
+  const { latestResults, latestFinancials, financialsByRound, bootstrap } = useGamesimSession();
   const teamId = bootstrap?.teamId ?? null;
 
   const ledger = state.ledger;
@@ -53,10 +53,61 @@ export function FinalResultsScreen() {
   // V3 channel/overhead costs (maintenance + consignment + inventory), booked
   // as opex-rent by the FinLit bridge.
   const channel = -sum('opex-rent');
-  // Legacy V2 categories (labor/packaging/fulfillment/tools) are ~0 in V3, so
-  // the cost mix below shows the three that actually move: Material, Channels,
-  // Marketing/Ops. Keep the vars referenced so the build stays clean.
+  // Legacy V2 categories (labor/packaging/fulfillment/tools) are ~0 in V3.
+  // Keep the vars referenced so the build stays clean.
   void labor; void packaging; void fulfillment; void tools;
+
+  /**
+   * Cost mix, from the SERVER's own breakdown rather than ledger buckets.
+   *
+   * The ledger version plotted fixed rows — Material / Channels / Marketing —
+   * chosen by hand, which meant a cost the operator configured under any other
+   * key was simply absent from the chart, and rows that are structurally always
+   * $0 were still listed. `incurredCosts` carries one entry per real cost with
+   * its own `label`, so the chart shows what was actually charged.
+   *
+   * Summed across products, since the chart is whole-portfolio. Falls back to
+   * the ledger buckets when no official figures exist yet — the local run still
+   * has to render a cost mix at the end of an unscored game.
+   */
+  /**
+   * Operating profit per round, ascending. The trend the player reads is the
+   * scored one, and there are only ever a handful of points — the 90-day series
+   * was local-ledger data at a granularity the model does not actually have.
+   */
+  const profitByRound = Object.keys(financialsByRound)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((r) => financialsByRound[r].operatingProfit);
+
+  const serverCostMix = (() => {
+    const byLabel = new Map<string, number>();
+    for (const p of latestFinancials?.byProduct ?? []) {
+      for (const entry of p.incurredCosts ?? []) {
+        if (!entry?.label) continue;
+        byLabel.set(entry.label, (byLabel.get(entry.label) ?? 0) + (entry.incurredCost ?? 0));
+      }
+    }
+    return [...byLabel.entries()]
+      .filter(([, value]) => Math.abs(value) > 0.005)
+      .sort((a, b) => b[1] - a[1]);
+  })();
+
+  // A stable colour per slice. Assigned by POSITION after sorting, so the
+  // largest cost always reads in the same hue regardless of what it is.
+  const COST_MIX_COLORS = ['#e07a6a', '#e09b6a', '#e6b54a', '#6c93d9', '#9b6cd9', 'var(--c-fin-cash)'];
+
+  const costMixData = serverCostMix.length
+    ? serverCostMix.map(([label, value], i) => ({
+        label,
+        value,
+        color: COST_MIX_COLORS[i % COST_MIX_COLORS.length],
+      }))
+    : [
+        { label: 'Material (COGS)', value: matCost, color: '#e07a6a' },
+        { label: 'Channels', value: channel, color: '#e09b6a' },
+        { label: 'Marketing / Ops', value: marketing, color: '#e6b54a' },
+      ].filter((d) => Math.abs(d.value) > 0.005);
 
   // ── Choreography clock ────────────────────────────────────────────────
   const COUNT_DELAY = reduced ? 0 : 0.55; // s — score starts counting
@@ -225,21 +276,25 @@ export function FinalResultsScreen() {
                     <PixelStepLine data={state.series.cash} stroke="#5fb27a" fill="rgba(95,178,122,0.18)" width={420} height={120} />
                   </div>
                   <div>
-                    <div className="stat-label mb-1">Profit trend</div>
-                    <PixelStepLine data={state.series.profit} stroke="var(--c-fin-profit)" fill="rgba(79,156,114,0.16)" width={420} height={120} />
+                    <div className="stat-label mb-1">Profit by round</div>
+                    {/* Per ROUND, from the server's own operating profit — not
+                        the 90-point daily series. A day-tick curve gave no
+                        insight the round figures do not, and the daily numbers
+                        came from the local ledger rather than the scored
+                        result. Falls back to the local series only when no
+                        official rounds exist yet. */}
+                    <PixelStepLine
+                      data={profitByRound.length ? profitByRound : state.series.profit}
+                      stroke="var(--c-fin-profit)"
+                      fill="rgba(79,156,114,0.16)"
+                      width={420}
+                      height={120}
+                    />
                   </div>
                 </div>
                 <div className="mt-3">
                   <div className="stat-label mb-1">Cost mix</div>
-                  <PixelStackedBar
-                    data={[
-                      { label: 'Material (COGS)', value: matCost, color: '#e07a6a' },
-                      { label: 'Channels', value: channel, color: '#e09b6a' },
-                      { label: 'Marketing / Ops', value: marketing, color: '#e6b54a' },
-                    ]}
-                    width={520}
-                    height={26}
-                  />
+                  <PixelStackedBar data={costMixData} width={520} height={26} />
                 </div>
               </PixelPanel>
             </motion.div>

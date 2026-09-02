@@ -37,7 +37,7 @@ export interface FinalScore {
  * Including those would double-count material cost (paid via `inventory-purchase`,
  * recognised again via `cogs-material` at sale time).
  */
-export function computeNetProfit(state: GameState): number {
+function computeNetProfit(state: GameState): number {
   return state.ledger.reduce((sum, e) => {
     if (e.kind === 'inventory-purchase') return sum;
     if (e.kind === 'cash-in' || e.kind === 'cash-out') return sum;
@@ -45,7 +45,7 @@ export function computeNetProfit(state: GameState): number {
   }, 0);
 }
 
-export function computeCleanliness(state: GameState): number {
+function computeCleanliness(state: GameState): number {
   const days = Math.max(1, Math.min(ACTIVE_DAYS_TOTAL, state.meta.day));
   const stockoutRate = clamp(state.inventory.stockoutDays / days, 0, 1);
   const overstockRate = clamp(state.inventory.overstockDays / days, 0, 1);

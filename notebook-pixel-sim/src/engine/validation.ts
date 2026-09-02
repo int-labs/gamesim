@@ -32,7 +32,3 @@ export const safeDiv = (num: number, den: number, fallback = 0): number => {
 };
 
 export const nonNeg = (v: number): number => Math.max(0, finite(v, 0));
-export const posOr1 = (v: number): number => Math.max(1, finite(v, 1));
-
-/** Round to integer with NaN guard. Used for unit counts (demand, sold). */
-export const roundInt = (v: number): number => Math.round(finite(v, 0));

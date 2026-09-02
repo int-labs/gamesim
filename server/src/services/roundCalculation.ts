@@ -93,6 +93,23 @@ export async function runRoundCalculation(
     inputs: d.inputs,
   }));
 
+  // ── Opening stock = last round's closing stock ─────────────────────────────
+  // One query for the whole round rather than one per team inside the loop.
+  // `closingStock` is written by this same function via `toProjectionMetrics`,
+  // so round N+1 always finds what round N left. Round 1 opens at zero.
+  const priorProjections = roundNumber > 1
+    ? await Projections.find({ simulationId, roundNumber: roundNumber - 1 }, null, s).lean()
+    : [];
+  /** productKey → { teamId → closingStock } */
+  const openingByProduct: Record<string, Record<string, number>> = {};
+  for (const doc of priorProjections as any[]) {
+    for (const [productKey, metrics] of Object.entries(doc.projections ?? {})) {
+      openingByProduct[productKey] ??= {};
+      openingByProduct[productKey][String(doc.teamId)] =
+        Number((metrics as any)?.closingStock ?? 0);
+    }
+  }
+
   const yearKey = String(roundNumber);
 
   // Pre-load every product the market model references, so the segment ×
@@ -184,6 +201,10 @@ export async function runRoundCalculation(
                 productId: new mongoose.Types.ObjectId(
                   inp.productId?.$oid ?? inp.productId
                 ),
+                // Explicit, not left to the spread: `produced` IS the production
+                // decision, and a future refactor of this map must not be able
+                // to drop it silently.
+                produced: inp.produced ?? null,
                 fields: (inp.fields ?? []).map((f: any) => ({
                   fieldId: new mongoose.Types.ObjectId(f.fieldId?.$oid ?? f.fieldId),
                   value: f.value,
@@ -194,6 +215,10 @@ export async function runRoundCalculation(
           ],
           globalInputs: globalInputEntries,
           baseVariables,
+          // Must match the recalc controller's read exactly — these two call
+          // sites are the pair that `readCostTreatment` / `toProjectionMetrics`
+          // already exist to keep in step.
+          openingStock: openingByProduct[productId.toString()] ?? {},
         });
 
         const financials = results[0];

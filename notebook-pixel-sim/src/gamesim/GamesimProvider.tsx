@@ -33,6 +33,7 @@ import type {
   ProductDto,
   RoundDto,
   SimulationDto,
+  SimulationMode,
 } from './types';
 
 type Status = 'checking' | 'login' | 'loading' | 'no-simulation' | 'ready' | 'error' | 'standalone';
@@ -70,6 +71,13 @@ interface GamesimSessionValue {
   latestFinancials: OfficialFinancials | null;
   /** productId → productName, for labelling server numbers. */
   productNames: Record<Id, string>;
+  /**
+   * How this simulation is run. Decides whether confirming a round enters a WAIT
+   * for the operator's calculation, or resolves immediately from the team's own
+   * projections. Compare it directly — there is deliberately no `isSinglePlayer`
+   * companion, which would be a second name for the same fact.
+   */
+  mode: SimulationMode;
   /** May this team POST a decision now? Once per round, Active only. */
   canSubmit: boolean;
   /** May the player run their own phase locally? */
@@ -77,6 +85,12 @@ interface GamesimSessionValue {
   refetchBootstrap: () => void;
   /** Re-read official results/financials for the current round. */
   refreshOfficial: () => Promise<void>;
+  /**
+   * Report this team's progress to the facilitator console. EVENT-DRIVEN — there
+   * is no interval. Called on every decision (via `useLiveProjection.recalc`),
+   * when the tab loses focus, and at each milestone.
+   */
+  reportProgress: () => void;
   logout: () => void;
 }
 
@@ -109,10 +123,11 @@ const pickCurrentRound = (rounds: RoundDto[]): RoundDto | null => {
   return byNumber.find((r) => r.status === 'Active') ?? byNumber[0];
 };
 
-/** How often the app re-reads round state + official numbers. main's Socket.IO
- *  server emits no round/result events, so this is a plain poll — deliberately
- *  slow, since every tick is a handful of GETs. */
-const POLL_MS = 20_000;
+// No POLL_MS. Nothing in this provider polls: round state and official numbers
+// are re-read when the player returns to the tab, and team progress is reported
+// on decisions, tab blur and milestones. The sim runs locally and is
+// authoritative — there is no server tick to stay in step with, so a timer only
+// ever reported that the tab was open.
 
 /**
  * Gates the app behind a gamesim team session: passkey login, then assembles the
@@ -287,16 +302,42 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     if (financials) setFinancialsByRound((prev) => ({ ...prev, [financials.roundNumber]: financials }));
   }, [bootstrap, productNames]);
 
+  // ── NO POLLING ────────────────────────────────────────────────────────────
+  // This used to refetch the round list and the official numbers every 20s, to
+  // notice an operator activating or finalising a round. Nothing needed it:
+  //
+  //   • Submitting into a closed round already fails cleanly — the server
+  //     answers 409 and `submitRoundDecision` surfaces it. Stale `canSubmit`
+  //     costs a failed POST with a clear message, not a corrupt state.
+  //   • `canAdvance` gates the LOCAL phase run, which touches no server.
+  //   • The one moment official numbers must be current is straight after a
+  //     submission, and `PhaseSequenceModal` already calls `refreshOfficial()`
+  //     there explicitly.
+  //
+  // And it was not free: `refetchBootstrap()` replaced `bootstrap`, whose
+  // identity `useLiveProjection`'s recalc effect keyed off — so the poll was
+  // itself firing projection recalcs against an endpoint that upserts.
+  //
+  // Refreshed instead when the player RETURNS to the tab — the mirror of the
+  // progress beat on blur. Someone who has been away is exactly who needs the
+  // current round status; someone staring at the page has not missed anything
+  // that a stale status would mislead them about.
   useEffect(() => {
     if (status !== 'ready' || !bootstrap?.round) return undefined;
+
     void refreshOfficial();
-    const timer = window.setInterval(() => {
-      // Re-read the round list too: an operator activating the next round or
-      // finalizing this one is only visible over HTTP.
+
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return;
       refetchBootstrap();
       void refreshOfficial();
-    }, POLL_MS);
-    return () => window.clearInterval(timer);
+    };
+    document.addEventListener('visibilitychange', onShow);
+    window.addEventListener('focus', onShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onShow);
+      window.removeEventListener('focus', onShow);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, bootstrap?.round?._id, refreshOfficial, refetchBootstrap]);
 
@@ -306,40 +347,64 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   // who is playing, who is stuck and who has finished. It is a one-way report:
   // nothing here is read back, and nothing about the run depends on it.
   //
-  // Deliberately driven off the day counter rather than a timer alone. A team
-  // that has the app open and is deliberating shows a fresh `lastSeenAt` with
-  // an unchanged day, which is exactly the state a facilitator wants to spot —
-  // "open but not progressing" reads very differently from "gone".
-  const runDay = useGame((s) => s.meta.day);
+  // ── EVENT-DRIVEN, NOT POLLED ─────────────────────────────────────────────
+  // There is no interval. This sim is local and authoritative — there is no
+  // connection to maintain and no server-side tick to stay in step with, so a
+  // timer only ever reported "the JS is running", which is not the same as
+  // "someone is playing". It fired for every open tab forever, per team.
+  //
+  // It beats on the three things that actually mean something:
+  //   • a DECISION — `useLiveProjection.recalc` calls `reportProgress`, so the
+  //     roster is fresh whenever the player does anything. Decisions otherwise
+  //     write only `Projections`, which carries none of the roster fields.
+  //   • the tab LOSING FOCUS — a final, accurate "they stopped looking" mark.
+  //   • a MILESTONE — phase rollover or run end.
+  //
+  // What this gives up: a team sitting on a focused tab doing nothing looks
+  // idle. That is correct — the round timer is what forces a decision, so
+  // deliberating without acting is indistinguishable from not acting, and the
+  // console should say so.
   const runPhase = useGame((s) => s.meta.phase);
   const runEnded = useGame((s) => s.meta.ended);
 
+  const reportProgress = useCallback(() => {
+    if (status !== 'ready' || !bootstrap?.round) return;
+    // Read at call time rather than closing over the values, so every path
+    // sends the CURRENT state and not the state at mount.
+    const s = useGame.getState();
+    void gamesim.reportTeamProgress({
+      roundNumber: bootstrap.round.roundNumber,
+      day: s.meta.day,
+      phase: s.meta.phase,
+      cash: s.player.cash,
+      energy: s.player.energy,
+      lines: s.portfolio.productLines.length,
+      shopName: s.meta.shopName,
+      ended: s.meta.ended,
+    });
+  }, [status, bootstrap?.round?.roundNumber]);
+
+  // Session start, and each milestone.
   useEffect(() => {
-    if (status !== 'ready' || !bootstrap?.round) return undefined;
+    reportProgress();
+    // `runPhase` / `runEnded` are triggers, not values the body reads. No
+    // eslint-disable needed: every dep is listed, so the rule is satisfied.
+  }, [reportProgress, runPhase, runEnded]);
 
-    const beat = () => {
-      // Read at call time rather than closing over the values, so the timer
-      // path always sends the CURRENT state and not the state at mount.
-      const s = useGame.getState();
-      void gamesim.reportTeamProgress({
-        roundNumber: bootstrap.round!.roundNumber,
-        day: s.meta.day,
-        phase: s.meta.phase,
-        cash: s.player.cash,
-        energy: s.player.energy,
-        lines: s.portfolio.productLines.length,
-        shopName: s.meta.shopName,
-        ended: s.meta.ended,
-      });
+  // Tab hidden or window blurred — the honest "stopped looking" signal.
+  // `visibilitychange` covers tab switches and minimising; `blur` covers moving
+  // to another window with this tab still visible.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') reportProgress();
     };
-
-    beat();
-    const timer = window.setInterval(beat, POLL_MS);
-    return () => window.clearInterval(timer);
-    // `runDay` / `runPhase` / `runEnded` are here to re-fire the beat the
-    // moment the run moves, not because the effect body reads them.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, bootstrap?.round?._id, runDay, runPhase, runEnded]);
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('blur', reportProgress);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('blur', reportProgress);
+    };
+  }, [reportProgress]);
 
   // ── Run report ────────────────────────────────────────────────────────
   //
@@ -399,6 +464,11 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   // permanently disabled: the player sat at the phase boundary with a greyed
   // button and no way to reach their own evaluation. Sending the decision has
   // to stop the POST, not the game.
+  // The console writes this from a SELECT, so a stored value is always one of
+  // the two. The `?? 'competitive'` covers only a simulation configured before
+  // the field existed — operator-run, so that is the correct reading.
+  const mode: SimulationMode = bootstrap?.simulation.config?.mode ?? 'competitive';
+
   const roundIsActive = !!bootstrap?.round && bootstrap.round.status === 'Active';
   const canSubmit = roundIsActive && !submittedDecision;
   const canAdvance = roundIsActive || !!submittedDecision;
@@ -414,10 +484,12 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     latestResults,
     latestFinancials,
     productNames,
+    mode,
     canSubmit,
     canAdvance,
     refetchBootstrap,
     refreshOfficial,
+    reportProgress,
     logout,
   };
 

@@ -18,10 +18,14 @@ export interface InsightQuestion {
 
 interface CauseSum { cause: string; amount: number }
 
-function sumByCause(state: GameState, fromDay: number, toDay: number, sign: 'pos' | 'neg' | 'all' = 'all'): CauseSum[] {
+// Was a DAY WINDOW (`fromDay`..`toDay`). Ledger entries are tagged with the
+// round they belong to, not a day, and one round writes a single aggregate set
+// of entries — so a sub-round window can only ever match all of that round's
+// entries or none of them. The window is gone; the round is the granularity.
+function sumByCause(state: GameState, roundNumber: number, sign: 'pos' | 'neg' | 'all' = 'all'): CauseSum[] {
   const map = new Map<string, number>();
   for (const e of state.ledger) {
-    if (e.day < fromDay || e.day > toDay) continue;
+    if (e.roundNumber !== roundNumber) continue;
     if (sign === 'pos' && e.amount <= 0) continue;
     if (sign === 'neg' && e.amount >= 0) continue;
     const key = e.cause;
@@ -101,9 +105,10 @@ export function generateInsightQuestion(state: GameState, phase: Phase): Insight
       if (delta < worstDelta) { worstDelta = delta; worstDay = i + 1; }
     }
 
-    // Try the worst-day window first; if empty, widen to the whole phase.
-    let causes = sumByCause(state, Math.max(1, worstDay - 2), worstDay, 'neg');
-    if (causes.length === 0) causes = sumByCause(state, fromDay, toDay, 'neg');
+    // The worst-day window and the whole-phase fallback now resolve to the same
+    // set, so only the phase-wide call remains. `worstDay` is still computed
+    // above and still feeds the question copy below.
+    const causes = sumByCause(state, phase, 'neg');
 
     const top = causes[0]?.cause ?? '';
     const correctIdx = top.startsWith('cogs_material_') ? 1
