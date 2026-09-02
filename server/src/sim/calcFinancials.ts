@@ -197,6 +197,14 @@ export const toProjectionMetrics = (f: TeamFinancials) => ({
   incurredCosts:     f.incurredCosts,
 });
 
+/** Named so storing collections can declare it honestly — two of the metrics
+ *  are ARRAYS, not numbers. */
+export type ProjectionMetrics = ReturnType<typeof toProjectionMetrics>;
+
+/** The OFFICIAL block: metrics + the competed share only the round close has.
+ *  Stored on `Decision.scored[productId]`. */
+export type ScoredMetrics = ProjectionMetrics & { marketShare: number };
+
 export interface CostBreakdownEntry {
   category:     string;
   key:          string;
@@ -470,7 +478,9 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       .filter((f) => f.direction !== undefined && f.direction !== null && f.key !== SELLING_PRICE_KEY)
       .reduce((product, field) => {
         const value = getDecisionInput(decision, productId, field);
-        return value !== 0 ? product * Math.max(0, 1 - (value * 0.01)) : Math.round(product);
+        // A zero contributes NOTHING. Must not round here: rounding
+        // mid-reduction made the result depend on `productFields` ORDER.
+        return value === 0 ? product : product * Math.max(0, 1 - (value * 0.01));
       }, INVENTORY_BASE) * inventoryAugmentation;
 
     const augmentedDynamicPrice = dynamicPrice * dynamicPriceAugment;

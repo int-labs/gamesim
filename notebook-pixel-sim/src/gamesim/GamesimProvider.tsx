@@ -103,18 +103,10 @@ export function useGamesimSession(): GamesimSessionValue {
 }
 
 /**
- * THE round-numbering seam. Server round numbers are 0-BASED — round 0 is a real
- * round and matters (the demand tables carry a `p0` column for it). The client
- * displays 1-based phases, so P1 is round 0.
- *
- * These two functions are the ONLY place that conversion happens. Everything
- * keyed by the server — `financialsByRound`, `resultsByRound`, any API argument
- * — is indexed by ROUND NUMBER; everything the player reads is a PHASE.
- *
- * This existed as a silent off-by-one before: `meta.phase` started at 1 and was
- * incremented locally, `financialsByRound` was keyed by the server's 0-based
- * number, and the P&L indexed the latter with the former. Column P1 therefore
- * showed round 1 — the SECOND round — and round 0 was never displayed at all.
+ * THE round-numbering seam, and the ONLY place the conversion happens.
+ * Server round numbers are 0-BASED; the player reads 1-based phases, so P1 is
+ * round 0. Anything keyed by the server is indexed by ROUND NUMBER.
+ * See ../../../server/README.md#round-numbering
  */
 export const phaseFromRoundNumber = (roundNumber: number): number => roundNumber + 1;
 export const roundNumberFromPhase = (phase: number): number => phase - 1;
@@ -406,17 +398,8 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
   const runPhase = useGame((s) => s.meta.phase);
   const runEnded = useGame((s) => s.meta.ended);
 
-  // ── The round counter has ONE owner: the server ───────────────────────────
-  //
-  // `meta.phase` used to be incremented locally and never checked against
-  // `bootstrap.round.roundNumber`. Two counters that can drift did drift: the
-  // local one is 1-based from the first render, the server's is 0-based and only
-  // moves when the administrator ends a round, so any pause between them left
-  // the sheet reading a different round than the one being played.
-  //
-  // The server wins whenever a round is known. `applyRoundNumber` is not
-  // conditional on the local value being lower — a correction downward is just
-  // as valid, e.g. after the operator resets a round.
+  // The round counter has ONE owner: the server. Corrections DOWNWARD are
+  // valid too (an operator resetting a round must pull the client back).
   const serverRoundNumber = bootstrap?.round?.roundNumber;
   const applyToStore = useGame((s) => s.apply);
   useEffect(() => {

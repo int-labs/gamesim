@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getRounds, createRound, patchRound, deleteRound, calculateRound, deleteDecisionsByRound, deleteResultsByRound } from "../api";
+import { getRounds, createRound, patchRound, deleteRound, endRound, deleteDecisionsByRound, deleteResultsByRound, deleteProjectionsByRound } from "../api";
 import type { Round } from "../types";
 
 const BLANK = { simulationId: "", roundNumber: 0, status: "Pending", durationMinutes: "" };
@@ -45,11 +45,14 @@ export default function RoundsPage() {
   };
 
   const handleReset = async (round: any) => {
-    if (!confirm(`Reset round ${round.roundNumber}? This will delete all decisions and results for this round.`)) return;
+    if (!confirm(`Reset round ${round.roundNumber}? This will delete all decisions, results and calculated projections for this round.`)) return;
     try {
+      // THREE collections. Deleting fewer leaves a round that reports itself
+      // reset while still serving old figures.
       await Promise.all([
         deleteDecisionsByRound(round.simulationId, round.roundNumber),
         deleteResultsByRound(round.simulationId, round.roundNumber),
+        deleteProjectionsByRound(round.simulationId, round.roundNumber),
       ]);
       await load();
     } catch (e: any) {
@@ -69,10 +72,18 @@ export default function RoundsPage() {
     }
   };
 
+  // Calculating a round CLOSES it. `/calculate` leaves it Active, which leaves
+  // the figures open to the next player recalc — `Completed` is the freeze.
+  // See ../../../server/README.md#what-freezes-a-round
   const handleCalculate = async (roundId: string) => {
-    if (!confirm("Run round calculation? This will compute market shares and financials for all teams.")) return;
+    if (!confirm(
+      "Calculate and close this round?\n\n" +
+      "This computes market shares and financials for all teams, marks the round " +
+      "Completed so its projections and results can no longer be overwritten, and " +
+      "advances the simulation to the next round."
+    )) return;
     try {
-      await calculateRound(roundId);
+      await endRound(roundId);
       await load();
     } catch (e: any) {
       setError(e.response?.data?.message ?? e.message);

@@ -287,6 +287,7 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
           open={statsOpen}
           onClose={() => setStatsOpen(false)}
           onOpenHistory={() => setHistoryOpen(true)}
+          liveProjection={liveProjectionState?.liveProjection ?? null}
         />
       )}
     </header>

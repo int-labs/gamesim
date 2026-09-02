@@ -18,7 +18,6 @@ import mongoose, { ClientSession } from "mongoose";
 import BaseData from "../models/baseData";
 import Decision from "../models/decisions";
 import Product from "../models/products";
-import Projections from "../models/projections";
 import Results from "../models/results";
 import Simulation from "../models/simulations";
 import {
@@ -51,10 +50,12 @@ export interface RoundCalcFailure {
 export type RoundCalcOutcome = RoundCalcSuccess | RoundCalcFailure;
 
 /**
- * Runs calcMarketModel across every team for each product in the simulation
- * type's market model, then calcFinancials per team with the resulting
- * competitive shares. Upserts Results (per product × segment) and Projections
- * (per team).
+ * calcMarketModel across ALL teams, THEN calcFinancials per team with the
+ * resulting share handed in. That order is a requirement: the market model is
+ * built from every team's VoC fit, so it cannot run inside calcFinancials.
+ *
+ * Writes Results + Decision.scored. NOT Projections.
+ * See ../../README.md#calculation-order
  *
  * Returns a failure object rather than throwing for the "expected" invalid
  * states, so both callers can map them to a status code consistently. Genuine
@@ -93,17 +94,20 @@ export async function runRoundCalculation(
     inputs: d.inputs,
   }));
 
-  // ── Opening stock = last round's closing stock ─────────────────────────────
-  // One query for the whole round rather than one per team inside the loop.
-  // `closingStock` is written by this same function via `toProjectionMetrics`,
-  // so round N+1 always finds what round N left. Round 1 opens at zero.
-  const priorProjections = roundNumber > 1
-    ? await Projections.find({ simulationId, roundNumber: roundNumber - 1 }, null, s).lean()
+  // Opening stock = last round's closing stock, from `Decision.scored` — NOT
+  // Projections, which is what-if and rewritten on every player edit.
+  // `roundNumber` is 0-BASED: only round 0 opens at zero.
+  const priorDecisions = roundNumber > 0
+    ? await Decision.find(
+        { simulationId, roundNumber: roundNumber - 1 },
+        { teamId: 1, scored: 1 },
+        s,
+      ).lean()
     : [];
   /** productKey → { teamId → closingStock } */
   const openingByProduct: Record<string, Record<string, number>> = {};
-  for (const doc of priorProjections as any[]) {
-    for (const [productKey, metrics] of Object.entries(doc.projections ?? {})) {
+  for (const doc of priorDecisions as any[]) {
+    for (const [productKey, metrics] of Object.entries(doc.scored ?? {})) {
       openingByProduct[productKey] ??= {};
       openingByProduct[productKey][String(doc.teamId)] =
         Number((metrics as any)?.closingStock ?? 0);
@@ -121,7 +125,7 @@ export async function runRoundCalculation(
   const productById = new Map(productDocs.map((p: any) => [String(p._id), p]));
 
   const resultsToWrite: any[] = [];
-  const projectionsToUpdate: Record<string, any> = {};
+  const scoredByTeam: Record<string, any> = {};
 
   for (const mmSegment of baseData.marketModel.segments as any[]) {
     const segmentId = mmSegment.segmentId;
@@ -225,10 +229,10 @@ export async function runRoundCalculation(
         const tidStr = teamId.toString();
         const productKey = productId.toString();
 
-        if (!projectionsToUpdate[tidStr]) projectionsToUpdate[tidStr] = {};
+        if (!scoredByTeam[tidStr]) scoredByTeam[tidStr] = {};
 
         // Shared shape, plus the competed share that only the round close has.
-        projectionsToUpdate[tidStr][productKey] = {
+        scoredByTeam[tidStr][productKey] = {
           ...toProjectionMetrics(financials),
           marketShare,
         };
@@ -251,18 +255,15 @@ export async function runRoundCalculation(
     )
   );
 
+  // The official figures go onto the DECISION that produced them.
+  // `updateOne`, NOT upsert — the docs were loaded above and the run aborts
+  // without them. `scored` is REPLACED, not merged: a round scores as a unit.
   await Promise.all(
-    Object.entries(projectionsToUpdate).map(([tidStr, productMap]) =>
-      Projections.findOneAndUpdate(
+    Object.entries(scoredByTeam).map(([tidStr, productMap]) =>
+      Decision.updateOne(
         { simulationId, teamId: tidStr, roundNumber },
-        {
-          $set: Object.fromEntries(
-            Object.entries(productMap as Record<string, any>).map(
-              ([productKey, data]) => [`projections.${productKey}`, data]
-            )
-          ),
-        },
-        { upsert: true, new: true, ...s }
+        { $set: { scored: productMap } },
+        s
       )
     )
   );
@@ -270,6 +271,6 @@ export async function runRoundCalculation(
   return {
     ok: true,
     resultsWritten: resultsToWrite.length,
-    teamsUpdated: Object.keys(projectionsToUpdate).length,
+    teamsUpdated: Object.keys(scoredByTeam).length,
   };
 }

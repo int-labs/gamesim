@@ -61,12 +61,23 @@ export const getRoundById = (id: string) => api.get(`/rounds/${id}`);
 export const createRound = (data: object) => api.post("/rounds", data);
 export const patchRound = (id: string, data: object) => api.patch(`/rounds/${id}/status`, data);
 export const deleteRound = (id: string) => api.delete(`/rounds/${id}`);
+/** Mid-round dry run: calculates but leaves the round Active, so the figures
+ *  stay overwritable. Prefer `endRound`. */
 export const calculateRound = (roundId: string) => api.post(`/rounds/${roundId}/calculate`);
+
+/** The operator's normal action: calculate + Complete + advance, atomically.
+ *  Completing is what freezes the round. */
+export const endRound = (roundId: string, opts?: { skipCalculation?: boolean }) =>
+  api.post(`/rounds/${roundId}/end`, opts ?? {});
 export const deleteDecisionsByRound = (simulationId: string, roundNumber: number) =>
   api.delete("/decisions", { params: { simulationId, roundNumber } });
 
 export const deleteResultsByRound = (simulationId: string, roundNumber: number) =>
   api.delete("/results", { params: { simulationId, roundNumber } });
+
+/** Part of a round RESET — see RoundsPage.handleReset. */
+export const deleteProjectionsByRound = (simulationId: string, roundNumber: number) =>
+  api.delete("/projections", { params: { simulationId, roundNumber } });
 
 // ── Teams ─────────────────────────────────────────────────────
 export const getTeams = (simulationId?: string) =>

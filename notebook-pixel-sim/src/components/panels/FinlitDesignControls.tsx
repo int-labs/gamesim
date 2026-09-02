@@ -4,6 +4,7 @@ import {
   CONFIG_TABLES, CHANNEL_META,
   type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
 } from '@/data/finlit';
+import { fieldCfg } from '@/engine/finlit/core/config/fieldConfig';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
 import { fmt$, fmtInt } from '@/utils/format';
 import type { ServerProjectionResult } from '@/gamesim/sync';
@@ -107,7 +108,17 @@ export function FinlitDesignControls({
               <PixelSelect
                 ariaLabel={label}
                 value={spec[axis]}
-                options={CONFIG_TABLES[axis].map((o) => ({ id: o.id, label: o.name, hint: `+${fmt$(o.cost)}` }))}
+                // COMPUTED, not stored: `score × unitCost`, the same arithmetic
+                // the server's `dynamicCost` runs. No `unitCost` ⇒ no hint,
+                // rather than a confident "+$0.00".
+                options={CONFIG_TABLES[axis].options.map((o) => {
+                  const perPoint = fieldCfg(genre, CONFIG_TABLES[axis].fieldKey ?? '').unitCost;
+                  return {
+                    id: o.id,
+                    label: o.name,
+                    hint: perPoint > 0 ? `+${fmt$(o.score * perPoint)}` : undefined,
+                  };
+                })}
                 // A select has no interaction end distinct from its change, so
                 // this is both the edit and the commit.
                 onChange={(id) => {

@@ -3,6 +3,7 @@ import {
   getProjectionsByTeam,
   getProjectionById,
   deleteProjection,
+  deleteProjectionsByRound,
   recalcProjections,
 } from "../controllers/projectionControllers";
 import { authenticate } from "../middleware/authentication";
@@ -13,26 +14,12 @@ const router = Router();
 
 router.use(authenticate);
 
-// GET    /projections?simulationId=&teamId=&roundNumber=
-//          → fetch projections for a team (filtered by sim / round)
-//
-// POST   /projections/submit
-//          → team submits decisions for a round;
-//            writes decision payload directly into the projections document
-//            (replaces the dropped /decisions endpoint)
-//
-// POST   /projections/:id/recalc
-//          → trigger recalculation for a projection document (admin/operator)
-//
-// GET    /projections/:id
-//          → get a single projection document
-//
-// DELETE /projections/:id
-//          → delete a projection document (admin)
+// Projections are LIVE WHAT-IF only. See ../../README.md#the-four-collections
 
 router.get("/", getProjectionsByTeam);
-// router.post("/submit", submitDecision);           // team decision entry point
 router.post("/recalc", authenticate, recalcProjections);
+// Collection routes BEFORE `/:id` — Express matches in order.
+router.delete("/", authorize([ROLES.ADMIN]), deleteProjectionsByRound);
 router.get("/:id", getProjectionById);
 router.delete("/:id", authorize([ROLES.ADMIN]), deleteProjection);
 

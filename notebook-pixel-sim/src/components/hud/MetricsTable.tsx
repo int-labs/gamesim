@@ -286,8 +286,14 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
   const lineIndex = useGame((s) =>
     s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId),
   );
+  // Channels are BINARY: stored with `selectedStepKey: null` by design, so
+  // PRESENCE is the selection. Filtering on a non-null step key counts zero.
   const channelCount = useGame((s) =>
-    s.globalInputSelections.filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null).length,
+    s.globalInputSelections.filter((sel) => sel.key === 'channel' && !!sel.inputId).length,
+  );
+  /** The operator's cap — the same one `toggleFinlitChannelAll` enforces. */
+  const channelMax = useGame(
+    (s) => s.availableGlobalInputs.find((g) => g.key === 'channel')?.maxSelections ?? 1,
   );
 
   if (!line) return <EmptyMetrics text="No notebook selected. Open Notebook Items to add one." />;
@@ -373,7 +379,7 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
           ? [{ key: 'ucost', label: 'Unit cost', num: unitCost, format: fmt$, tone: 'cost' as Tone, sub: 'per notebook, from this spec' } as KVRow]
           : []),
         ...(marginPct != null ? [{ key: 'margin', label: 'Margin', value: `${marginPct}%`, tone: marginTone } as KVRow] : []),
-        { key: 'channels', label: 'Channels active', value: `${channelCount}/3`,                   tone: channelCount === 0 ? 'warn' : 'neutral' },
+        { key: 'channels', label: 'Channels active', value: `${channelCount}/${channelMax}`,        tone: channelCount === 0 ? 'warn' : 'neutral' },
       ],
     },
     {
@@ -406,12 +412,10 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
 type RowEmphasis = 'normal' | 'subtotal' | 'highlight';
 
 /**
- * Where a row's per-round figure comes from. The named sources read the
- * server's OWN field; `{ costKey }` reads one aggregated `incurredCosts` entry.
- *
- * Nothing is recomputed locally. `grossProfit` and `operatingProfit` are taken
- * verbatim rather than re-derived from their parts — re-deriving is how a sheet
- * drifts from `calcFinancials` by arithmetic even when every input agrees.
+ * Where a row's figure comes from. Named sources read the server's OWN field;
+ * `{ costKey }` reads one aggregated `incurredCosts` entry. Subtotals are taken
+ * VERBATIM, never re-derived — re-deriving is how a sheet drifts from
+ * calcFinancials by arithmetic while every input still agrees.
  */
 type RowSource =
   | 'revenue'
@@ -438,11 +442,9 @@ interface CostCell {
   amount: number;
 }
 
-// The server emits two fixed entries with authored labels — `inventory` ("Cost
-// of goods sold") and `holding` ("Inventory holding") — then one per globalInput
-// CATEGORY. Categories are deliberately free-text and operator-owned, so they
-// get a generic icon by side rather than a guessed one, and their label renders
-// verbatim: it is the operator's own wording, not ours to normalise.
+// Two fixed server entries (`inventory`, `holding`) plus one per globalInput
+// category. Categories are free-text and operator-owned: generic icon by side,
+// label rendered VERBATIM — not ours to normalise.
 const COST_ICON: Record<string, string> = {
   inventory: A.ui.pnl.material_cost,
   holding: A.ui.pnl.fulfillment_cost,
@@ -450,15 +452,10 @@ const COST_ICON: Record<string, string> = {
 const costIcon = (key: string, treatment: 'cogs' | 'opex'): string =>
   COST_ICON[key] ?? (treatment === 'cogs' ? A.ui.pnl.packaging_cost : A.ui.pnl.marketing_spend);
 
-// The FIXED rows. Row order IS the sheet: derived `cogs` cost rows are spliced
-// in ABOVE the Gross Profit subtotal and `opex` rows BELOW it, because that is
-// exactly the partition `calcFinancials` computes, and a row on the wrong side
-// of the line reads as a different formula than the server ran.
-//
-// The cost line items are NOT declared here — they come from each round's
-// `incurredCosts`, whose categories are operator-configured and so cannot be
-// known at build time. The former fixed Material / Labor / Packaging / Tools
-// rows were local ledger `kind`s with no server equivalent, permanently $0.
+// The FIXED rows. ROW ORDER IS THE SHEET: `cogs` cost rows splice in ABOVE the
+// Gross Profit subtotal, `opex` rows BELOW — the partition calcFinancials
+// computes. A row on the wrong side reads as a different formula.
+// Cost line items are derived, not declared: categories are operator-config.
 const ROW_REVENUE: PnLRow = {
   label: 'Gross Revenue', icon: A.ui.pnl.gross_revenue, sign: 'plus',
   group: 'revenue', source: 'revenue', cause: 'Units sold × selling price',
@@ -481,41 +478,22 @@ const ROW_CASH: PnLRow = {
 };
 
 export function FinanceTable() {
-  // `player.cash` is the run's OPENING balance — the route's starting capital
-  // (self $1,000 / investor $2,500, `store.ts:447`). It is not "cash now":
-  // nothing adds profit to it any more, because the running balance is derived
-  // from the server's operating profit below. Cash is the one figure with no
-  // server field and no other home.
+  // Cash at ROUND start, not cash now. The only figure with no server field.
   const openingCash = useGame((s) => s.player.cash);
-  // Per-round opening balances, recorded write-once at each round boundary.
   const cashOpeningByRound = useGame((s) => s.cashOpeningByRound);
   const phaseNow = useGame((s) => s.meta.phase);
   const reduced = useReducedMotion();
-  // `totalRounds` so the sheet spans the whole run, and the server's per-round
-  // financials — the ONLY source for every figure below except cash. Read from
-  // the session rather than passed in: `FinanceTable` has two render sites
-  // (`BottomStats` and `BusinessPage`) and neither threads props to it.
+  // Hooked, not passed: two render sites (BottomStats, BusinessPage), neither
+  // threads props.
   const { bootstrap, financialsByRound } = useGamesimSession();
   const totalRounds = bootstrap?.simulation.config?.totalRounds;
-  // `financialsByRound` is keyed by the server's 0-BASED round number; `p` is a
-  // 1-based display phase. Converting here is the whole reason P1 used to show
-  // round 1 — the second round — while round 0 was never rendered at all.
+  // `financialsByRound` is keyed 0-BASED; `p` is a 1-based display phase.
   const officialFor = (p: number): OfficialFinancials | null =>
     financialsByRound[roundNumberFromPhase(p)] ?? null;
 
-  // EVERY configured round gets a column, played or not.
-  //
-  // This used to be the rounds with ledger entries plus the round being played,
-  // which meant the sheet only grew a column after a round had been run — the
-  // player could not see the shape of the run ahead of them.
-  //
-  // The empty cells are CORRECT, not a gap to fill. An *actual* figure cannot
-  // exist until the administrator approves and calculates the round in the admin
-  // panel, so a future round legitimately has nothing to show.
-  //
-  // When `totalRounds` is absent — standalone play with no server, or a
-  // simulation configured before the field existed — this falls back to the
-  // round being played, so the sheet still renders what it knows.
+  // EVERY configured round gets a column. Empty cells are CORRECT: an actual
+  // cannot exist until the operator calculates the round. Falls back to the
+  // current round when `totalRounds` is unknown (standalone play).
   const phases: number[] = (() => {
     const seen = new Set<number>();
     seen.add(phaseNow);
@@ -523,13 +501,8 @@ export function FinanceTable() {
     return [...seen].filter((p) => p >= 1).sort((a, b) => a - b);
   })();
 
-  // Per-round cost breakdown, aggregated from the payload.
-  //
-  // `incurredCosts` is PER PRODUCT (`ProductProjectionDto`), so a round's row is
-  // the sum across every product. The grouping key is `treatment:key` because a
-  // single category can legitimately land on BOTH sides of the gross-profit line
-  // — calcFinancials emits one entry per side — and `key` is already unique per
-  // row (`inventory` / `holding` / the category itself).
+  // `incurredCosts` is PER PRODUCT, so a round's row sums across products.
+  // Key is `treatment:key` — one category can land on BOTH sides of the line.
   const costByRound = new Map<number, Map<string, CostCell>>();
   for (const p of phases) {
     const f = officialFor(p);
@@ -579,18 +552,8 @@ export function FinanceTable() {
     ROW_CASH,
   ];
 
-  // Cash is PER ROUND, from the round's own recorded opening — not a cumulative
-  // sum over a live base.
-  //
-  // The cumulative version was wrong in a way the current data hides: its base
-  // was `player.cash`, which scenario and event choices mutate mid-run
-  // (`mockEngine.ts:549`, `:716`, `:721`, `:748`). Any such movement shifted
-  // EVERY column, including rounds the player had already read as settled.
-  //
-  // `cashOpeningByRound[p]` is written once when round p begins and never
-  // recomputed, so an established column is frozen. Adding only THAT round's
-  // operating profit — never a running total — means a later round cannot reach
-  // back and change an earlier one.
+  // PER ROUND, from that round's own write-once opening — never a cumulative
+  // sum over a live base, which would let a later event shift settled columns.
   const cashThrough = (p: number) =>
     (cashOpeningByRound[p] ?? openingCash) + (officialFor(p)?.operatingProfit ?? 0);
 
@@ -600,10 +563,8 @@ export function FinanceTable() {
       const last = phases[phases.length - 1] ?? phaseNow;
       return cashThrough(p === 'total' ? last : p);
     }
-    // Server figures are POSITIVE for costs as well as revenue, and `PnLCell`
-    // renders the minus sign for a deduction row — which is why nothing here
-    // negates. The old ledger convention stored costs negative and had to flip
-    // them back; there is no sign juggling left to get wrong.
+    // Server costs arrive POSITIVE and `PnLCell` renders the minus, so nothing
+    // here negates.
     const pick = (f: OfficialFinancials): number => {
       if (typeof r.source === 'object') {
         return costByRound.get(f.roundNumber)?.get(r.source.costKey)?.amount ?? 0;
@@ -658,13 +619,8 @@ export function FinanceTable() {
             </tr>
           </thead>
           <tbody>
-            {/* No zero-hiding filter any more. It existed to suppress the fixed
-                Material / Labor / Packaging / Tools rows, which were always $0.
-                Cost rows are now derived from the payload and only exist when a
-                round actually emitted them — `calcFinancials` guards each push
-                with `if (cogs !== 0)` / `if (opex !== 0)` — so there is nothing
-                left to hide, and hiding would instead drop a real line item
-                that happens to net to zero. */}
+            {/* No zero-hiding filter: derived rows only exist when a round
+                emitted them, so hiding would drop a real line item. */}
             {rows
               .map((r, i, arr) => {
               const values = {
@@ -748,7 +704,6 @@ function PnLCell({ value, row, emphasis, live }: { value: number | null; row: Pn
 
 export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
   const lines = useGame((s) => s.portfolio.productLines);
-  const finished = useGame((s) => s.inventory.totalFinished);
 
   if (lines.length === 0) return <EmptyMetrics text="No notebooks yet. Open Notebook Items to add one." />;
 
@@ -759,6 +714,11 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
     ? bp.reduce((a, p) => a + (p.dynamicCost ?? 0), 0) / bp.length
     : null;
   const { revenue: totalRevenue, demand: totalCustomers } = computeUserProjection(lines, bp);
+
+  // Server CLOSING STOCK — the same figure the next round opens with.
+  const finished = bp.length
+    ? Math.round(bp.reduce((a, p) => a + (p.closingStock ?? 0), 0))
+    : null;
 
   const groups: KVGroup[] = [
     {
@@ -791,9 +751,12 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
       icon: A.ui.metrics.inventory,
       title: 'Inventory',
       rows: [
-        { key: 'stock', label: 'Stock on hand', num: finished, format: fmtInt,
-          tone: finished === 0 ? 'danger' : 'neutral',
-          sub: finished === 0 ? 'Confirm the phase to produce' : undefined },
+        finished == null
+          ? { key: 'stock', label: 'Stock on hand', value: '–', tone: 'neutral' as Tone,
+              sub: 'waiting for server projection' }
+          : { key: 'stock', label: 'Stock on hand', num: finished, format: fmtInt,
+              tone: finished === 0 ? 'danger' : 'neutral' as Tone,
+              sub: finished === 0 ? 'nothing carried into the next phase' : 'unsold units carried forward' },
       ],
     },
   ];

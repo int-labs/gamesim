@@ -65,44 +65,24 @@ export function EvaluationScreen() {
         insightCorrect: revealed ? !!insight.options.find((o) => o.id === answer)?.correct : null,
         day: s.meta.day,
       });
-      // Bump the round counter and replenish energy now, *before* the player
-      // re-enters simulation.
-      //
-      // THIS IS THE ONLY PLACE THE ROUND ADVANCES. `PhaseSequenceModal` also
-      // contains a `s.meta.phase = next` but that path is not reached: after
-      // confirming, the player goes into limbo and sees nothing of the round's
-      // score until the administrator calculates it. So the cash carry below
-      // lives here and cannot double-apply.
+      // THE ONLY PLACE THE ROUND ADVANCES. `PhaseSequenceModal` has a
+      // `s.meta.phase = next` too, but confirm goes straight to limbo so that
+      // path is unreachable — which is why the cash carry can't double-apply.
       if (phase < finalRound) {
         const next = (phase + 1) as Phase;
 
-        // Cash at ROUND start, carried forward. `player.cash` is not "cash now"
-        // — it moves only at a round boundary, and the movement is the round's
-        // SERVER-scored operating profit. Banking it here is safe because limbo
-        // guarantees the round was calculated before this screen was reachable.
-        //
-        // Indexed by ROUND NUMBER, not phase: `phase` is 1-based and the map is
-        // keyed 0-based, so `financialsByRound[phase]` banked the NEXT round's
-        // profit (or nothing at all on the last phase).
+        // Bank the round's SERVER-scored profit. Safe at the boundary because
+        // limbo guarantees the round was calculated. Indexed by ROUND NUMBER.
         const scored = financialsByRound[roundNumberFromPhase(phase)]?.operatingProfit ?? 0;
         s.player.cash += scored;
 
-        // Write-once. An opening already recorded is never recomputed, which is
-        // what stops a later round from retroactively changing what an earlier
-        // column showed.
+        // Write-once: a recorded opening is never recomputed.
         if (s.cashOpeningByRound[next] === undefined) {
           s.cashOpeningByRound[next] = s.player.cash;
         }
 
-        // The ROUND COUNTER IS THE SERVER'S when a round is known — the
-        // provider syncs `meta.phase` from `bootstrap.round.roundNumber`, which
-        // only moves when the administrator ends a round. Incrementing here as
-        // well would race that sync: the local value would jump ahead, then be
-        // corrected back on the next bootstrap, and the sheet would flick
-        // between two rounds.
-        //
-        // The local bump survives only for play with no server attached, where
-        // nothing else can advance the round.
+        // The server owns the counter when a round is known; bumping here too
+        // would race the provider's sync. Local bump = no-server play only.
         if (!hasServerRound) s.meta.phase = next;
 
         s.player.maxEnergy = maxEnergyForPhase(next);

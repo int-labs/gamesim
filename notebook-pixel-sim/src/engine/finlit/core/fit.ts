@@ -6,7 +6,7 @@
 // from the operator's productFields. No hardcoded per-genre preferences.
 
 import {
-  configOption, type GenreId, type ProductionSpec,
+  optionScore, type GenreId, type ProductionSpec,
 } from './config';
 import { fieldCfg } from './config/fieldConfig';
 import { normalCDF, directionOffset, bellCurveScore, diminishingReturnsFactor } from './mathUtils';
@@ -25,14 +25,18 @@ function fieldScore(value: number, genre: string, key: string): number {
   return directionOffset(direction) + normalCDF(value, avg, stdDev) * direction;
 }
 
+// SCORES, not dollar costs — the same values `lineDecisionValues` submits, so
+// the local fit preview and the server's dynamicPrice see identical inputs.
+// This read `.cost` while the submission read `.cost` too; both are now `.score`
+// and the two stay in step because they read the same column.
 function specValues(spec: ProductionSpec, stickersSpend: number): Record<MoneyFieldKey, number> {
   return {
     stickers:       stickersSpend,
-    addons:         configOption('addon',      spec.addon).cost,
-    page_size:      configOption('size',       spec.size).cost,
-    paper_material: configOption('paper',      spec.paper).cost,
-    page_design:    configOption('pageDesign', spec.pageDesign).cost,
-    cover_page:     configOption('cover',      spec.cover).cost,
+    addons:         optionScore('addon',      spec.addon),
+    page_size:      optionScore('size',       spec.size),
+    paper_material: optionScore('paper',      spec.paper),
+    page_design:    optionScore('pageDesign', spec.pageDesign),
+    cover_page:     optionScore('cover',      spec.cover),
   };
 }
 

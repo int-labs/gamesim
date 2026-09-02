@@ -9,7 +9,6 @@ import {
   answerInsight,
   generateInsightQuestion,
   resolveFinlitScenario,
-  previewFinlitPhase,
 } from '@/engine/mockEngine';
 import { scenariosForPhase } from '@/data/finlit';
 import { selectEvaluationSummary } from '@/engine/selectors';
@@ -29,6 +28,7 @@ import clsx from 'clsx';
 import {
   GamesimSyncError,
   submitRoundDecision,
+  type ServerProductProjection,
 } from '@/gamesim/sync';
 import { selectProjectedCash } from '@/engine/selectors';
 import { useGamesimSession, useTotalRounds } from '@/gamesim/GamesimProvider';
@@ -155,27 +155,24 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   const target = phaseEndDay(phase);
   const daysLeft = Math.max(0, target - day + 1);
 
-  // FinLit preview — the actual phase result for the current config, computed
-  // WITHOUT mutating state (recomputes when the modal opens / phase changes).
-  const localFinlitPreview = useMemo(() => {
-    if (!open) return null;
-    try { return previewFinlitPhase(useGame.getState() as any); } catch { return null; }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, phase]);
+  // Confirm figures come from the LIVE SERVER PROJECTION — the same numbers
+  // the round will be scored on. A local estimate here would be a second
+  // opinion on the one screen where the player commits.
+  const sum = (pick: (p: ServerProductProjection) => number | undefined) =>
+    liveProjection?.byProduct.reduce((a, p) => a + (pick(p) ?? 0), 0) ?? null;
 
-  const serverRevenue = liveProjection?.byProduct.reduce((a, p) => a + (p.revenue ?? 0), 0) ?? null;
-  const serverGrossProfit = liveProjection?.byProduct.reduce((a, p) => a + (p.grossProfit ?? 0), 0) ?? null;
-  const serverCustomers = liveProjection?.byProduct.reduce((a, p) => a + (p.customersObtained ?? 0), 0) ?? null;
+  const serverRevenue = sum((p) => p.revenue);
+  const serverGrossProfit = sum((p) => p.grossProfit);
+  const serverCustomers = sum((p) => p.customersObtained);
 
-  const finlitPreview = localFinlitPreview;
   // The player's produce plan (from InventoryPanel) — the same value shown as
   // "Produce / phase" there. It IS their demand estimate now that the separate
   // estimate input is gone. 0 renders as '—'.
-  const intProduce = lines.reduce((sum, l) => sum + (l.targetPerPhase ?? 0), 0);
-  const expectedSold = Math.round(finlitPreview?.soldTotal ?? 0);
-  const expectedRevenue = Math.round(finlitPreview?.revenue ?? 0);
-  const dailyExpenses = Math.round((finlitPreview?.opex ?? 0) + (finlitPreview?.channelCost ?? 0));
-  const expectedNetCash = Math.round(finlitPreview?.netProfit ?? 0);
+  const intProduce = lines.reduce((sum_, l) => sum_ + (l.targetPerPhase ?? 0), 0);
+  const expectedSold = Math.round(sum((p) => p.unitsSold) ?? 0);
+  const expectedRevenue = Math.round(serverRevenue ?? 0);
+  const dailyExpenses = Math.round(sum((p) => p.operatingExpenses) ?? 0);
+  const expectedNetCash = Math.round(sum((p) => p.operatingProfit) ?? 0);
 
   // ─── Step transitions ────────────────────────────────────────────────────
 

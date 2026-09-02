@@ -1,7 +1,34 @@
 
 # Int Labs
 
-Welcome to the **Int Labs** backend server! This is a banking simulation API designed for tracking and analyzing financial decisions in various banking products like deposits and credit cards. The backend is built using **Node.js** with **MongoDB** for data storage.
+A business-simulation platform. Teams run product lines across a configurable
+number of rounds, submitting decisions that are scored competitively against
+every other team. **Node.js** + **MongoDB**.
+
+> The previous description here — "a banking simulation API … deposits and
+> credit cards" — described a different product. It is corrected rather than
+> preserved: a stale overview is worse than none, because it is believed.
+
+## The three packages
+
+| Package | What it is |
+|---|---|
+| [`server/`](server/) | The API and the simulation engine. **Owns every monetary figure and the score.** See [`server/README.md`](server/README.md) for the data model and calculation order. |
+| [`client/`](client/) | The operator/admin console — configure simulations, run rounds, read results. |
+| [`notebook-pixel-sim/`](notebook-pixel-sim/) | The player client. See its [README](notebook-pixel-sim/README.md). |
+
+## Where documentation lives
+
+Present-state architecture belongs in the READMEs; they are the authority and
+are expected to change with the code.
+
+- [`server/README.md`](server/README.md) — collections and their one job, round
+  numbering, calculation order, the money chain, what freezes a round
+- [`notebook-pixel-sim/CLAUDE.md`](notebook-pixel-sim/CLAUDE.md) — **how to work
+  with Claude in this repo**, deliberately free of present-state context.
+  Instructions about tooling outlive facts about the system, and mixing them is
+  how the handover version went months out of date while still reading as
+  current.
 
 ## Table of Contents
 

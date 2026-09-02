@@ -6,6 +6,9 @@ export interface FieldConfig {
   minValue:   number;
   maxValue:   number;
   tightening: number;
+  /** Dollars per score point, from the operator's ProductField.
+   *  0 = the field contributes no cost (same reading the server takes). */
+  unitCost:   number;
 }
 
 /**
@@ -26,10 +29,12 @@ export function hydrateFieldConfig(products: ProductDto[]): void {
         minValue:   field.minValue   ?? 0,
         maxValue:   field.maxValue   ?? 100,
         tightening: field.tightening ?? 3,
+        unitCost:   field.unitCost   ?? 0,
       };
     }
   }
 }
 
 export const fieldCfg = (genre: string, key: string): FieldConfig =>
-  FIELD_CONFIG[genre]?.[key] ?? { direction: 0, minValue: 0, maxValue: 100, tightening: 3 };
+  FIELD_CONFIG[genre]?.[key]
+  ?? { direction: 0, minValue: 0, maxValue: 100, tightening: 3, unitCost: 0 };

@@ -205,6 +205,9 @@ export interface DecisionDto extends CreateDecisionBody {
   _id: Id;
   createdAt: string;
   updatedAt: string;
+  /** OFFICIAL scored outcome per productId — THE money source. Absent until
+   *  the round is calculated. Projections is what-if only. */
+  scored?: Record<Id, ProductProjectionDto & { marketShare?: number }> | null;
 }
 
 // ── Projections (own financials — authoritative for money) ──────────────

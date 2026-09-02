@@ -283,7 +283,8 @@ export interface OfficialFinancials {
   operatingProfit: number;
   customersObtained: number;
   byProduct: ServerProductProjection[];
-  raw: ProjectionDto;
+  /** The source document — a Decision, since `scored` lives there. */
+  raw: DecisionDto;
 }
 
 /**
@@ -297,15 +298,18 @@ export async function fetchOfficialFinancials(args: {
   roundNumber: number;
   productNames?: Record<Id, string>;
 }): Promise<OfficialFinancials | null> {
-  const docs = await gamesim.getProjections({
+  // The DECISION, not the projection — Projections is what-if only.
+  // No `scored` = not calculated yet, so the P&L column renders empty.
+  // See ../../../server/README.md#the-four-collections
+  const docs = await gamesim.getDecisions({
     simulationId: args.simulationId,
     teamId: args.teamId,
     roundNumber: args.roundNumber,
   });
   const raw = docs?.[0];
-  if (!raw) return null;
+  if (!raw?.scored) return null;
 
-  const byProduct: ServerProductProjection[] = Object.entries(raw.projections ?? {}).map(
+  const byProduct: ServerProductProjection[] = Object.entries(raw.scored).map(
     ([productId, metrics]) => ({
       productId,
       productName: args.productNames?.[productId] ?? productId,

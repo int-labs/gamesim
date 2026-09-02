@@ -65,7 +65,10 @@ export function SimulationScreen() {
       <TopHUD liveProjectionState={liveProjectionState} />
       {/* Live commentary — Amelia reacts to fit jumps, maxed add-ons and
           bold pricing (renders nothing; one-shot per notebook). */}
-      <AmeliaReactions />
+      {/* Passed the projection rather than calling `useLiveProjection()` itself:
+          that hook owns a per-round recalc latch, and a second caller would
+          fire an extra `/projections/recalc` on every round. */}
+      <AmeliaReactions liveProjection={liveProjectionState.liveProjection} />
 
       {/* Content area — relative so the floating page tabs can pin to its
           top-center, over whichever page is active. */}

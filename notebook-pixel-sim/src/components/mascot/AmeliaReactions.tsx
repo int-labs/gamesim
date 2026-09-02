@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useGame } from '@/state/store';
-import { genreById, unitCost, type GenreId, type ProductionSpec } from '@/data/finlit';
+import { genreById, type GenreId, type ProductionSpec } from '@/data/finlit';
 import { vocFit } from '@/engine/finlit/fit';
+import type { ServerProjectionResult } from '@/gamesim/sync';
 import { fmt$ } from '@/utils/format';
 
 /**
@@ -19,16 +20,23 @@ const DEFAULT_SPEC: ProductionSpec = {
   type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
 };
 
-export function AmeliaReactions() {
+export function AmeliaReactions({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
   const pushMascot = useGame((s) => s.pushMascot);
   const line = useGame((s) => s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId));
+  const lineIndex = useGame((s) => s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId));
 
   const genre: GenreId = (line?.genre ?? 'indie') as GenreId;
   const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line?.finlitSpec ?? {}) };
   const price = line?.price ?? 0;
   const stickersSpend = Math.min((line?.addOnsByArchetype?.[line?.archetype ?? genre] ?? []).length * 0.15, 100);
   const fit = line ? vocFit(spec, price, stickersSpend, genre) : 1;
-  const margin = line ? price - unitCost(spec) : 0;
+
+  // The SERVER's `dynamicCost` — the same figure the P&L shows, so her warning
+  // cannot contradict it. `null` = no projection yet; the margin check is
+  // SKIPPED rather than defaulting the cost to 0 (which reads as infinite margin).
+  const proj = liveProjection?.byProduct[lineIndex] ?? liveProjection?.byProduct[0] ?? null;
+  const serverUnitCost = proj?.dynamicCost ?? null;
+  const margin = line && serverUnitCost != null ? price - serverUnitCost : null;
 
   const quiet = () => useGame.getState().meta.sequenceActive;
 
@@ -55,16 +63,18 @@ export function AmeliaReactions() {
     const was = prevMargin.current;
     prevMargin.current = margin;
     if (!line || quiet()) return;
+    // A transition into or out of null is not a crossing.
+    if (was == null || margin == null) return;
     if (was >= 0 && margin < 0) {
       pushMascot({
         id: `react-margin-${line.id}`,
         type: 'warning',
-        body: `Careful - ${line.name} costs ${fmt$(unitCost(spec))} to make but only sells for ${fmt$(price)}. You'd lose money on every unit. Raise the price or simplify the spec.`,
+        body: `Careful - ${line.name} costs ${fmt$(serverUnitCost ?? 0)} to make but only sells for ${fmt$(price)}. You'd lose money on every unit. Raise the price or simplify the spec.`,
         priority: 2,
         mood: 'concerned',
       });
     }
-  }, [margin, line, spec, price, pushMascot]);
+  }, [margin, line, serverUnitCost, price, pushMascot]);
 
   // ── fit drifts below 85% (design off-market) ────────────────────────
   const prevLowFit = useRef(fit);

@@ -8,33 +8,8 @@ import { configOption, type ProductionSpec } from './production';
 import { channelRow, type ChannelId } from './channels';
 import { genreById, type GenreId, type GenreDef } from './genres';
 
-/**
- * Units produced per day for a spec.
- *   prodPerDay = Π(option.rate) × BASERATE + hiringProdBonus (+ vendorProdBonus)
- * Verified: G28 config → 3.898125, +3.92 hiring = 7.818125.
- */
-export function prodPerDay(spec: ProductionSpec, prodBonus = 0): number {
-  const rateProduct =
-    configOption('type', spec.type).rate *
-    configOption('paper', spec.paper).rate *
-    configOption('size', spec.size).rate *
-    configOption('pageDesign', spec.pageDesign).rate *
-    configOption('addon', spec.addon).rate *
-    configOption('cover', spec.cover).rate;
-  return rateProduct * BASERATE + prodBonus;
-}
-
-/** Per-unit production cost = Σ of the chosen options' costs (verified = 12.3). */
-export function unitCost(spec: ProductionSpec): number {
-  return (
-    configOption('type', spec.type).cost +
-    configOption('paper', spec.paper).cost +
-    configOption('size', spec.size).cost +
-    configOption('pageDesign', spec.pageDesign).cost +
-    configOption('addon', spec.addon).cost +
-    configOption('cover', spec.cover).cost
-  );
-}
+// No `prodPerDay` / `unitCost` here. Read the server's `inventoryQty` and
+// `dynamicCost` instead. See ../../../../../../server/README.md#score
 
 /**
  * Customers captured over 30 days for one genre × channel.

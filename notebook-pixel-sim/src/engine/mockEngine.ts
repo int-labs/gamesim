@@ -52,11 +52,7 @@ import { makeModifierId } from './modifiers';
 import { defaultPlacementFor, PLACEMENT_BOUNDS } from '@/data/addOnDefaults';
 
 // ---- Public engine API (re-exports) -------------------------------------
-// Only what the UI actually imports. The blocks that used to sit here
-// re-exported 21 symbols with no consumer anywhere — the whole `production` and
-// `complexity` blocks among them — and two of the names they forwarded
-// (`selectComplexity`, `calcComplexityPenalty`) are read by importing
-// `./complexity` directly, so even the live ones did not travel through here.
+// Only what the UI actually imports.
 export { currentAddOns } from './cost';
 export { calcDemandToday } from './demand';
 // `dayTick` / `advanceDay` are GONE, with `simulationEngine.ts`.
@@ -72,7 +68,8 @@ export { computeFinalScore } from './scoring';
 export { generateInsightQuestion } from './insightGenerator';
 // V3 (FinLit) — the store-facing phase runner. Simulates the current phase with
 // the FinLit engine and writes results into ledger/series/inventory/cash.
-export { advanceFinlitPhase, previewFinlitPhase } from './finlit/storeRun';
+// No `previewFinlitPhase`: the confirm screen reads the live server projection.
+export { advanceFinlitPhase } from './finlit/storeRun';
 
 // ---- Notebook count cap -------------------------------------------------
 //

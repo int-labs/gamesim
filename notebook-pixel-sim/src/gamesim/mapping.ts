@@ -7,7 +7,11 @@
 // individual field values and operator-configured coefficients.
 
 import type { GameState } from '@/state/store';
-import { configOption, type ConfigAxis } from '@/engine/finlit/core/config/production';
+import {
+  CONFIG_TABLES,
+  optionScore,
+  type ConfigAxis,
+} from '@/engine/finlit/core/config/production';
 import type {
   DecisionFieldEntry,
   DecisionGlobalInputDto,
@@ -18,16 +22,22 @@ import type {
   ProductFieldDto,
 } from './types';
 
-/** Canonical field keys this glue submits. One string per axis — no aliases. */
+/**
+ * Field keys this glue submits. The SPEC half is DERIVED from `CONFIG_TABLES`
+ * so the axis/field mapping exists in ONE place. The three below are not spec
+ * axes (a price, a canvas-derived spend, a share claim), so they stay by hand.
+ */
+const SPEC_FIELD_KEYS = Object.fromEntries(
+  (Object.entries(CONFIG_TABLES) as [ConfigAxis, { fieldKey: string | null }][])
+    .filter((entry): entry is [ConfigAxis, { fieldKey: string }] => entry[1].fieldKey !== null)
+    .map(([axis, table]) => [axis, table.fieldKey]),
+) as Record<Exclude<ConfigAxis, 'type'>, string>;
+
 export const FIELD_KEYS = {
   sellingPrice:         'selling_price',
   stickers:             'stickers',
-  addons:               'addons',
-  pageSize:             'page_size',
-  paperMaterial:        'paper_material',
-  pageDesign:           'page_design',
-  coverPage:            'cover_page',
   projectedMarketShare: 'projected_market_share',
+  ...SPEC_FIELD_KEYS,
 } as const;
 
 type StoreLine = GameState['portfolio']['productLines'][number];
@@ -35,34 +45,26 @@ type StoreLine = GameState['portfolio']['productLines'][number];
 const findField = (product: ProductDto, key: string): ProductFieldDto | undefined =>
   product.fields.find((f) => f.key === key);
 
-const specCost = (axis: ConfigAxis, id: string | undefined): number =>
-  id ? configOption(axis, id).cost : 0;
-
 /** The values derived from one product line for server submission. */
-export interface LineDecisionValues {
-  sellingPrice:         number;
-  stickers:             number;
-  addons:               number;
-  pageSize:             number;
-  paperMaterial:        number;
-  pageDesign:           number;
-  coverPage:            number;
-  projectedMarketShare: number;
-}
+export type LineDecisionValues = Record<keyof typeof FIELD_KEYS, number>;
 
 export function lineDecisionValues(line: StoreLine, projectedMarketShare: number): LineDecisionValues {
   const spec      = line.finlitSpec ?? {};
   const instances = line.addOnsByArchetype?.[line.archetype] ?? [];
   const stickersSpend = Math.min(instances.length * 0.15, 100);
+
+  // SCORES (0-100), not dollars — the server multiplies by the field's own
+  // `unitCost`. See ../../../server/README.md#score
+  const specValues = {} as Record<Exclude<ConfigAxis, 'type'>, number>;
+  for (const axis of Object.keys(SPEC_FIELD_KEYS) as Exclude<ConfigAxis, 'type'>[]) {
+    specValues[axis] = optionScore(axis, spec[axis]);
+  }
+
   return {
     sellingPrice:         round2(line.price),
     stickers:             stickersSpend,
-    addons:               specCost('addon',      spec.addon),
-    pageSize:             specCost('size',        spec.size),
-    paperMaterial:        specCost('paper',       spec.paper),
-    pageDesign:           specCost('pageDesign',  spec.pageDesign),
-    coverPage:            specCost('cover',       spec.cover),
     projectedMarketShare: clamp01(round4(projectedMarketShare)),
+    ...specValues,
   };
 }
 

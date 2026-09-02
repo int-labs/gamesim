@@ -10,6 +10,8 @@ import { NavIcon } from '@/components/icons/NavIcon';
 import { Volume2, VolumeX, Music, History as HistoryIcon } from 'lucide-react';
 import { MusicOffIcon } from '@/components/icons/MusicOffIcon';
 import { audio, playSfx } from '@/audio/audioManager';
+import { useGamesimSession, useTotalRounds } from '@/gamesim/GamesimProvider';
+import type { OfficialFinancials, ServerProjectionResult } from '@/gamesim/sync';
 import { ameliaVoice, VOICE_DISABLED } from '@/audio/ameliaVoice';
 import clsx from 'clsx';
 
@@ -18,6 +20,9 @@ interface Props {
   onClose: () => void;
   /** Optional handler — wired in TopHUD to pop open the History dropdown after the drawer closes. */
   onOpenHistory?: () => void;
+  /** The live server projection, for stock on hand. Passed in rather than
+   *  hooked so this drawer does not fire a second `/projections/recalc`. */
+  liveProjection?: ServerProjectionResult | null;
 }
 
 /**
@@ -27,16 +32,16 @@ interface Props {
  * recap of the always-visible ones (Phase, Cash, Energy, Op Profit) so
  * the drawer functions as a complete at-a-glance view on small screens.
  */
-export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
+export function StatsDrawer({ open, onClose, onOpenHistory, liveProjection }: Props) {
   // Hooks must run unconditionally — the early return for !open happens AFTER hooks.
   const phase = useGame((s) => s.meta.phase);
   const day = useGame((s) => s.meta.day);
   const cash = useGame((s) => s.player.cash);
   const energy = useGame((s) => s.player.energy);
   const maxEnergy = useGame((s) => s.player.maxEnergy);
-  const finished = useGame((s) => s.inventory.totalFinished);
   const market = useGame((s) => s.market);
-  const ledger = useGame((s) => s.ledger);
+  const { financialsByRound } = useGamesimSession();
+  const totalRounds = useTotalRounds();
   const activeLineId = useGame((s) => s.portfolio.activeLineId);
   const sfxEnabled = useGame((s) => s.audio.sfxEnabled);
   const musicEnabled = useGame((s) => s.audio.musicEnabled);
@@ -53,18 +58,17 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
 
   if (!open) return null;
 
-  const sum = (k: string) => ledger.filter((e) => e.kind === k).reduce((a, b) => a + b.amount, 0);
-  const grossRevenue = sum('revenue');
-  const matCost = -sum('cogs-material');
-  const labor = -sum('cogs-labor');
-  const packaging = -sum('cogs-packaging');
-  const fulfillment = -sum('cogs-fulfillment');
-  const marketing = -sum('opex-marketing');
-  const tools = -sum('opex-tool');
-  // V3 channel maintenance + consignment + holding, booked as `opex-rent`.
-  // Omitting it overstated Operating Profit here while scoring.ts counted it.
-  const channel = -sum('opex-rent');
-  const opProfit = grossRevenue - matCost - labor - packaging - fulfillment - marketing - tools - channel;
+  // Run-to-date totals from the server, over every SCORED round. The ledger
+  // carries no money rows — reading it here summed to $0.
+  const totalOf = (pick: (f: OfficialFinancials) => number) =>
+    Object.values(financialsByRound).reduce((a, f) => a + pick(f), 0);
+  const grossRevenue = totalOf((f) => f.revenue);
+  const opProfit = totalOf((f) => f.operatingProfit);
+
+  // Server CLOSING STOCK. `inventory.totalFinished` has no writer any more.
+  const finished = liveProjection
+    ? Math.round(liveProjection.byProduct.reduce((a, p) => a + (p.closingStock ?? 0), 0))
+    : null;
 
   const rand = mulberry32(seedFrom(useGame.getState().meta.seed + ':drawer:' + (day + 1)));
   const demand = Math.round(calcDemandToday(useGame.getState(), rand).total);
@@ -127,7 +131,12 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
                 <Stat icon="energy" label="Energy" value={`${energy}/${maxEnergy}`} tone={energy / maxEnergy < 0.2 ? 'warn' : 'neutral'} />
                 <Stat icon="profit" label="Op Profit" value={fmt$(opProfit)} tone={opProfit < 0 ? 'danger' : opProfit > 0 ? 'success' : 'neutral'} />
                 <Stat icon="revenue" label="Revenue" value={fmt$(grossRevenue)} tone="info" />
-                <Stat icon="stock" label="Stock on hand" value={fmtInt(finished)} tone={finished === 0 ? 'danger' : 'neutral'} />
+                <Stat
+                  icon="stock"
+                  label="Stock on hand"
+                  value={finished == null ? '-' : fmtInt(finished)}
+                  tone={finished == null ? 'neutral' : finished === 0 ? 'danger' : 'neutral'}
+                />
                 <Stat icon="demand" label="Demand est." value={`~${fmtInt(demand)}/d`} tone="info" />
                 <Stat
                   icon="fit"
@@ -135,7 +144,8 @@ export function StatsDrawer({ open, onClose, onOpenHistory }: Props) {
                   value={fitVal !== null ? `${Math.round(fitVal * 100)}%` : '-'}
                   tone={fitVal === null ? 'neutral' : fitVal > 0.7 ? 'success' : fitVal < 0.4 ? 'warn' : 'neutral'}
                 />
-                <Stat icon="phase" label="Phase" value={`${phase} / 3`} tone="neutral" />
+                {/* Denominator from the operator's round count, not a fixed 3. */}
+                <Stat icon="phase" label="Phase" value={totalRounds ? `${phase} / ${totalRounds}` : `${phase}`} tone="neutral" />
               </div>
 
               {/* Utility actions — only useful below sm where the navbar

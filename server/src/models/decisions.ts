@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
+import type { ScoredMetrics } from "../sim/calcFinancials";
 
   // ---------- Field entry sub-schema (per-product decision input)
 const DecisionFieldSchema = new Schema(
@@ -124,6 +125,10 @@ export interface IDecision extends Document {
     energyConsumption: number; 
   }[];
   globalInputs:     IDecisionGlobalInput[];
+  /** OFFICIAL scored outcome per productId. Written only by the round close;
+   *  absent until calculated. Also the immutable carry-forward source for
+   *  `closingStock`. See ../../README.md#the-four-collections */
+  scored?:          Record<string, ScoredMetrics> | null;
   createdAt:        Date;
   updatedAt:        Date;
 }
@@ -135,7 +140,9 @@ const DecisionSchema = new Schema<IDecision>(
     roundNumber:      { type: Number,                                    required: true },
     inputs:           { type: [DecisionProductInputSchema],              required: true, default: [] },
     initiativeInputs: { type: [DecisionInitiativeInputSchema],           required: true, default: [] },
-    globalInputs: { type: [decisionGlobalInputSchema], required: true, default: [] }
+    globalInputs: { type: [decisionGlobalInputSchema], required: true, default: [] },
+    // null = not scored yet, which differs from an empty object.
+    scored:       { type: Schema.Types.Mixed, default: null },
   },
   {
     timestamps: true,

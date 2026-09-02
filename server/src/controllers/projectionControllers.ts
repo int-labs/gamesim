@@ -2,6 +2,7 @@
 import mongoose from "mongoose";
 import Product from "../models/products";
 import Projection from "../models/projections";
+import Decision from "../models/decisions";
 import { ROLES } from "../constants/roles";
 import BaseData from "../models/baseData";
 import Round from "../models/rounds";
@@ -76,6 +77,27 @@ export const deleteProjection = async (req: Request, res: Response): Promise<voi
   }
 };
 
+// DELETE /projections?simulationId=&roundNumber= — part of a round RESET.
+export const deleteProjectionsByRound = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { simulationId, roundNumber } = req.query;
+    if (!simulationId || roundNumber === undefined) {
+      res.status(400).json({ message: "simulationId and roundNumber are required." });
+      return;
+    }
+    const result = await Projection.deleteMany({
+      simulationId,
+      roundNumber: Number(roundNumber),
+    });
+    res.status(200).json({
+      message: "Projections deleted.",
+      deletedCount: result.deletedCount ?? 0,
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to delete projections." });
+  }
+};
+
 export const recalcProjections = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
@@ -94,22 +116,8 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    /**
-     * ── A CALCULATED ROUND IS READ-ONLY ─────────────────────────────────
-     * Despite the name, this route is NOT a read-only what-if: it upserts
-     * `Projections` on the same `{simulationId, teamId, roundNumber}` key and
-     * `$set`s the whole `projections.<productId>` sub-object that the round
-     * close writes.
-     *
-     * Its payload has no `marketShare`, so running it against an already
-     * calculated round silently strips the COMPETED share and replaces the
-     * official financials with the team's own self-declared what-if numbers —
-     * quietly rewriting a scored result with a worse one. The console's
-     * standings would keep working and simply be wrong.
-     *
-     * The round's own status is the authority: a `Completed` round has been
-     * scored, so recalculation is refused rather than allowed to overwrite it.
-     */
+    // A Completed round is READ-ONLY. This route WRITES (it upserts
+    // Projections), so it must not run against a scored round.
     const round = await Round.findOne({ simulationId, roundNumber });
     if (round?.status === "Completed") {
       res.status(409).json({
@@ -227,20 +235,23 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
         gi.productsImpacted.some((pid: mongoose.Types.ObjectId) => pid.equals(product._id))
       );
 
-      // Opening stock = last round's closing stock. Read here so the live
-      // projection and the official calculation agree; without it recalc shows
-      // `sellable = produced` while round close uses `openingStock + produced`.
-      // Must stay identical to the read in `roundCalculation`.
-      const prior = Number(roundNumber) > 1
-        ? await Projection.findOne({
-            simulationId,
-            teamId,
-            roundNumber: Number(roundNumber) - 1,
-          }).lean()
+      // Opening stock from `Decision.scored` — the same immutable source
+      // `roundCalculation` reads, so live and official agree. NOT Projections:
+      // this handler overwrites that, so it would read its own what-if.
+      // `roundNumber` is 0-BASED: only round 0 opens at zero.
+      const prior = Number(roundNumber) > 0
+        ? await Decision.findOne(
+            {
+              simulationId,
+              teamId,
+              roundNumber: Number(roundNumber) - 1,
+            },
+            { scored: 1 },
+          ).lean()
         : null;
       const openingStock = {
         [String(teamObjectId)]: Number(
-          (prior as any)?.projections?.[String(product._id)]?.closingStock ?? 0,
+          (prior as any)?.scored?.[String(product._id)]?.closingStock ?? 0,
         ),
       };
 
