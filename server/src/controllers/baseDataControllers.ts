@@ -1,6 +1,6 @@
 ﻿import { Request, Response } from "express";
 import BaseData from "../models/baseData";
-import Results from "../models/results";
+import Results from "../models/Results";
 import {
   BASE_DATA_SECTIONS,
   changedRounds,

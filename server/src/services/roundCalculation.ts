@@ -18,7 +18,7 @@ import mongoose, { ClientSession } from "mongoose";
 import BaseData from "../models/baseData";
 import Decision from "../models/decisions";
 import Product from "../models/products";
-import Results from "../models/results";
+import Results from "../models/Results";
 import Simulation from "../models/simulations";
 import {
   calcMarketModel,

@@ -1,7 +1,7 @@
 ﻿import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Product from "../models/products";
-import Projection from "../models/projections";
+import Projection from "../models/Projections";
 import Decision from "../models/decisions";
 import { ROLES } from "../constants/roles";
 import BaseData from "../models/baseData";
