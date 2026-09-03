@@ -2,7 +2,7 @@
 import mongoose from "mongoose";
 import Round from "../models/rounds";
 import Simulation from "../models/simulations";
-import Results from "../models/results";
+import Results from "../models/Results";
 import { runRoundCalculation } from "../services/roundCalculation";
 
 // GET /rounds?simulationId=

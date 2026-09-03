@@ -1,6 +1,6 @@
 ﻿import { Request, Response } from "express";
 import Decision from "../models/decisions"; // adjust import path to match your models folder
-import Results from "../models/results";
+import Results from "../models/Results";
 
 // POST /decisions
 export const createDecision = async (req: Request, res: Response): Promise<void> => {

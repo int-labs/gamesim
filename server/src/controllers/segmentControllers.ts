@@ -1,5 +1,5 @@
 ﻿import { Request, Response } from "express";
-import Segment from "../models/segment";
+import Segment from "../models/Segment";
 import Product from "../models/products";
 
 // POST /segments

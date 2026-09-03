@@ -3,7 +3,22 @@
 // the existing folder structure and rely on this map for type-safe lookups.
 
 const enc = (s: string) => s.split('/').map(encodeURIComponent).join('/');
-const i = (path: string) => '/' + enc(path);
+
+/**
+ * A URL for a file in publicDir, resolved against the app's base.
+ *
+ * A leading '/' asks for the file at the root of whatever host serves the page.
+ * That is fine when the app owns the root, and wrong the moment it is mounted
+ * under a path — every image 404s, or worse, arrives from whatever application
+ * does own the root and happens to have a file by that name.
+ *
+ * BASE_URL is '/' for a normal build, so this changes nothing today; with
+ * `vite build --base=./` it resolves relative to the page instead.
+ */
+export const assetUrl = (path: string) =>
+  `${import.meta.env.BASE_URL}${enc(path).replace(/^\//, '')}`;
+
+const i = (path: string) => assetUrl(path);
 
 export const A = {
   logo: i('img/logo.png'),

@@ -3,6 +3,7 @@
     "target": "ES6",
     "module": "commonjs",
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "outDir": "./dist",
     "types": ["node", "express", "jest"],
