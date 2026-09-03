@@ -1,3 +1,5 @@
+import { assetUrl } from '@/assets';
+
 // Notebook genres = the four markets (DEC A). Each genre has its own demand
 // curve across phases (sheet rows 2–9) and a VoC preference vector — the PDF's
 // "VoC Alignment" chart — over the five decision axes, so config alignment
@@ -141,7 +143,7 @@ export const genreById = (id: GenreId): GenreDef => {
 export const genreArt = (id: GenreId): string => {
   const g = GENRES.find((x) => x.id === id);
   if (g?.imgPath) return g.imgPath;
-  return `/img/notebooks/${encodeURIComponent(id)}.png`;
+  return assetUrl(`img/notebooks/${id}.png`);
 };
 
 /** Per-phase growth of a genre's demand (matches sheet's Growth rows). */
