@@ -11,7 +11,7 @@ import { Volume2, VolumeX, Music, History as HistoryIcon } from 'lucide-react';
 import { MusicOffIcon } from '@/components/icons/MusicOffIcon';
 import { audio, playSfx } from '@/audio/audioManager';
 import { useGamesimSession, useTotalRounds, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
-import { selectCashBalance } from '@/engine/selectors';
+import { selectCashBalance, selectProjectedCash } from '@/engine/selectors';
 import type { OfficialFinancials, ServerProjectionResult } from '@/gamesim/sync';
 import { ameliaVoice, VOICE_DISABLED } from '@/audio/ameliaVoice';
 import clsx from 'clsx';
@@ -41,14 +41,19 @@ export function StatsDrawer({ open, onClose, onOpenHistory, liveProjection }: Pr
   const maxEnergy = useGame((s) => s.player.maxEnergy);
   const market = useGame((s) => s.market);
   const { financialsByRound } = useGamesimSession();
-  // The ledger's figure, via the same `selectCashBalance` call. This read raw
-  // `player.cash`, the ROUND-START number, so it lagged a scored round.
+  // The same figure the HUD chip shows: the ledger's balance minus this
+  // round's committed spend. Was raw `player.cash`, the ROUND-START number,
+  // so it lagged a scored round and ignored decisions entirely.
   const cash = useGame((s) =>
-    selectCashBalance(
+    selectProjectedCash(
       s,
-      s.meta.phase,
-      (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
-    ),
+      liveProjection?.byProduct ?? null,
+      selectCashBalance(
+        s,
+        s.meta.phase,
+        (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
+      ),
+    ).projected,
   );
   const totalRounds = useTotalRounds();
   const activeLineId = useGame((s) => s.portfolio.activeLineId);

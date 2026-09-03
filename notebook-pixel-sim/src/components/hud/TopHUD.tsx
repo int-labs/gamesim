@@ -87,19 +87,22 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
   // P&L's Cash Balance row uses, so the chip and the sheet agree — and it
   // pivots as soon as the operator scores the round.
   const { financialsByRound } = useGamesimSession();
-  // THE CHIP SHOWS THE LEDGER'S FIGURE — the same `selectCashBalance` call the
-  // P&L's Cash Balance row makes. Committed spend is NOT subtracted from it;
-  // it rides along as the ghost delta, so the headline number and the sheet
-  // can never disagree.
-  const projectedCash = useGame((s) =>
+  // The chip's BASE is the ledger's figure — the same `selectCashBalance` call
+  // the P&L's Cash Balance row makes — minus what this round has committed but
+  // not yet been scored on. So the two read identically until a decision is
+  // made, and then diverge by exactly the committed spend.
+  const cashBalance = useGame((s) =>
     selectCashBalance(
       s,
       s.meta.phase,
       (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
     ),
   );
+  const projectedCash = useGame(
+    (s) => selectProjectedCash(s, byProduct, cashBalance).projected,
+  );
   const projectedCashDelta = useGame(
-    (s) => selectProjectedCash(s, byProduct, projectedCash).delta,
+    (s) => selectProjectedCash(s, byProduct, cashBalance).delta,
   );
   const energy = useGame((s) => s.player.energy);
   const maxEnergy = useGame((s) => s.player.maxEnergy);
@@ -123,10 +126,10 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
   useEffect(() => {
     if (projectedCashDelta === 0) return;
     const s = useGame.getState();
-    const breakdown = selectProjectedCash(s, byProduct, projectedCash).breakdown;
+    const breakdown = selectProjectedCash(s, byProduct, cashBalance).breakdown;
     const label = breakdown.map((b) => `${b.decision} (-$${b.cost.toFixed(2)})`).join(', ');
     console.log(`[cash] committed $${Math.abs(projectedCashDelta).toFixed(2)}: ${label}`);
-  }, [projectedCashDelta, byProduct, projectedCash]);
+  }, [projectedCashDelta, byProduct, cashBalance]);
 
   const cashTone: KpiTone = projectedCash < 0 ? 'danger' : projectedCash < 200 ? 'warning' : 'success';
   const energyTone: KpiTone = energy / maxEnergy < 0.2 ? 'danger' : 'warning';

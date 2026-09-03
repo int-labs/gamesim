@@ -84,15 +84,18 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   const cashByProduct = liveProjection?.byProduct ?? null;
   // The ledger's figure for the headline, with committed spend as the delta —
   // exactly how the HUD chip presents it.
-  const liveCashValue = useGame((s) =>
+  const cashBalance = useGame((s) =>
     selectCashBalance(
       s,
       s.meta.phase,
       (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
     ),
   );
+  const liveCashValue = useGame(
+    (s) => selectProjectedCash(s, cashByProduct, cashBalance).projected,
+  );
   const liveCashDelta = useGame(
-    (s) => selectProjectedCash(s, cashByProduct, liveCashValue).delta,
+    (s) => selectProjectedCash(s, cashByProduct, cashBalance).delta,
   );
   const [cashSnapshot, setCashSnapshot] = useState<{ value: number; delta: number } | null>(null);
   useEffect(() => {

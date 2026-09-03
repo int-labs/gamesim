@@ -210,8 +210,14 @@ export interface ProjectedCashResult {
 }
 
 /**
- * THE definition of a round's cash balance — the one both the HUD chip and the
- * P&L's Cash Balance row read, so the two can never disagree.
+ * THE definition of a round's cash balance — the one the HUD chip, the stats
+ * recap, the confirm modal and the P&L's Cash Balance row all read, so none of
+ * them can disagree.
+ *
+ * Three terms:
+ *   round 1's opening capital
+ * + every scored round's operatingProfit, up to and including `phase`  (server)
+ * + every `state.ledger` entry up to and including `phase`             (local)
  *
  * That round's write-once opening plus its OWN scored operating profit. Never a
  * cumulative sum over a live base, which would let a later event shift a
@@ -237,6 +243,14 @@ export const selectCashBalance = (
   // round after the first fall back to `player.cash` and lose the carry.
   let balance = s.cashOpeningByRound[1] ?? s.player.cash;
   for (let p = 1; p <= phase; p++) balance += operatingProfitFor(p) ?? 0;
+  // THIRD TERM — local money the server never sees: event and scenario cash.
+  // `state.ledger` is the only record of it, and `amount` is SIGNED (an outflow
+  // is pushed negative), so this is a plain sum. Without it an event payout
+  // moved `player.cash` and appeared nowhere, because the balance is built from
+  // server figures rather than from `player.cash`.
+  for (const e of s.ledger) {
+    if (e.roundNumber <= phase) balance += e.amount;
+  }
   return balance;
 };
 
