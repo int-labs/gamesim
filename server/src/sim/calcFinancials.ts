@@ -121,6 +121,8 @@ export const readCostTreatment = (gi: {
     ? { cogs: gi.costTreatment.cogs ?? 0, opex: gi.costTreatment.opex ?? 0 }
     : { cogs: 0, opex: gi.cost ?? 0 };
 
+/** Costs charged PER UNIT. `inputQty × costPerUnit === incurredCost` holds for
+ *  every entry — do not add a row here that cannot satisfy it. */
 export interface IncurredCostBreakdown {
   key:          string;
   label:        string;
@@ -133,6 +135,24 @@ export interface IncurredCostBreakdown {
    *  can group the breakdown into COGS and OpEx sections without re-deriving
    *  the classification. */
   treatment:    "cogs" | "opex";
+}
+
+/** GlobalInput spend, grouped into one row per category per side of the line.
+ *  Deliberately has NO inputQty/costPerUnit: the charge is `costTreatment ×
+ *  step`, already final, so there is no quantity to divide by. */
+export interface GlobalInputCostBreakdown {
+  /** The P&L row name — operator-owned free text, never normalised. */
+  category:     string;
+  label:        string;
+  treatment:    "cogs" | "opex";
+  incurredCost: number;
+  /** The items summed into this row, so the sheet can show what made it up. */
+  contributors: Array<{
+    label:        string;
+    /** The selected option's multiplier; 1 for a radio/checkbox. */
+    stepValue:    number;
+    incurredCost: number;
+  }>;
 }
 
 export interface TeamFinancials {
@@ -164,6 +184,7 @@ export interface TeamFinancials {
   operatingProfit:     number;
   productCostBreakdown: ProductCostBreakdown[];
   incurredCosts:       IncurredCostBreakdown[];
+  globalInputCosts:    GlobalInputCostBreakdown[];
 }
 
 /** The metric block persisted under `projections[productId]`.
@@ -195,6 +216,9 @@ export const toProjectionMetrics = (f: TeamFinancials) => ({
   operatingProfit:   f.operatingProfit,
   productCostBreakdown: f.productCostBreakdown,
   incurredCosts:     f.incurredCosts,
+  // Both readers must take BOTH arrays: COGS and opex totals are only whole
+  // when the globalInput rows are added to the unit rows.
+  globalInputCosts:  f.globalInputCosts,
 });
 
 /** Named so storing collections can declare it honestly — two of the metrics
@@ -516,13 +540,12 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     const producedRaw = decision?.inputs
       .find((inp) => inp.productId.equals(productId))?.produced;
 
-    // Half the ceiling when unstated — the same default the planner displays, so
-    // a team that never touched the slider is scored on the figure it was shown.
+    // ZERO when unstated — production is a decision the team must make. This
+    // was half the ceiling, which handed out an unrequested build: the team was
+    // billed COGS for units it never planned, and a standing figure in the
+    // planner invited ignoring the scale entirely. The client's default matches.
     // Clamped by the ceiling: a target above capacity cannot be built.
-    const produced = Math.min(
-      producedRaw != null ? producedRaw : Math.floor(inventoryQty * 0.5),
-      inventoryQty,
-    );
+    const produced = Math.min(producedRaw ?? 0, inventoryQty);
 
     const opening  = openingStock?.[String(teamId)] ?? 0;
     const sellable = opening + produced;
@@ -547,6 +570,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
 
     // ── Cost breakdown, partitioned by declared treatment ────────────────────
     const incurredCosts: IncurredCostBreakdown[] = [];
+    const globalInputCosts: GlobalInputCostBreakdown[] = [];
 
     incurredCosts.push({
       key:          "inventory",
@@ -576,11 +600,13 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     let globalInputCOGS = 0;
     let globalInputOpex = 0;
 
+    type Contribution = GlobalInputCostBreakdown["contributors"][number];
+
     const categoryMap: Record<string, {
-      cogs:        number;
-      opex:        number;
-      label:       string;
-      stepValues:  number[];
+      cogs:      number;
+      opex:      number;
+      cogsItems: Contribution[];
+      opexItems: Contribution[];
     }> = {};
 
     globalInputs.forEach((entry) => {
@@ -592,35 +618,34 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       const opex = entry.costTreatment.opex * m;
 
       if (!categoryMap[entry.category]) {
-        categoryMap[entry.category] = { cogs: 0, opex: 0, label: entry.category, stepValues: [] };
+        categoryMap[entry.category] = { cogs: 0, opex: 0, cogsItems: [], opexItems: [] };
       }
-      categoryMap[entry.category].cogs += cogs;
-      categoryMap[entry.category].opex += opex;
-      categoryMap[entry.category].stepValues.push(m);
+      const row = categoryMap[entry.category];
+      row.cogs += cogs;
+      row.opex += opex;
+      // Listed per SIDE, and only when it actually charged: an item with
+      // cogs 0 / opex 40 belongs to the OpEx row alone, and an unselected one
+      // (step 0) belongs to neither.
+      if (cogs !== 0) row.cogsItems.push({ label: entry.label, stepValue: m, incurredCost: cogs });
+      if (opex !== 0) row.opexItems.push({ label: entry.label, stepValue: m, incurredCost: opex });
 
       globalInputCOGS += cogs;
       globalInputOpex += opex;
     });
 
-    // Push one entry per category, per side of the line it lands on.
-    Object.entries(categoryMap).forEach(([category, { cogs, opex, label, stepValues }]) => {
-      const avgStepValue = stepValues.length > 0
-        ? stepValues.reduce((a, b) => a + b, 0) / stepValues.length
-        : 0;
-      const divisor = stepValues.length || 1;
-
-      if (cogs !== 0) {
-        incurredCosts.push({
-          key: category, label, category,
-          inputQty: avgStepValue, leftover: 0,
-          costPerUnit: cogs / divisor, incurredCost: cogs, treatment: "cogs",
+    // One row per category, per side of the line it lands on. The category IS
+    // the expense name — it names the sum, which no single item's label can.
+    Object.entries(categoryMap).forEach(([category, r]) => {
+      if (r.cogs !== 0) {
+        globalInputCosts.push({
+          category, label: category, treatment: "cogs",
+          incurredCost: r.cogs, contributors: r.cogsItems,
         });
       }
-      if (opex !== 0) {
-        incurredCosts.push({
-          key: category, label, category,
-          inputQty: avgStepValue, leftover: 0,
-          costPerUnit: opex / divisor, incurredCost: opex, treatment: "opex",
+      if (r.opex !== 0) {
+        globalInputCosts.push({
+          category, label: category, treatment: "opex",
+          incurredCost: r.opex, contributors: r.opexItems,
         });
       }
     });
@@ -653,6 +678,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       operatingProfit,
       productCostBreakdown,
       incurredCosts,
+      globalInputCosts,
     };
   });
 

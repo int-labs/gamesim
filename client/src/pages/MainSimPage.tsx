@@ -610,19 +610,47 @@ export default function TeamDecisionPage() {
                 )}
                 {preview?.incurredCosts?.length > 0 && (
                     <>
-                        <h4>Incurred Costs</h4>
+                        <h4>Incurred Costs (per unit)</h4>
                         <table border={1} cellPadding={4}>
                         <thead>
                             <tr><th>Category</th><th>Item</th><th>Qty</th><th>Leftover</th><th>Cost/Unit</th><th>Incurred</th></tr>
                         </thead>
                         <tbody>
+                            {/* A category can land on BOTH sides of the line, so the
+                                treatment is part of the row identity. */}
                             {preview.incurredCosts.map((entry: any) => (
-                            <tr key={entry.key}>
+                            <tr key={entry.treatment + ':' + entry.key}>
                                 <td>{entry.category}</td>
                                 <td>{entry.label}</td>
                                 <td>{Number(entry.inputQty ?? 0).toFixed(2)}</td>
                                 <td>{Number(entry.leftover ?? 0).toFixed(2)}</td>
                                 <td>{Number(entry.costPerUnit ?? 0).toFixed(2)}</td>
+                                <td>{Number(entry.incurredCost ?? 0).toFixed(2)}</td>
+                            </tr>
+                            ))}
+                        </tbody>
+                        </table>
+                    </>
+                )}
+                {preview?.globalInputCosts?.length > 0 && (
+                    <>
+                        <h4>Global Input Costs</h4>
+                        {/* No Qty/Cost-Unit columns: the charge is already final,
+                            so there is no quantity to divide by. */}
+                        <table border={1} cellPadding={4}>
+                        <thead>
+                            <tr><th>Category</th><th>Side</th><th>Contributing items</th><th>Incurred</th></tr>
+                        </thead>
+                        <tbody>
+                            {preview.globalInputCosts.map((entry: any) => (
+                            <tr key={entry.treatment + ':' + entry.category}>
+                                <td>{entry.label}</td>
+                                <td>{entry.treatment}</td>
+                                <td>
+                                    {(entry.contributors ?? [])
+                                        .map((c: any) => `${c.label} (×${Number(c.stepValue ?? 0)}) ${Number(c.incurredCost ?? 0).toFixed(2)}`)
+                                        .join(', ')}
+                                </td>
                                 <td>{Number(entry.incurredCost ?? 0).toFixed(2)}</td>
                             </tr>
                             ))}

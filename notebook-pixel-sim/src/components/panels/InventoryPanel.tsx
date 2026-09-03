@@ -1,5 +1,8 @@
 import { useGame } from '@/state/store';
 import { setLineTargetPerPhase } from '@/engine/mockEngine';
+import { canSpend, selectCashBalance } from '@/engine/selectors';
+import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
+import { playSfx } from '@/audio/audioManager';
 import { genreById, type GenreId } from '@/data/finlit';
 import { PixelPanel, PixelBadge } from '@/components/primitives';
 import { fmt$, fmtInt } from '@/utils/format';
@@ -18,6 +21,9 @@ interface LineStats {
   target: number;
   /** Read-only here — price is set on the Product page (it pairs with unit cost). */
   price: number;
+  /** Server `dynamicCost` — what one unit costs to BUILD, so the planner can
+   *  price a change before committing it. Null until the server answers. */
+  unitCost: number | null;
 }
 
 /**
@@ -35,6 +41,7 @@ function statsFor(
   line: { genre?: GenreId; price: number; targetPerPhase?: number; inventory: { finished: number } },
   capacity: number | null,
   openingStock: number,
+  unitCost: number | null,
 ): LineStats {
   const genre = (line.genre ?? 'indie') as GenreId;
   return {
@@ -42,14 +49,13 @@ function statsFor(
     capacity,
     openingStock,
     finished: line.inventory.finished,
-    // Default to HALF the server's capacity — the old intent ("open modestly in
-    // the black rather than underwater on overstock holding") expressed against
-    // the ceiling that actually bounds production, instead of the invented
-    // per-day figure it used to be. Floored, so the default never rounds up past
-    // half. 0 until capacity is known, so the slider cannot suggest a plan
-    // against a ceiling nobody has stated.
-    target: line.targetPerPhase ?? (capacity != null ? Math.floor(capacity * 0.5) : 0),
+    // ZERO until stated — production is a decision. It used to default to half
+    // the ceiling, which built and billed units nobody asked for, and a standing
+    // figure let the planner be ignored: the number looked filled in already.
+    // `calcFinancials` applies the same zero to an unstated `produced`.
+    target: line.targetPerPhase ?? 0,
     price: line.price,
+    unitCost,
   };
 }
 
@@ -77,9 +83,19 @@ export function InventoryPanel({
 
   // `byProduct` is index-aligned with portfolio order, the same assumption the
   // rest of the gamesim bridge makes.
+  const byProduct = liveProjection?.byProduct ?? null;
+  // The same base the chip and the P&L show — see selectCashBalance.
+  const { financialsByRound } = useGamesimSession();
+  const cashBase = useGame((s) =>
+    selectCashBalance(
+      s,
+      s.meta.phase,
+      (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
+    ),
+  );
   const stats = lines.map((l, i) => {
-    const p = liveProjection?.byProduct[i];
-    return statsFor(l, p?.inventoryQty ?? null, Math.round(p?.closingStock ?? 0));
+    const p = byProduct?.[i];
+    return statsFor(l, p?.inventoryQty ?? null, Math.round(p?.closingStock ?? 0), p?.dynamicCost ?? null);
   });
   const totalTarget = stats.reduce((a, s) => a + s.target, 0);
   // Null when ANY line is missing its capacity: a partial sum would read as a
@@ -137,7 +153,24 @@ export function InventoryPanel({
               key={line.id}
               name={line.name}
               stats={stats[i]}
-              onChange={(v) => apply((s) => setLineTargetPerPhase(s, v, line.id))}
+              onChange={(v) => apply((s) => {
+                // Cash bounds the round: a build the team cannot pay for is
+                // REFUSED, leaving the last legal target in place. Only the
+                // DELTA is tested, so winding a target back down is always free.
+                const unit = stats[i].unitCost;
+                const extra = unit == null ? 0 : Math.ceil((v - stats[i].target) * unit);
+                if (!canSpend(s, extra, byProduct, cashBase)) {
+                  playSfx('fail');
+                  s.toast = {
+                    id: 'cash-short-build-' + line.id,
+                    kind: 'warning',
+                    text: `Not enough cash to build that many ${line.name} — ${fmt$(extra)} more needed than you have.`,
+                    until: Date.now() + 1900,
+                  };
+                  return;
+                }
+                setLineTargetPerPhase(s, v, line.id);
+              })}
               onCommit={() => recalc?.(`produce slider released · ${line.name}`)}
             />
           ))}

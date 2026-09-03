@@ -212,8 +212,9 @@ export interface DecisionDto extends CreateDecisionBody {
 
 // ── Projections (own financials — authoritative for money) ──────────────
 /** Per-product metrics the server writes under `projections[productId]`. */
-/** One line of the server's cost breakdown. Mirrors `IncurredCostBreakdown` in
- *  `server/src/sim/calcFinancials.ts` field for field. */
+/** One UNIT-CHARGED cost line. Mirrors `IncurredCostBreakdown` in
+ *  `server/src/sim/calcFinancials.ts` field for field.
+ *  `inputQty × costPerUnit === incurredCost` holds for every entry. */
 export interface IncurredCostEntryDto {
   key: string;
   label: string;
@@ -225,6 +226,16 @@ export interface IncurredCostEntryDto {
   /** Which side of the gross-profit line this falls on, so the client groups
    *  the breakdown without re-deriving the classification. */
   treatment: 'cogs' | 'opex';
+}
+
+/** GlobalInput spend — mirrors `GlobalInputCostBreakdown`. No quantity and no
+ *  per-unit rate: the charge is `costTreatment × step`, already final. */
+export interface GlobalInputCostEntryDto {
+  category: string;
+  label: string;
+  treatment: 'cogs' | 'opex';
+  incurredCost: number;
+  contributors: Array<{ label: string; stepValue: number; incurredCost: number }>;
 }
 
 export interface ProductProjectionDto {
@@ -267,6 +278,10 @@ export interface ProductProjectionDto {
    * labels nor `treatment`.
    */
   incurredCosts?: IncurredCostEntryDto[];
+  /** GlobalInput spend, split out because it has no unit quantity. Rounds
+   *  scored before the split still carry these rows inside `incurredCosts`, so
+   *  readers must take BOTH arrays or the P&L will not add up. */
+  globalInputCosts?: GlobalInputCostEntryDto[];
   /** Only written by the operator's round calculation, not by /projections/recalc. */
   marketShare?: number;
 }

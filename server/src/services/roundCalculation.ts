@@ -23,6 +23,7 @@ import Simulation from "../models/simulations";
 import {
   calcMarketModel,
   DecisionDocument,
+  MarketModelField,
   MarketModelProduct,
 } from "../sim/calcMarketModel";
 import {
@@ -122,18 +123,109 @@ export async function runRoundCalculation(
     seg.products.map((p: any) => p.productId)
   );
   const productDocs = await Product.find({ _id: { $in: productIds } }, null, s);
-  const productById = new Map(productDocs.map((p: any) => [String(p._id), p]));
+  const productById = new Map<string, any>(productDocs.map((p: any) => [String(p._id), p]));
+
+  // Every product for this simulation type — the fallback source when the
+  // market model does not reference them.
+  const allProducts = await Product.find({ simulationTypeId }, null, s);
+
+  // TEMP DIAGNOSTIC — the two silent ways this run can produce nothing:
+  // an empty marketModel, or productIds the Product collection has no doc for
+  // (the `continue` below skips those without a word).
+  console.log('[round-calc] inputs', JSON.stringify({
+    roundNumber,
+    simulationTypeId: String(simulationTypeId),
+    decisionDocs: decisionDocs.length,
+    teamIds: decisionDocs.map((d: any) => String(d.teamId)),
+    marketModelSegments: (baseData.marketModel?.segments ?? []).length,
+    marketDataSegments: (baseData.marketData?.segments ?? []).length,
+    productIdsReferenced: productIds.map(String),
+    productsForSimType: (await Product.find({ simulationTypeId }, { _id: 1 }, s)).map((p: any) => String(p._id)),
+    decidedProductIds: decisionDocs.flatMap((d: any) =>
+      (d.inputs ?? []).map((inp: any) => String(inp.productId)),
+    ),
+    productDocsFound: productDocs.map((p: any) => String(p._id)),
+    missingProducts: productIds
+      .map(String)
+      .filter((id: string) => !productById.has(id)),
+    yearKey,
+  }, null, 2));
 
   const resultsToWrite: any[] = [];
   const scoredByTeam: Record<string, any> = {};
 
-  for (const mmSegment of baseData.marketModel.segments as any[]) {
-    const segmentId = mmSegment.segmentId;
+  // What gets scored, from BOTH sources — a simulation may configure either.
+  //
+  // `marketModel` is authoritative where it exists. A product it does not
+  // reference is still scored, from its OWN fields: `Product.fields` already
+  // carries the `key`/`label`/`direction`/`tightening`/`coefficients` that
+  // `MarketModelField` requires, so nothing is fabricated. Segment comes from
+  // `Product.segmentId`, which is required on the model.
+  //
+  // Iterating `marketModel.segments` alone silently dropped EVERY calculation
+  // for a simulation that sets products up directly — the run reported success
+  // having scored nobody.
+  //
+  // `segmentFields`/`globalFields` are empty for a derived product: there is no
+  // product-level equivalent to map them from. Safe, because the three totals
+  // are ADDITIVE in calcMarketModel and scores are only ever compared across
+  // TEAMS for one product — every team gets the same field set.
+  for (const p of allProducts as any[]) {
+    if (productById.has(String(p._id))) continue;
+    productById.set(String(p._id), p);
+  }
 
-    for (const mmProduct of mmSegment.products as any[]) {
-      const productId = mmProduct.productId;
-      const product = productById.get(String(productId));
+  const scoringPairs: Array<{
+    segmentId: mongoose.Types.ObjectId;
+    mmProduct: MarketModelProduct;
+    product: any;
+  }> = [];
+  const modelled = new Set<string>();
+
+  for (const mmSegment of (baseData.marketModel?.segments ?? []) as any[]) {
+    for (const mmProduct of (mmSegment.products ?? []) as any[]) {
+      const product = productById.get(String(mmProduct.productId));
       if (!product) continue;
+      modelled.add(String(mmProduct.productId));
+      scoringPairs.push({
+        segmentId: mmSegment.segmentId,
+        mmProduct: mmProduct as MarketModelProduct,
+        product,
+      });
+    }
+  }
+
+  // EVERY product for the simulation type, not just the decided ones.
+  // Filtering to decided products was wrong: the competitor report compares
+  // teams per product, so a product needs its row whether or not this
+  // particular team chose it. A team that skipped it scores zero there — that
+  // zero IS the comparison. Drop the row and the decision has nothing to be
+  // read against.
+  for (const p of allProducts as any[]) {
+    if (modelled.has(String(p._id))) continue;
+    scoringPairs.push({
+      segmentId: p.segmentId,
+      mmProduct: {
+        productId: p._id,
+        fields: (p.fields ?? []) as unknown as MarketModelField[],
+        segmentFields: [],
+        globalFields: [],
+      },
+      product: p,
+    });
+  }
+
+  if (scoringPairs.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      message:
+        "Nothing to score: this simulation type has neither a market model nor any products.",
+    };
+  }
+
+  for (const { segmentId, mmProduct, product } of scoringPairs) {
+    const productId = mmProduct.productId;
 
       const productFields: ProductField[] = product.fields as unknown as ProductField[];
 
@@ -146,7 +238,7 @@ export async function runRoundCalculation(
       const availableMarket = mdProduct?.yearlyData?.[yearKey]?.marketSize ?? 0;
 
       const mmOutput = calcMarketModel({
-        marketModelProduct: mmProduct as MarketModelProduct,
+        marketModelProduct: mmProduct,
         productFields,
         decisions,
         year: roundNumber,
@@ -237,8 +329,13 @@ export async function runRoundCalculation(
           marketShare,
         };
       }
-    }
   }
+
+  // TEMP DIAGNOSTIC — remove once the round-close payloads are verified.
+  console.log(
+    `[round-calc] round ${roundNumber} · ${resultsToWrite.length} Results doc(s) →`,
+    JSON.stringify(resultsToWrite, null, 2),
+  );
 
   await Promise.all(
     resultsToWrite.map((r) =>
@@ -253,6 +350,12 @@ export async function runRoundCalculation(
         { upsert: true, new: true, ...s }
       )
     )
+  );
+
+  // TEMP DIAGNOSTIC — remove once the round-close payloads are verified.
+  console.log(
+    `[round-calc] round ${roundNumber} · Decision.scored for ${Object.keys(scoredByTeam).length} team(s) →`,
+    JSON.stringify(scoredByTeam, null, 2),
   );
 
   // The official figures go onto the DECISION that produced them.

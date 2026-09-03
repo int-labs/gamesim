@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getRounds, createRound, patchRound, deleteRound, endRound, deleteDecisionsByRound, deleteResultsByRound, deleteProjectionsByRound } from "../api";
+import { getRounds, createRound, patchRound, deleteRound, calculateRound, endRound, deleteDecisionsByRound, deleteResultsByRound, deleteProjectionsByRound } from "../api";
 import type { Round } from "../types";
 
 const BLANK = { simulationId: "", roundNumber: 0, status: "Pending", durationMinutes: "" };
@@ -10,6 +10,9 @@ export default function RoundsPage() {
   const [filterSim, setFilterSim] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Diagnostic readout from ⚡ Calculate, so the counts are visible without
+  // reading the server log.
+  const [calcResult, setCalcResult] = useState("");
 
   const load = async () => {
     try {
@@ -72,16 +75,35 @@ export default function RoundsPage() {
     }
   };
 
-  // Calculating a round CLOSES it. `/calculate` leaves it Active, which leaves
-  // the figures open to the next player recalc — `Completed` is the freeze.
+  // DIAGNOSTIC: `/calculate` runs runRoundCalculation and leaves the round
+  // ACTIVE, so it can be clicked repeatedly without flipping the status back.
+  // No confirm dialog, for the same reason. It does NOT freeze the round and
+  // does NOT advance the simulation — use Close round for the operator flow.
   // See ../../../server/README.md#what-freezes-a-round
   const handleCalculate = async (roundId: string) => {
+    setError("");
+    setCalcResult("");
+    try {
+      const res = await calculateRound(roundId);
+      setCalcResult(
+        `Round ${res.data?.roundNumber ?? "?"} calculated · ` +
+        `${res.data?.resultsWritten ?? 0} results · ${res.data?.teamsUpdated ?? 0} teams scored`
+      );
+      await load();
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message);
+    }
+  };
+
+  // The real operator flow: calculate + Complete + advance, atomically.
+  const handleCloseRound = async (roundId: string) => {
     if (!confirm(
       "Calculate and close this round?\n\n" +
       "This computes market shares and financials for all teams, marks the round " +
       "Completed so its projections and results can no longer be overwritten, and " +
       "advances the simulation to the next round."
     )) return;
+    setError("");
     try {
       await endRound(roundId);
       await load();
@@ -104,6 +126,7 @@ export default function RoundsPage() {
     <div>
       <h2>Rounds</h2>
       {error && <p style={{ color: "red" }}>{error}</p>}
+      {calcResult && <p style={{ color: "green" }}>{calcResult}</p>}
 
       <label>Filter by Simulation ID: <input value={filterSim} onChange={e => setFilterSim(e.target.value)} /></label>
 
@@ -155,7 +178,10 @@ export default function RoundsPage() {
               <td>{r.timer?.endDate ? new Date(r.timer.endDate).toLocaleString() : ""}</td>
               <td>
                 {r.status === "Active" && (
-                  <button onClick={() => handleCalculate(r._id)}>⚡ Calculate</button>
+                  <button onClick={() => handleCalculate(r._id)} title="Recalculate — leaves the round Active, so it can be run again">⚡ Calculate</button>
+                )}
+                {r.status === "Active" && (
+                  <button onClick={() => handleCloseRound(r._id)} title="Calculate, mark Completed and advance the simulation">🔒 Close round</button>
                 )}
                 {r.status === "Pending" && (
                   <button onClick={() => handlePatch(r._id, "Active")}>→ Active</button>

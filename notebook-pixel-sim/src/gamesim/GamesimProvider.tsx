@@ -18,8 +18,8 @@ import { PassKeyScreen } from '@/components/passkey/PassKeyScreen';
 import { devSkip } from '@/access/passkey';
 import { GamesimStatusScreen } from '@/components/gamesim/GamesimStatusScreen';
 import {
-  fetchOfficialFinancials,
-  fetchOfficialResults,
+  fetchAllOfficialFinancials,
+  fetchAllOfficialResults,
   fetchSubmittedDecision,
   type OfficialFinancials,
   type OfficialRoundResults,
@@ -83,7 +83,8 @@ interface GamesimSessionValue {
   /** May the player run their own phase locally? */
   canAdvance: boolean;
   refetchBootstrap: () => void;
-  /** Re-read official results/financials for the current round. */
+  /** Re-read official results/financials for EVERY round up to the current one,
+   *  so the P&L keeps its earlier columns across a reload. */
   refreshOfficial: () => Promise<void>;
   /**
    * Report this team's progress to the facilitator console. EVENT-DRIVEN — there
@@ -315,22 +316,35 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     };
   }, [reloadToken]);
 
-  // ── Official numbers + submission state for the current round ─────────
+  // ── Official numbers (every scored round) + this round's submission ───
   const refreshOfficial = useCallback(async () => {
     if (!bootstrap?.round) return;
     const args = {
       simulationId: bootstrap.simulation._id,
       teamId: bootstrap.teamId,
-      roundNumber: bootstrap.round.roundNumber,
     };
-    const [decision, results, financials] = await Promise.all([
-      fetchSubmittedDecision(args),
-      fetchOfficialResults(args).catch(() => null),
-      fetchOfficialFinancials({ ...args, productNames }).catch(() => null),
-    ]);
+
+    // The submitted decision is a CURRENT-round question — only this round can
+    // still be submitted to.
+    const decision = await fetchSubmittedDecision({
+      ...args,
+      roundNumber: bootstrap.round.roundNumber,
+    });
     setSubmittedDecision(decision);
-    if (results) setResultsByRound((prev) => ({ ...prev, [results.roundNumber]: results }));
-    if (financials) setFinancialsByRound((prev) => ({ ...prev, [financials.roundNumber]: financials }));
+
+    // EVERY scored round, in TWO requests — not one pair per round. Both
+    // endpoints filter by `roundNumber` only when it is given, and every
+    // document carries its own, which is what backfills the P&L's phase
+    // columns. Asking per round also meant the map only ever held rounds this
+    // session was live for, so a reload emptied every earlier column.
+    const [financials, results] = await Promise.all([
+      fetchAllOfficialFinancials({ ...args, productNames }),
+      fetchAllOfficialResults(args),
+    ]);
+    // REPLACE, not merge: this is the complete history, so a stale key here
+    // would be a round the server no longer scores (an operator reset).
+    setFinancialsByRound(financials);
+    setResultsByRound(results);
   }, [bootstrap, productNames]);
 
   // ── NO POLLING ────────────────────────────────────────────────────────────

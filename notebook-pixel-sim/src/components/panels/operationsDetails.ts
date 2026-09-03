@@ -93,50 +93,46 @@ export function channelDetail(gi?: GlobalInputDto): SectionDetail {
  * documented a spend range and an effect the server never applied.
  */
 export function budgetDetail(gi?: GlobalInputDto): SectionDetail {
-  const item = gi?.inputs[0];
-  const impact = item?.impacts?.['marketing']?.value ?? 0;
-  // Each step is a key of `options`; its value is the multiplier the server
-  // applies to both the cost and the impact.
-  const steps = Object.entries(item?.options ?? {}).map(([stepKey, mult]) => ({
-    stepKey,
-    spend: Math.ceil((item?.cost ?? 0) * mult),
-    demand: impact * mult,
-  }));
-  const top = steps.reduce<typeof steps[number] | null>(
-    (best, s) => (best == null || s.demand > best.demand ? s : best),
-    null,
-  );
+  // Every item, not `inputs[0]`: the container may hold several marketing
+  // options and the server charges and applies all of them.
+  const levers = (gi?.inputs ?? []).map((item) => {
+    const impact = item.impacts?.['marketing']?.value ?? 0;
+    // Each step is a key of `options`; its value is the multiplier the server
+    // applies to both the cost and the impact.
+    const steps = Object.entries(item.options ?? {}).map(([stepKey, mult]) => ({
+      stepKey,
+      spend: Math.ceil((item.cost ?? 0) * mult),
+      demand: impact * mult,
+    }));
+    const top = steps.reduce<typeof steps[number] | null>(
+      (best, s) => (best == null || s.demand > best.demand ? s : best),
+      null,
+    );
+    return { item, steps, top };
+  });
+
   return {
-    title: gi?.label ?? 'Marketing & Sales Budget',
+    title: gi?.label ?? 'Marketing Budget',
     intro: gi?.description
       ?? 'Marketing makes more people want the notebook. It is priced per phase and costs energy to switch on, refunded when you set it back to zero.',
-    inputs: [
-      {
-        name: item?.label ?? 'Marketing budget',
-        description: item?.description ?? 'Awareness. Lifts demand, so more people want what you make.',
-        cost: top ? `up to ${money(top.spend)} / phase` : NO_DESC,
-        energy: item?.energy ?? 0,
-        impacts: 'All notebooks',
-        effect: top ? `+${(top.demand * 100).toFixed(1)}%` : '—',
-      },
-      {
-        name: 'Sales budget',
-        description: 'Conversion. Lifts sell-rate, so more of the interested actually buy. Comes from hiring, not a budget of its own.',
-        cost: '—',
-        energy: 0,
-        impacts: 'All notebooks',
-        effect: '—',
-      },
-    ],
-    tables: steps.length
-      ? [
-          {
-            caption: 'What your spend buys',
-            columns: ['Step', 'Spend / phase', 'Demand'],
-            rows: steps.map((s) => [s.stepKey, money(s.spend), `+${(s.demand * 100).toFixed(1)}%`]),
-          },
-        ]
-      : [],
+    inputs: levers.map(({ item, top }) => ({
+      name: item.label ?? 'Marketing budget',
+      description: item.description ?? 'Awareness. Lifts demand, so more people want what you make.',
+      cost: top ? `up to ${money(top.spend)} / phase` : NO_DESC,
+      energy: item.energy ?? 0,
+      impacts: 'All notebooks',
+      effect: top ? `+${(top.demand * 100).toFixed(1)}%` : '—',
+    })),
+    // One table per lever, captioned by name so several are still readable.
+    tables: levers
+      .filter(({ steps }) => steps.length > 0)
+      .map(({ item, steps }) => ({
+        caption: levers.length > 1
+          ? `${item.label ?? 'Marketing'} - what your spend buys`
+          : 'What your spend buys',
+        columns: ['Step', 'Spend / phase', 'Demand'],
+        rows: steps.map((s) => [s.stepKey, money(s.spend), `+${(s.demand * 100).toFixed(1)}%`]),
+      })),
   };
 }
 

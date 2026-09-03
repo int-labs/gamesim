@@ -19,39 +19,39 @@ export const TYPE_OPTIONS: ConfigOption[] = [
 ];
 
 export const PAPER_OPTIONS: ConfigOption[] = [
-  { id: 'cream', name: 'Cream Paper', score: 20 },
-  { id: 'fountain', name: 'Fountain Pen Paper', score: 25 },
-  { id: 'recycled', name: 'Recycled Paper', score: 15 },
-  { id: 'black', name: 'Black Paper', score: 25 },
+  { id: 'recycled', name: 'Recycled Paper', score: 6 },
+  { id: 'cream', name: 'Cream Paper', score: 6 },
+  { id: 'black', name: 'Black Paper', score: 8 },
+  { id: 'fountain', name: 'Fountain Pen Paper', score: 8 },
 ];
 
 export const SIZE_OPTIONS: ConfigOption[] = [
-  { id: 'a5', name: 'A5', score: 30 },
-  { id: 'b4', name: 'B4', score: 45 },
-  { id: 'b5', name: 'B5', score: 35 },
+  { id: 'a5', name: 'A5', score: 10 },
+  { id: 'b5', name: 'B5', score: 15 },
+  { id: 'b4', name: 'B4', score: 12 },
 ];
 
 export const PAGE_DESIGN_OPTIONS: ConfigOption[] = [
-  { id: 'lined', name: 'Lined', score: 55 },
-  { id: 'grid', name: 'Grid', score: 60 },
-  { id: 'storyboarding', name: 'Storyboarding', score: 70 },
-  { id: 'blank', name: 'Blank', score: 40 },
-  { id: 'numbered', name: 'Numbered', score: 45 },
+  { id: 'blank', name: 'Blank', score: 5 },
+  { id: 'lined', name: 'Lined', score: 8 },
+  { id: 'grid', name: 'Grid', score: 10 },
+  { id: 'numbered', name: 'Numbered', score: 10 },
+  { id: 'storyboarding', name: 'Storyboarding', score: 17 },
 ];
 
 export const ADDON_OPTIONS: ConfigOption[] = [
-  { id: 'spiral', name: 'Spiral Bound', score: 20 },
-  { id: 'sewn', name: 'Sewn Binding', score: 15 },
-  { id: 'pen_holder', name: 'Pen Holder', score: 30 },
-  { id: 'bookmark', name: 'Bookmark Ribbon', score: 15 },
-  { id: 'corner', name: 'Corner Protectors', score: 15 },
-  { id: 'charms', name: 'Acrylic Charms', score: 35 },
+  { id: 'spiral', name: 'Spiral Bound', score: 6 },
+  { id: 'sewn', name: 'Sewn Binding', score: 6 },
+  { id: 'pen_holder', name: 'Pen Holder', score: 10 },
+  { id: 'bookmark', name: 'Bookmark Ribbon', score: 10 },
+  { id: 'corner', name: 'Corner Protectors', score: 8 },
+  { id: 'charms', name: 'Acrylic Charms', score: 8 },
 ];
 
 export const COVER_OPTIONS: ConfigOption[] = [
-  { id: 'hard', name: 'Hard Cover', score: 35 },
-  { id: 'plastic', name: 'Plastic Covers', score: 45 },
-  { id: 'holographic', name: 'Holographic Covers', score: 55 },
+  { id: 'plastic', name: 'Plastic Covers', score: 12 },
+  { id: 'hard', name: 'Hard Cover', score: 12 },
+  { id: 'holographic', name: 'Holographic Covers', score: 12 },
 ];
 
 /**

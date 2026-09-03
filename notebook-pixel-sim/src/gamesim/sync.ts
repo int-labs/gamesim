@@ -213,22 +213,10 @@ export interface OfficialRoundResults {
   raw: ResultDto[];
 }
 
-/**
- * Official cross-team results for a round, read from GET /results. Returns null
- * while the operator has not run the round's calculation yet (no documents).
- */
-export async function fetchOfficialResults(args: {
-  simulationId: Id;
-  teamId: Id;
-  roundNumber: number;
-}): Promise<OfficialRoundResults | null> {
-  const raw = await gamesim.getResults({
-    simulationId: args.simulationId,
-    roundNumber: args.roundNumber,
-  });
-  if (!raw || raw.length === 0) return null;
-  return summarizeResults(raw, args.teamId, args.roundNumber);
-}
+// The per-round readers are GONE: `fetchAllOfficialResults` /
+// `fetchAllOfficialFinancials` read every round in one request and bucket by
+// each document's own `roundNumber`. Two ways to read the same collection is
+// how the P&L ended up with only the current round's column populated.
 
 export function summarizeResults(raw: ResultDto[], teamId: Id, roundNumber: number): OfficialRoundResults {
   const byProduct: OfficialProductResult[] = raw.map((doc) => {
@@ -287,32 +275,19 @@ export interface OfficialFinancials {
   raw: DecisionDto;
 }
 
-/**
- * The team's own official financials for a round, read from GET /projections.
- * These are the server's numbers — the game's local P&L is NOT the same model
- * and will differ; show these whenever they exist.
- */
-export async function fetchOfficialFinancials(args: {
-  simulationId: Id;
-  teamId: Id;
-  roundNumber: number;
-  productNames?: Record<Id, string>;
-}): Promise<OfficialFinancials | null> {
-  // The DECISION, not the projection — Projections is what-if only.
-  // No `scored` = not calculated yet, so the P&L column renders empty.
-  // See ../../../server/README.md#the-four-collections
-  const docs = await gamesim.getDecisions({
-    simulationId: args.simulationId,
-    teamId: args.teamId,
-    roundNumber: args.roundNumber,
-  });
-  const raw = docs?.[0];
+/** Fold one Decision document into the team's financials for its round.
+ *  Scalars SUM across the round's products; the per-product rows stay in
+ *  `byProduct` for the cost breakdown to itemise. */
+function financialsFromDecision(
+  raw: DecisionDto,
+  productNames?: Record<Id, string>,
+): OfficialFinancials | null {
   if (!raw?.scored) return null;
 
   const byProduct: ServerProductProjection[] = Object.entries(raw.scored).map(
     ([productId, metrics]) => ({
       productId,
-      productName: args.productNames?.[productId] ?? productId,
+      productName: productNames?.[productId] ?? productId,
       ...metrics,
     }),
   );
@@ -320,7 +295,7 @@ export async function fetchOfficialFinancials(args: {
     byProduct.reduce((a, p) => a + (pick(p) ?? 0), 0);
 
   return {
-    roundNumber: args.roundNumber,
+    roundNumber: raw.roundNumber,
     revenue: sum((p) => p.revenue),
     cogs: sum((p) => p.COGS),
     grossProfit: sum((p) => p.grossProfit),
@@ -331,3 +306,65 @@ export async function fetchOfficialFinancials(args: {
     raw,
   };
 }
+
+/**
+ * EVERY scored round for this team, in ONE request.
+ *
+ * `roundNumber` is omitted from the query on purpose — the server only filters
+ * by it `if (roundNumber !== undefined)`, so leaving it out returns the team's
+ * whole history and each document carries the `roundNumber` needed to bucket it.
+ * That is what `roundNumber` is FOR: backfilling the P&L's phase columns.
+ * Fetching round-by-round cost one request per round and, worse, only ever
+ * populated the rounds a session happened to be live for.
+ *
+ * Rounds with no `scored` are skipped, so an uncalculated column stays empty
+ * rather than reading as zeros.
+ */
+export async function fetchAllOfficialFinancials(args: {
+  simulationId: Id;
+  teamId: Id;
+  productNames?: Record<Id, string>;
+}): Promise<Record<number, OfficialFinancials>> {
+  const byRound: Record<number, OfficialFinancials> = {};
+  try {
+    const docs = await gamesim.getDecisions({
+      simulationId: args.simulationId,
+      teamId: args.teamId,
+    });
+    for (const raw of docs ?? []) {
+      const financials = financialsFromDecision(raw, args.productNames);
+      if (financials) byRound[financials.roundNumber] = financials;
+    }
+  } catch (err) {
+    console.warn('[gamesim] failed to read official financials', err);
+  }
+  return byRound;
+}
+
+/**
+ * EVERY scored round's cross-team results, in ONE request. Same reasoning as
+ * `fetchAllOfficialFinancials` — `GET /results` filters by `roundNumber` only
+ * when it is supplied, and each document carries its own.
+ */
+export async function fetchAllOfficialResults(args: {
+  simulationId: Id;
+  teamId: Id;
+}): Promise<Record<number, OfficialRoundResults>> {
+  const byRound: Record<number, OfficialRoundResults> = {};
+  try {
+    const docs = await gamesim.getResults({ simulationId: args.simulationId });
+    const grouped = new Map<number, ResultDto[]>();
+    for (const doc of docs ?? []) {
+      const list = grouped.get(doc.roundNumber) ?? [];
+      list.push(doc);
+      grouped.set(doc.roundNumber, list);
+    }
+    for (const [roundNumber, list] of grouped) {
+      byRound[roundNumber] = summarizeResults(list, args.teamId, roundNumber);
+    }
+  } catch (err) {
+    console.warn('[gamesim] failed to read official results', err);
+  }
+  return byRound;
+}
+

@@ -37,22 +37,23 @@ will be read by mistake.
 **`Decision.scored` is the official record.** Written once, by the round close,
 and never by the recalc — which is what makes it official.
 
-- shape: [`models/decisions.ts:164`](src/models/decisions.ts#L164) · type [`ScoredMetrics`](src/sim/calcFinancials.ts#L216)
-- written: [`roundCalculation.ts:304`](src/services/roundCalculation.ts#L304) — `updateOne`, never an upsert
-- unique index: [`models/decisions.ts:173`](src/models/decisions.ts#L173)
+- shape: [`models/decisions.ts:131`](src/models/decisions.ts#L131) · type [`ScoredMetrics`](src/sim/calcFinancials.ts#L230)
+- written: [`roundCalculation.ts:263`](src/services/roundCalculation.ts#L263) — `updateOne`, never an upsert
+- unique index: [`models/decisions.ts:154`](src/models/decisions.ts#L154)
 
 Storing it here rather than on `Projections` is what makes **carry-forward stock
 immutable**: round N reads round N−1's `scored[productId].closingStock`, so a
 team's opening stock can never be whatever their last speculative edit said.
 
 The metric block is shaped by one function,
-[`toProjectionMetrics`](src/sim/calcFinancials.ts#L179), called by both money
+[`toProjectionMetrics`](src/sim/calcFinancials.ts#L200), called by both money
 paths so a field added to the sheet reaches the live projection and the official
 close together, or not at all. `marketShare` is deliberately **not** in it — the
 recalc has no competed share, and the round close spreads it in on top.
 
 > `Projections`' own TypeScript interface types every metric as `number`, which
-> is false: `productCostBreakdown` and `incurredCosts` are arrays of objects.
+> is false: `productCostBreakdown`, `incurredCosts` and `globalInputCosts` are
+> arrays of objects.
 > The field is `Schema.Types.Mixed`, so Mongo stores them correctly — but code
 > typed against that model cannot see them.
 > [`models/projections.ts:23`](src/models/projections.ts#L23)
@@ -101,7 +102,7 @@ already-competed share as a *parameter* and never computes one.
 | Results row | [`roundCalculation.ts:197`](src/services/roundCalculation.ts#L197) | Scores + shares |
 | Financials, per team | [`roundCalculation.ts:224`](src/services/roundCalculation.ts#L224) | Share handed in |
 | Write Results | [`roundCalculation.ts:273`](src/services/roundCalculation.ts#L273) | upsert |
-| Write `Decision.scored` | [`roundCalculation.ts:304`](src/services/roundCalculation.ts#L304) | `updateOne` |
+| Write `Decision.scored` | [`roundCalculation.ts:263`](src/services/roundCalculation.ts#L263) | `updateOne` |
 
 `readCostTreatment` ([`calcFinancials.ts:116`](src/sim/calcFinancials.ts#L116))
 is the single interpreter of a globalInput's cost. Both money paths must call it,
@@ -123,8 +124,8 @@ closingStock  = sellable − unitsSold                     ← next round's open
 = Operating Profit
 ```
 
-- `unitsSold` [`:546`](src/sim/calcFinancials.ts#L546) · `closingStock` [`:549`](src/sim/calcFinancials.ts#L549)
-- `unitCOGS` [`:556`](src/sim/calcFinancials.ts#L556) · `holdingCost` [`:562`](src/sim/calcFinancials.ts#L562)
+- `unitsSold` [`:554`](src/sim/calcFinancials.ts#L554) · `closingStock` [`:557`](src/sim/calcFinancials.ts#L557)
+- `unitCOGS` [`:564`](src/sim/calcFinancials.ts#L564) · `holdingCost` [`:570`](src/sim/calcFinancials.ts#L570)
 
 **COGS is charged on units PRODUCED, not sold.** Cost is recognised when a unit
 is built, so carried stock sells later with no further COGS — and a round that
@@ -132,14 +133,48 @@ sells nothing still expenses its whole build.
 
 **`inventoryQty` is the CEILING on production**, derived from the product's own
 field values and never persisted as a decision.
-[`:487`](src/sim/calcFinancials.ts#L487), against
-`INVENTORY_BASE = 1000` [`:327`](src/sim/calcFinancials.ts#L327).
+[`:501`](src/sim/calcFinancials.ts#L501), against
+`INVENTORY_BASE = 1000` [`:341`](src/sim/calcFinancials.ts#L341).
 
-`incurredCosts` is the itemised breakdown, each entry carrying `category` (free
-text, operator-owned — never normalised by the client) and
-`treatment: 'cogs' | 'opex'`, which decides which side of the gross-profit line
-it renders on. `Σ incurredCosts` per treatment equals `COGS` / `operatingExpenses`
-exactly; the tests assert that identity.
+**An unstated target builds NOTHING.** `produced: null` resolves to zero
+[`:548`](src/sim/calcFinancials.ts#L548), not to a share of the ceiling — a team
+is never billed COGS for a build it did not ask for. The client's planner
+defaults to the same zero (`statsFor` in `InventoryPanel.tsx`), so the two
+cannot disagree. This was half the ceiling on both sides until 2026-09-03; a
+test asserting cost behaviour must now state a target or nothing is built.
+
+### The cost breakdown is TWO arrays
+
+Every entry carries `treatment: 'cogs' | 'opex'`, which decides which side of the
+gross-profit line it renders on, and `category` — free text, operator-owned,
+**never normalised by the client**. They are split by whether a unit quantity
+exists at all:
+
+| Array | Holds | Unit fields |
+|---|---|---|
+| `incurredCosts` [`:126`](src/sim/calcFinancials.ts#L126) | COGS and inventory holding | `inputQty × costPerUnit === incurredCost` holds for every entry |
+| `globalInputCosts` [`:143`](src/sim/calcFinancials.ts#L143) | globalInput spend, one row per category per side | none — the charge is `costTreatment × step`, already final |
+
+**Read BOTH or the sheet will not add up.** `Σ (incurredCosts + globalInputCosts)`
+per treatment equals `COGS` / `operatingExpenses` exactly; the tests assert that
+identity over the concatenation.
+
+A globalInput row has no quantity to divide by, which is why it has no
+`inputQty`/`costPerUnit` rather than a placeholder — those fields previously held
+a mean over the category's entry count, a number with no referent that the admin
+console displayed. The `contributors[]` array carries the items summed into the
+row instead, listed per side and only when the item actually charged, so a
+step-0 item appears nowhere. Built at [`:613`](src/sim/calcFinancials.ts#L613),
+emitted at [`:639`](src/sim/calcFinancials.ts#L639).
+
+**The category names the row**, not any item's own label — it is the only string
+that describes the sum. `label` mirrors `category` today, and the clients group
+on it, so the two must stay equal.
+
+Rounds scored before the split carry their globalInput rows inside
+`incurredCosts` with `key === category`, which is the key the new array yields.
+Old and new documents therefore merge into the same row with no migration and no
+version check.
 
 ## Score
 
@@ -148,9 +183,9 @@ per config option is enough:
 
 | Formula | Where | Shape |
 |---|---|---|
-| `dynamicPrice` | [`:379`](src/sim/calcFinancials.ts#L379) | bell-curved, direction-weighted |
-| `dynamicCost` | [`:401`](src/sim/calcFinancials.ts#L401) | `(minValue + score) × field.unitCost` — linear |
-| `inventoryQty` | [`:487`](src/sim/calcFinancials.ts#L487) | `Π (1 − score × 0.01) × INVENTORY_BASE` |
+| `dynamicPrice` | [`:393`](src/sim/calcFinancials.ts#L393) | bell-curved, direction-weighted |
+| `dynamicCost` | [`:416`](src/sim/calcFinancials.ts#L416) | `(minValue + score) × field.unitCost` — linear |
+| `inventoryQty` | [`:501`](src/sim/calcFinancials.ts#L501) | `Π (1 − score × 0.01) × INVENTORY_BASE` |
 
 Scores are **0–100**, authored by hand from the design sheet. The range is not
 arbitrary: `maxValue` defaults to 100, so the bell curve's mean sits at 50 with a
@@ -201,3 +236,4 @@ Things that must stay true. Each has broken at least once.
 5. **Carry-forward stock reads `Decision.scored`, never `Projections`.**
 6. **`Projections` is never authoritative.** If a number matters, it comes from `Decision.scored`.
 7. **A round is scored as a unit.** `scored` is replaced wholesale, not merged per product, so two calculations can never interleave.
+8. **The cost breakdown is two arrays.** Any reader of one must read the other, or COGS/opex will not reconcile. A row belongs in `incurredCosts` only if `inputQty × costPerUnit === incurredCost`.

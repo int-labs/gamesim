@@ -1,27 +1,16 @@
-// Marketing teams (sheet rows 48–52). Pick one; it adds a sell-rate bump for a
-// daily cost + energy. "Sell-rate is perpendicular to cost; cost is a slider,
-// sell-rate rises 0.01 per $0.30" — the four presets sit on that line.
+// Marketing presentation only. The numbers — cost, energy, steps and the demand
+// impact — live on the `marketing` globalInput and are read straight off it.
 
-export type MarketingId = 'social' | 'offline_ad' | 'web' | 'seo';
+/**
+ * Marketing artwork, keyed by the BACKEND item's `key` — the same contract as
+ * `CANDIDATE_IMAGE` / `VENDOR_IMAGE`. Populated by `configHydrator` from the
+ * operator's PlayerConfig, which is the only place it is configured.
+ *
+ * Mutated in place and read lazily, per the container rules in CLAUDE.md: never
+ * build a derived constant from it at module scope.
+ */
+export const MARKETING_IMAGE: Record<string, string> = {};
 
-export interface MarketingDef {
-  id: MarketingId;
-  name: string;
-  cost: number;
-  sellBonus: number;
-  energy: number;
-  blurb: string;
-}
-
-export const MARKETING_TEAMS: MarketingDef[] = [
-  { id: 'social', name: 'Social Media Marketing', cost: 13, sellBonus: 0.047, energy: 4, blurb: 'Steady organic-feeling reach at a modest spend.' },
-  { id: 'offline_ad', name: 'Offline Advertisement', cost: 10, sellBonus: 0.041, energy: 3, blurb: 'Cheapest option; smallest lift. Good early.' },
-  { id: 'web', name: 'Web Marketing', cost: 20, sellBonus: 0.092, energy: 7, blurb: 'Biggest sell lift, but the priciest and most energy-hungry.' },
-  { id: 'seo', name: 'SEO', cost: 17, sellBonus: 0.075, energy: 5, blurb: 'Strong compounding reach at a middle price point.' },
-];
-
-export const marketingById = (id: MarketingId): MarketingDef => {
-  const m = MARKETING_TEAMS.find((x) => x.id === id);
-  if (!m) throw new Error(`Unknown marketing team: ${id}`);
-  return m;
+export const setMarketingImage = (id: string, url: string): void => {
+  MARKETING_IMAGE[id] = url;
 };

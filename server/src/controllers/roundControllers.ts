@@ -243,6 +243,8 @@ export const endRound = async (req: Request, res: Response): Promise<void> => {
     res.status(state.failure.status).json({ message: state.failure.message });
     return;
   }
+  // TEMP DIAGNOSTIC — remove once the round-close payloads are verified.
+  console.log('[end-round] SUCCESS →', JSON.stringify(state.payload, null, 2));
   res.status(200).json(state.payload ?? { message: "Round ended." });
 };
 

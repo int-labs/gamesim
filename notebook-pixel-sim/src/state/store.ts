@@ -309,11 +309,9 @@ const starterLine = (): ProductLine => {
     targetSegment: starterSegment(),
     inventory: { raw: 2, finished: 1, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
     finlitSpec: { type: genre.id, paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
-    // No `targetPerPhase`. Absent means "half the server's capacity" (see
-    // `statsFor` in InventoryPanel) — the old "open modestly in the black"
-    // intent, now expressed against the ceiling that actually bounds
-    // production. A literal here could only be a number from a model that no
-    // longer applies.
+    // No `targetPerPhase`. Absent means ZERO on both sides — production is a
+    // decision the player has to make, and a new line must not arrive with a
+    // build already planned. See `produced` in server/src/sim/calcFinancials.ts.
   };
 };
 

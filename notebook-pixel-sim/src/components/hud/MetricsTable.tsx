@@ -12,6 +12,7 @@ import type {
   OfficialFinancials,
 } from '@/gamesim/sync';
 import { computeUserProjection } from '@/gamesim/computeUserProjection';
+import { selectCashBalance } from '@/engine/selectors';
 import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 
 /**
@@ -478,9 +479,9 @@ const ROW_CASH: PnLRow = {
 };
 
 export function FinanceTable() {
-  // Cash at ROUND start, not cash now. The only figure with no server field.
-  const openingCash = useGame((s) => s.player.cash);
-  const cashOpeningByRound = useGame((s) => s.cashOpeningByRound);
+  // The whole state, because `selectCashBalance` reads `player.cash` and
+  // `cashOpeningByRound` and must be the single definition of that figure.
+  const gameState = useGame((s) => s);
   const phaseNow = useGame((s) => s.meta.phase);
   const reduced = useReducedMotion();
   // Hooked, not passed: two render sites (BottomStats, BusinessPage), neither
@@ -501,22 +502,28 @@ export function FinanceTable() {
     return [...seen].filter((p) => p >= 1).sort((a, b) => a - b);
   })();
 
-  // `incurredCosts` is PER PRODUCT, so a round's row sums across products.
+  // Costs are PER PRODUCT, so a round's row sums across products.
   // Key is `treatment:key` — one category can land on BOTH sides of the line.
+  //
+  // BOTH arrays: unit-charged rows in `incurredCosts`, globalInput spend in
+  // `globalInputCosts`. Rounds scored before the split carry globalInput rows
+  // in the first array with `key === category`, which is the key the second
+  // array produces — so old and new documents merge into the same row.
   const costByRound = new Map<number, Map<string, CostCell>>();
   for (const p of phases) {
     const f = officialFor(p);
     if (!f) continue;
     const m = new Map<string, CostCell>();
+    const add = (k: string, label: string, treatment: 'cogs' | 'opex', amount: number) => {
+      const prev = m.get(k);
+      m.set(k, { label, treatment, amount: (prev?.amount ?? 0) + amount });
+    };
     for (const prod of f.byProduct) {
       for (const c of prod.incurredCosts ?? []) {
-        const k = c.treatment + ':' + c.key;
-        const prev = m.get(k);
-        m.set(k, {
-          label: c.label,
-          treatment: c.treatment,
-          amount: (prev?.amount ?? 0) + (c.incurredCost ?? 0),
-        });
+        add(c.treatment + ':' + c.key, c.label, c.treatment, c.incurredCost ?? 0);
+      }
+      for (const c of prod.globalInputCosts ?? []) {
+        add(c.treatment + ':' + c.category, c.label, c.treatment, c.incurredCost ?? 0);
       }
     }
     costByRound.set(p, m);
@@ -552,10 +559,11 @@ export function FinanceTable() {
     ROW_CASH,
   ];
 
-  // PER ROUND, from that round's own write-once opening — never a cumulative
-  // sum over a live base, which would let a later event shift settled columns.
+  // PER ROUND, from that round's own write-once opening plus its scored profit.
+  // Never a cumulative sum over a live base, and never net of committed spend:
+  // this is the BALANCE, and it is the definition the HUD chip adopts.
   const cashThrough = (p: number) =>
-    (cashOpeningByRound[p] ?? openingCash) + (officialFor(p)?.operatingProfit ?? 0);
+    selectCashBalance(gameState, p, (r) => officialFor(r)?.operatingProfit);
 
   const computeRow = (r: PnLRow, p: number | 'total'): number | null => {
     if (r.source === 'cash') {

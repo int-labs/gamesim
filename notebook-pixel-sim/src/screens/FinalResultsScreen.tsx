@@ -83,7 +83,9 @@ export function FinalResultsScreen() {
   const serverCostMix = (() => {
     const byLabel = new Map<string, number>();
     for (const p of latestFinancials?.byProduct ?? []) {
-      for (const entry of p.incurredCosts ?? []) {
+      // Both arrays — globalInput spend is the larger half of the mix, and
+      // grouping is by label, which is the category for those rows.
+      for (const entry of [...(p.incurredCosts ?? []), ...(p.globalInputCosts ?? [])]) {
         if (!entry?.label) continue;
         byLabel.set(entry.label, (byLabel.get(entry.label) ?? 0) + (entry.incurredCost ?? 0));
       }

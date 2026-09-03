@@ -865,8 +865,8 @@ export const clearFinlitHire = (s: GameState, item?: GlobalInputItemDto): void =
   s.history.push({ day: s.meta.day, text: `Released hire: ${item?.label ?? 'all'}`, cause: 'finlit_hire_clear' });
 };
 
-/** Set the marketing slider step (e.g. "1", "-2", "0"). No energy gate —
- *  marketing has energy: 0 in the backend globalInputs schema. */
+/** Set one marketing item's step (e.g. "1", "-2", "0"). Keyed by `inputId`:
+ *  the container may hold several items, each with its own selection row. */
 export const setFinlitMarketingBudget = (
   s: GameState,
   item: GlobalInputItemDto,
@@ -884,20 +884,22 @@ export const setFinlitMarketingBudget = (
   const stepEnergy = (key: string | null | undefined): number =>
     key == null ? 0 : Math.ceil((item.energy ?? 0) * (item.options?.[key] ?? 0));
 
-  const idx = s.globalInputSelections.findIndex((sel) => sel.key === 'marketing');
+  // Matched on inputId, NOT on key alone: keying by 'marketing' gave the
+  // container one selection row, so a second item overwrote the first instead
+  // of sitting beside it.
+  const itemId = String(item._id);
+  const idx = s.globalInputSelections.findIndex(
+    (sel) => sel.key === 'marketing' && sel.inputId === itemId,
+  );
   const oldEnergy = idx >= 0 ? stepEnergy(s.globalInputSelections[idx].selectedStepKey) : 0;
   if (!applyEnergyDelta(s, stepEnergy(stepKey) - oldEnergy, 'marketing')) return false;
 
-  const entry = { key: 'marketing', selectedStepKey: stepKey, inputId: String(item._id) };
+  const entry = { key: 'marketing', selectedStepKey: stepKey, inputId: itemId };
   if (idx >= 0) Object.assign(s.globalInputSelections[idx], entry);
   else s.globalInputSelections.push(entry);
   s.history.push({ day: s.meta.day, text: `Marketing → step ${stepKey}`, cause: 'finlit_marketing' });
   return true;
 };
-
-/** No-op stub. Sales boost comes from hiring (candidates B/D impact sales_channel),
- *  not a separate budget slider — there is no salesBudget in globalInputs. */
-export const setFinlitSalesBudget = (_s: GameState, _v: unknown): void => {};
 
 /**
  * Pure selector — active ChannelIds from globalInputSelections.

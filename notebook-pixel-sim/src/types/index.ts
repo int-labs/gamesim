@@ -7,15 +7,14 @@ import type {
   ProductionSpec as FinlitProductionSpec,
   ChannelId as FinlitChannelId,
   VendorId as FinlitVendorId,
-  MarketingId as FinlitMarketingId,
 } from '@/data/finlit';
 
-// `FinlitCandidateId` is gone: hiring no longer has a frontend id space. A hire
-// is identified by the backend globalInput item's `_id`, and its level by a key
-// of that item's own `options` map.
+// `FinlitCandidateId` and `FinlitMarketingId` are gone: neither hiring nor
+// marketing has a frontend id space. Each is identified by the backend
+// globalInput item's `_id`, and its level by a key of that item's own
+// `options` map.
 export type {
   FinlitGenreId, FinlitProductionSpec, FinlitChannelId, FinlitVendorId,
-  FinlitMarketingId,
 };
 
 /**

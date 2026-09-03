@@ -56,8 +56,8 @@ const DecisionProductInputSchema = new Schema(
      * and that bell curve exists for the `inventoryQty` ceiling; applying it to
      * a quantity the player typed would silently change the number.
      *
-     * null = not stated. `calcFinancials` then uses half the ceiling, which is
-     * what the production planner displays for an untouched line.
+     * null = not stated, and `calcFinancials` builds NOTHING — production is a
+     * decision. The planner shows the same zero for an untouched line.
      */
     produced: { type: Number, default: null },
     // FLAT array of field entries — one level, not two. The previous
@@ -114,7 +114,7 @@ export interface IDecision extends Document {
     productId: Types.ObjectId;
     segmentId: Types.ObjectId;
     productName: string;
-    /** Units to produce this round. null = not stated; the sim uses half the ceiling. */
+    /** Units to produce this round. null = not stated ⇒ nothing is built. */
     produced: number | null;
     fields: { fieldId: Types.ObjectId; value: number | string | null; imageAssets: Types.ObjectId[]; }[];
   }[];

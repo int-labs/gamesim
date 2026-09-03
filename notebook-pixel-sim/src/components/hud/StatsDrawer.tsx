@@ -10,7 +10,8 @@ import { NavIcon } from '@/components/icons/NavIcon';
 import { Volume2, VolumeX, Music, History as HistoryIcon } from 'lucide-react';
 import { MusicOffIcon } from '@/components/icons/MusicOffIcon';
 import { audio, playSfx } from '@/audio/audioManager';
-import { useGamesimSession, useTotalRounds } from '@/gamesim/GamesimProvider';
+import { useGamesimSession, useTotalRounds, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
+import { selectCashBalance } from '@/engine/selectors';
 import type { OfficialFinancials, ServerProjectionResult } from '@/gamesim/sync';
 import { ameliaVoice, VOICE_DISABLED } from '@/audio/ameliaVoice';
 import clsx from 'clsx';
@@ -36,11 +37,19 @@ export function StatsDrawer({ open, onClose, onOpenHistory, liveProjection }: Pr
   // Hooks must run unconditionally — the early return for !open happens AFTER hooks.
   const phase = useGame((s) => s.meta.phase);
   const day = useGame((s) => s.meta.day);
-  const cash = useGame((s) => s.player.cash);
   const energy = useGame((s) => s.player.energy);
   const maxEnergy = useGame((s) => s.player.maxEnergy);
   const market = useGame((s) => s.market);
   const { financialsByRound } = useGamesimSession();
+  // The ledger's figure, via the same `selectCashBalance` call. This read raw
+  // `player.cash`, the ROUND-START number, so it lagged a scored round.
+  const cash = useGame((s) =>
+    selectCashBalance(
+      s,
+      s.meta.phase,
+      (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
+    ),
+  );
   const totalRounds = useTotalRounds();
   const activeLineId = useGame((s) => s.portfolio.activeLineId);
   const sfxEnabled = useGame((s) => s.audio.sfxEnabled);

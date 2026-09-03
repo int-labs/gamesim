@@ -97,9 +97,9 @@ interface ScenarioOpts {
   marketShare?: number;
   globalInputs?: DecisionGlobalInputEntry[];
   baseVariables?: Partial<BaseVariables>;
-  /** Units the team commits to producing. Omitted ⇒ null ⇒ the sim's default of
-   *  half the ceiling. Pass Number.MAX_SAFE_INTEGER to mean "to the ceiling":
-   *  calcFinancials clamps it. */
+  /** Units the team commits to producing. Omitted ⇒ null ⇒ ZERO: production is
+   *  a decision, not a default. Pass Number.MAX_SAFE_INTEGER to mean "to the
+   *  ceiling": calcFinancials clamps it. */
   produced?: number;
   /** Units carried in from the previous round's closing stock. */
   openingStock?: number;
@@ -166,6 +166,11 @@ const sumTreatment = (
   t: "cogs" | "opex",
 ) => incurred.filter((e) => e.treatment === t).reduce((a, e) => a + e.incurredCost, 0);
 
+/** Every cost row, both shapes. The COGS/opex totals are only whole across the
+ *  two arrays — unit-charged rows in one, globalInput spend in the other. */
+const allCosts = (r: { incurredCosts: any[]; globalInputCosts: any[] }) =>
+  [...r.incurredCosts, ...r.globalInputCosts];
+
 // ─── Layer A — invariants ────────────────────────────────────────────────────
 
 describe("calcFinancials · Layer A — invariants", () => {
@@ -185,15 +190,15 @@ describe("calcFinancials · Layer A — invariants", () => {
       ],
     });
 
-    expect(sumTreatment(r.incurredCosts, "cogs")).toBeCloseTo(r.COGS);
-    expect(sumTreatment(r.incurredCosts, "opex")).toBeCloseTo(r.operatingExpenses);
+    expect(sumTreatment(allCosts(r), "cogs")).toBeCloseTo(r.COGS);
+    expect(sumTreatment(allCosts(r), "opex")).toBeCloseTo(r.operatingExpenses);
   });
 
   it("splits a category spanning both sides into two breakdown entries", () => {
     const r = run({
       globalInputs: [gi({ category: "Hiring", costTreatment: { cogs: 30, opex: 12 } })],
     });
-    const hiring = r.incurredCosts.filter((e) => e.category === "Hiring");
+    const hiring = r.globalInputCosts.filter((e) => e.category === "Hiring");
 
     expect(hiring).toHaveLength(2);
     expect(hiring.find((e) => e.treatment === "cogs")?.incurredCost).toBeCloseTo(30);
@@ -204,7 +209,7 @@ describe("calcFinancials · Layer A — invariants", () => {
     const r = run({
       globalInputs: [gi({ category: "Marketing", costTreatment: { cogs: 0, opex: 40 } })],
     });
-    const marketing = r.incurredCosts.filter((e) => e.category === "Marketing");
+    const marketing = r.globalInputCosts.filter((e) => e.category === "Marketing");
 
     expect(marketing).toHaveLength(1);
     expect(marketing[0].treatment).toBe("opex");
@@ -224,11 +229,12 @@ describe("calcFinancials · COGS is charged on units PRODUCED", () => {
     expect(r.produced).toBe(r.inventoryQty);
   });
 
-  it("defaults to half the ceiling when no target is stated", () => {
-    // The same figure the production planner displays, so a team that never
-    // touched the slider is scored on what it was shown.
+  it("produces NOTHING when no target is stated", () => {
+    // Production is a decision, not a default. Half the ceiling used to be
+    // handed out unrequested, billing COGS for units the team never planned.
     const r = run();
-    expect(r.produced).toBe(Math.floor(r.inventoryQty * 0.5));
+    expect(r.produced).toBe(0);
+    expect(r.COGS).toBe(0);
   });
 
   it("sells carried stock with no additional COGS", () => {
@@ -273,8 +279,10 @@ describe("calcFinancials · COGS is charged on units PRODUCED", () => {
 
 describe("calcFinancials · Layer B1 — every lever moves the promised direction", () => {
   it("lower unit cost ⇒ higher gross profit", () => {
-    const cheap = run({ materialUnitCost: 0.2 });
-    const dear = run({ materialUnitCost: 2.0 });
+    // Both build to the ceiling: with no stated target nothing is produced, and
+    // a zero build has no COGS to tell apart.
+    const cheap = run({ materialUnitCost: 0.2, produced: Number.MAX_SAFE_INTEGER });
+    const dear = run({ materialUnitCost: 2.0, produced: Number.MAX_SAFE_INTEGER });
 
     expect(cheap.dynamicCost).toBeLessThan(dear.dynamicCost);
     expect(cheap.grossProfit).toBeGreaterThan(dear.grossProfit);
@@ -305,7 +313,10 @@ describe("calcFinancials · Layer B1 — every lever moves the promised directio
   it("a non-zero inventory_cost ⇒ strictly higher operating expenses", () => {
     // This is the impact that IMPACT_CONFIG had no entry for, so calcFinancials
     // silently discarded it. Without this test, wiring it up is unobservable.
+    // Built to the ceiling: holding is charged on CLOSING stock, and an
+    // unstated target now produces nothing to hold.
     const free = run({
+      produced: Number.MAX_SAFE_INTEGER,
       globalInputs: [
         gi({
           category: "Channels",
@@ -315,6 +326,7 @@ describe("calcFinancials · Layer B1 — every lever moves the promised directio
       ],
     });
     const charged = run({
+      produced: Number.MAX_SAFE_INTEGER,
       globalInputs: [
         gi({
           category: "Channels",
@@ -417,8 +429,9 @@ describe("calcFinancials · Layer B1b — per-product impact overrides", () => {
     });
 
   it("ADDS an absolute override to the base quantity", () => {
-    const base = run({ globalInputs: [holding(11.8)] });
+    const base = run({ produced: Number.MAX_SAFE_INTEGER, globalInputs: [holding(11.8)] });
     const raised = run({
+      produced: Number.MAX_SAFE_INTEGER,
       globalInputs: [holding(11.8, [{ productId: PRODUCT_ID, value: 0.5 }])],
     });
     // 11.8 + 0.5 ⇒ a HIGHER per-unit holding charge, so higher opex. Under the
@@ -427,8 +440,9 @@ describe("calcFinancials · Layer B1b — per-product impact overrides", () => {
   });
 
   it("lets a negative absolute override reduce the quantity", () => {
-    const base = run({ globalInputs: [holding(11.8)] });
+    const base = run({ produced: Number.MAX_SAFE_INTEGER, globalInputs: [holding(11.8)] });
     const cut = run({
+      produced: Number.MAX_SAFE_INTEGER,
       globalInputs: [holding(11.8, [{ productId: PRODUCT_ID, value: -5 }])],
     });
     expect(cut.operatingExpenses).toBeLessThan(base.operatingExpenses);
@@ -568,8 +582,9 @@ describe("calcFinancials · Layer B2 — the game is playable", () => {
   });
 
   it("a strictly dominated decision yields strictly worse profit", () => {
-    const base = run({ materialUnitCost: 0.4 });
-    const dominated = run({ materialUnitCost: 1.2 }); // same everything, costlier
+    const base = run({ materialUnitCost: 0.4, produced: Number.MAX_SAFE_INTEGER });
+    // same everything, costlier
+    const dominated = run({ materialUnitCost: 1.2, produced: Number.MAX_SAFE_INTEGER });
 
     expect(dominated.operatingProfit).toBeLessThan(base.operatingProfit);
   });
@@ -607,6 +622,7 @@ describe("calcFinancials · Layer B3 — degenerate cases", () => {
     // bite, which is a real game rule: standing still is not free.
     const r = run({
       sellingPrice: 0,
+      produced: Number.MAX_SAFE_INTEGER,
       globalInputs: [gi({ category: "Marketing", costTreatment: { cogs: 0, opex: 40 } })],
     });
 
@@ -660,7 +676,7 @@ describe("toProjectionMetrics", () => {
       "customersObtained", "sellingPrice", "dynamicPrice", "productScore",
       "dynamicCost", "inventoryQty", "produced", "closingStock", "unitsSold", "revenue", "COGS",
       "grossProfit", "operatingExpenses", "operatingProfit",
-      "productCostBreakdown", "incurredCosts",
+      "productCostBreakdown", "incurredCosts", "globalInputCosts",
     ];
 
     expect(Object.keys(metrics).sort()).toEqual(required.sort());
@@ -698,7 +714,7 @@ describe("readCostTreatment", () => {
       globalInputs: [gi({ category: "Legacy", costTreatment: readCostTreatment({ cost: 60 }) })],
     });
 
-    expect(sumTreatment(r.incurredCosts, "opex")).toBeGreaterThanOrEqual(60);
+    expect(sumTreatment(allCosts(r), "opex")).toBeGreaterThanOrEqual(60);
   });
 });
 

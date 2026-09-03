@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { useGame } from '@/state/store';
 import { PhaseSequenceModal } from '@/components/PhaseSequenceModal';
+import type { ServerProjectionResult } from '@/gamesim/sync';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { TOAST, VALIDATION } from '@/content/copy';
 import { expandScript, SCRIPT_BEFORE_PHASE1_CONFIRM } from '@/content/mascotScripts';
@@ -24,7 +25,12 @@ const phaseEndDay = (phase: number) => phase * DAYS_PER_PHASE;
  * inline reason renders next to it — so the user never has to guess why
  * nothing happened on click.
  */
-export function PhaseActionBar() {
+export function PhaseActionBar({
+  liveProjection,
+}: {
+  /** Passed straight to the sequence modal — see SimulationScreen. */
+  liveProjection?: ServerProjectionResult | null;
+}) {
   const day = useGame((s) => s.meta.day);
   const phase = useGame((s) => s.meta.phase);
   const ended = useGame((s) => s.meta.ended);
@@ -252,7 +258,12 @@ export function PhaseActionBar() {
         </Tooltip>
       </div>
 
-      <PhaseSequenceModal key={openCount} open={open} onClose={() => setOpen(false)} />
+      <PhaseSequenceModal
+        key={openCount}
+        open={open}
+        onClose={() => setOpen(false)}
+        liveProjection={liveProjection ?? null}
+      />
     </>
   );
 }

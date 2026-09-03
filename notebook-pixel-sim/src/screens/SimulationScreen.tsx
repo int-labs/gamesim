@@ -99,7 +99,10 @@ export function SimulationScreen() {
         </main>
       </div>
 
-      <PhaseActionBar />
+      {/* Same reason as AmeliaReactions above: the modal it opens shows the
+          projected cash figure, which must be the SAME instance the HUD chip
+          reads or the two disagree. */}
+      <PhaseActionBar liveProjection={liveProjectionState.liveProjection} />
     </div>
   );
 }

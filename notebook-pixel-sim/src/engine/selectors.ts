@@ -190,12 +190,13 @@ export const lineSize = (line?: { size?: Size; finlitSpec?: { size?: string } })
 
 // ── Projected cash ────────────────────────────────────────────────────────
 //
-// How much cash the player would have if they confirmed the phase right now,
-// given all current decision selections. Purely subtractive: current cash
-// minus the total cost of every active globalInput selection.
+// How much cash the player would have if they confirmed the phase right now.
+// This is the round's SPENDING LIMIT, not a forecast: it bounds what the team
+// can commit to before the boundary settles up, which is why it must include
+// the production build — by far the largest claim on it.
 //
-// This is reactive — any change to globalInputSelections recalculates it.
-// Used for display only; actual cash is always s.player.cash after a phase runs.
+// Reactive to globalInputSelections AND to the produce targets. Actual cash is
+// always s.player.cash, which moves only at a round boundary.
 
 export interface ProjectedCashResult {
   /** Current cash on hand. */
@@ -208,8 +209,49 @@ export interface ProjectedCashResult {
   breakdown: Array<{ decision: string; cost: number }>;
 }
 
-export function selectProjectedCash(s: GameState): ProjectedCashResult {
-  const current = s.player.cash;
+/**
+ * THE definition of a round's cash balance — the one both the HUD chip and the
+ * P&L's Cash Balance row read, so the two can never disagree.
+ *
+ * That round's write-once opening plus its OWN scored operating profit. Never a
+ * cumulative sum over a live base, which would let a later event shift a
+ * settled column.
+ *
+ * It pivots the moment the operator calculates the round, not at the player's
+ * boundary crossing: the scored profit is real money as soon as it is scored.
+ * Holding it back until the boundary left the balance stale for a whole round
+ * and made the P&L read negative against spending that had already happened.
+ */
+export const selectCashBalance = (
+  s: GameState,
+  phase: number,
+  /** That phase's scored operating profit, or null/undefined if the operator
+   *  has not calculated it. Called for EVERY phase from 1 to `phase`. */
+  operatingProfitFor: (p: number) => number | null | undefined,
+): number => {
+  // Round 1 opens on the starting capital — the only entry `setRoute` seeds.
+  // Every later round opens on the previous round's CLOSING balance, so this
+  // accumulates rather than reading `cashOpeningByRound[phase]`: that map is
+  // written only when the PLAYER crosses a boundary, and the operator can score
+  // rounds the player has not advanced past. Reading it directly made every
+  // round after the first fall back to `player.cash` and lose the carry.
+  let balance = s.cashOpeningByRound[1] ?? s.player.cash;
+  for (let p = 1; p <= phase; p++) balance += operatingProfitFor(p) ?? 0;
+  return balance;
+};
+
+export function selectProjectedCash(
+  s: GameState,
+  /** Server projection, index-aligned with portfolio order. Without it the
+   *  build cost is omitted rather than guessed — an invented unit cost reads
+   *  exactly like a real one. */
+  byProduct?: Array<{ inventoryQty?: number; dynamicCost?: number }> | null,
+  /** The round's cash balance from `selectCashBalance`. Defaults to
+   *  `player.cash`, which is the ROUND-START figure and therefore lags a scored
+   *  round — pass the balance so the chip matches the P&L. */
+  baseCash?: number | null,
+): ProjectedCashResult {
+  const current = baseCash ?? s.player.cash;
   const breakdown: Array<{ decision: string; cost: number }> = [];
 
   // Resolve each selection to its backend item BY ID. This used to match
@@ -236,8 +278,49 @@ export function selectProjectedCash(s: GameState): ProjectedCashResult {
     });
   }
 
+  // The build. Largest claim on the round's budget, and it had no term here at
+  // all — moving a produce slider left the chip untouched.
+  s.portfolio.productLines.forEach((line, i) => {
+    const p = byProduct?.[i];
+    const capacity = p?.inventoryQty ?? null;
+    const unit = p?.dynamicCost ?? null;
+    if (capacity == null || unit == null) return;
+    // Clamped against the server's ceiling, matching `produced` in
+    // calcFinancials. The LIVE target, not the server's echoed `produced`, so
+    // the figure tracks the slider instead of the last recalc.
+    const produced = Math.min(line.targetPerPhase ?? 0, capacity);
+    if (produced <= 0) return;
+    breakdown.push({ decision: `Build ${line.name}`, cost: Math.ceil(produced * unit) });
+  });
+
   const delta = -breakdown.reduce((sum, b) => sum + b.cost, 0);
   const projected = current + delta;
 
   return { current, projected, delta, breakdown };
 }
+
+/**
+ * What the round can still commit — cash minus everything already committed.
+ * Zero or less means no further spending is possible this round.
+ *
+ * The gate is at the UI layer: a control that cannot be afforded refuses the
+ * move and keeps its last legal value. Cash itself is NOT deducted here —
+ * `player.cash` moves only at a round boundary.
+ */
+export const selectCashHeadroom = (
+  s: GameState,
+  byProduct?: Array<{ inventoryQty?: number; dynamicCost?: number }> | null,
+  baseCash?: number | null,
+): number => selectProjectedCash(s, byProduct, baseCash).projected;
+
+/** Can this round absorb `extra` more spend? Refunds and reductions (extra <= 0)
+ *  are always allowed, so a player can never be stranded above the limit.
+ *
+ *  `baseCash` must be the same balance the chip shows, or the gate refuses
+ *  spending the player can see they can afford. */
+export const canSpend = (
+  s: GameState,
+  extra: number,
+  byProduct?: Array<{ inventoryQty?: number; dynamicCost?: number }> | null,
+  baseCash?: number | null,
+): boolean => extra <= 0 || extra <= selectCashHeadroom(s, byProduct, baseCash);

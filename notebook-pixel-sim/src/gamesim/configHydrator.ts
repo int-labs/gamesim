@@ -36,7 +36,6 @@ import {
   applyConstantOverrides,
   COVER_OPTIONS,
   GENRES,
-  MARKETING_TEAMS,
   PAGE_DESIGN_OPTIONS,
   PAPER_OPTIONS,
   ROUTE_START,
@@ -48,6 +47,7 @@ import {
 } from '@/data/finlit';
 import { setCandidateImage } from '@/engine/finlit/core/config/hiring';
 import { setVendorImage } from '@/engine/finlit/core/config/vendors';
+import { setMarketingImage } from '@/engine/finlit/core/config/marketing';
 import {
   CANDIDATE_STUDIES,
   VENDOR_STUDIES,
@@ -293,13 +293,6 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
     applied.push(name);
   };
 
-  section('marketingTeams', MARKETING_TEAMS as any, (rows) =>
-    mergeById(MARKETING_TEAMS as any, rows, ['name', 'blurb', 'cost', 'sellBonus', 'energy'], {
-      image: 'imgPath',
-      after: (row, src) => patchCaseStudy(MARKETING_STUDIES, row.id, src.caseStudy),
-    }),
-  );
-
   // Candidate NUMBERS come from the hiring globalInput and are read straight
   // off it — there is no local candidate table to merge into any more. What the
   // backend globalInput does NOT carry is presentation, so PlayerConfig owns
@@ -314,6 +307,25 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
       patchCaseStudy(CANDIDATE_STUDIES, src.id, src.caseStudy);
     }
     applied.push('candidates');
+  }
+
+  // Marketing NUMBERS come from the marketing globalInput and are read straight
+  // off it — same split as candidates, PlayerConfig owns only the art.
+  //
+  // `marketingTeams` is the console's name for the section, and its ids are the
+  // marketing globalInput's ITEM KEYS (PlayerConfigPage maps the section to
+  // globalInputKey 'marketing'). It used to be merged into the local
+  // MARKETING_TEAMS table instead, whose ids are frontend-authored — so
+  // `keepsAllIds` rejected the whole section and neither art nor case study
+  // ever landed.
+  if (Array.isArray(cfg.marketingTeams)) {
+    for (const src of cfg.marketingTeams as Dict[]) {
+      if (!isObj(src) || typeof src.id !== 'string' || !src.id) continue;
+      const url = imageFor(src);
+      if (url) setMarketingImage(src.id, url);
+      patchCaseStudy(MARKETING_STUDIES, src.id, src.caseStudy);
+    }
+    applied.push('marketingTeams');
   }
 
   section('scenarios', SCENARIOS as any, (rows) =>

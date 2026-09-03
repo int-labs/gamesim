@@ -2,20 +2,22 @@ import { useState } from 'react';
 import { useGame, DEFAULT_SHOP_NAME, MAX_SHOP_NAME } from '@/state/store';
 import {
   engageFinlitHire, clearFinlitHire, engageFinlitVendor, clearFinlitVendor,
-  setFinlitMarketingBudget, setFinlitSalesBudget,
+  setFinlitMarketingBudget,
   finlitCompanyChannels, toggleFinlitChannelAll, setShopName,
 } from '@/engine/mockEngine';
 import {
-  BUDGET_LEVER_ENERGY,
   CHANNEL_META, channelRow,
   type GenreId, type ChannelId,
 } from '@/data/finlit';
 import { hireSteps, hireStep, CANDIDATE_IMAGE } from '@/engine/finlit/core/config/hiring';
+import { MARKETING_IMAGE } from '@/engine/finlit/core/config/marketing';
 import {
   vendorStep, vendorQuality, vendorCoversProduct, VENDOR_IMAGE,
 } from '@/engine/finlit/core/config/vendors';
 import type { GlobalInputItemDto } from '@/gamesim/types';
 import { impactFor } from '@/gamesim/impacts';
+import { canSpend, selectCashBalance } from '@/engine/selectors';
+import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 import { fmt$ } from '@/utils/format';
 import type { ServerProjectionResult } from '@/gamesim/sync';
 import { DAYS_PER_PHASE } from '@/engine/config';
@@ -132,7 +134,10 @@ export function StudioPanel({
   const hireSelections = useGame((s) =>
     s.globalInputSelections.filter((sel) => sel.key === 'hiring' && sel.inputId != null),
   );
-  const marketingSel = useGame((s) => s.globalInputSelections.find((sel) => sel.key === 'marketing'));
+  // One row per item, same as hiring — see the note above `hireSelections`.
+  const marketingSelections = useGame((s) =>
+    s.globalInputSelections.filter((sel) => sel.key === 'marketing' && sel.inputId != null),
+  );
   const marketingGI = useGame((s) => s.availableGlobalInputs.find((g) => g.key === 'marketing'));
   const phase = useGame((s) => s.meta.phase);
   const activeLine = useGame((s) =>
@@ -143,6 +148,19 @@ export function StudioPanel({
     return idx >= 0 ? idx : 0;
   });
   const projDynamicCost = (liveProjection?.byProduct[activeLineIndex] ?? liveProjection?.byProduct[0])?.dynamicCost ?? null;
+  // The cash gate needs every line's ceiling and unit cost — the build is part
+  // of what the round has already committed.
+  const cashByProduct = liveProjection?.byProduct ?? null;
+  // …and the same base the chip shows, or the gate refuses spending the player
+  // can see they can afford.
+  const { financialsByRound } = useGamesimSession();
+  const cashBase = useGame((s) =>
+    selectCashBalance(
+      s,
+      s.meta.phase,
+      (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
+    ),
+  );
   // "Where you sell" is company-wide: one channel set across every notebook.
   // Both selectors return a joined STRING, not a fresh array — a new array each
   // render would break Zustand's referential equality and churn re-renders.
@@ -168,24 +186,39 @@ export function StudioPanel({
   // options "0".."40", the server's `options[selectedStepKey] ?? 0` missed,
   // yielded 0, and skipped every marketing impact. The slider is now an INDEX
   // into the configured steps and submits the step's own key.
-  const marketingItem = marketingGI?.inputs[0] ?? null;
-  const marketingStepKeys = Object.keys(marketingItem?.options ?? {});
-  const marketingIdx = Math.max(0, marketingStepKeys.indexOf(marketingSel?.selectedStepKey ?? ''));
-  const marketingStepKey = marketingStepKeys[marketingIdx] ?? null;
-  const marketingMult = marketingStepKey != null
-    ? marketingItem?.options?.[marketingStepKey] ?? 0
-    : 0;
-  // Through the shared util rather than open-coded, so this lever cannot drift
-  // from the server's rule. Marketing is company-wide, hence productId null.
-  // The old display read `options[stepKey] - 1`, which ignored `impacts`
-  // entirely and so showed a demand lift unrelated to the one being applied.
-  const marketingDemandLift = marketingItem
-    ? impactFor(marketingItem, 'marketing', marketingStepKey, null)
-    : 0;
-  const marketingSpend = Math.ceil((marketingItem?.cost ?? 0) * marketingMult);
-  // Scaled by the step, matching what setFinlitMarketingBudget actually charges.
-  // A flat `item.energy` here would show a figure the mutator never deducts.
-  const marketingEnergy = Math.ceil((marketingItem?.energy ?? 0) * marketingMult);
+  // EVERY item in the container, not `inputs[0]` — the operator can author
+  // several marketing options and the server sums them all, so rendering only
+  // the first hid levers that the P&L would still have charged for.
+  const marketingLevers = (marketingGI?.inputs ?? []).map((item) => {
+    const itemId = String(item._id);
+    const sel = marketingSelections.find((s) => s.inputId === itemId);
+    const stepKeys = Object.keys(item.options ?? {});
+    const idx = Math.max(0, stepKeys.indexOf(sel?.selectedStepKey ?? ''));
+    const stepKey = stepKeys[idx] ?? null;
+    const mult = stepKey != null ? item.options?.[stepKey] ?? 0 : 0;
+    // At a zero step the chip reads "To activate", so it must quote the NEXT
+    // step's energy — `energy × 0` advertised activation as free while the
+    // mutator charged the delta to the step actually moved to.
+    const energyMult = mult !== 0
+      ? mult
+      : item.options?.[stepKeys[idx + 1] ?? ''] ?? 0;
+    return {
+      item, itemId, stepKeys, idx, stepKey,
+      /** The step's own multiplier — 0 means this lever is switched off.
+       *  `energy` cannot answer that any more: it previews the next step. */
+      active: mult !== 0,
+      // Through the shared util rather than open-coded, so a lever cannot drift
+      // from the server's rule. Marketing is company-wide, hence productId null.
+      demandLift: impactFor(item, 'marketing', stepKey, null),
+      spend:  Math.ceil((item.cost ?? 0) * mult),
+      // Scaled by the step, matching what setFinlitMarketingBudget charges. A
+      // flat `item.energy` would show a figure the mutator never deducts.
+      energy: Math.ceil((item.energy ?? 0) * energyMult),
+    };
+  });
+  const marketingMaxSelections = marketingGI?.maxSelections ?? marketingLevers.length;
+  // A lever already at a paid step stays editable so it can be wound back down.
+  const marketingActiveCount = marketingLevers.filter((l) => l.active).length;
 
   const [pending, setPending] = useState<Pending | null>(null);
   // Raw text per candidate so the field can be empty mid-typing; it is parsed
@@ -222,14 +255,40 @@ export function StudioPanel({
 
   const commit = () => {
     if (!pending) return;
-    const ok = pending.energy <= energy;
-    playSfx(ok ? 'confirm' : 'fail');
+    const isHire = pending.kind === 'candidate';
+    const itemId = String(pending.item._id);
+    const costAt = (stepKey: string | null): number =>
+      (isHire
+        ? hireStep(pending.item, stepKey)?.cost
+        : vendorStep(pending.item, null, pending.productId ?? null)?.cost) ?? 0;
+    // The DELTA against this item's current commitment, so re-levelling an
+    // existing hire is priced on the difference rather than the whole wage.
+    const currentSel = (isHire ? hireSelections : vendorSelections)
+      .find((sel) => sel.inputId === itemId);
+    const extra = costAt(isHire ? pending.stepKey : null)
+      - (currentSel ? costAt(currentSel.selectedStepKey) : 0);
+
+    let ok = pending.energy <= energy;
     apply((s) => {
-      if (pending.kind === 'candidate') engageFinlitHire(s, pending.item, pending.stepKey, hiringMaxSelections);
+      // Cash bounds the round the way energy bounds the phase, and it is
+      // checked BEFORE the mutator so nothing is half-applied.
+      if (!canSpend(s, extra, cashByProduct, cashBase)) {
+        ok = false;
+        s.toast = {
+          id: 'cash-short-engage-' + itemId,
+          kind: 'warning',
+          text: `Not enough cash for ${pending.item.label ?? (isHire ? 'that hire' : 'that vendor')}.`,
+          until: Date.now() + 1900,
+        };
+        return;
+      }
+      if (isHire) engageFinlitHire(s, pending.item, pending.stepKey, hiringMaxSelections);
       else engageFinlitVendor(s, pending.item, null, vendorMaxSelections);
     });
+    playSfx(ok ? 'confirm' : 'fail');
+    if (!ok) return;
     // Modal commit is the interaction end for a hire or vendor.
-    recalc?.(pending.kind === 'candidate' ? 'hire committed' : 'vendor committed');
+    recalc?.(isHire ? 'hire committed' : 'vendor committed');
     setPending(null);
   };
 
@@ -299,8 +358,24 @@ export function StudioPanel({
                   // No backend item ⇒ nothing the server could resolve, so the
                   // toggle is refused rather than writing an unsendable selection.
                   if (!channelItem) { playSfx('fail'); return; }
-                  playSfx('click-soft');
-                  apply((s) => toggleFinlitChannelAll(s, channelItem, channelMaxSelections));
+                  let ok = true;
+                  apply((s) => {
+                    // Binary, so the whole cost applies — but only when turning
+                    // ON. Switching a channel off is a refund and never gated.
+                    if (!on && !canSpend(s, channelItem.cost ?? 0, cashByProduct, cashBase)) {
+                      ok = false;
+                      s.toast = {
+                        id: 'cash-short-channel-' + ch,
+                        kind: 'warning',
+                        text: `Not enough cash to open ${CHANNEL_META[ch]?.name ?? ch}.`,
+                        until: Date.now() + 1900,
+                      };
+                      return;
+                    }
+                    toggleFinlitChannelAll(s, channelItem, channelMaxSelections);
+                  });
+                  playSfx(ok ? 'click-soft' : 'fail');
+                  if (!ok) return;
                   // A button click has no separate interaction end.
                   recalc?.(`channel toggled · ${channelItem.key}`);
                 }}
@@ -400,54 +475,64 @@ export function StudioPanel({
         </div>
       </OpsSection>
 
-      {/* ── Marketing & Sales budgets ── */}
+      {/* ── Marketing budget ── */}
       <OpsSection
         icon={SECTION_ICON.budget}
-        title="Marketing & Sales Budget"
+        title="Marketing Budget"
         hint="Budget to grow, shown per phase. Set back to $0 to switch off and refund the energy."
         onDetails={() => setDetail(budgetDetail(marketingGI))}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <BudgetLever
-            label="Marketing budget"
-            hint="Awareness - lifts DEMAND (more people want it)."
-            value={marketingIdx}
-            max={Math.max(0, marketingStepKeys.length - 1)}
-            stepLabel={marketingStepKey ?? '—'}
-            spend={marketingSpend}
-            energy={marketingEnergy}
-            effectLabel="Demand"
-            effect={`+${(marketingDemandLift * 100).toFixed(1)}%`}
-            // The affordability decision belongs to the mutator, which knows the
-            // step it is moving TO and charges only the delta. Gating here on the
-            // CURRENT step's energy would let every move through, since the
-            // current step is free once already paid for.
-            canActivate={marketingStepKeys.length > 0}
-            onChange={(i) => {
-              const key = marketingStepKeys[i];
-              if (key == null || !marketingItem) return;
-              let ok = false;
-              apply((s) => { ok = setFinlitMarketingBudget(s, marketingItem, key); });
-              playSfx(ok ? 'tick' : 'fail');
-            }}
-            onCommit={() => recalc?.('marketing lever released')}
-          />
-          <BudgetLever
-            label="Sales budget"
-            hint="Conversion - lifts SELL-RATE (more of them buy). Comes from hiring."
-            value={0}
-            max={0}
-            stepLabel="—"
-            spend={0}
-            energy={BUDGET_LEVER_ENERGY}
-            effectLabel="Sell-rate"
-            effect={`+${(hireSelections.reduce((sum, sel) => {
-              const item = hiringGI?.inputs.find((i) => String(i._id) === sel.inputId);
-              return sum + (item ? hireStep(item, sel.selectedStepKey)?.sellBonus ?? 0 : 0);
-            }, 0) * 100).toFixed(1)}%`}
-            canActivate={false}
-            onChange={(v) => { playSfx('tick'); apply((s) => setFinlitSalesBudget(s, v)); }}
-          />
+        <div className={clsx('grid gap-3', marketingLevers.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
+          {marketingLevers.map((lv) => {
+            // At the cap, only levers already paid for stay editable, so the
+            // player can always wind one back down to free a slot.
+            const atCap = marketingActiveCount >= marketingMaxSelections && !lv.active;
+            return (
+              <BudgetLever
+                key={lv.itemId}
+                // Keyed by the backend item's `key`, like the hiring portraits.
+                img={MARKETING_IMAGE[lv.item.key]}
+                label={lv.item.label ?? 'Marketing budget'}
+                hint={lv.item.description ?? 'Awareness - lifts DEMAND (more people want it).'}
+                value={lv.idx}
+                max={Math.max(0, lv.stepKeys.length - 1)}
+                stepLabel={lv.stepKey ?? '—'}
+                spend={lv.spend}
+                energy={lv.energy}
+                effectLabel="Demand"
+                effect={`+${(lv.demandLift * 100).toFixed(1)}%`}
+                // The affordability decision belongs to the mutator, which knows
+                // the step it is moving TO and charges only the delta. Gating here
+                // on the CURRENT step's energy would let every move through, since
+                // the current step is free once already paid for.
+                canActivate={lv.stepKeys.length > 0 && !atCap}
+                onChange={(i) => {
+                  const key = lv.stepKeys[i];
+                  if (key == null) return;
+                  // Cash bounds the round. Only the DELTA against this lever's
+                  // current step is tested, so stepping back down is free.
+                  const nextSpend = Math.ceil(
+                    (lv.item.cost ?? 0) * (lv.item.options?.[key] ?? 0),
+                  );
+                  let ok = false;
+                  apply((s) => {
+                    if (!canSpend(s, nextSpend - lv.spend, cashByProduct, cashBase)) {
+                      s.toast = {
+                        id: 'cash-short-marketing-' + lv.itemId,
+                        kind: 'warning',
+                        text: `Not enough cash for ${lv.item.label ?? 'marketing'} at that step.`,
+                        until: Date.now() + 1900,
+                      };
+                      return;
+                    }
+                    ok = setFinlitMarketingBudget(s, lv.item, key);
+                  });
+                  playSfx(ok ? 'tick' : 'fail');
+                }}
+                onCommit={() => recalc?.('marketing lever released')}
+              />
+            );
+          })}
         </div>
       </OpsSection>
 
@@ -872,6 +957,7 @@ export function StudioPanel({
    $0 = off; moving above 0 charges the flat activation energy (refunded when
    set back to 0). Money spend flows through the phase P&L. */
 function BudgetLever({
+  img,
   label,
   hint,
   value,
@@ -885,6 +971,9 @@ function BudgetLever({
   onChange,
   onCommit,
 }: {
+  /** Operator art from PlayerConfig, keyed by the backend item's `key`.
+   *  Undefined renders the fallback icon, same as the hiring rows. */
+  img?: string;
   label: string;
   hint: string;
   /** INDEX into the backend item's configured option steps — not a dollar amount. */
@@ -914,9 +1003,19 @@ function BudgetLever({
     // colour" pattern. Funded state is already legible from the spend and the
     // "Running on" energy label; it does not need a fill.
     <div className="readout p-3 flex flex-col gap-2 bg-surface">
-      <div>
-        <div className="h3 uppercase text-ink-900">{label}</div>
-        <p className="body-xs text-text-2 mt-1">{hint}</p>
+      {/* Header row mirrors the hiring cards: art left, name + blurb right. */}
+      <div className="flex items-start gap-3">
+        <SafeImage
+          src={img}
+          alt=""
+          className={clsx('shrink-0 w-16 h-16 object-contain', !active && 'grayscale-[45%] opacity-80')}
+          fallbackIcon="megaphone"
+          fallbackSize={32}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="h3 uppercase text-ink-900">{label}</div>
+          <p className="body-xs text-text-2 mt-1">{hint}</p>
+        </div>
       </div>
 
       {/* Three chips, because dragging the slider used to change exactly one

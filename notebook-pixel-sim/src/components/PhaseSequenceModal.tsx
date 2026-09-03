@@ -29,10 +29,10 @@ import {
   GamesimSyncError,
   submitRoundDecision,
   type ServerProductProjection,
+  type ServerProjectionResult,
 } from '@/gamesim/sync';
-import { selectProjectedCash } from '@/engine/selectors';
-import { useGamesimSession, useTotalRounds } from '@/gamesim/GamesimProvider';
-import { useLiveProjection } from '@/gamesim/useLiveProjection';
+import { selectCashBalance, selectProjectedCash } from '@/engine/selectors';
+import { useGamesimSession, useTotalRounds, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
 
 // The end day of a phase is its round number times the phase length. The old
@@ -45,6 +45,13 @@ type Step = 'preview' | 'scenario' | 'simulating' | 'event' | 'evaluation' | 're
 interface Props {
   open: boolean;
   onClose: () => void;
+  /**
+   * The SimulationScreen's projection instance. Passed in, never fetched here:
+   * `useLiveProjection` keeps its state per caller, so a second instance starts
+   * at null and the modal's "Cash now" would omit the build cost the HUD chip
+   * includes — the same number, two different answers.
+   */
+  liveProjection?: ServerProjectionResult | null;
 }
 
 /**
@@ -60,7 +67,7 @@ interface Props {
  * by setting `meta.pendingEventId` / `meta.pendingEvalPhase`. This component
  * just observes those flags and renders the appropriate step inline.
  */
-export function PhaseSequenceModal({ open, onClose }: Props) {
+export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Props) {
   const apply = useGame((s) => s.apply);
   const day = useGame((s) => s.meta.day);
   const phase = useGame((s) => s.meta.phase);
@@ -71,12 +78,22 @@ export function PhaseSequenceModal({ open, onClose }: Props) {
   const pendingEventId = useGame((s) => s.meta.pendingEventId);
   const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
   const setScreen = useGame((s) => s.setScreen);
-  const { canSubmit, canAdvance, bootstrap, roundContext, submittedDecision, refreshOfficial } = useGamesimSession();
-  const { liveProjection } = useLiveProjection();
+  const { canSubmit, canAdvance, bootstrap, roundContext, submittedDecision, refreshOfficial, financialsByRound } = useGamesimSession();
   // Snapshot projected cash at the moment the decision is submitted so the modal
   // shows the locked-in numbers even as live projections continue updating elsewhere.
-  const liveCashValue = useGame((s) => selectProjectedCash(s).projected);
-  const liveCashDelta = useGame((s) => selectProjectedCash(s).delta);
+  const cashByProduct = liveProjection?.byProduct ?? null;
+  // The ledger's figure for the headline, with committed spend as the delta —
+  // exactly how the HUD chip presents it.
+  const liveCashValue = useGame((s) =>
+    selectCashBalance(
+      s,
+      s.meta.phase,
+      (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
+    ),
+  );
+  const liveCashDelta = useGame(
+    (s) => selectProjectedCash(s, cashByProduct, liveCashValue).delta,
+  );
   const [cashSnapshot, setCashSnapshot] = useState<{ value: number; delta: number } | null>(null);
   useEffect(() => {
     if (submittedDecision && !cashSnapshot) {
