@@ -1,13 +1,13 @@
-// State-aware Amelia feedback rules.
+﻿// State-aware Amelia feedback rules.
 //
 // These rules read live game state and produce contextual mascot
-// messages — replacing the old "random text on day N" approach. Each
+// messages â€” replacing the old "random text on day N" approach. Each
 // rule is a pure function: given a state snapshot it either returns a
 // MascotMessage to push or null. The runtime walks the rule list each
 // tick and dedupes by message id (the store rejects duplicates).
 //
 // Tone: each message must explain CAUSE + NEXT ACTION in one or two
-// sentences. Never just "uh-oh!" — always tell the player what is
+// sentences. Never just "uh-oh!" â€” always tell the player what is
 // happening AND what they can do about it.
 
 import type { GameState } from '@/state/store';
@@ -29,9 +29,9 @@ export interface FeedbackRule {
   evaluate: (ctx: FeedbackContext) => MascotMessage | null;
 }
 
-// ──────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // HELPERS
-// ──────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function bucketedId(prefix: string, day: number, bucket = 5): string {
   return `${prefix}__d${Math.floor(day / bucket)}`;
@@ -67,12 +67,12 @@ function totalOpProfitSoFar(state: GameState): number {
   return rev - cost;
 }
 
-// ──────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // RULES
-// ──────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const RULES: FeedbackRule[] = [
-  // No audience — top priority. Demand is dead until this is fixed.
+  // No audience â€” top priority. Demand is dead until this is fixed.
   // Fires from day 1 so a fresh-start player gets immediate spoken
   // guidance before they even notice the disabled Confirm button.
   {
@@ -85,12 +85,12 @@ const RULES: FeedbackRule[] = [
         priority: 1,
         mood: 'pointing_right_explain',
         body:
-          "First move: open Business → Audience and pick a segment. Without a target, demand stays cold because the product has no clear buyer.",
+          "First move: open Business â†’ Audience and pick a segment. Without a target, demand stays cold because the product has no clear buyer.",
       };
     },
   },
 
-  // Active line has weak fit (<35%) — design / target mismatch.
+  // Active line has weak fit (<35%) â€” design / target mismatch.
   {
     key: 'weak_fit',
     evaluate: ({ state }) => {
@@ -124,7 +124,7 @@ const RULES: FeedbackRule[] = [
         priority: 1,
         mood: 'warning',
         body:
-          "Customers want the product but stock is low. You may lose sales unless you produce more - raise Produce / day in Business > Inventory, then confirm the phase.",
+          "Customers want the product but stock is low. You may lose sales unless you produce more - raise Produce / phase in Business > Inventory, then confirm the phase.",
       };
     },
   },
@@ -143,7 +143,7 @@ const RULES: FeedbackRule[] = [
         priority: 2,
         mood: 'thinking',
         body:
-          "You made more notebooks than customers want. That traps cash in inventory - lower Produce / day until stock drains.",
+          "You made more notebooks than customers want. That traps cash in inventory - lower Produce / phase until stock drains.",
       };
     },
   },
@@ -181,12 +181,12 @@ const RULES: FeedbackRule[] = [
         priority: 1,
         mood: 'concerned',
         body:
-          "Cash is getting tight. Profit may look fine, but stock and upgrades hit cash first. Pause marketing or ease off Produce / day.",
+          "Cash is getting tight. Profit may look fine, but stock and upgrades hit cash first. Pause marketing or ease off Produce / phase.",
       };
     },
   },
 
-  // Portfolio overload — too many lines vs capacity.
+  // Portfolio overload â€” too many lines vs capacity.
   {
     key: 'portfolio_overload',
     evaluate: ({ state }) => {
@@ -203,7 +203,7 @@ const RULES: FeedbackRule[] = [
     },
   },
 
-  // Cannibalization — multiple lines fighting for the same audience.
+  // Cannibalization â€” multiple lines fighting for the same audience.
   {
     key: 'cannibalization',
     evaluate: ({ state }) => {

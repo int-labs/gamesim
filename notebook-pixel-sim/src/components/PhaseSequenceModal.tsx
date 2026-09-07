@@ -32,7 +32,12 @@ import {
   type ServerProjectionResult,
 } from '@/gamesim/sync';
 import { selectCashBalance, selectProjectedCash } from '@/engine/selectors';
-import { useGamesimSession, useTotalRounds, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
+import {
+  useGamesimSession,
+  useTotalRounds,
+  roundNumberFromPhase,
+  phaseFromRoundNumber,
+} from '@/gamesim/GamesimProvider';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
 
 // The end day of a phase is its round number times the phase length. The old
@@ -475,7 +480,8 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
                 <div className="flex items-start gap-2 bg-success-soft/40 px-3 py-2">
                   <span className="stat-label text-success shrink-0 mt-0.5">Sent</span>
                   <span className="body-xs text-text">
-                    Round {bootstrap?.round?.roundNumber} is already with your facilitator and
+                    {/* 1-based for the player: the server's index is 0-based. */}
+                    Round {bootstrap?.round ? phaseFromRoundNumber(bootstrap.round.roundNumber) : '—'} is already with your facilitator and
                     scores from that submission. You can still run the phase and see how it plays
                     out.
                   </span>

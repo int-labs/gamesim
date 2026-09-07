@@ -603,7 +603,8 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
           subtitle={
             !bootstrap?.round
               ? 'Ask your facilitator to open a round for your team.'
-              : `Round ${bootstrap.round.roundNumber} is pending. Waiting for the facilitator to activate it.`
+              // 1-based for the player — see `phaseFromRoundNumber` above.
+              : `Round ${phaseFromRoundNumber(bootstrap.round.roundNumber)} is pending. Waiting for the facilitator to activate it.`
           }
           retry={refetchBootstrap}
         />

@@ -52,6 +52,7 @@ import {
   CANDIDATE_STUDIES,
   VENDOR_STUDIES,
   MARKETING_STUDIES,
+  CHANNEL_STUDIES,
   type CaseStudy,
 } from '@/content/finlitCaseStudies';
 import {
@@ -326,6 +327,17 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
       patchCaseStudy(MARKETING_STUDIES, src.id, src.caseStudy);
     }
     applied.push('marketingTeams');
+  }
+
+  // Channels: NUMBERS come off the channel globalInput via `hydrateChannels`;
+  // PlayerConfig owns only the case-study copy. Ids are that container's ITEM
+  // KEYS, like candidates and marketingTeams. No image — a channel has none.
+  if (Array.isArray(cfg.channels)) {
+    for (const src of cfg.channels as Dict[]) {
+      if (!isObj(src) || typeof src.id !== 'string' || !src.id) continue;
+      patchCaseStudy(CHANNEL_STUDIES, src.id, src.caseStudy);
+    }
+    applied.push('channels');
   }
 
   section('scenarios', SCENARIOS as any, (rows) =>

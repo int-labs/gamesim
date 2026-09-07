@@ -3,7 +3,7 @@ import { Timer } from 'lucide-react';
 import clsx from 'clsx';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { Tooltip } from '@/components/primitives/Tooltip';
-import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { useGamesimSession, phaseFromRoundNumber } from '@/gamesim/GamesimProvider';
 import { A } from '@/assets';
 
 /**
@@ -18,7 +18,7 @@ import { A } from '@/assets';
  * and the dashboard drew straight over the cash chip and the menu buttons.
  *
  * The bottom bar is the better home on the merits, not just for the room: it
- * already frames the run in SESSION terms ("Day 1 / 90 · 30d left in Phase 1"),
+ * already frames the run in SESSION terms ("Phase 1 / 3"),
  * which is the same question the round and its clock answer. The top bar is for
  * the resources and outcomes the player changes; the bottom bar is for where
  * they are in the session. These belong to the second group.
@@ -87,6 +87,11 @@ export function SessionChip() {
   // Nothing to say — don't draw a divider into empty space.
   if (!round && !bootstrap.teamName) return null;
 
+  // `round.roundNumber` is the server's 0-BASED index; the player counts from 1
+  // and reads it next to "Phase N", so an unconverted 2 sat beside Phase 3.
+  // See ../../gamesim/GamesimProvider.tsx — the only conversion seam.
+  const roundLabel = round ? phaseFromRoundNumber(round.roundNumber) : null;
+
   return (
     <>
       {/* Hidden below md: the bottom bar's own phase summary plus the Confirm
@@ -107,10 +112,10 @@ export function SessionChip() {
               role="status"
               aria-label={
                 left === null
-                  ? `Round ${round.roundNumber}`
+                  ? `Round ${roundLabel}`
                   : over
-                    ? `Round ${round.roundNumber}, past its time`
-                    : `Round ${round.roundNumber}, ${formatLeft(left)} remaining`
+                    ? `Round ${roundLabel}, past its time`
+                    : `Round ${roundLabel}, ${formatLeft(left)} remaining`
               }
             >
               <span className="game-phase-marker">
@@ -122,7 +127,7 @@ export function SessionChip() {
               </span>
               <div className="flex flex-col leading-tight min-w-0">
                 <span className="eyebrow eyebrow-sm text-[#9F7F52]">
-                  Round {round.roundNumber}
+                  Round {roundLabel}
                 </span>
                 {/* The plate is #221710. The theme's -ink reds are tuned for
                     CREAM and go nearly black here, so urgency uses the bright

@@ -56,11 +56,11 @@ export const SCRIPT_INTRO: MascotScript = {
       mood: 'idle_soft_wave',
     },
     {
-      body: "You're going to run a small notebook business for 90 simulated days. The goal is to learn how product, audience, operations, and cash actually fit together - not just to pick a winner.",
+      body: "You're going to run a small notebook business, one phase at a time. The goal is to learn how product, audience, operations, and cash actually fit together - not just to pick a winner.",
       mood: 'presenting',
     },
     {
-      body: 'Three phases, 30 days each. Each phase ends with a debrief and a quick insight question.',
+      body: 'Each phase ends with a debrief and a quick insight question. Your facilitator sets how many phases the run has.',
       mood: 'pointing_left_explain',
     },
     {
@@ -90,7 +90,7 @@ export const SCRIPT_AFTER_ROUTE_INVESTOR: MascotScript = {
   title: 'Investor-backed',
   messages: [
     {
-      body: 'Investor-backed - bigger budget, bigger expectations. You start with $2,500 but owe $3,000 by Day 90.',
+      body: 'Investor-backed - bigger budget, bigger expectations. You start with $2,500 but owe $3,000 by the final phase.',
       mood: 'thinking_side',
     },
     {
@@ -200,7 +200,7 @@ export const SCRIPT_PHASE2_START: MascotScript = {
       mood: 'thinking',
     },
     {
-      body: "Watch two numbers: Stock and Demand in the top HUD. If stock keeps hitting zero, raise Produce / day or hire a helper. If stock keeps growing, lower it again.",
+      body: "Watch two numbers: Stock and Demand in the top HUD. If stock keeps hitting zero, raise Produce / phase or hire a helper. If stock keeps growing, lower it again.",
       mood: 'pointing_right_explain',
     },
     {
@@ -219,7 +219,7 @@ export const SCRIPT_PHASE3_START: MascotScript = {
       mood: 'thinking_side',
     },
     {
-      body: "If you're investor-backed, the $3,000 repayment is due by Day 90. Project your cash forward - don't be surprised on Day 87.",
+      body: "If you're investor-backed, the $3,000 repayment is due by the final phase. Project your cash forward - don't be surprised in the last one.",
       mood: 'warning_alert',
     },
     {
@@ -234,7 +234,7 @@ export const SCRIPT_FINAL: MascotScript = {
   title: 'Final Score',
   messages: [
     {
-      body: "That's 90 days. Your final score has three parts: Net Profit (50), Inventory Cleanliness (25), and Insight (25).",
+      body: "That's the run. Your final score has three parts: Net Profit (50), Inventory Cleanliness (25), and Insight (25).",
       mood: 'presenting',
     },
     {

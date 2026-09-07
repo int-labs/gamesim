@@ -89,3 +89,9 @@ bower_components/
 
 # Claude Code runtime cache (worktrees, settings, launch configs, sessions)
 .claude/
+
+# Parked reference code — a model that is meant to be rebuilt, kept locally as
+# the starting point. Excluded from tsc, jest and eslint too, so it is under no
+# obligation to compile. See server/src/sim/calcMarketModel.legacy.ts.
+*.legacy.ts
+*.legacy.test.ts

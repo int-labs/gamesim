@@ -31,14 +31,14 @@ will be read by mistake.
 |---|---|---|
 | **`Decision`** | `(simulationId, teamId, roundNumber)` | What the team CHOSE, and what it SCORED. `scored[productId]` holds the official financials. Immutable once the round closes. |
 | **`Projections`** | `(simulationId, teamId, roundNumber)` | LIVE WHAT-IF ONLY. Rewritten on every player edit. Never authoritative. |
-| **`Results`** | `(simulationId, roundNumber, productId, segmentId)` | The market model's own output: `weightedScores` and `marketShares` per team. |
+| **`Results`** | `(simulationId, roundNumber, productId, segmentId)` | The cross-team comparison: `weightedScores` (each team's `productScore`) and `marketShares`. |
 | **`Round`** | `(simulationId, roundNumber)` | The indicator: `status`, `timer`, ordering. No financial data. |
 
 **`Decision.scored` is the official record.** Written once, by the round close,
 and never by the recalc — which is what makes it official.
 
 - shape: [`models/decisions.ts:131`](src/models/decisions.ts#L131) · type [`ScoredMetrics`](src/sim/calcFinancials.ts#L230)
-- written: [`roundCalculation.ts:263`](src/services/roundCalculation.ts#L263) — `updateOne`, never an upsert
+- written: [`roundCalculation.ts:446`](src/services/roundCalculation.ts#L446) — `updateOne`, never an upsert
 - unique index: [`models/decisions.ts:154`](src/models/decisions.ts#L154)
 
 Storing it here rather than on `Projections` is what makes **carry-forward stock
@@ -79,30 +79,81 @@ Sites that get this wrong fail silently rather than loudly, so they are worth
 knowing: [`roundControllers.ts:211`](src/controllers/roundControllers.ts#L211)
 (the last-round test), [`models/rounds.ts:31`](src/models/rounds.ts#L31) (the
 range guard), and both carry-forward reads
-([`roundCalculation.ts:128`](src/services/roundCalculation.ts#L128),
+([`roundCalculation.ts:152`](src/services/roundCalculation.ts#L152),
 [`projectionControllers.ts`](src/controllers/projectionControllers.ts)).
 
 ## Calculation order
 
 ```
-Decisions  →  calcMarketModel  →  calcFinancials  →  Results + Decision.scored
+Decisions → productScore (all teams) → share → calcFinancials → Results + Decision.scored
 ```
 
-**`calcMarketModel` cannot run inside `calcFinancials`, and this is a
-requirement rather than an implementation detail.** The market model is built
-from the VoC fit of every team's decisions, so in competitive mode it cannot be
-computed until all teams have decided. `calcFinancials` therefore receives the
-already-competed share as a *parameter* and never computes one.
+**The share cannot be computed until every team has decided, and this is a
+requirement rather than an implementation detail.** A team's slice depends on
+the other teams' scores, so in competitive mode the round can only be scored as
+a whole. `calcFinancials` receives the already-competed share as a *parameter*
+and never computes one.
 
 | Step | Where | Notes |
 |---|---|---|
-| Load decisions | [`roundCalculation.ts:101`](src/services/roundCalculation.ts#L101) | Aborts if none exist |
-| Prior closing stock | [`roundCalculation.ts:128`](src/services/roundCalculation.ts#L128) | From `Decision.scored`, not Projections |
-| Market model, ALL teams | [`roundCalculation.ts:176`](src/services/roundCalculation.ts#L176) | Per product × segment |
-| Results row | [`roundCalculation.ts:197`](src/services/roundCalculation.ts#L197) | Scores + shares |
-| Financials, per team | [`roundCalculation.ts:224`](src/services/roundCalculation.ts#L224) | Share handed in |
-| Write Results | [`roundCalculation.ts:273`](src/services/roundCalculation.ts#L273) | upsert |
-| Write `Decision.scored` | [`roundCalculation.ts:263`](src/services/roundCalculation.ts#L263) | `updateOne` |
+| Load decisions | [`roundCalculation.ts:134`](src/services/roundCalculation.ts#L134) | Aborts if none exist |
+| Prior closing stock | [`roundCalculation.ts:152`](src/services/roundCalculation.ts#L152) | From `Decision.scored`, not Projections |
+| What gets scored | [`roundCalculation.ts:232`](src/services/roundCalculation.ts#L232) | Market model ∪ every product for the sim type |
+| Who competes | [`roundCalculation.ts:297`](src/services/roundCalculation.ts#L297) | Only teams whose decision names that product |
+| PASS 1 — `productScore` | [`roundCalculation.ts:359`](src/services/roundCalculation.ts#L359) | Placeholder share; every other figure discarded |
+| Share | [`roundCalculation.ts:378`](src/services/roundCalculation.ts#L378) | `normaliseShares` |
+| Results row | [`roundCalculation.ts:385`](src/services/roundCalculation.ts#L385) | Scores + shares |
+| PASS 2 — financials | [`roundCalculation.ts:394`](src/services/roundCalculation.ts#L394) | Real share handed in |
+| Write Results | [`roundCalculation.ts:422`](src/services/roundCalculation.ts#L422) | upsert |
+| Write `Decision.scored` | [`roundCalculation.ts:446`](src/services/roundCalculation.ts#L446) | `updateOne` |
+
+**Why two passes.** `productScore` is computed inside `calcFinancials`, and the
+share is an *input* to that same function — so the round runs it twice: once to
+read each team's score, then again with the competed share. That is deliberate.
+`productScore` needs `augmentedDynamicPrice`, which needs the whole globalInput
+augmentation loop; lifting it out would create a **second implementation** of a
+number the sheet already computes, which is the divergence this codebase exists
+to avoid. Pass 1's revenue and COGS are discarded — do not read them.
+
+## Market share
+
+```
+share_i = productScore_i / Σ productScore   (across the teams on that product)
+```
+
+[`normaliseShares`](src/services/roundCalculation.ts#L71) — pure and exported so
+it is tested without a database ([`test/normaliseShares.test.ts`](src/test/normaliseShares.test.ts)).
+
+- Shares **sum to 1** across the teams that made the product. Equal scores ⇒
+  `1/competing`.
+- **A sole competitor takes the whole market.** Teams that ignored the product
+  are not owed a slice of it, so the split is not scaled down by how many
+  skipped it.
+- `totalTeams` (`Team.countDocuments({ simulationId })`) is the **base only** —
+  the fallback when every score is zero, so each competitor gets `1/totalTeams`
+  rather than an even split of the competitors. It never scales the normalised
+  split.
+- Negative or non-finite scores contribute nothing.
+
+`productScore` **is** the weighted value of a team's decisions — already
+direction-weighted against the augmented dynamic price — so normalising it is
+the whole model.
+
+> **The previous model is parked, not deleted.**
+> `sim/calcMarketModel.legacy.ts` plus its 16-test suite are kept on disk,
+> untracked and excluded from tsc, jest and eslint, as the starting point for
+> the version meant to replace this. That model was to derive absolute weights
+> from the coefficients-and-drivers system — per-product-field coefficients
+> combined with the segment drivers in `BaseData.csatMarketModel` — with VoC
+> coming from the drivers.
+>
+> It was parked because it took a shortcut and derived VoC from `direction`
+> instead, which is what `productScore` already does, and then multiplied by
+> `projected_market_share / (1 / n)` — pms × n against a pms clamped 0..100. Any
+> pms ≥ 1 pushed every team past 1.0 and the clamp pinned them **all** at 100%:
+> two teams competing for one product each read a full market, and the shares
+> summed to n instead of 1. `sim/calcMarketModel.ts` now holds only the shapes
+> the operator still authors.
 
 `readCostTreatment` ([`calcFinancials.ts:116`](src/sim/calcFinancials.ts#L116))
 is the single interpreter of a globalInput's cost. Both money paths must call it,
@@ -231,7 +282,7 @@ Things that must stay true. Each has broken at least once.
 
 1. **`roundNumber` is 0-based; `totalRounds` is a count.** Never compare them directly.
 2. **Both money paths call `readCostTreatment` and `toProjectionMetrics`.** One reader, one shape.
-3. **`calcFinancials` never computes a market share.** It receives one.
+3. **`calcFinancials` never computes a market share.** It receives one — see [Market share](#market-share) for where it comes from, and why the round runs `calcFinancials` twice.
 4. **Costs do not scale with market share.** COGS is on units produced, holding on closing stock — both decisions, not outcomes.
 5. **Carry-forward stock reads `Decision.scored`, never `Projections`.**
 6. **`Projections` is never authoritative.** If a number matters, it comes from `Decision.scored`.

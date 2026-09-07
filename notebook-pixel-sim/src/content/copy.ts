@@ -11,18 +11,22 @@
 export const HOME = {
   eyebrow: 'Int Labs Academy',
   title: 'Mini Business Sim',
+  // Phases, not days — nothing ticks per day, and the phase count is the
+  // operator's `config.totalRounds`, so copy must not name either number.
   tagline:
-    "Run a notebook business for 90 simulated days. Pick your audience, design your products, manage stock and cash - and learn why growth is more than revenue.",
+    "Run a notebook business phase by phase. Pick your audience, design your products, manage stock and cash - and learn why growth is more than revenue.",
   taglineReturning:
     'Pick up where you left off. Your run is saved.',
   taglineEnded:
     'Your last run wrapped. Start a fresh one to try a different strategy.',
   ameliaIntro: "Hi, I'm Amelia. I'll guide you through the numbers and explain what each decision changes.",
-  ameliaIntroReturning: (day: number, phase: number, route: 'self' | 'investor') =>
-    `Welcome back. You're on Day ${day} of 90, mid-Phase ${phase}, ${route === 'investor' ? 'investor-backed' : 'self-funded'}.`,
+  /** `totalRounds` is undefined in standalone play — the sentence then omits
+   *  the total rather than asserting one. */
+  ameliaIntroReturning: (phase: number, route: 'self' | 'investor', totalRounds?: number) =>
+    `Welcome back. You're on Phase ${phase}${totalRounds ? ` of ${totalRounds}` : ''}, ${route === 'investor' ? 'investor-backed' : 'self-funded'}.`,
   cta: {
     startFirst: 'Start business',
-    continue: (day: number) => `Continue · Day ${day}`,
+    continue: (phase: number) => `Continue · Phase ${phase}`,
     startNew: 'Start new game',
     startAnother: 'Start a new run',
   },
@@ -158,7 +162,7 @@ export const ROUTE = {
     tagline: 'More cash. Real expectations.',
     startingCash: 2500,
     perks: 'Bigger upfront moves possible. ×1.1 score multiplier on success.',
-    risks: 'Repay $3,000 by Day 90 or lose 15 points. Faster pace, less margin for error.',
+    risks: 'Repay $3,000 by the final phase or lose 15 points. Faster pace, less margin for error.',
     summary:
       'Best if you want pressure-tested scaling and a higher score ceiling.',
   },
@@ -167,89 +171,24 @@ export const ROUTE = {
 
 export const PHASE_INTRO = {
   1: {
-    title: 'Phase 1 · Days 1-30 - Market Positioning',
+    title: 'Phase 1 - Market Positioning',
     body: "Find your audience and ship your first notebook. This phase is about discovery - pick a segment, set a price, and watch what fit feels like.",
     cta: 'Start Phase 1',
     learningFocus: 'LP1',
   },
   2: {
-    title: 'Phase 2 · Days 31-60 - Inventory Flow',
-    body: "Demand grows. Now you have to keep stock flowing without trapping cash. Hire helpers, tune Produce / day, and watch your stockout / overstock days.",
+    title: 'Phase 2 - Inventory Flow',
+    body: "Demand grows. Now you have to keep stock flowing without trapping cash. Hire helpers, tune Produce / phase, and watch what you leave unsold.",
     cta: 'Start Phase 2',
     learningFocus: 'LP2',
   },
   3: {
-    title: 'Phase 3 · Days 61-90 - Cash, P&L, Focus',
+    title: 'Phase 3 - Cash, P&L, Focus',
     body: "Final stretch. Read your P&L like a map, repay debts, and decide whether to expand your line-up or focus your strongest notebook. Cash timing decides who finishes well.",
     cta: 'Start Phase 3',
     learningFocus: 'LP4',
   },
 } as const;
-
-export const PRODUCT_PAGE = {
-  notebookItems: {
-    title: 'Notebook Items',
-    subtitle: (count: number, phase: number) =>
-      `${count} ${count === 1 ? 'notebook' : 'notebooks'} · Phase ${phase}`,
-    emptyState:
-      'No notebook lines yet. Add one to start designing your first product.',
-    helperLow:
-      'Add more lines to reach new audiences. Complexity may slow production.',
-    helperStrained:
-      'Strained - too many lines for your current capacity. Consider upgrading operations.',
-    helperOverloaded:
-      'Overloaded - hire helpers or buy tools before adding more lines.',
-    addCta: 'Add Notebook',
-    addAnother: 'Add another notebook line',
-    deleteConfirm: (name: string) => `Delete "${name}"? This removes the line and its add-ons.`,
-    quantityHint: 'Sets the production target for this notebook, per phase.',
-    activePin: 'ACTIVE',
-  },
-  config: {
-    title: 'Active Notebook · Configuration',
-    subtitle: 'Edits affect the selected notebook only.',
-    typeLabel: 'Notebook Type',
-    typeHint: 'Each archetype keeps its own add-ons and feels different to its audience.',
-    coverLabel: 'Cover Material',
-    coverHint: 'Hardcover lifts perceived quality. Leather lifts price tolerance.',
-    bindingLabel: 'Binding',
-    bindingHint: 'Ring lays flat. Staple is cheaper.',
-    sizeLabel: 'Size',
-    sizeHint: 'Add-ons scale with the notebook.',
-    paperLabel: 'Paper Quality',
-    paperHint: 'Cheap is fine for students. Premium signals craft.',
-    addOns: {
-      title: 'Add-Ons',
-      hint: 'Drag onto the notebook. Add-ons raise value but also raise unit cost.',
-      cap: 'Each line can carry up to 3 add-ons of different sub-categories.',
-      maxReached: 'Add-on limit reached for this notebook.',
-      duplicate: 'A similar add-on is already placed.',
-    },
-  },
-  effects: {
-    title: 'Active Notebook · Impact',
-    subtitle: 'What your current product needs say to the customer',
-    allTitle: 'All Notebooks',
-    snapshotTitle: 'Profit Snapshot',
-    snapshotHint: 'Click to jump to the full P&L table.',
-    noAudience: {
-      title: 'No audience',
-      hint: 'Open Business → Audience',
-      action: 'Pick one',
-    },
-    weakFit: 'Weak segment fit - design and target are mismatched.',
-    strongFit: 'Strong segment fit - your design matches the audience.',
-    noStockYet: 'Set Produce / day, then confirm phase',
-    cannibalization: {
-      none: 'None',
-      low: 'Low',
-      medium: 'Medium',
-      high: (pct: number) => `High (−${pct}%)`,
-      hint: 'Lines targeting the same audience may compete with each other.',
-    },
-    capacityHint: '100% means production matches your capacity exactly.',
-  },
-};
 
 export const BUSINESS_PAGE = {
   header: 'Business sections',
@@ -271,7 +210,6 @@ export const BUSINESS_PAGE = {
     },
   },
   inventory: {
-    rawHint: 'Your Produce / day target is made into finished notebooks each day.',
     finishedHint: 'Finished stock is ready to sell. No stock = no sales.',
     stockoutHint: 'A stockout means a customer wanted to buy but you had nothing to sell - lost demand.',
     overstockHint: 'Overstock means cash is sitting in unsold notebooks. It traps liquidity.',
@@ -283,7 +221,7 @@ export const BUSINESS_PAGE = {
 };
 
 export const HUD_TOOLTIPS = {
-  phase: 'Which 30-day phase you are in. Phases run consecutively (1→2→3) and you confirm each one to advance.',
+  phase: 'Which phase you are in. Phases run consecutively and you confirm each one to advance.',
   energy: 'Energy is consumed by big decisions (hires, upgrades, campaigns). It refills each phase.',
   cash: 'Money you can spend right now. Cash can drop before profit appears - material buys hit immediately.',
   opProfit: 'Operating Profit = Revenue − material − labor − packaging − fulfillment − marketing − tools.',
@@ -309,30 +247,6 @@ export const PNL = {
   },
 };
 
-export const CONFIRM_PHASE = {
-  titleFn: (phase: number) => `Confirm Phase ${phase} Decisions`,
-  preview: {
-    intro: (phase: number, daysLeft: number) =>
-      `Lock in your decisions for Phase ${phase}. The simulation will run ${daysLeft} day${daysLeft === 1 ? '' : 's'} with your current product, audience, channels, and operations.`,
-    disclaimer:
-      "These numbers are an estimate. Actual demand is rolled day-by-day, so results may swing - that's part of the game. Adjust before confirming if needed.",
-    impactTitle: 'Estimated phase impact',
-    impactRow: {
-      sold: (units: number, days: number) => `Likely sold over ${days}d: ~${units} units`,
-      revenue: (amount: string) => `Revenue est.: ${amount}`,
-      expenses: (amount: string) => `Operating expenses: ${amount}`,
-      net: (amount: string, positive: boolean) =>
-        `Net cash change: ${positive ? '+' : ''}${amount}`,
-    },
-  },
-  running: 'Simulating phase…',
-  confirmCta: (phase: number) =>
-    phase === 1 ? 'Confirm Phase 1 · Days 1-30' :
-    phase === 2 ? 'Confirm Phase 2 · Days 31-60' :
-    'Confirm Phase 3 · Days 61-90',
-  cancel: 'Adjust first',
-};
-
 export const EVALUATION = {
   headerFn: (phase: number, isFinal: boolean) =>
     isFinal ? 'Closing the books' : `Looking back at Phase ${phase}`,
@@ -352,11 +266,9 @@ export const EVALUATION = {
 };
 
 export const FINAL = {
-  eyebrow: 'Day 90 · Final',
   title: 'Final Results',
   panels: {
     score: 'Score Breakdown',
-    full90: 'The full 90 days',
     cashTrend: 'Cash Trend',
     profitTrend: 'Profit Trend',
     costMix: 'Cost Mix',
@@ -402,7 +314,6 @@ export const TOAST = {
   addOnCap: 'Add-on cap reached or sub-category already placed.',
   audienceFirst: 'Open the Design drawer and pick a market (genre) first.',
   notebookFirst: 'Add at least one notebook product before simulating.',
-  decisionLogged: "Decision logged. We'll see how it plays out over the next days.",
 };
 
 export const VALIDATION = {

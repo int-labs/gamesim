@@ -18,11 +18,10 @@ import mongoose, { ClientSession } from "mongoose";
 import BaseData from "../models/baseData";
 import Decision from "../models/decisions";
 import Product from "../models/products";
-import Results from "../models/Results";
+import Results from "../models/results";
 import Simulation from "../models/simulations";
+import Team from "../models/teams";
 import {
-  calcMarketModel,
-  DecisionDocument,
   MarketModelField,
   MarketModelProduct,
 } from "../sim/calcMarketModel";
@@ -51,12 +50,63 @@ export interface RoundCalcFailure {
 export type RoundCalcOutcome = RoundCalcSuccess | RoundCalcFailure;
 
 /**
- * calcMarketModel across ALL teams, THEN calcFinancials per team with the
- * resulting share handed in. That order is a requirement: the market model is
- * built from every team's VoC fit, so it cannot run inside calcFinancials.
+ * MARKET SHARE — the normalised `productScore` across the teams competing for
+ * one product. Pure, and exported so it is tested without a database.
+ *
+ *     share_i = score_i / Σ score        ← sums to 1 across the competitors
+ *
+ * Shares SUM TO 1 regardless of how many teams skipped the product: a team that
+ * is the only one making something takes the whole market for it. The teams
+ * that ignored it are not owed a slice of it.
+ *
+ * `productScore` IS the weighted value of a team's decisions — already
+ * direction-weighted against the augmented dynamic price — so normalising it is
+ * the whole model. See ../../README.md#market-share for what this replaced.
+ *
+ * @param totalTeams `Team.countDocuments({ simulationId })` — the teams
+ *   CONFIGURED on the simulation. It is the BASE only: when there is no score
+ *   to divide by, each competitor falls back to `1 / totalTeams` rather than to
+ *   an even split of the competitors. It never scales the normalised split.
+ */
+export function normaliseShares(
+  scoreByTeam: Map<string, number>,
+  totalTeams?: number,
+): Map<string, number> {
+  const shares = new Map<string, number>();
+  const competing = scoreByTeam.size;
+  if (competing === 0) return shares;
+
+  // Falls back to the competing count so the base is never a division by zero,
+  // and clamped so a roster smaller than the teams that submitted — a data
+  // anomaly — cannot hand out more than one market.
+  const roster = totalTeams != null && totalTeams > 0 ? totalTeams : competing;
+  const base = 1 / Math.max(roster, competing);
+
+  // Negative scores would shrink the divisor while the other teams' slices grew
+  // past their true proportion, so anything below zero contributes nothing.
+  const safe = new Map<string, number>();
+  for (const [tid, score] of scoreByTeam) {
+    safe.set(tid, Number.isFinite(score) && score > 0 ? score : 0);
+  }
+
+  const total = [...safe.values()].reduce((a, b) => a + b, 0);
+  for (const [tid, score] of safe) {
+    // Every score zero ⇒ nothing to normalise against, so each competitor gets
+    // the configured base rather than the market being handed to nobody.
+    shares.set(tid, total > 0 ? score / total : base);
+  }
+  return shares;
+}
+
+/**
+ * Two passes of calcFinancials per product: the first reads every competing
+ * team's `productScore`, those are normalised into shares, and the second runs
+ * again with the real share handed in. The order is a requirement — a team's
+ * slice depends on the other teams' scores, so a round can only be scored as a
+ * whole, and `calcFinancials` never computes a share of its own.
  *
  * Writes Results + Decision.scored. NOT Projections.
- * See ../../README.md#calculation-order
+ * See ../../README.md#calculation-order and ../../README.md#market-share
  *
  * Returns a failure object rather than throwing for the "expected" invalid
  * states, so both callers can map them to a status code consistently. Genuine
@@ -90,10 +140,11 @@ export async function runRoundCalculation(
     };
   }
 
-  const decisions: DecisionDocument[] = decisionDocs.map((d: any) => ({
-    teamId: d.teamId,
-    inputs: d.inputs,
-  }));
+  // The ROSTER — every team configured on this simulation, not just the ones
+  // that submitted. It is the market-share divisor: a team that skipped a
+  // product does not hand its slice to whoever did make one. Read once here;
+  // it does not vary by product.
+  const totalTeams = await Team.countDocuments({ simulationId }, s);
 
   // Opening stock = last round's closing stock, from `Decision.scored` — NOT
   // Projections, which is what-if and rewritten on every player edit.
@@ -128,28 +179,6 @@ export async function runRoundCalculation(
   // Every product for this simulation type — the fallback source when the
   // market model does not reference them.
   const allProducts = await Product.find({ simulationTypeId }, null, s);
-
-  // TEMP DIAGNOSTIC — the two silent ways this run can produce nothing:
-  // an empty marketModel, or productIds the Product collection has no doc for
-  // (the `continue` below skips those without a word).
-  console.log('[round-calc] inputs', JSON.stringify({
-    roundNumber,
-    simulationTypeId: String(simulationTypeId),
-    decisionDocs: decisionDocs.length,
-    teamIds: decisionDocs.map((d: any) => String(d.teamId)),
-    marketModelSegments: (baseData.marketModel?.segments ?? []).length,
-    marketDataSegments: (baseData.marketData?.segments ?? []).length,
-    productIdsReferenced: productIds.map(String),
-    productsForSimType: (await Product.find({ simulationTypeId }, { _id: 1 }, s)).map((p: any) => String(p._id)),
-    decidedProductIds: decisionDocs.flatMap((d: any) =>
-      (d.inputs ?? []).map((inp: any) => String(inp.productId)),
-    ),
-    productDocsFound: productDocs.map((p: any) => String(p._id)),
-    missingProducts: productIds
-      .map(String)
-      .filter((id: string) => !productById.has(id)),
-    yearKey,
-  }, null, 2));
 
   const resultsToWrite: any[] = [];
   const scoredByTeam: Record<string, any> = {};
@@ -237,40 +266,23 @@ export async function runRoundCalculation(
       );
       const availableMarket = mdProduct?.yearlyData?.[yearKey]?.marketSize ?? 0;
 
-      const mmOutput = calcMarketModel({
-        marketModelProduct: mmProduct,
-        productFields,
-        decisions,
-        year: roundNumber,
-      });
+      // ── Who competes for this product ────────────────────────────────────
+      // Only the teams that actually decided on it. A team that skipped it
+      // takes no slice, so it must not dilute the split either.
+      const competing = (decisionDocs as any[]).filter((d: any) =>
+        (d.inputs ?? []).some((inp: any) =>
+          String(inp.productId?.$oid ?? inp.productId) === String(productId),
+        ),
+      );
 
-      const weightedScoresMap: Record<string, number> = {};
-      const marketSharesMap: Record<string, number> = {};
-
-      mmOutput.sharesNormalCDF.forEach(({ teamId, value }) => {
-        marketSharesMap[teamId.toString()] = value;
-      });
-
-      mmOutput.weightedScores.forEach((fc) => {
-        fc.teamValues.forEach(({ teamId, score }) => {
-          const tidStr = teamId.toString();
-          weightedScoresMap[tidStr] = (weightedScoresMap[tidStr] ?? 0) + score;
-        });
-      });
-
-      resultsToWrite.push({
-        simulationId,
-        roundNumber,
-        productId,
-        segmentId,
-        weightedScores: weightedScoresMap,
-        marketShares: marketSharesMap,
-      });
-
-      for (const { teamId, value: marketShare } of mmOutput.sharesNormalCDF) {
-        const teamDecision = decisionDocs.find((d: any) => d.teamId.equals(teamId));
-        if (!teamDecision) continue;
-
+      /**
+       * ONE calcFinancials invocation, used for both passes. Extracted rather
+       * than duplicated: `productScore` needs `augmentedDynamicPrice`, which
+       * needs the whole globalInput augmentation loop, so a second
+       * implementation of it is exactly the divergence this codebase keeps
+       * removing.
+       */
+      const runFinancials = (teamId: mongoose.Types.ObjectId, teamDecision: any, marketShare: number) => {
         // Normalised through the SAME reader the live-projection path uses, so
         // a stored decision cannot be interpreted one way here and another way
         // by /projections/recalc.
@@ -316,9 +328,52 @@ export async function runRoundCalculation(
           // already exist to keep in step.
           openingStock: openingByProduct[productId.toString()] ?? {},
         });
+        return results[0];
+      };
 
-        const financials = results[0];
-        const tidStr = teamId.toString();
+      // ── PASS 1 — productScore only ───────────────────────────────────────
+      // The share argument is a PLACEHOLDER: `productScore` is derived from
+      // price against the augmented dynamic price and does NOT depend on the
+      // share (the share is applied after it, to turn score into customers).
+      // Every other figure this pass produces is discarded — do not read them.
+      const scoreByTeam = new Map<string, number>();
+      for (const teamDecision of competing) {
+        const teamId = teamDecision.teamId as mongoose.Types.ObjectId;
+        const probe = runFinancials(teamId, teamDecision, 1);
+        scoreByTeam.set(String(teamId), probe?.productScore ?? 0);
+      }
+
+      // ── Market share = normalised productScore ───────────────────────────
+      // Shares SUM TO 1 across the competing teams: equal scores give each
+      // team 1/n, and a higher score takes a proportionally larger slice.
+      // A sole competitor takes all of it.
+      //
+      // `productScore` IS the weighted value of a team's decisions, so this is
+      // the whole model — see `normaliseShares` above.
+      const shareByTeam = normaliseShares(scoreByTeam, totalTeams);
+
+      const weightedScoresMap: Record<string, number> = {};
+      const marketSharesMap: Record<string, number> = {};
+      for (const [tid, score] of scoreByTeam) weightedScoresMap[tid] = score;
+      for (const [tid, share] of shareByTeam) marketSharesMap[tid] = share;
+
+      resultsToWrite.push({
+        simulationId,
+        roundNumber,
+        productId,
+        segmentId,
+        weightedScores: weightedScoresMap,
+        marketShares: marketSharesMap,
+      });
+
+      // ── PASS 2 — the real figures, with the competed share ───────────────
+      for (const teamDecision of competing) {
+        const teamId = teamDecision.teamId as mongoose.Types.ObjectId;
+        const tidStr = String(teamId);
+        const marketShare = shareByTeam.get(tidStr) ?? 0;
+
+        const financials = runFinancials(teamId, teamDecision, marketShare);
+        if (!financials) continue;
         const productKey = productId.toString();
 
         if (!scoredByTeam[tidStr]) scoredByTeam[tidStr] = {};
@@ -330,12 +385,6 @@ export async function runRoundCalculation(
         };
       }
   }
-
-  // TEMP DIAGNOSTIC — remove once the round-close payloads are verified.
-  console.log(
-    `[round-calc] round ${roundNumber} · ${resultsToWrite.length} Results doc(s) →`,
-    JSON.stringify(resultsToWrite, null, 2),
-  );
 
   await Promise.all(
     resultsToWrite.map((r) =>
@@ -350,12 +399,6 @@ export async function runRoundCalculation(
         { upsert: true, new: true, ...s }
       )
     )
-  );
-
-  // TEMP DIAGNOSTIC — remove once the round-close payloads are verified.
-  console.log(
-    `[round-calc] round ${roundNumber} · Decision.scored for ${Object.keys(scoredByTeam).length} team(s) →`,
-    JSON.stringify(scoredByTeam, null, 2),
   );
 
   // The official figures go onto the DECISION that produced them.

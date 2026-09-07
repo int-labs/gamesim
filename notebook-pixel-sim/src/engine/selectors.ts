@@ -228,8 +228,22 @@ export interface ProjectedCashResult {
  * Holding it back until the boundary left the balance stale for a whole round
  * and made the P&L read negative against spending that had already happened.
  */
+/**
+ * The three slices `selectCashBalance` reads — and nothing more.
+ *
+ * Narrower than `GameState` on purpose: a component that needs the balance can
+ * subscribe to these alone instead of `useGame((s) => s)`, which in Zustand
+ * re-renders on EVERY store mutation. `GameState` satisfies this structurally,
+ * so passing `s` still works.
+ */
+export interface CashBalanceInputs {
+  player: { cash: number };
+  cashOpeningByRound: Record<number, number>;
+  ledger: Array<{ roundNumber: number; amount: number }>;
+}
+
 export const selectCashBalance = (
-  s: GameState,
+  s: CashBalanceInputs,
   phase: number,
   /** That phase's scored operating profit, or null/undefined if the operator
    *  has not calculated it. Called for EVERY phase from 1 to `phase`. */

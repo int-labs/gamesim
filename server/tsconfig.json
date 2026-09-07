@@ -10,5 +10,7 @@
     "typeRoots": ["./types", "./node_modules/@types"]
   },
   "include": ["src/**/*", "types/**/*"],
-  "exclude": ["node_modules"]
+  // `*.legacy.*` is parked reference code — untracked, not wired to anything,
+  // and NOT required to compile. See src/sim/calcMarketModel.legacy.ts.
+  "exclude": ["node_modules", "src/**/*.legacy.ts", "src/**/*.legacy.test.ts"]
 }

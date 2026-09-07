@@ -11,15 +11,20 @@ import { hireSteps } from '@/engine/finlit/core/config/hiring';
 import { vendorSteps, vendorQuality } from '@/engine/finlit/core/config/vendors';
 import type { DetailInput, DetailTable } from './OperationsKit';
 import type { GlobalInputDto } from '@/gamesim/types';
-import { perPhase } from '@/utils/format';
+import { studyFor } from '@/content/finlitCaseStudies';
 
 const NO_DESC = 'No description provided';
 
 const money = (n: number) => `$${n % 1 === 0 ? n : n.toFixed(2)}`;
 const pct = (n: number, dp = 0) => `${(n * 100).toFixed(dp)}%`;
 
-const CHANNEL_ORDER: ChannelId[] = ['offline', 'online', 'retail'];
-const GENRE_IDS: GenreId[] = GENRES.map((g) => g.id);
+// LAZY, both of them. `GENRES` is emptied and refilled in place by
+// `configHydrator` at boot, so a module-scope `GENRES.map(...)` froze the
+// bundled list and no published genre ever reached these tables. Channels come
+// from the backend container, never a hardcoded triple.
+const genreIds = (): GenreId[] => GENRES.map((g) => g.id);
+const channelIds = (gi?: GlobalInputDto): ChannelId[] =>
+  (gi?.inputs ?? []).map((i) => i.key as ChannelId);
 
 export interface SectionDetail {
   title: string;
@@ -30,53 +35,96 @@ export interface SectionDetail {
 
 // ── Sales channels ───────────────────────────────────────────────────────────
 
+/**
+ * ONE CONSOLIDATOR, TWO SOURCES — the shape every detail sheet follows.
+ *
+ *   numbers → the backend `channel` GlobalInput, via the rows `hydrateChannels`
+ *             resolved (it is the single place per-product `impact.selections`
+ *             are turned into per-genre values; re-resolving them here would be
+ *             a second implementation of it)
+ *   copy    → `PlayerConfig.caseStudy`, through `studyFor`, falling back to the
+ *             item's own `description`
+ *
+ * The channel list is `gi.inputs`, so a channel the operator adds appears here
+ * without a code change. It used to be a hardcoded `['offline','online','retail']`.
+ */
 export function channelDetail(gi?: GlobalInputDto): SectionDetail {
+  const items = gi?.inputs ?? [];
+
+  // A row may be absent for a channel the bundled table never had; `null`
+  // rather than a `.find(...)!` that throws inside a render.
+  const rowFor = (ch: ChannelId, genre: GenreId) =>
+    CHANNELS_BY_GENRE[genre]?.find((r) => r.channel === ch) ?? null;
+  // Maintenance/consignment/inventoryCost are written uniformly across genres
+  // by `hydrateChannels`, so any genre's row carries them. `.indie` used to be
+  // hardcoded here, which threw once genres came from config.
+  const flatRow = (ch: ChannelId) => {
+    for (const g of genreIds()) {
+      const r = rowFor(ch, g);
+      if (r) return r;
+    }
+    return null;
+  };
+
+  const chIds = channelIds(gi);
+  const chNames = items.map((i) => CHANNEL_META[i.key as ChannelId]?.name ?? i.label);
+
   return {
     title: gi?.label ?? NO_DESC,
     intro: gi?.description ?? NO_DESC,
-    inputs: CHANNEL_ORDER.map((ch) => {
-      // Economics other than reach are identical across genres, so a single
-      // representative row is honest here; reach varies and gets its own table.
-      const row = CHANNELS_BY_GENRE.indie.find((r) => r.channel === ch)!;
-      const costs = [`${money(perPhase(row.maintenance))} / phase`];
-      if (row.consignment > 0) costs.push(`${money(row.consignment)} / sale`);
+    inputs: items.map((item) => {
+      const ch = item.key as ChannelId;
+      const row = flatRow(ch);
+      const study = studyFor('channel', item.key);
+      // `item.cost` — the SAME field every other lever charges from, and the
+      // one the server turns into `costTreatment`. This read the `maintenance`
+      // impact, which `IMPACT_CONFIG` has no entry for, so calcFinancials
+      // skipped it: the sheet quoted a per-phase cost the round never charged.
+      // (And it ran that figure through `perPhase`, so it was also 30×.)
+      const costs: string[] = [`${money(item.cost)} / phase`];
+      if (row && row.consignment > 0) costs.push(`${money(row.consignment)} / sale`);
       return {
-        name: CHANNEL_META[ch].name,
-        description: CHANNEL_META[ch].blurb,
-        cost: costs.join(' + '),
+        name: CHANNEL_META[ch]?.name ?? item.label,
+        description: study.brief || item.description || NO_DESC,
+        cost: costs.length > 0 ? costs.join(' + ') : NO_DESC,
         impacts: 'All notebooks',
-        effect: `${pct(row.sellRate, 1)} sell-rate`,
+        effect: row ? `${pct(row.sellRate, 1)} sell-rate` : NO_DESC,
       };
     }),
-    tables: [
+    tables: chIds.length === 0 ? [] : [
       {
         caption: 'Reach by market (share of demand)',
-        columns: ['Market', 'Offline', 'Online', 'Retail'],
-        rows: GENRE_IDS.map((g) => [
-          GENRES.find((x) => x.id === g)!.name,
-          ...CHANNEL_ORDER.map((ch) => pct(CHANNELS_BY_GENRE[g].find((r) => r.channel === ch)!.split)),
+        columns: ['Market', ...chNames],
+        rows: genreIds().map((g) => [
+          GENRES.find((x) => x.id === g)?.name ?? g,
+          ...chIds.map((ch) => {
+            const r = rowFor(ch, g);
+            return r ? pct(r.split) : '-';
+          }),
         ]),
       },
       {
         caption: 'Sell-rate by market',
-        columns: ['Market', 'Offline', 'Online', 'Retail'],
-        rows: GENRE_IDS.map((g) => [
-          GENRES.find((x) => x.id === g)!.name,
-          ...CHANNEL_ORDER.map((ch) =>
-            pct(CHANNELS_BY_GENRE[g].find((r) => r.channel === ch)!.sellRate, 2),
-          ),
+        columns: ['Market', ...chNames],
+        rows: genreIds().map((g) => [
+          GENRES.find((x) => x.id === g)?.name ?? g,
+          ...chIds.map((ch) => {
+            const r = rowFor(ch, g);
+            return r ? pct(r.sellRate, 2) : '-';
+          }),
         ]),
       },
       {
         caption: 'Running cost',
         columns: ['Channel', 'Per phase', 'Per sale', 'Inventory'],
-        rows: CHANNEL_ORDER.map((ch) => {
-          const r = CHANNELS_BY_GENRE.indie.find((x) => x.channel === ch)!;
+        rows: items.map((item) => {
+          const ch = item.key as ChannelId;
+          const r = flatRow(ch);
           return [
-            CHANNEL_META[ch].name,
-            money(perPhase(r.maintenance)),
-            r.consignment > 0 ? money(r.consignment) : '-',
-            r.inventoryCost > 0 ? money(r.inventoryCost) : '-',
+            CHANNEL_META[ch]?.name ?? item.label,
+            money(item.cost),
+            r && r.consignment > 0 ? money(r.consignment) : '-',
+            r && r.inventoryCost > 0 ? money(r.inventoryCost) : '-',
           ];
         }),
       },
@@ -152,9 +200,12 @@ export function hiringDetail(gi?: GlobalInputDto): SectionDetail {
       return {
         name: item.label,
         description: item.description ?? NO_DESC,
+        // NO `perPhase`: `hireStep.cost` is `item.cost × multiplier`, the same
+        // per-phase expression the engage modal shows as "Wage / phase". The
+        // sheet was multiplying it by 30 and contradicting that tile.
         cost: first
-          ? `${money(perPhase(first.cost))} to ${money(perPhase(top.cost))} / phase`
-          : money(perPhase(item.cost)),
+          ? `${money(first.cost)} to ${money(top.cost)} / phase`
+          : money(item.cost),
         energy: first?.energy ?? item.energy,
         impacts: 'All notebooks',
         effect: top ? `+${top.prodBonus.toFixed(1)}` : '—',
@@ -170,7 +221,7 @@ export function hiringDetail(gi?: GlobalInputDto): SectionDetail {
           `+${st.prodBonus.toFixed(2)}`,
           `+${(st.sellBonus * 100).toFixed(1)}%`,
           `${st.energy}⚡`,
-          money(perPhase(st.cost)),
+          money(st.cost),
         ]),
       })),
   };

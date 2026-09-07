@@ -45,9 +45,23 @@ export const MARKETING_STUDIES: Record<string, CaseStudy> = {
 // Keys match the backend GlobalInputItem.key for each vendor.
 export const VENDOR_STUDIES: Record<string, CaseStudy> = {};
 
+// Seeded empty — populated at boot by configHydrator via patchCaseStudy().
+// Keys match the backend GlobalInputItem.key for each channel.
+export const CHANNEL_STUDIES: Record<string, CaseStudy> = {};
+
 const EMPTY_STUDY: CaseStudy = { title: '', brief: '', bestWhen: '', watchOut: '' };
 
-export function studyFor(kind: 'candidate' | 'marketing' | 'vendor', id: string): CaseStudy {
-  const map = kind === 'candidate' ? CANDIDATE_STUDIES : kind === 'marketing' ? MARKETING_STUDIES : VENDOR_STUDIES;
-  return map[id] ?? EMPTY_STUDY;
+export type StudyKind = 'candidate' | 'marketing' | 'vendor' | 'channel';
+
+const STUDIES: Record<StudyKind, Record<string, CaseStudy>> = {
+  candidate: CANDIDATE_STUDIES,
+  marketing: MARKETING_STUDIES,
+  vendor: VENDOR_STUDIES,
+  channel: CHANNEL_STUDIES,
+};
+
+/** A missing study returns EMPTY_STUDY, never throws — a detail sheet renders
+ *  the item's own `description` instead of failing on unpublished copy. */
+export function studyFor(kind: StudyKind, id: string): CaseStudy {
+  return STUDIES[kind][id] ?? EMPTY_STUDY;
 }

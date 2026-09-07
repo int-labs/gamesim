@@ -12,7 +12,7 @@ import { fmt$, fmtInt } from '@/utils/format';
 import { A } from '@/assets';
 import { FINAL } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
-import { useGamesimSession } from '@/gamesim/GamesimProvider';
+import { useGamesimSession, phaseFromRoundNumber } from '@/gamesim/GamesimProvider';
 import { DebriefCard } from '@/gamesim/OperatorContent';
 import clsx from 'clsx';
 
@@ -361,7 +361,12 @@ export function FinalResultsScreen() {
                   <div className="flex items-center gap-2 mb-2">
                     <PixelBadge tone="info">From the simulation server</PixelBadge>
                     <span className="hint">
-                      Round {latestResults?.roundNumber ?? latestFinancials?.roundNumber}
+                      {/* 1-based for the player: both fields carry the server's
+                          0-based index. */}
+                      Round {(() => {
+                        const r = latestResults?.roundNumber ?? latestFinancials?.roundNumber;
+                        return r === undefined ? '—' : phaseFromRoundNumber(r);
+                      })()}
                     </span>
                   </div>
                   {/* Bordered, tinted readouts — the same language as every

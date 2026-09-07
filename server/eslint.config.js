@@ -17,7 +17,15 @@ const prettier = require("eslint-config-prettier");
 
 module.exports = [
   // Folded in from .eslintignore, which ESLint 9 no longer reads.
-  { ignores: ["build/**", "coverage/**", "dist/**", "node_modules/**", "uploads/**"] },
+  // `**/*.legacy.*` is parked reference code — untracked, not wired to
+  // anything, and under no obligation to compile or lint. Also excluded in
+  // tsconfig.json and jest.config.js. See src/sim/calcMarketModel.legacy.ts.
+  {
+    ignores: [
+      "build/**", "coverage/**", "dist/**", "node_modules/**", "uploads/**",
+      "**/*.legacy.ts", "**/*.legacy.test.ts",
+    ],
+  },
 
   js.configs.recommended,
 

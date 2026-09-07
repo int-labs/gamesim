@@ -20,11 +20,14 @@ export type ChannelId = 'offline' | 'online' | 'retail';
 export interface ChannelRow {
   channel: ChannelId;
   split: number;
-  maintenance: number;
   consignment: number;
   inventoryCost: number;
   sellRate: number;
 }
+// `maintenance` is GONE. It hydrated from a `maintenance` impact that
+// `IMPACT_CONFIG` has no entry for, so calcFinancials skipped it — the running
+// cost is `item.cost`, which is what becomes `costTreatment`. Its only reader
+// was the detail sheet, which now reads `item.cost` directly.
 
 export const CHANNEL_META: Record<ChannelId, { name: string; blurb: string }> = {
   offline: { name: 'Offline', blurb: 'Direct/pop-up sales. No consignment, lowest overhead.' },
@@ -35,24 +38,24 @@ export const CHANNEL_META: Record<ChannelId, { name: string; blurb: string }> = 
 // Per-genre channel rows. Splits/sell-rates differ by genre (sheet C/G cols).
 export const CHANNELS_BY_GENRE: Record<GenreId, ChannelRow[]> = {
   cute: [
-    { channel: 'offline', split: 0.35, maintenance: 10, consignment: 0, inventoryCost: 0, sellRate: 0.04 },
-    { channel: 'online', split: 0.35, maintenance: 11.5, consignment: 8, inventoryCost: 0, sellRate: 0.04 },
-    { channel: 'retail', split: 0.3, maintenance: 15, consignment: 11.8, inventoryCost: 11.8, sellRate: 0.02 },
+    { channel: 'offline', split: 0.35, consignment: 0, inventoryCost: 0, sellRate: 0.04 },
+    { channel: 'online', split: 0.35, consignment: 8, inventoryCost: 0, sellRate: 0.04 },
+    { channel: 'retail', split: 0.3, consignment: 11.8, inventoryCost: 11.8, sellRate: 0.02 },
   ],
   anime: [
-    { channel: 'offline', split: 0.3, maintenance: 10, consignment: 0, inventoryCost: 0, sellRate: 0.03 },
-    { channel: 'online', split: 0.4, maintenance: 11.5, consignment: 8, inventoryCost: 0, sellRate: 0.04 },
-    { channel: 'retail', split: 0.3, maintenance: 15, consignment: 11.8, inventoryCost: 11.8, sellRate: 0.03 },
+    { channel: 'offline', split: 0.3, consignment: 0, inventoryCost: 0, sellRate: 0.03 },
+    { channel: 'online', split: 0.4, consignment: 8, inventoryCost: 0, sellRate: 0.04 },
+    { channel: 'retail', split: 0.3, consignment: 11.8, inventoryCost: 11.8, sellRate: 0.03 },
   ],
   minimalist: [
-    { channel: 'offline', split: 0.3, maintenance: 10, consignment: 0, inventoryCost: 0, sellRate: 0.027 },
-    { channel: 'online', split: 0.3, maintenance: 11.5, consignment: 8, inventoryCost: 0, sellRate: 0.033 },
-    { channel: 'retail', split: 0.4, maintenance: 15, consignment: 11.8, inventoryCost: 11.8, sellRate: 0.04 },
+    { channel: 'offline', split: 0.3, consignment: 0, inventoryCost: 0, sellRate: 0.027 },
+    { channel: 'online', split: 0.3, consignment: 8, inventoryCost: 0, sellRate: 0.033 },
+    { channel: 'retail', split: 0.4, consignment: 11.8, inventoryCost: 11.8, sellRate: 0.04 },
   ],
   indie: [
-    { channel: 'offline', split: 0.4, maintenance: 10, consignment: 0, inventoryCost: 0, sellRate: 0.04 },
-    { channel: 'online', split: 0.3, maintenance: 11.5, consignment: 8, inventoryCost: 0, sellRate: 0.0225 },
-    { channel: 'retail', split: 0.3, maintenance: 15, consignment: 11.8, inventoryCost: 11.8, sellRate: 0.0375 },
+    { channel: 'offline', split: 0.4, consignment: 0, inventoryCost: 0, sellRate: 0.04 },
+    { channel: 'online', split: 0.3, consignment: 8, inventoryCost: 0, sellRate: 0.0225 },
+    { channel: 'retail', split: 0.3, consignment: 11.8, inventoryCost: 11.8, sellRate: 0.0375 },
   ],
 };
 
@@ -62,15 +65,30 @@ export const channelRow = (genre: GenreId, channel: ChannelId): ChannelRow => {
   return r;
 };
 
-// Impact key → ChannelRow field for per-product-aware fields
-const SELECTION_FIELDS: { impactKey: string; rowField: 'split' | 'sellRate' }[] = [
+// Impact key → ChannelRow field for per-product-aware fields.
+//
+// `sales_channel` only. There is deliberately NO `sell_rate` impact: an impact
+// that moves no number is a field the operator can fill in for nothing, and
+// hydration for a key nobody authors is a path that says nothing. Both crowd
+// the thinking rather than clarifying it.
+//
+// `ChannelRow.sellRate` is therefore BUNDLED teaching content, not config — a
+// per-day illustration of how channels differ, which the sell-rate-by-market
+// table renders. Customers obtained is the server's:
+// marketShare × availableMarket × productScore.
+const SELECTION_FIELDS: { impactKey: string; rowField: 'split' }[] = [
   { impactKey: 'sales_channel', rowField: 'split' },
-  { impactKey: 'sell_rate',     rowField: 'sellRate' },
 ];
 
-// Impact key → ChannelRow field for flat (non-per-product) fields
-const FLAT_FIELDS: { impactKey: string; rowField: 'maintenance' | 'consignment' | 'inventoryCost' }[] = [
-  { impactKey: 'maintenance',   rowField: 'maintenance' },
+// Impact key → ChannelRow field for flat (non-per-product) fields.
+//
+// `inventory_cost` is the only one of these the server consumes
+// (IMPACT_CONFIG → affects: inventoryCost, charged on closing stock).
+// `consignment` has no IMPACT_CONFIG entry, so it hydrates and displays but
+// moves no money — a per-SALE charge, which calcFinancials has no term for.
+// Left in deliberately: the operator authors it and the discrepancy is meant to
+// surface in user acceptance testing.
+const FLAT_FIELDS: { impactKey: string; rowField: 'consignment' | 'inventoryCost' }[] = [
   { impactKey: 'consignment',   rowField: 'consignment' },
   { impactKey: 'inventory_cost',rowField: 'inventoryCost' },
 ];

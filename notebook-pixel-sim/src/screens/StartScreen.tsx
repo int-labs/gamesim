@@ -26,7 +26,6 @@ export function StartScreen() {
   const setScreen = useGame((s) => s.setScreen);
   const reset = useGame((s) => s.reset);
   const started = useGame((s) => s.meta.started);
-  const day = useGame((s) => s.meta.day);
   const phase = useGame((s) => s.meta.phase);
   const ended = useGame((s) => s.meta.ended);
   const route = useGame((s) => s.meta.route);
@@ -125,7 +124,7 @@ export function StartScreen() {
                   <div className="eyebrow eyebrow-sm text-brand-500">Amelia</div>
                   <div className="mt-0.5 font-body hint leading-snug text-ink-900">
                     {hasSavedRun
-                      ? HOME.ameliaIntroReturning(day, phase, route!)
+                      ? HOME.ameliaIntroReturning(phase, route!)
                       : ended
                         ? HOME.taglineEnded
                         : HOME.ameliaIntro}
@@ -137,7 +136,10 @@ export function StartScreen() {
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <CtaPulse reduced={!!reduced}>
                   <PixelButton variant="primary" size="lg" onClick={onContinue}>
-                    {HOME.cta.continue(day)}
+                    {/* PHASE, not day — `cta.continue` renders "Phase {n}" and
+                        was being handed `meta.day`, so a run on day 47 offered
+                        "Continue · Phase 47". */}
+                    {HOME.cta.continue(phase)}
                   </PixelButton>
                 </CtaPulse>
                 {/* Ghost, not a second filled button. This one WIPES the saved

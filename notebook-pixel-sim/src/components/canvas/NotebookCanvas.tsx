@@ -12,9 +12,10 @@ import { EnvironmentBackground } from './EnvironmentBackground';
 import { Notebook, sizeScale } from './Notebook';
 import { lineSize } from '@/engine/selectors';
 import { AddOnLayer } from './AddOnLayer';
-import { currentAddOns, setActiveLine, renameProductLine, setShopName } from '@/engine/mockEngine';
+import { currentAddOns, renameProductLine, setShopName } from '@/engine/mockEngine';
 import { archetypeLabel } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
+import { NotebookCycler } from '@/components/canvas/NotebookCycler';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { A } from '@/assets';
@@ -58,7 +59,6 @@ export function NotebookCanvas() {
   const addOns = useGame((s) => (hasNotebook ? currentAddOns(s) : []));
   const openDrawer = useGame((s) => s.openDrawer);
   const detailsOpen = useGame((s) => s.ui.rightDrawer === 'details');
-  const lines = useGame((s) => s.portfolio.productLines);
   const pushMascot = useGame((s) => s.pushMascot);
   const patCount = useRef(0);
 
@@ -179,15 +179,6 @@ export function NotebookCanvas() {
       </div>
     );
   }
-
-  const idx = lines.findIndex((l) => l.id === product.id);
-  const cycle = (dir: number) => {
-    if (lines.length < 2) return;
-    const next = (idx + dir + lines.length) % lines.length;
-    playSfx('whoosh'); // movement, not a click — the hero slides
-    setSlideDir(dir);
-    apply((s) => setActiveLine(s, lines[next].id));
-  };
 
   const startRename = () => {
     setDraft(product.name);
@@ -391,48 +382,12 @@ export function NotebookCanvas() {
       {/* Focus navigation — a bottom-center carousel cluster ‹ 1/3 › so it
           never overlaps the hero, docks or placed add-ons. Sits above the
           phone dock bar; bottom-3 on sm+. */}
-      {lines.length > 1 && (
-        <div className="absolute bottom-[84px] sm:bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
-          <button
-            onClick={() => cycle(-1)}
-            aria-label="Previous notebook"
-            className="group/nav inline-flex items-center justify-center w-10 h-10 bg-surface border-2 border-border shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:scale-110 active:scale-95 transition-transform"
-          >
-            <img
-              src={A.ui.pixel.arrow_left}
-              alt=""
-              className="w-[22px] h-[22px] object-contain transition-transform group-hover/nav:-translate-x-0.5"
-              style={{ imageRendering: 'pixelated' }}
-              draggable={false}
-            />
-          </button>
-          <div className="pointer-events-none inline-flex items-center gap-1 px-2.5 py-1.5 bg-ink-900/70 text-cream-100 eyebrow eyebrow-sm border border-black/40 tabular-nums overflow-hidden">
-            {/* keyed flip — the counter rolls like an odometer */}
-            <motion.span
-              key={idx}
-              initial={reduced ? false : { y: slideDir >= 0 ? 10 : -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.18, ease: [0.2, 1, 0.4, 1] }}
-            >
-              {idx + 1}
-            </motion.span>
-            <span>/ {lines.length}</span>
-          </div>
-          <button
-            onClick={() => cycle(1)}
-            aria-label="Next notebook"
-            className="group/nav inline-flex items-center justify-center w-10 h-10 bg-surface border-2 border-border shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:scale-110 active:scale-95 transition-transform"
-          >
-            <img
-              src={A.ui.pixel.arrow_right}
-              alt=""
-              className="w-[22px] h-[22px] object-contain transition-transform group-hover/nav:translate-x-0.5"
-              style={{ imageRendering: 'pixelated' }}
-              draggable={false}
-            />
-          </button>
-        </div>
-      )}
+      {/* `onCycle` feeds the hero's slide direction — the cycler owns the
+          counter's own roll, this is the extra thing only the canvas animates. */}
+      <NotebookCycler
+        className="absolute bottom-[84px] sm:bottom-3 left-1/2 -translate-x-1/2 z-30"
+        onCycle={setSlideDir}
+      />
 
       {/* The SHOP SIGN, bottom-left — the player's business name on the desk.
           Was a decorative "Notebook Studio" stamp; now it's their shop and the

@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGame } from '@/state/store';
+import { NotebookCycler } from '@/components/canvas/NotebookCycler';
 import { A } from '@/assets';
 import { fmt$, fmtInt } from '@/utils/format';
 import { CountUp } from '@/components/primitives/CountUp';
@@ -114,6 +115,12 @@ export function BottomStats({ liveProjectionState }: { liveProjectionState: Live
             <PortfolioMetrics liveProjection={liveProjection} />
           </PaperSheet>
         </div>
+
+        {/* Paging the ACTIVE notebook belongs to the section, not to either
+            sheet: it changes what the Active Notebook sheet shows, so putting
+            it inside the Portfolio rollup made it look like a portfolio
+            control. Centred under both. */}
+        <NotebookCycler className="relative justify-center mt-6" />
       </section>
 
       {/* A separate section, with its own heading and its own rule above it —
@@ -479,9 +486,12 @@ const ROW_CASH: PnLRow = {
 };
 
 export function FinanceTable() {
-  // The whole state, because `selectCashBalance` reads `player.cash` and
-  // `cashOpeningByRound` and must be the single definition of that figure.
-  const gameState = useGame((s) => s);
+  // The three slices `selectCashBalance` reads — NOT `useGame((s) => s)`, which
+  // subscribes to the whole store and re-renders this table on every mutation,
+  // including ones it does not display (a slider drag, a mascot push).
+  const playerCash = useGame((s) => s.player.cash);
+  const cashOpeningByRound = useGame((s) => s.cashOpeningByRound);
+  const ledger = useGame((s) => s.ledger);
   const phaseNow = useGame((s) => s.meta.phase);
   const reduced = useReducedMotion();
   // Hooked, not passed: two render sites (BottomStats, BusinessPage), neither
@@ -502,14 +512,20 @@ export function FinanceTable() {
     return [...seen].filter((p) => p >= 1).sort((a, b) => a - b);
   })();
 
-  // Costs are PER PRODUCT, so a round's row sums across products.
+  // Keyed by the 1-BASED display PHASE, which is what `phases` holds — hence
+  // `costByPhase`, not `costByRound`. It was the latter, and `computeRow` then
+  // looked it up by the 0-based `f.roundNumber`, shifting every cost row one
+  // column left. See [[project-round-numbering]]: `roundNumberFromPhase` is the
+  // ONLY place the two counters may be converted.
+  //
+  // Costs are PER PRODUCT, so a phase's row sums across products.
   // Key is `treatment:key` — one category can land on BOTH sides of the line.
   //
   // BOTH arrays: unit-charged rows in `incurredCosts`, globalInput spend in
   // `globalInputCosts`. Rounds scored before the split carry globalInput rows
   // in the first array with `key === category`, which is the key the second
   // array produces — so old and new documents merge into the same row.
-  const costByRound = new Map<number, Map<string, CostCell>>();
+  const costByPhase = new Map<number, Map<string, CostCell>>();
   for (const p of phases) {
     const f = officialFor(p);
     if (!f) continue;
@@ -526,14 +542,14 @@ export function FinanceTable() {
         add(c.treatment + ':' + c.category, c.label, c.treatment, c.incurredCost ?? 0);
       }
     }
-    costByRound.set(p, m);
+    costByPhase.set(p, m);
   }
 
   // Cost rows are the UNION across every scored round, so a category that
   // appears only in round 2 still gets a row for the whole sheet.
   const costRows: PnLRow[] = (() => {
     const seen = new Map<string, CostCell>();
-    for (const m of costByRound.values()) {
+    for (const m of costByPhase.values()) {
       for (const [k, v] of m) if (!seen.has(k)) seen.set(k, v);
     }
     return [...seen.entries()].map(([k, v]) => ({
@@ -562,8 +578,9 @@ export function FinanceTable() {
   // PER ROUND, from that round's own write-once opening plus its scored profit.
   // Never a cumulative sum over a live base, and never net of committed spend:
   // this is the BALANCE, and it is the definition the HUD chip adopts.
+  const cashInputs = { player: { cash: playerCash }, cashOpeningByRound, ledger };
   const cashThrough = (p: number) =>
-    selectCashBalance(gameState, p, (r) => officialFor(r)?.operatingProfit);
+    selectCashBalance(cashInputs, p, (r) => officialFor(r)?.operatingProfit);
 
   const computeRow = (r: PnLRow, p: number | 'total'): number | null => {
     if (r.source === 'cash') {
@@ -573,9 +590,15 @@ export function FinanceTable() {
     }
     // Server costs arrive POSITIVE and `PnLCell` renders the minus, so nothing
     // here negates.
-    const pick = (f: OfficialFinancials): number => {
+    //
+    // `costByPhase` is keyed by the 1-BASED display PHASE, because that is what
+    // it was built from — NOT by `f.roundNumber`, which is 0-based. Reading it
+    // with the round number shifted every cost row one column left: P1 read a
+    // key that did not exist and showed $0, P2 showed P1's costs, and the sheet
+    // stopped reconciling against its own verbatim subtotals.
+    const pick = (f: OfficialFinancials, phase: number): number => {
       if (typeof r.source === 'object') {
-        return costByRound.get(f.roundNumber)?.get(r.source.costKey)?.amount ?? 0;
+        return costByPhase.get(phase)?.get(r.source.costKey)?.amount ?? 0;
       }
       switch (r.source) {
         case 'revenue':      return f.revenue;
@@ -587,7 +610,7 @@ export function FinanceTable() {
     };
     const at = (q: number) => {
       const f = officialFor(q);
-      return f ? pick(f) : 0;
+      return f ? pick(f, q) : 0;
     };
     return p === 'total' ? phases.reduce((a, q) => a + at(q), 0) : at(p);
   };

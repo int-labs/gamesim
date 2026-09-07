@@ -26,13 +26,23 @@ interface ConfigEntry {
 const BLANK_CASE_STUDY: CaseStudy = { title: "", brief: "", bestWhen: "", watchOut: "" };
 const BLANK_ENTRY: ConfigEntry = { id: "", imageAssetId: "", caseStudy: { ...BLANK_CASE_STUDY } };
 
-type Section = "vendors" | "candidates" | "marketingTeams";
+type Section = "vendors" | "candidates" | "marketingTeams" | "channels";
 
+// `key` is the section name stored on PlayerConfig.config and read by the
+// player's configHydrator; `globalInputKey` is the container whose ITEM KEYS
+// become the valid ids. Channels carry case-study copy only — the numbers come
+// off the globalInput itself.
 const SECTIONS: { key: Section; label: string; globalInputKey: string }[] = [
   { key: "vendors",       label: "Vendors",         globalInputKey: "supply_chain" },
   { key: "candidates",    label: "Candidates",       globalInputKey: "hiring" },
   { key: "marketingTeams",label: "Marketing Teams",  globalInputKey: "marketing" },
+  { key: "channels",      label: "Channels",         globalInputKey: "channel" },
 ];
+
+/** An empty bucket per section, derived from SECTIONS so adding one above is
+ *  the only edit — this literal used to be repeated at six call sites. */
+const emptyBySection = <T,>(): Record<Section, T[]> =>
+  Object.fromEntries(SECTIONS.map((s) => [s.key, [] as T[]])) as Record<Section, T[]>;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -42,14 +52,14 @@ export default function PlayerConfigPage() {
 
   // Loaded state from backend
   const [configId, setConfigId]               = useState<string | null>(null);
-  const [config, setConfig]                   = useState<Record<Section, ConfigEntry[]>>({
-    vendors: [], candidates: [], marketingTeams: [],
-  });
+  const [config, setConfig]                   = useState<Record<Section, ConfigEntry[]>>(
+    emptyBySection<ConfigEntry>(),
+  );
 
   // Available IDs per section (from globalInputs, for reference)
-  const [availableIds, setAvailableIds]       = useState<Record<Section, string[]>>({
-    vendors: [], candidates: [], marketingTeams: [],
-  });
+  const [availableIds, setAvailableIds]       = useState<Record<Section, string[]>>(
+    emptyBySection<string>(),
+  );
 
   // Uploaded image assets for the image picker
   const [imageAssets, setImageAssets]         = useState<any[]>([]);
@@ -77,8 +87,8 @@ export default function PlayerConfigPage() {
   useEffect(() => {
     if (!selectedSimTypeId) {
       setConfigId(null);
-      setConfig({ vendors: [], candidates: [], marketingTeams: [] });
-      setAvailableIds({ vendors: [], candidates: [], marketingTeams: [] });
+      setConfig(emptyBySection<ConfigEntry>());
+      setAvailableIds(emptyBySection<string>());
       return;
     }
     loadConfig();
@@ -91,21 +101,22 @@ export default function PlayerConfigPage() {
       const doc = res.data?.data ?? res.data;
       setConfigId(doc._id ?? null);
       const cfg = doc.config ?? {};
-      setConfig({
-        vendors:       (cfg.vendors       ?? []).map(normaliseEntry),
-        candidates:    (cfg.candidates    ?? []).map(normaliseEntry),
-        marketingTeams:(cfg.marketingTeams ?? []).map(normaliseEntry),
-      });
+      // Per SECTIONS, so a new section loads without another line here.
+      setConfig(
+        Object.fromEntries(
+          SECTIONS.map((s) => [s.key, (cfg[s.key] ?? []).map(normaliseEntry)]),
+        ) as Record<Section, ConfigEntry[]>,
+      );
     } catch (e: any) {
       // 404 = no config yet; anything else is a real error
       if (e.response?.status !== 404) setError(e.message);
       setConfigId(null);
-      setConfig({ vendors: [], candidates: [], marketingTeams: [] });
+      setConfig(emptyBySection<ConfigEntry>());
     }
   };
 
   const loadAvailableIds = async () => {
-    const ids: Record<Section, string[]> = { vendors: [], candidates: [], marketingTeams: [] };
+    const ids: Record<Section, string[]> = emptyBySection<string>();
     await Promise.all(
       SECTIONS.map(async ({ key, globalInputKey }) => {
         try {
@@ -315,6 +326,10 @@ export default function PlayerConfigPage() {
                   )}
                 </td>
               </tr>
+              {/* Channels render no artwork, so the player's hydrator ignores
+                  imageAssetId for them — offering the picker would invite an
+                  operator to set a value that does nothing. */}
+              {activeSection !== "channels" && (
               <tr>
                 <td>Image Asset</td>
                 <td>
@@ -338,6 +353,7 @@ export default function PlayerConfigPage() {
                   )}
                 </td>
               </tr>
+              )}
               <tr><td colSpan={2}><strong>Case Study</strong></td></tr>
               <tr>
                 <td>Title</td>

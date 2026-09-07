@@ -9,12 +9,7 @@ import { expandScript, SCRIPT_BEFORE_PHASE1_CONFIRM } from '@/content/mascotScri
 import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import { SessionChip } from '@/components/hud/SessionChip';
-import { DAYS_PER_PHASE } from '@/engine/config';
-
-// The end day of a phase is its round number times the phase length. The old
-// three-entry lookup table could not answer for round 4, and the round count is
-// the operator's `config.totalRounds`, not a fixed 3.
-const phaseEndDay = (phase: number) => phase * DAYS_PER_PHASE;
+import { useTotalRounds } from '@/gamesim/GamesimProvider';
 
 /**
  * Action bar that runs the entire current phase to its end day in one click.
@@ -31,8 +26,8 @@ export function PhaseActionBar({
   /** Passed straight to the sequence modal — see SimulationScreen. */
   liveProjection?: ServerProjectionResult | null;
 }) {
-  const day = useGame((s) => s.meta.day);
   const phase = useGame((s) => s.meta.phase);
+  const totalRounds = useTotalRounds();
   const ended = useGame((s) => s.meta.ended);
   const pendingEvent = useGame((s) => s.meta.pendingEventId);
   const pendingEval = useGame((s) => s.meta.pendingEvalPhase);
@@ -56,9 +51,6 @@ export function PhaseActionBar({
     if (phase === 1) pushMascotSequence(expandScript(SCRIPT_BEFORE_PHASE1_CONFIRM));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const target = phaseEndDay(phase);
-  const daysLeft = Math.max(0, target - day + 1);
 
   // Game-state blocks (engine forces resolution before continuing)
   const stateBlocked = ended || !!pendingEvent || pendingEval !== null;
@@ -154,11 +146,15 @@ export function PhaseActionBar({
           </span>
           <div className="flex flex-col leading-tight min-w-0">
             <span className="eyebrow eyebrow-sm text-[#9F7F52]">Current Phase</span>
+            {/* Phase N / total. Was "Day 1 / 90 · 30d left in Phase 1", which
+                counted a 90-day run in 30-day blocks — nothing ticks per day,
+                and the count comes from `config.totalRounds`, not a fixed 3.
+                `—` while the operator's total is unknown (standalone play);
+                inventing one would state a horizon nobody configured. */}
             <span className="hint text-[#E8DCBE] truncate">
-              Day <span className="num-xs">{day}</span> / 90
-              <span className="text-[#9F7F52]"> · </span>
-              <span className="tabular-nums">{daysLeft}d</span> left
-              <span className="hidden sm:inline"> in Phase {phase}</span>
+              Phase <span className="num-xs">{phase}</span>
+              <span className="text-[#9F7F52]"> / </span>
+              <span className="tabular-nums">{totalRounds ?? '—'}</span>
             </span>
           </div>
         </div>
