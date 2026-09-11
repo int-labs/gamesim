@@ -13,8 +13,6 @@
 import type { GameState } from '@/state/store';
 import type { MascotMessage } from '@/types';
 import { selectComplexity } from '@/engine/complexity';
-import { calcDemandToday } from '@/engine/mockEngine';
-import { mulberry32, seedFrom } from '@/utils/rng';
 
 interface FeedbackContext {
   state: GameState;
@@ -35,12 +33,6 @@ export interface FeedbackRule {
 
 function bucketedId(prefix: string, day: number, bucket = 5): string {
   return `${prefix}__d${Math.floor(day / bucket)}`;
-}
-
-function estimatedDemand(state: GameState): number {
-  const seed = state.meta.seed + ':feedback:' + state.meta.day;
-  const rand = mulberry32(seedFrom(seed));
-  return Math.round(calcDemandToday(state, rand).total);
 }
 
 function totalRevenueSoFar(state: GameState): number {
@@ -110,43 +102,10 @@ const RULES: FeedbackRule[] = [
     },
   },
 
-  // High demand, no stock = lost sales.
-  {
-    key: 'high_demand_no_stock',
-    evaluate: ({ state }) => {
-      if (state.meta.day < 5) return null;
-      const demand = estimatedDemand(state);
-      const finished = state.inventory.totalFinished;
-      if (demand < 4 || finished > demand * 0.5) return null;
-      return {
-        id: bucketedId('high_demand_no_stock', state.meta.day),
-        type: 'warning',
-        priority: 1,
-        mood: 'warning',
-        body:
-          "Customers want the product but stock is low. You may lose sales unless you produce more - raise Produce / phase in Business > Inventory, then confirm the phase.",
-      };
-    },
-  },
-
-  // High stock, low demand = trapped cash.
-  {
-    key: 'high_stock_low_demand',
-    evaluate: ({ state }) => {
-      if (state.meta.day < 8) return null;
-      const demand = estimatedDemand(state);
-      const finished = state.inventory.totalFinished;
-      if (finished < 30 || finished < demand * 4) return null;
-      return {
-        id: bucketedId('high_stock_low_demand', state.meta.day),
-        type: 'warning',
-        priority: 2,
-        mood: 'thinking',
-        body:
-          "You made more notebooks than customers want. That traps cash in inventory - lower Produce / phase until stock drains.",
-      };
-    },
-  },
+  // Two rules — `high_demand_no_stock` and `high_stock_low_demand` — were
+  // DELETED here on 2026-09-09 with the local demand engine they depended on.
+  // Both compared `inventory.totalFinished` (no writer) against a client-side
+  // demand estimate, behind a `meta.day` gate that never opened in phase 1.
 
   // Revenue up but profit lagging.
   {

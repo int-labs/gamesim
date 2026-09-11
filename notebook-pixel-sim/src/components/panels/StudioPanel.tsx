@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useGame, DEFAULT_SHOP_NAME, MAX_SHOP_NAME } from '@/state/store';
+import { useGame } from '@/state/store';
 import {
   engageFinlitHire, clearFinlitHire, engageFinlitVendor, clearFinlitVendor,
   setFinlitMarketingBudget,
-  finlitCompanyChannels, toggleFinlitChannelAll, setShopName,
+  finlitCompanyChannels, toggleFinlitChannelAll
 } from '@/engine/mockEngine';
 import {
   CHANNEL_META, channelRow,
-  type GenreId, type ChannelId,
+  type ChannelId,
 } from '@/data/finlit';
 import { hireSteps, hireStep, CANDIDATE_IMAGE } from '@/engine/finlit/core/config/hiring';
 import { MARKETING_IMAGE } from '@/engine/finlit/core/config/marketing';
@@ -43,12 +43,16 @@ const SECTION_ICON = {
   vendor: A.ui.studioOps.supplier,
 };
 
-/** Per-channel art. Closest existing marks; purpose-built ones would be better. */
-const CHANNEL_ICON: Record<ChannelId, string> = {
+/** Per-channel art for the three bundled ids. A channel the operator adds has
+ *  no mark of its own, so `channelIcon` falls back rather than rendering an
+ *  empty `src`. Closest existing marks; purpose-built ones would be better. */
+const CHANNEL_ICON: Record<string, string> = {
   offline: A.ui.commercial.bulk_order,
   online: A.ui.commercial.social_media,
   retail: A.ui.studioOps.inventory_shelf,
 };
+const channelIcon = (ch: ChannelId): string =>
+  CHANNEL_ICON[ch] ?? A.ui.commercial.bulk_order;
 
 // A distinct studio-operations portrait per candidate, so each hire reads at a
 // glance (the visual hook for the hiring cards).
@@ -153,7 +157,7 @@ export function StudioPanel({
   const cashByProduct = liveProjection?.byProduct ?? null;
   // …and the same base the chip shows, or the gate refuses spending the player
   // can see they can afford.
-  const { financialsByRound } = useGamesimSession();
+  const { financialsByRound, bootstrap } = useGamesimSession();
   const cashBase = useGame((s) =>
     selectCashBalance(
       s,
@@ -162,15 +166,13 @@ export function StudioPanel({
     ),
   );
   // "Where you sell" is company-wide: one channel set across every notebook.
-  // Both selectors return a joined STRING, not a fresh array — a new array each
-  // render would break Zustand's referential equality and churn re-renders.
+  // A joined STRING, not a fresh array — a new array each render would break
+  // Zustand's referential equality and churn re-renders.
+  //
+  // The `genresKey` subscription that sat here is gone with the genre × channel
+  // matrix: it existed only to pick a genre for `channelRow`.
   const channelsKey = useGame((s) => finlitCompanyChannels(s).join(','));
-  const genresKey = useGame((s) =>
-    [...new Set(s.portfolio.productLines.map((l) => l.genre ?? 'indie'))].join(','),
-  );
   const companyChannels = new Set(channelsKey.split(',') as ChannelId[]);
-  const genresInPlay = (genresKey ? genresKey.split(',') : []) as GenreId[];
-  const shopName = useGame((s) => s.meta.shopName);
   const apply = useGame((s) => s.apply);
   const availableGlobalInputs = useGame((s) => s.availableGlobalInputs);
   const channelGI = availableGlobalInputs.find((g) => g.key === 'channel');
@@ -210,7 +212,7 @@ export function StudioPanel({
       // Through the shared util rather than open-coded, so a lever cannot drift
       // from the server's rule. Marketing is company-wide, hence productId null.
       demandLift: impactFor(item, 'marketing', stepKey, null),
-      spend:  Math.ceil((item.cost ?? 0) * mult),
+      spend:  (item.cost ?? 0) * mult,
       // Scaled by the step, matching what setFinlitMarketingBudget charges. A
       // flat `item.energy` would show a figure the mutator never deducts.
       energy: Math.ceil((item.energy ?? 0) * energyMult),
@@ -224,8 +226,6 @@ export function StudioPanel({
   // Raw text per candidate so the field can be empty mid-typing; it is parsed
   // and clamped before anything reaches the engine.
   const [levelDraft, setLevelDraft] = useState<Record<string, string>>({});
-  // null = not editing; the input falls back to the store value.
-  const [shopDraft, setShopDraft] = useState<string | null>(null);
   // Which section's reference sheet is open, if any.
   const [detail, setDetail] = useState<SectionDetail | null>(null);
 
@@ -302,53 +302,23 @@ export function StudioPanel({
           reversibility note now lives in the tab explainer (copy.ts) and the
           page starts on its first actual decision. */}
 
-      {/* ── Your shop — the company's name. Also renameable from the shop sign
-           on the desk (Product page); both write through setShopName. ── */}
-      <OpsSection icon={SECTION_ICON.shop} title="Your Shop" hint="Your business name. Costs nothing, change it whenever you like.">
-        {/* The field used to sit alone against a full panel width of nothing.
-            The counter and the "where does this show up?" line are what a
-            player actually wants next to a name box, and they earn the space
-            the empty half was wasting. */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <input
-            // Local draft while typing, committed on blur/Enter. Writing straight
-            // through on every keystroke would fight setShopName's empty-fallback:
-            // clearing the field to retype would snap it back to the default.
-            value={shopDraft ?? shopName}
-            onChange={(e) => setShopDraft(e.target.value)}
-            onBlur={() => { apply((s) => setShopName(s, shopDraft ?? shopName)); setShopDraft(null); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-            maxLength={MAX_SHOP_NAME}
-            aria-label="Shop name"
-            placeholder={DEFAULT_SHOP_NAME}
-            className="w-full max-w-[340px] bg-cream-50 border-2 border-border text-text section-title outline-none focus:border-primary shadow-[2px_2px_0_0_var(--c-shadow)] px-3 py-2"
-          />
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="readout shrink-0 bg-surface-2 px-2 py-1">
-              <span className="num-xs text-text-2 tabular-nums">
-                {(shopDraft ?? shopName).length}/{MAX_SHOP_NAME}
-              </span>
-            </span>
-            <span className="body-xs text-text-3 min-w-0">
-              Appears on the shop sign on your desk and in the class standings.
-            </span>
-          </div>
-        </div>
-      </OpsSection>
-
       {/* ── Sales channels — WHERE you sell. Company-wide: every notebook ships
            through the same channels, so this is one decision, not one per SKU. ── */}
       <OpsSection
         icon={SECTION_ICON.channels}
         title="Sales Channels"
         hint="Where you sell. Applies to every notebook."
-        onDetails={() => setDetail(channelDetail(channelGI))}
+        // `products` resolves the reach impact's per-product overrides onto
+        // genres for the reach matrix.
+        onDetails={() => setDetail(channelDetail(channelGI, bootstrap?.products))}
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {(Object.keys(CHANNEL_META) as ChannelId[]).map((ch) => {
             const on = companyChannels.has(ch);
             const isLastOn = on && companyChannels.size <= 1;
-            const row = channelRow(genresInPlay[0] ?? 'indie', ch);
+            // No genre argument any more — channel economics are per channel,
+            // not per genre × channel. See channels.ts.
+            const row = channelRow(ch);
             const channelItem = channelGI?.inputs.find((item) => item.key === ch);
             return (
               <motion.button
@@ -415,7 +385,7 @@ export function StudioPanel({
                 <div className={clsx('contents', !on && '[&>*]:opacity-60')}>
                 <div className="flex items-start justify-between gap-2">
                   <img
-                    src={CHANNEL_ICON[ch]}
+                    src={channelIcon(ch)}
                     alt=""
                     className={clsx(
                       'w-28 h-28 object-contain shrink-0 transition-[filter,opacity]',
@@ -511,9 +481,7 @@ export function StudioPanel({
                   if (key == null) return;
                   // Cash bounds the round. Only the DELTA against this lever's
                   // current step is tested, so stepping back down is free.
-                  const nextSpend = Math.ceil(
-                    (lv.item.cost ?? 0) * (lv.item.options?.[key] ?? 0),
-                  );
+                  const nextSpend = (lv.item.cost ?? 0) * (lv.item.options?.[key] ?? 0);
                   let ok = false;
                   apply((s) => {
                     if (!canSpend(s, nextSpend - lv.spend, cashByProduct, cashBase)) {

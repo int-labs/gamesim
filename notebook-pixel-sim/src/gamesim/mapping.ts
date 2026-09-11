@@ -211,6 +211,19 @@ export function toDecisionInputs({
       description:       item.description ?? null,
       selectedStepKey:   sel.selectedStepKey,
       cost:              item.cost,
+      // The whole cost lands on ONE side of the Gross Profit line, per the
+      // operator's enum. Spread so an item with no `costTreatment` omits the
+      // key entirely rather than sending zeros — the server reads absence as
+      // "book `cost` as a period cost", and a `{0,0}` would charge neither.
+      // The step multiplier is NOT applied here; `calcFinancials` scales the
+      // split by the selected step, and doing it twice would square it.
+      ...(item.costTreatment
+        ? {
+            costTreatment: item.costTreatment === 'cogs'
+              ? { cogs: item.cost, opex: 0 }
+              : { cogs: 0, opex: item.cost },
+          }
+        : {}),
       energy:            item.energy,
       productsImpacted:  item.productsImpacted,
       impacts:           item.impacts,

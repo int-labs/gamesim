@@ -4,16 +4,15 @@
 //   2. Inventory Cleanliness (25)  — 1 - (stockoutRate + overstockRate)
 //   3. Insight Bonus (25)          — correct / total
 //
-// Investor route: penalty if obligation not met by Day 90; small bonus if met.
+// The three sub-scores are the whole rubric. There is no route modifier: the
+// funding-route choice, its repayment obligation and its ×1.1 multiplier were
+// removed along with the mechanic.
 
 import type { GameState } from '@/state/store';
 import {
   ACTIVE_DAYS_TOTAL,
-  INVESTOR_BONUS,
-  INVESTOR_PENALTY,
   MAX_EXPECTED_NET_PROFIT,
 } from './config';
-import { totalReceivables } from './cashflow';
 
 export interface FinalScore {
   total: number;       // 0..100
@@ -22,9 +21,6 @@ export interface FinalScore {
   insight: number;     // 0..25
   netDollar: number;   // raw net profit
   cleanliness: number; // 0..1
-  routePenalty: number;
-  routeBonus: number;
-  obligationMet: boolean | null;
 }
 
 /**
@@ -64,20 +60,7 @@ export function computeFinalScore(state: GameState): FinalScore {
   const correct = state.insights.score.correct;
   const insightScore = total > 0 ? (correct / total) * 25 : 0;
 
-  let routePenalty = 0;
-  let routeBonus = 0;
-  let obligationMet: boolean | null = null;
-  if (state.meta.route === 'investor') {
-    // Did the player effectively cover the $3000 obligation?
-    // Reasonable proxy: cash + receivables - investor debt remaining ≥ 0.
-    const liquid = state.player.cash + totalReceivables(state.cashSchedule);
-    const obligationStanding = state.player.debt - liquid;
-    obligationMet = obligationStanding <= 0;
-    if (obligationMet) routeBonus = INVESTOR_BONUS;
-    else routePenalty = INVESTOR_PENALTY;
-  }
-
-  let raw = netProfitScore + inventoryScore + insightScore + routeBonus - routePenalty;
+  let raw = netProfitScore + inventoryScore + insightScore;
   raw = Math.max(0, Math.min(100, Math.round(raw)));
 
   return {
@@ -87,9 +70,6 @@ export function computeFinalScore(state: GameState): FinalScore {
     insight: Math.round(insightScore),
     netDollar: Math.round(netDollar),
     cleanliness,
-    routePenalty,
-    routeBonus,
-    obligationMet,
   };
 }
 

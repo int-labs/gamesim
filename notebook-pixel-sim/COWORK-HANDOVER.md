@@ -77,7 +77,7 @@ Energy refills **+15** at each phase boundary (capped at the phase max). **Energ
 
 ### Full user flow
 ```
-Start → Funding Route (Self-funded $1,000  |  Investor-backed $2,500 + owes $3,000 by Day 90)
+Start → Name your studio (opening cash: one operator-configured figure)
       → Phase 1 Intro → Phase 1 Decisions → Confirm → Days 1–30 (pauses on events)
       → Phase 1 Evaluation (P&L snapshot + cash/profit charts + insight check + Amelia debrief)
       → Phase 2 Intro → … → Days 31–60 → Phase 2 Evaluation
@@ -216,12 +216,11 @@ cash_end    = cash_start + cash_in(DSO arrivals) − cash_out(raw, wages, market
 netProfitScore = clamp(netProfit / $4,500, 0,1) × 50   # $4,500 = "well-played" baseline
 inventoryScore = (1 − stockoutRate − overstockRate) × 25
 insightScore   = (correct / total) × 25
-investor: +5 if debt met, −15 if not
 final = round(clamp(sum, 0, 100))
 ```
 **Net Profit, not Revenue**, drives the big bucket — rewarding *sustainable* selling (margin, channel discipline, defect control).
 
-**Key constants:** Starting cash self $1,000 / investor $2,500; investor debt $3,000 (penalty −15 / bonus +5); energy 30/45/60 (+15 per boundary); demand ×0.7/1.0/1.2; packaging $0.15; fulfillment $0.05; base capacity 5; hire wage $12, hire capacity +4; defect 8% default / 50% max; overstock cover 5 days; max-expected net profit $4,500; brand 0–100; raw cost floor $1.40.
+**Key constants:** Starting cash $1,000 (`STARTING_CASH`, hydratable from PlayerConfig); energy 30/45/60 (+15 per boundary); demand ×0.7/1.0/1.2; packaging $0.15; fulfillment $0.05; base capacity 5; hire wage $12, hire capacity +4; defect 8% default / 50% max; overstock cover 5 days; max-expected net profit $4,500; brand 0–100; raw cost floor $1.40.
 
 ---
 

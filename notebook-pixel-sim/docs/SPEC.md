@@ -19,7 +19,7 @@
 
 **Why a notebook business?** Notebooks are tangible, relatable, and have all the right tensions for entrepreneurship learning: clear product variants (cover, paper, binding), cost-of-goods that matters, several plausible audiences, real inventory dynamics, and a marketing surface that students recognize from their own campus. The product is simple enough that the *business decisions* — not the product itself — are the focus.
 
-**How it works at a high level.** The player picks a funding route, then for each phase configures a product, picks an audience, sets pricing, manages production and inventory, and chooses sales channels. Once decisions are locked, they confirm the phase and the engine fast-forwards through the days, processing demand, production, sales, costs, cash flow, events, and modifiers. After each phase the player sees a debrief, answers a state-based **insight check**, and proceeds. After Phase 3 they see their final score and full P&L.
+**How it works at a high level.** The player names their studio, then for each phase configures a product, picks an audience, sets pricing, manages production and inventory, and chooses sales channels. Once decisions are locked, they confirm the phase and the backend scores the round, processing demand, production, sales, costs, cash flow, events, and modifiers. After each phase the player sees a debrief, answers a state-based **insight check**, and proceeds. After Phase 3 they see their final score and full P&L.
 
 ---
 
@@ -66,9 +66,9 @@ The simulation is **3 phases × 30 internal days each = 90 days total**. Interna
 
 | Phase | Internal Days | Main Focus | Player Decisions | Main Outputs |
 |---|---|---|---|---|
-| **Phase 1** | 1–30 | Market positioning. First product. Find product-market fit. | Funding route (start of run), target audience, notebook archetype + materials, price, first channel | Phase 1 P&L, segment fit, first units sold, brand awareness baseline |
+| **Phase 1** | 1–30 | Market positioning. First product. Find product-market fit. | Studio name (start of run), target audience, notebook archetype + materials, price, first channel | Phase 1 P&L, segment fit, first units sold, brand awareness baseline |
 | **Phase 2** | 31–60 | Inventory flow. Production growth. Operations. | Raw material buys, hires, tools, process upgrades, supplier choices, expanded channels | Production output, stockout/overstock days, gross profit dynamics |
-| **Phase 3** | 61–90 | Cash flow, P&L diagnosis, focused scaling. | Marketing campaigns, scaling decisions, late-stage pivots, debt repayment (investor route) | Cash trend, phase-level P&L, final score |
+| **Phase 3** | 61–90 | Cash flow, P&L diagnosis, focused scaling. | Marketing campaigns, scaling decisions, late-stage pivots, repayment of any loan taken in-run | Cash trend, phase-level P&L, final score |
 
 ### Phase mechanics
 
@@ -85,7 +85,7 @@ The simulation is **3 phases × 30 internal days each = 90 days total**. Interna
 Start Screen
   │
   ▼
-Funding Route (Self-funded $1,000  |  Investor-backed $2,500 + $3,000 debt)
+Name your studio  (opening cash is a single operator-configured figure)
   │
   ▼
 Phase 1 Intro  ──►  Phase 1 Decisions (Product · Audience · Price · Channels · Inventory · Ops)
@@ -151,7 +151,6 @@ Phase 1 Intro  ──►  Phase 1 Decisions (Product · Audience · Price · Cha
 
 | Decision Category | Example Choices | Affects | Learning Point |
 |---|---|---|---|
-| **Funding route** | Self-funded ($1,000, no debt) · Investor-backed ($2,500, owes $3,000 by Day 90) | Starting cash, ending obligation, score modifiers | LP3 |
 | **Target audience** | Students · Creators · Professionals · Gift Buyers | Demand multiplier, price sensitivity, channel affinity, segment fit | LP1 |
 | **Notebook archetype** | Student Notebook · Planner · Daily Journal | Unit cost baseline, segment fit weights, production time | LP1 |
 | **Materials** | Cover (hardcover/leather), Binding (ring/staple), Size (S/M/L), Paper (cheap/standard/premium) | Unit material cost, perceived value, segment fit | LP1, LP4 |
@@ -175,11 +174,11 @@ This is the core reference for developers and stakeholders. All currency is in d
 |---|---|---|---|---|
 | `currentPhase` | Active phase 1, 2, or 3 | enum {1, 2, 3} | Phase confirm, evaluation continue | Phase demand multiplier, max energy, available upgrades |
 | `internalDay` | Day in the 90-day window | int 1–90 | Confirm Phase advance | Event triggers, evaluation triggers, end-of-game |
-| `route` | Funding model | enum {self, investor} | Route Choice screen | Starting cash, debt, score modifiers |
+| `shopName` | The player's studio name | string, ≤24 chars | Naming screen, HUD menu rename | Display only — never scored |
 | `energy` | Strategic decision budget | int 0–maxEnergy | Channel toggle, upgrade purchase, event option | Whether decisions are affordable |
 | `maxEnergy` | Phase ceiling | 30 / 45 / 60 | Phase | Energy cap |
 | `cash` | Liquid bank balance | float, can go negative | All cash-affecting events | Whether actions are affordable, cash score warnings |
-| `debt` | Obligation owed | float | Investor route start, finance loans, event responses | Investor obligation check at end of run |
+| `debt` | Obligation owed | float | Finance-loan upgrade, event responses | Settled from cash on the final round |
 | `brand` | Brand awareness 0–100 | float | Sales (+), lost sales (−), daily decay (−), event modifiers | Demand multiplier (`brandFactor`) |
 | `gameStatus` | Run lifecycle flag | started / ended | Start screen, day 90 | Routing |
 
@@ -282,7 +281,7 @@ DSO matters: a sale on Campus Store today doesn't show up in cash for 30 days �
 | `operatingProfit` | Gross profit − OpEx | derived | OpEx lines | Net profit |
 | `netProfit` | Σ P&L ledger entries (excludes balance-sheet) | derived | All P&L | Final score (50 pts) |
 | `cashBalance` | Liquid cash now | float | All cash events | Solvency, score warnings |
-| `receivables` | AR not yet collected | float | DSO-delayed sales | Liquidity, investor obligation |
+| `receivables` | AR not yet collected | float | DSO-delayed sales | Liquidity |
 | `payables` | AP not yet sent | float | Negotiated supplier terms | Liquidity |
 | `cashSchedule` | Pending cash events | array | Sales DSO, supplier DPO | Daily drain |
 
@@ -563,7 +562,7 @@ cash_end = cash_start
 2. **Inventory build-up**: Buying raw drains cash *before* sales convert it back.
 3. **Ongoing OpEx**: Wages and marketing run every day regardless of revenue.
 
-Cash can go negative; the score penalty is that the player struggles to pay for new raw material or to cover the investor obligation.
+Cash can go negative; the score penalty is that the player struggles to pay for new raw material or to settle any loan they took.
 
 ### 10.12 Inventory Cleanliness Formula
 
@@ -583,14 +582,13 @@ netProfitScore     = clamp( netProfit / MAX_EXPECTED_NET_PROFIT, 0, 1 ) × 50
 inventoryScore     = inventoryCleanlinessRate × 25
 insightScore       = (correctInsights / totalInsights) × 25                    # 0 if no checks answered
 
-investorPenalty    = (route == investor && obligation_not_met) ? 15 : 0
-investorBonus      = (route == investor && obligation_met)     ? 5  : 0
-
 finalScore = round( clamp(
-                netProfitScore + inventoryScore + insightScore
-                + investorBonus − investorPenalty,
+                netProfitScore + inventoryScore + insightScore,
                 0, 100 ) )
 ```
+
+The three sub-scores are the whole rubric. A `±investorBonus/Penalty` term was
+removed on 2026-09-09 with the funding-route mechanic.
 
 `MAX_EXPECTED_NET_PROFIT` = $4,500 (tunable; represents a "well-played" run baseline).
 
@@ -762,7 +760,7 @@ Subtotal rows have visible dividers; emphasised rows (Gross Profit, Op Profit, C
 
 ## 15. Example Scenario Walkthrough
 
-A self-funded player picks Students. Configures a Student Notebook with Hardcover, Ring, Medium, Standard paper. Adds a sticker pack. Sets price at $7. Opens Campus Booth. Buys 50 raw. Confirms Phase 1.
+A player picks Students. Configures a Student Notebook with Hardcover, Ring, Medium, Standard paper. Adds a sticker pack. Sets price at $7. Opens Campus Booth. Buys 50 raw. Confirms Phase 1.
 
 | Step | Decision | Immediate Effect | Financial / Operational Impact |
 |---|---|---|---|
@@ -845,19 +843,17 @@ The simulation is engaging because the *visual* is playful (pixel art, dorm-room
 - All currency is in single-currency dollars; no localization yet.
 - Unit costs are per-finished-notebook approximations; raw material is treated as homogenous "potential notebooks."
 - Demand jitter (0.85–1.15) is intentional, light realism without making outcomes unfair.
-- `MAX_EXPECTED_NET_PROFIT = $4,500` is an estimate of a "well-played, self-funded" run. Will be calibrated against playtests.
+- `MAX_EXPECTED_NET_PROFIT = $4,500` is an estimate of a "well-played" run. Will be calibrated against playtests.
 - Net Profit (not Revenue) drives the 50-point score. Revenue would reward over-spending; Net Profit forces focus on margin.
 - Inventory cleanliness uses a simple linear penalty (1 − stockout rate − overstock rate). Could be made non-linear if playtesting shows it's too soft or too punitive.
 - Events are scripted on fixed days. Modifier-based effects make them feel dynamic, but timing is deterministic.
 - Single seed per run. Same decisions on the same seed = same outcome.
-- The investor obligation check uses cash + receivables ≥ debt as a proxy.
 - Tools / upgrades are one-shot purchases with permanent effects (no maintenance cost).
 
 ### Open Questions for the Team
 
 | Question | Why it matters |
 |---|---|
-| Should the **investor route bonus/penalty** scale (×0.9 to ×1.1) instead of flat ±15? | More nuanced reward for successful debt management |
 | Should **inventory cleanliness scoring** weight stockouts and overstock differently? | Stockouts cost real revenue; overstock costs cash. Currently weighted equally |
 | Should there be **more than one insight check per phase**? | More questions = more learning; risk: longer evals |
 | Should **cash be allowed to go negative**? | Currently yes — it's an explicit failure mode. Could clamp at 0 with a "cash crisis" interrupt instead |
@@ -894,7 +890,7 @@ The simulation is engaging because the *visual* is playful (pixel art, dorm-room
 - `selectEvaluationSummary(s, phase)` — Phase debrief snapshot
 - `selectCashTrend(s, days?)` — Cash, profit, revenue series
 - `selectInventoryTrend(s, days?)` — Finished, raw, demand, sold, stockout series
-- `selectFinalScore(s)` — Total, breakdown, route flags
+- `selectFinalScore(s)` — Total and the three-part breakdown
 - `selectCurrentPhase(s)` — Phase, day, days remaining, energy
 - `selectProductSummary(s)` — Archetype, unit cost, unit time, fit, top fit, target fit
 - `selectWarnings(s)` — Active warnings (cash low, no segment, demand outpacing stock, etc.)
@@ -903,9 +899,7 @@ The simulation is engaging because the *visual* is playful (pixel art, dorm-room
 
 | Constant | Value |
 |---|---|
-| `STARTING_CAPITAL` | self $1,000 / investor $2,500 |
-| `INVESTOR_DEBT` | $3,000 |
-| `INVESTOR_PENALTY / BONUS` | -15 / +5 |
+| `STARTING_CASH` | $1,000 — in `src/data/balance.ts`, hydratable from PlayerConfig |
 | `PHASE_MAX_ENERGY` | 30 / 45 / 60 |
 | `ENERGY_REPLENISH` | +15 per phase boundary |
 | `PHASE_DEMAND_MULT` | 0.7 / 1.0 / 1.2 |

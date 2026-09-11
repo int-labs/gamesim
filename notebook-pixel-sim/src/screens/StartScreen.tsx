@@ -10,13 +10,12 @@ import { playSfx } from '@/audio/audioManager';
  * Home / Start screen.
  *
  * For a fresh user (`meta.started === false`):
- *   - Single primary action: "Start business" → routes to RouteChoiceScreen.
+ *   - Single primary action: "Start business" → the studio-naming screen.
  *
  * For a returning user (`meta.started === true`, i.e. a saved run exists):
  *   - "Continue" → resumes wherever the player left off (simulation, or
  *     phase intro if a phase boundary just ticked).
- *   - "Start new game" → fully resets via `reset()` then routes to
- *     RouteChoiceScreen.
+ *   - "Start new game" → fully resets via `reset()`, then the naming screen.
  *
  * The Home screen is the entry point on EVERY fresh load — `meta.screen`
  * is force-reset to 'start' on every persist (see store.ts partialize).
@@ -28,11 +27,11 @@ export function StartScreen() {
   const started = useGame((s) => s.meta.started);
   const phase = useGame((s) => s.meta.phase);
   const ended = useGame((s) => s.meta.ended);
-  const route = useGame((s) => s.meta.route);
 
-  // A saved-in-progress game requires both `started === true` AND a route
-  // already chosen. Otherwise the player never made it past Home → Route.
-  const hasSavedRun = started && route !== null && !ended;
+  // `started` is the whole test now: it is set on entering the run, so it is
+  // already false for a player who stopped at the naming screen. It replaces an
+  // `AND route !== null` clause that the route choice used to supply.
+  const hasSavedRun = started && !ended;
 
   const onContinue = () => {
     playSfx('whoosh');
@@ -124,7 +123,7 @@ export function StartScreen() {
                   <div className="eyebrow eyebrow-sm text-brand-500">Amelia</div>
                   <div className="mt-0.5 font-body hint leading-snug text-ink-900">
                     {hasSavedRun
-                      ? HOME.ameliaIntroReturning(phase, route!)
+                      ? HOME.ameliaIntroReturning(phase)
                       : ended
                         ? HOME.taglineEnded
                         : HOME.ameliaIntro}

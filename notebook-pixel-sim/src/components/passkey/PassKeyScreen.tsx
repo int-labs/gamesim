@@ -32,7 +32,7 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
 
   // canvas-confetti draws into a PERSISTENT full-screen canvas that outlives
   // whatever triggered it. Without this reset the unlock burst kept falling
-  // over the route-choice screen that replaces us, drifting across its heading.
+  // over the naming screen that replaces us, drifting across its heading.
   // The celebration belongs to the screen that earned it.
   useEffect(() => () => { confetti.reset(); }, []);
 

@@ -90,6 +90,9 @@ bower_components/
 # Claude Code runtime cache (worktrees, settings, launch configs, sessions)
 .claude/
 
+# Operator exports — run data, not source. server/scripts/exportRoundData.mjs
+/exports/
+
 # Parked reference code — a model that is meant to be rebuilt, kept locally as
 # the starting point. Excluded from tsc, jest and eslint too, so it is under no
 # obligation to compile. See server/src/sim/calcMarketModel.legacy.ts.

@@ -138,7 +138,7 @@ Each phase is independently shippable, type-checks clean (`npx tsc -b`), and is 
 - Parent rows expand/collapse their children (chevron) with height animation.
 
 **Responsive**
-- `lg+`: right dock + ~380px drawer. `< lg`: metrics live in the bottom-sheet + the existing `StatsDrawer` stays as the quick-KPI fallback.
+- `lg+`: right dock + ~380px drawer. `< lg`: metrics live in the bottom-sheet + the existing `StatsDrawer` stays as the quick-KPI fallback. *(`StatsDrawer` was DELETED 2026-09-09 — the bottom-sheet metrics are the only surface now. See §18.)*
 
 **Acceptance**
 - One cohesive metrics surface, visually matching P&L, every prior number present, unique parent icons, indented children, dividers, animated; `tsc -b` clean; responsive.
@@ -183,7 +183,7 @@ _Art note:_ gallery books use the per-**type** `view.front` image, so cover/bind
 **Goal:** Slim the topbar (metrics now live in the table), put the **active notebook name front-and-center and rename-able**, and make **all tips closeable** with reveal/dismiss motion.
 
 **Scope**
-- `TopHUD`: reduce to essentials — `logo · Phase · Cash · Energy` on the left; **center: editable notebook name**; right: `help · audio · history · menu`. Move Stock/Demand/Fit/Revenue/Op-Profit out (they live in the Metrics table / StatsDrawer now). Keep it single-row and calm.
+- `TopHUD`: reduce to essentials — `logo · Phase · Cash · Energy` on the left; **center: editable notebook name**; right: `help · audio · history · menu`. Move Stock/Demand/Fit/Revenue/Op-Profit out (they live in the Metrics table / StatsDrawer now). Keep it single-row and calm. *(StatsDrawer is gone as of 2026-09-09 — see §25; the Metrics table carries these.)*
 - **Editable name**: click the name (or a pencil) → inline text input → commit calls `renameProductLine(activeLineId, name)` (sets `isCustomName`). Shows the active line; updates with chevrons/gallery selection. Small "type" glyph next to it.
 - **Closeable tips**: audit every tip surface — the canvas "pick an audience" tip, `CanvasStatusStrip` hints, mascot nudges, any inline callouts — give each a **dismiss (×)** and a **reveal animation** (slide/scale/fade in on show, collapse out on dismiss). Track dismissed tips in transient `ui.dismissedTips: string[]` so they don't nag again this session; a small "tips" toggle can re-show them.
 
@@ -355,7 +355,7 @@ Production build green.
 
 ## 17. Juice round 2 (2026-07-02)
 
-- **First impressions:** StartScreen — slow Ken-Burns drift on the desk backdrop, arcade-overshoot title slam, LP chips lift on hover, primary CTA breathes ("come press me"). RouteChoiceScreen — the two funding cards deal onto the table staggered, then lift + tilt toward you on hover.
+- **First impressions:** StartScreen — slow Ken-Burns drift on the desk backdrop, arcade-overshoot title slam, LP chips lift on hover, primary CTA breathes ("come press me"). RouteChoiceScreen — the two funding cards deal onto the table staggered, then lift + tilt toward you on hover. *(Those cards were removed with the funding-route mechanic on 2026-09-09; the screen now carries only the studio-naming field, which keeps the same spring entrance.)*
 - **Easter egg:** pat the notebook 3 times → Amelia reacts ("the notebook officially likes you…", once per session via pushMascot id-dedupe). Verified live.
 - **Micro:** Items drawer cards fade-stagger in (opacity-only — transforms would override the CSS hover-lift); the shelf's ACTIVE book gets a breathing primary ring; chevron cycling whooshes (movement, not a click); the redundant Details dock tile removed earlier this round (top-right button remains the single entry).
 
@@ -478,3 +478,96 @@ Verified via exported run JSON from a scripted 90-day run: 233 buy_raw
 entries / $696.50 spend, **268 units sold** (previously single digits),
 final cash $2,523 (finite, positive), score 48/100 B vs 12/100 C with the
 same blind play; zero console errors; tsc + prod build green.
+
+## 25. StatsDrawer DELETED (2026-09-09)
+
+The "All stats & KPIs" bottom sheet is gone, along with its entry point — an
+unlabelled 16px `Package` icon in the top-right of `TopHUD`, pinned there at
+every width. §2 and §4's responsive plan (above) named it the sub-`lg` quick-KPI
+fallback; that role is now the bottom-sheet metrics table's alone.
+
+Removed because most of what it showed was **wrong**, not merely redundant:
+
+- **`Customer fit`** read `market.fitBySegmentByLineId`, which has five writers
+  and not one that COMPUTES fit — `calcSegmentFitForLine` is only ever read, never
+  written back. Every line was frozen at its seeded literal (0.55 for the starter,
+  0.5/0.4 for anything added later) regardless of design or audience. The store's
+  comment excusing those values — *"The engine recomputes this every tick"* —
+  stopped being true when the day-tick was deleted on 2026-09-01.
+- **`Demand est. ~N/d`** was the last renderer of the local demand engine, in
+  per-DAY units, seeded off a `meta.day` that only ever reads 1/30/60/90, priced
+  against a bundled `preferredPriceRef` the backend does not have, for a segment
+  `GENRE_TO_SEGMENT` may have guessed as `students`.
+- **`Revenue` / `Op Profit`** were run-to-date cumulative sums over
+  `financialsByRound`, labelled as though current — the same words meaning
+  different numbers here and on the P&L.
+- The header still printed `Day {day}`, missed by the day→phase copy pass
+  because it sat in a portal nobody opened.
+
+`Cash`, `Energy`, `Stock on hand` and `Phase` were correct and are all shown
+elsewhere. The drawer also held an `AmeliaVoicePicker`, which never rendered —
+it sat behind `VOICE_DISABLED = true`.
+
+Left standing deliberately: `PixelIcon`'s now-unreferenced `'fit'` kind (one
+entry in a ~45-kind vocabulary table, where pruning one would be arbitrary), and
+`ameliaVoice.listVoices()` / `setVoice()`, which are the documented swap seam in
+`docs/amelia-voice-pipeline.md`.
+
+## 26. The SECOND demand engine is deleted (2026-09-09)
+
+Follows directly from §25: removing `StatsDrawer` took away the last surface that
+rendered a client-computed demand figure, which made the engine behind it
+reachable from nothing that mattered. Deleted:
+
+- **`src/engine/demand.ts`** — 254 lines. ONE export (`calcDemandToday`) and ten
+  private helpers (`calcPriceFactor`, `calcSegmentFitForLine`, `calcBrandFactor`,
+  `calcChannelAffinity`, `calcReach`, `calcRetentionFactor`,
+  `calcAddOnDemandBoostForLine`, `calcMarketingFactor`, `cannibalizationFactor`,
+  and `calcSegmentFit` — which had no callers at all, dead inside its own file).
+- **The `calcDemandToday` re-export** from `engine/mockEngine.ts`.
+- **Two `dynamicFeedback` rules** — `high_demand_no_stock` and
+  `high_stock_low_demand` — plus their `estimatedDemand` helper. Both compared
+  `inventory.totalFinished` (which has no writer) against a client demand
+  estimate, behind a `state.meta.day < 5` / `< 8` gate. `meta.day` only ever
+  holds 1, 30, 60 or 90, so neither rule could fire in phase 1 at all.
+- **`src/components/AudiencePickerModal.tsx`** and its `App.tsx` mount. It opened
+  only when `market.targetSegment` was falsy, but `starterSegment()` seeds it and
+  `segmentForGenre`'s `?? 'students'` fallback guarantees a truthy value — so the
+  modal was mounted and unreachable. Its own comment recorded the earlier half of
+  that story: *"It shipped orphaned in the vendor drop: the file existed but
+  nothing ever rendered it."*
+
+**Why it had to go rather than be fixed.** It was a second, independent demand
+model. The client has never imported `calcMarketModel` and cannot — that lives in
+`server/src/sim/`. Every one of the nine `calcMarketModel` mentions in the client
+is a comment on a wire type. So the two models shared no code, no coefficients
+and no inputs, and the server's `customersObtained` was already authoritative.
+This is the "two implementations authored by two parties" defect named at the top
+of `CLAUDE.md`, in its last hiding place.
+
+**What this exposed, and did NOT fix.** With `demand.ts:206` gone,
+`data/segments.ts`'s economic fields — `preferredPriceRef`, `priceSensitivity`,
+`baseDemand`, `preference` — have **zero readers**. Only their declarations
+survive: `types/index.ts:380-382`, the values themselves, and the hydrator's
+allow-list at `configHydrator.ts:372`. That last one is the `ROUTE_START` failure
+mode again — the console offers the operator four fields nothing will ever read.
+`SEGMENTS` now has exactly one consumer, `NotebookMarketTabs.tsx:112`, using
+`seg.name` and `seg.description` and nothing else.
+
+Two defects also lost their cover here and now stand alone:
+
+- **`inventory.totalFinished` has no writer.** The deleted rules were readers of it.
+- **`market.fitBySegmentByLineId` has no writer that COMPUTES fit** (see §25).
+  Remaining readers are `insightGenerator.ts:66` and `NotebookGallery.tsx:45`,
+  both reading frozen placeholder literals.
+
+Also removed in the same pass, from `NotebookMarketTabs`' MarketCard: the
+**"Price anchor"** (`seg.preferredPriceRef`) and **"Price sens."**
+(`seg.priceSensitivity`) stats. Neither field exists on the backend, and the
+segment they were read from is whatever `GENRE_TO_SEGMENT` returned — a
+four-entry hardcoded map, never hydrated, that answers `'students'` for any genre
+id an operator publishes outside `cute`/`anime`/`minimalist`/`indie`. Two grid
+slots are deliberately left open there for real, operator-owned figures; the
+comment at the call site says what must not refill them.
+
+Verified: `tsc -b` clean, **0 errors / 99 warnings** (100 → 99, by deletion).

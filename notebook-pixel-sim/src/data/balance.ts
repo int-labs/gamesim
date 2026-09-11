@@ -29,8 +29,9 @@ export let HIRE_DAILY_WAGE = 12;
 
 export const PHASE_DEMAND_MULT = { 1: 0.7, 2: 1.0, 3: 1.2 } as const;
 
-export const STARTING_CASH = { self: 1000, investor: 2500 } as const;
-export const STARTING_DEBT = { self: 0, investor: 3000 } as const;
+// Opening cash for round 1. Kept as a KEYED table, not a scalar: the console
+// hydrates it through CONSTANT_OBJECTS, and a scalar would change that contract.
+export const STARTING_CASH = { self: 1000 };
 
 export let DEFAULT_DEFECT = 0.08;
 

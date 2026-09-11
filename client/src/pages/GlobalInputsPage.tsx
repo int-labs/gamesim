@@ -31,6 +31,10 @@ const BLANK_ITEM = {
   key: "", label: "", description: "",
   minPossibleValue: 0, maxPossibleValue: 0, minDelta: 0, maxDelta: 0,
   cost: 0, energy: 0,
+  // Which side of the Gross Profit line this item's cost falls on. "opex" is
+  // the schema default and restates what the money path did before the field
+  // existed — a period cost.
+  costTreatment: "opex" as "cogs" | "opex",
   productsImpacted: [] as string[],
   impacts: {} as Record<string, ImpactValue>,
   impactLevel: "",
@@ -173,6 +177,7 @@ export default function GlobalInputsPage() {
       maxDelta: item.maxDelta ?? 0,
       cost: item.cost ?? 0,
       energy: item.energy ?? 0,
+      costTreatment: item.costTreatment === "cogs" ? "cogs" : "opex",
       productsImpacted: (item.productsImpacted || []).map((p: any) => p?._id ?? p),
       impacts: normaliseImpacts(item.impacts ?? {}),
       impactLevel: item.impactLevel ?? "",
@@ -202,6 +207,7 @@ export default function GlobalInputsPage() {
         maxPossibleValue: itemForm.maxPossibleValue,
         minDelta: itemForm.minDelta, maxDelta: itemForm.maxDelta,
         cost: Number(itemForm.cost), energy: Number(itemForm.energy),
+        costTreatment: itemForm.costTreatment,
         productsImpacted: itemForm.productsImpacted,
         impacts,
         impactLevel: itemForm.impactLevel || null,
@@ -384,7 +390,7 @@ export default function GlobalInputsPage() {
 
           <table border={1} cellPadding={4} style={{ fontSize: 11 }}>
             <thead>
-              <tr><th>key</th><th>label</th><th>cost</th><th>energy</th><th>impactLevel</th><th>impacts</th><th>productsImpacted</th><th></th></tr>
+              <tr><th>key</th><th>label</th><th>cost</th><th>treatment</th><th>energy</th><th>impactLevel</th><th>impacts</th><th>productsImpacted</th><th></th></tr>
             </thead>
             <tbody>
               {(selectedContainer.inputs || []).map((item: any) => (
@@ -392,6 +398,9 @@ export default function GlobalInputsPage() {
                   <td>{item.key}</td>
                   <td>{item.label}</td>
                   <td>{item.cost}</td>
+                  {/* Absent on containers written before the field existed —
+                      the money path books those as a period cost. */}
+                  <td>{item.costTreatment ?? <span style={{ color: "#aaa" }}>opex*</span>}</td>
                   <td>{item.energy}</td>
                   <td>{item.impactLevel}</td>
                   <td>
@@ -426,6 +435,22 @@ export default function GlobalInputsPage() {
             <tr><td>Min Delta</td><td><input type="number" value={itemForm.minDelta} onChange={e => setItemForm(f => ({ ...f, minDelta: Number(e.target.value) }))} /></td></tr>
             <tr><td>Max Delta</td><td><input type="number" value={itemForm.maxDelta} onChange={e => setItemForm(f => ({ ...f, maxDelta: Number(e.target.value) }))} /></td></tr>
             <tr><td>Cost</td><td><input type="number" value={itemForm.cost} onChange={e => setItemForm(f => ({ ...f, cost: Number(e.target.value) }))} /></td></tr>
+            <tr>
+              <td>Cost treatment</td>
+              <td>
+                <select
+                  value={itemForm.costTreatment}
+                  onChange={e => setItemForm(f => ({ ...f, costTreatment: e.target.value as "cogs" | "opex" }))}
+                >
+                  <option value="opex">opex — a period cost, below Gross Profit</option>
+                  <option value="cogs">cogs — a cost of goods, above Gross Profit</option>
+                </select>
+                <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
+                  Which side of the Gross Profit line this item's Cost lands on.
+                  Scaled by the selected step at scoring time.
+                </div>
+              </td>
+            </tr>
             <tr><td>Energy</td><td><input type="number" value={itemForm.energy} onChange={e => setItemForm(f => ({ ...f, energy: Number(e.target.value) }))} /></td></tr>
             <tr><td>Impact Level</td><td><input placeholder="(optional)" value={itemForm.impactLevel} onChange={e => setItemForm(f => ({ ...f, impactLevel: e.target.value }))} /></td></tr>
 

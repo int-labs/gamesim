@@ -62,7 +62,8 @@ export function vendorSteps(
     stepKey,
     multiplier,
     prodBonus: prodImpact * multiplier,
-    cost: Math.ceil(item.cost * multiplier),
+    // Cost stays exact — the formatter rounds. Energy is a whole-unit budget.
+    cost: item.cost * multiplier,
     energy: Math.ceil(item.energy * multiplier),
   });
   const entries = Object.entries(item.options ?? {});

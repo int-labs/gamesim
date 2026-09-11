@@ -268,7 +268,9 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
         // No vendor hydration either — the UI reads the supply_chain container
         // straight out of `availableGlobalInputs`.
         const channelInput = globalInputs.find((g) => g.key === 'channel');
-        if (channelInput) hydrateChannels(channelInput.inputs, products);
+        // No `products` argument: channel rows no longer resolve per-product
+        // selections, because nothing displays a per-genre channel value.
+        if (channelInput) hydrateChannels(channelInput.inputs);
 
         setBootstrap({
           teamId: session.teamId,
@@ -492,8 +494,6 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
       insight: score.insight,
       netDollar: score.netDollar,
       cleanliness: score.cleanliness,
-      route: s.meta.route,
-      obligationMet: score.obligationMet,
       insightsCorrect: s.insights.score.correct,
       insightsTotal: s.insights.score.total,
       shopName: s.meta.shopName,

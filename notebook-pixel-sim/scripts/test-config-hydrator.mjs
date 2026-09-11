@@ -53,7 +53,7 @@ await writeFile(
   export { hydratePlayerConfig } from '@/gamesim/configHydrator';
   export { GENRES, VENDORS, CANDIDATES, MARKETING_TEAMS, SCENARIOS,
            CHANNEL_META, CHANNELS_BY_GENRE, TYPE_OPTIONS, PAPER_OPTIONS,
-           SCENARIOS_PER_PHASE, SCENARIO_DAYS, ROUTE_START } from '@/data/finlit';
+           SCENARIOS_PER_PHASE, SCENARIO_DAYS } from '@/data/finlit';
   export { ADDONS } from '@/data/addOns';
   export { SEGMENTS } from '@/data/segments';
   export { CHANNELS } from '@/data/channels';
@@ -387,23 +387,33 @@ await run("a non-numeric scalar is refused rather than poisoning the engine", {
   },
 });
 
-await run("object-shaped constants the export flattens still hydrate", {
+await run("table- and array-shaped constants hydrate", {
   payload: (() => {
     const p = clone();
     p.config.constants.SCENARIOS_PER_PHASE = { 1: 3, 2: 3, 3: 3 };
     p.config.constants.SCENARIO_DAYS = [5, 25, 45, 65, 85];
-    p.config.constants.ROUTE_START_SELF_CASH = 4321;
-    p.config.constants.ROUTE_START_INVESTOR_OPENING_PROFIT = 777;
     return p;
   })(),
   assert: (r, m) => {
     eq(m.SCENARIOS_PER_PHASE[1], 3, "SCENARIOS_PER_PHASE");
     eq(m.SCENARIO_DAYS.join(","), "5,25,45,65,85", "SCENARIO_DAYS");
-    eq(m.ROUTE_START.self.cash, 4321, "ROUTE_START.self.cash");
-    eq(m.ROUTE_START.investor.openingProfit, 777, "ROUTE_START.investor.openingProfit");
     // ...and they must no longer be reported as needing a build
     const note = r.skipped.find((s) => s.section === "constants");
-    eq(/SCENARIO_DAYS|ROUTE_START/.test(note?.why ?? ""), false, `not listed as skipped: ${note?.why}`);
+    eq(/SCENARIO_DAYS/.test(note?.why ?? ""), false, `not listed as skipped: ${note?.why}`);
+  },
+});
+
+// A config carrying the retired ROUTE_START_* keys must be REPORTED, not
+// silently swallowed — that is the whole point of the skipped list.
+await run("retired route constants are reported as unrecognised", {
+  payload: (() => {
+    const p = clone();
+    p.config.constants.ROUTE_START_SELF_CASH = 4321;
+    return p;
+  })(),
+  assert: (r) => {
+    const note = r.skipped.find((s) => s.section === "constants");
+    eq(/ROUTE_START_SELF_CASH/.test(note?.why ?? ""), true, `listed as skipped: ${note?.why}`);
   },
 });
 

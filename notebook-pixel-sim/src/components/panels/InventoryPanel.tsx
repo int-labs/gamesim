@@ -158,7 +158,7 @@ export function InventoryPanel({
                 // REFUSED, leaving the last legal target in place. Only the
                 // DELTA is tested, so winding a target back down is always free.
                 const unit = stats[i].unitCost;
-                const extra = unit == null ? 0 : Math.ceil((v - stats[i].target) * unit);
+                const extra = unit == null ? 0 : (v - stats[i].target) * unit;
                 if (!canSpend(s, extra, byProduct, cashBase)) {
                   playSfx('fail');
                   s.toast = {

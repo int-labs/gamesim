@@ -1,7 +1,12 @@
+// 2dp, always. Rounding to whole dollars here silently destroyed the cents on
+// every money surface — the server computes them and the sheets must show them.
 export const fmt$ = (n: number) => {
   const sign = n < 0 ? '-' : '';
-  const v = Math.abs(Math.round(n));
-  return `${sign}$${v.toLocaleString('en-US')}`;
+  const v = Math.abs(n).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${sign}$${v}`;
 };
 
 export const fmtPct = (n: number, digits = 0) => `${(n * 100).toFixed(digits)}%`;

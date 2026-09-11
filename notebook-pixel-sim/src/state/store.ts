@@ -6,7 +6,6 @@ import type {
   LedgerEntry,
   MascotMessage,
   Phase,
-  Route,
   ScreenId,
   Segment,
   SidebarCategory,
@@ -14,7 +13,7 @@ import type {
   BubbleType,
   ProductLine,
 } from '@/types';
-import { STARTING_CASH, STARTING_DEBT } from '@/data/balance';
+import { STARTING_CASH } from '@/data/balance';
 import { DAYS_PER_PHASE } from '@/engine/config';
 import { ENERGY_START, ENERGY_CAP, GENRES } from '@/data/finlit';
 import { segmentForGenre } from '@/engine/finlit/core/config/genreSegments';
@@ -62,13 +61,12 @@ export interface GameState {
   meta: {
     day: number;
     phase: Phase;
-    route: Route | null;
     seed: string;
     mascotName: string;
     /**
      * The player's shop / company name. Chosen when founding the business on
-     * the route screen and renameable any time (canvas shop sign, or
-     * Business ▸ Operations). Never empty — falls back to DEFAULT_SHOP_NAME.
+     * the naming screen and renameable any time from Business ▸ Operations.
+     * Never empty — falls back to DEFAULT_SHOP_NAME.
      */
     shopName: string;
     screen: ScreenId;
@@ -181,7 +179,7 @@ export interface GameState {
    * immutable: once round 2's opening is recorded it can never be recomputed,
    * so a later event cannot retroactively change what round 1 showed.
    *
-   * Round 1's entry is the route's starting capital, written by `setRoute`.
+   * Round 1's entry is the starting capital, seeded by `startingState`.
    * Each later entry is the previous round's opening plus that round's
    * server-scored operating profit — safe to bank at the boundary because limbo
    * guarantees the administrator has calculated the round before the next one
@@ -319,7 +317,6 @@ const startingState = (): GameState => ({
   meta: {
     day: 1,
     phase: 1,
-    route: null,
     seed: 'amelia-' + Date.now().toString(36),
     mascotName: 'Amelia',
     shopName: DEFAULT_SHOP_NAME,
@@ -398,8 +395,10 @@ const startingState = (): GameState => ({
   evaluations: { resolved: [] },
   insights: { answered: [], score: { correct: 0, total: 0 } },
   ledger: [],
-  // Seeded by `setRoute`, which is where the starting capital is decided.
-  cashOpeningByRound: {},
+  // Round 1 opens on the starting capital. Seeded HERE, not by a later action:
+  // it is the base of `selectCashBalance`, so an empty map would silently fall
+  // back to `player.cash` and drift as profit was banked into it.
+  cashOpeningByRound: { 1: STARTING_CASH.self },
   history: [{ day: 1, text: 'Started a notebook business out of the dorm.', cause: 'start' }],
   series: { cash: [], revenue: [], profit: [], sold: [], finished: [], raw: [], demand: [], stockout: [], overstock: [] },
   mascot: { queue: [], current: null, history: [], seenScripts: [], mood: 'idle', minimized: false, position: null },
@@ -415,7 +414,6 @@ interface Actions {
   reset: () => void;
   setScreen: (s: ScreenId) => void;
   setSidebar: (c: SidebarCategory) => void;
-  setRoute: (r: Route) => void;
   // Mascot
   pushMascot: (m: MascotMessage) => void;
   /** Push a multi-message dialogue script as one batch. Filters duplicates by id. */
@@ -456,16 +454,6 @@ export const useGame = create<Store>()(
       reset: () => set(() => startingState()),
       setScreen: (s) => set((st) => { st.meta.screen = s; }),
       setSidebar: (c) => set((st) => { st.meta.sidebar = c; }),
-      setRoute: (r) =>
-        set((st) => {
-          st.meta.route = r;
-          st.player.cash = STARTING_CASH[r];
-          st.player.debt = STARTING_DEBT[r];
-          // Round 1 opens on the starting capital. Reset rather than merged —
-          // choosing a route is the start of a run, so any openings recorded by
-          // a previous run must not survive into it.
-          st.cashOpeningByRound = { 1: STARTING_CASH[r] };
-        }),
       pushMascot: (m) =>
         set((st) => {
           // Don't queue duplicates by id (current, queued, or already shown).
@@ -603,7 +591,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 20,
+      version: 21,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -611,7 +599,7 @@ export const useGame = create<Store>()(
       // transient UI/flow flags (`screen`, `sequenceActive`,
       // `detailModalOpen`). Without this, once a player reached
       // `screen: 'simulation'` that value would rehydrate forever —
-      // fresh tabs skipped the home/start/route flow entirely.
+      // fresh tabs skipped the home/start/naming flow entirely.
       //
       // `screen` is forced to 'start' on every persist so the next load
       // always begins at the home screen. The home screen reads
@@ -646,6 +634,20 @@ export const useGame = create<Store>()(
           toast: null,
         }) as unknown as Store,
       migrate: (persisted: any, fromVersion) => {
+        // v21: the route choice is gone. A save mid-run keeps its own
+        // `cashOpeningByRound[1]`, so the opening it played with stands; only
+        // the now-meaningless field is dropped. Runs that never reached the
+        // route screen have no opening recorded — seed it, or `selectCashBalance`
+        // falls through to `player.cash`.
+        if (fromVersion < 21 && persisted?.meta) {
+          delete persisted.meta.route;
+          if (!persisted.cashOpeningByRound?.[1]) {
+            persisted.cashOpeningByRound = {
+              ...persisted.cashOpeningByRound,
+              1: persisted.player?.cash ?? STARTING_CASH.self,
+            };
+          }
+        }
         // v1 had product.addOns: AddOnInstance[]. v2 splits per archetype.
         if (fromVersion < 2 && persisted?.product) {
           const old = persisted.product.addOns ?? [];
@@ -994,7 +996,7 @@ export const useGame = create<Store>()(
         // opening from the persisted state — the ledger held only local
         // aggregate rows and cash was never snapshotted. A mid-run save
         // therefore shows round 1 opening at today's balance; a fresh run is
-        // exact, because `setRoute` writes the real figure.
+        // exact, because `startingState` seeds the real figure.
         if (fromVersion < 20 && persisted && !persisted.cashOpeningByRound) {
           persisted.cashOpeningByRound = { 1: persisted.player?.cash ?? 0 };
         }

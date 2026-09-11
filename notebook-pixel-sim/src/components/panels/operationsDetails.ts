@@ -5,8 +5,8 @@
 // When no backend data is available the fields show 'No description provided'
 // so misconfiguration is visible rather than silently hidden behind stale copy.
 
-import { CHANNELS_BY_GENRE, CHANNEL_META, type ChannelId } from '@/engine/finlit/core/config/channels';
-import { GENRES, type GenreId } from '@/engine/finlit/core/config/genres';
+import { CHANNEL_ROWS, CHANNEL_META, type ChannelId } from '@/engine/finlit/core/config/channels';
+import { GENRES } from '@/engine/finlit/core/config/genres';
 import { hireSteps } from '@/engine/finlit/core/config/hiring';
 import { vendorSteps, vendorQuality } from '@/engine/finlit/core/config/vendors';
 import type { DetailInput, DetailTable } from './OperationsKit';
@@ -17,14 +17,6 @@ const NO_DESC = 'No description provided';
 
 const money = (n: number) => `$${n % 1 === 0 ? n : n.toFixed(2)}`;
 const pct = (n: number, dp = 0) => `${(n * 100).toFixed(dp)}%`;
-
-// LAZY, both of them. `GENRES` is emptied and refilled in place by
-// `configHydrator` at boot, so a module-scope `GENRES.map(...)` froze the
-// bundled list and no published genre ever reached these tables. Channels come
-// from the backend container, never a hardcoded triple.
-const genreIds = (): GenreId[] => GENRES.map((g) => g.id);
-const channelIds = (gi?: GlobalInputDto): ChannelId[] =>
-  (gi?.inputs ?? []).map((i) => i.key as ChannelId);
 
 export interface SectionDetail {
   title: string;
@@ -48,80 +40,86 @@ export interface SectionDetail {
  * The channel list is `gi.inputs`, so a channel the operator adds appears here
  * without a code change. It used to be a hardcoded `['offline','online','retail']`.
  */
-export function channelDetail(gi?: GlobalInputDto): SectionDetail {
+export function channelDetail(
+  gi?: GlobalInputDto,
+  /** For mapping an impact's per-product `selections` onto genres. Without it
+   *  the reach matrix shows each channel's DEFAULT reach in every row. */
+  products?: { _id: string; productName: string }[],
+): SectionDetail {
   const items = gi?.inputs ?? [];
 
-  // A row may be absent for a channel the bundled table never had; `null`
-  // rather than a `.find(...)!` that throws inside a render.
-  const rowFor = (ch: ChannelId, genre: GenreId) =>
-    CHANNELS_BY_GENRE[genre]?.find((r) => r.channel === ch) ?? null;
-  // Maintenance/consignment/inventoryCost are written uniformly across genres
-  // by `hydrateChannels`, so any genre's row carries them. `.indie` used to be
-  // hardcoded here, which threw once genres came from config.
-  const flatRow = (ch: ChannelId) => {
-    for (const g of genreIds()) {
-      const r = rowFor(ch, g);
-      if (r) return r;
-    }
-    return null;
-  };
+  // `null` for a channel with no row yet, rather than a `.find(...)!` that
+  // throws inside a render.
+  const rowFor = (ch: ChannelId) => CHANNEL_ROWS.find((r) => r.channel === ch) ?? null;
 
-  const chIds = channelIds(gi);
-  const chNames = items.map((i) => CHANNEL_META[i.key as ChannelId]?.name ?? i.label);
+  // genreId → its productIds, by the same name-matching heuristic
+  // `hydrateChannels` used. Lazy: GENRES is refilled in place at boot.
+  const productIdsByGenre = (genreId: string): string[] =>
+    (products ?? [])
+      .filter((p) => p.productName.toLowerCase().includes(genreId.toLowerCase()))
+      .map((p) => String(p._id));
+
+  /**
+   * Reach for (genre × channel), straight off `impacts['sales_channel']` — the
+   * impact the SERVER consumes as `customersObtained`. The per-product
+   * `selections[]` override wins for that genre's products; otherwise the
+   * impact's own value stands.
+   *
+   * Read from `gi.inputs` rather than a local table so it cannot drift from
+   * what the round actually scores.
+   */
+  const reachFor = (item: GlobalInputDto['inputs'][number], genreId: string): string => {
+    const impact = item.impacts?.['sales_channel'];
+    if (!impact) return '-';
+    const ids = productIdsByGenre(genreId);
+    const match = impact.selections?.find((s) => ids.includes(String(s.productId)));
+    return pct(match ? match.value : impact.value);
+  };
 
   return {
     title: gi?.label ?? NO_DESC,
     intro: gi?.description ?? NO_DESC,
     inputs: items.map((item) => {
       const ch = item.key as ChannelId;
-      const row = flatRow(ch);
+      const row = rowFor(ch);
       const study = studyFor('channel', item.key);
       // `item.cost` — the SAME field every other lever charges from, and the
-      // one the server turns into `costTreatment`. This read the `maintenance`
-      // impact, which `IMPACT_CONFIG` has no entry for, so calcFinancials
-      // skipped it: the sheet quoted a per-phase cost the round never charged.
-      // (And it ran that figure through `perPhase`, so it was also 30×.)
+      // one the server turns into `costTreatment`.
       const costs: string[] = [`${money(item.cost)} / phase`];
       if (row && row.consignment > 0) costs.push(`${money(row.consignment)} / sale`);
       return {
         name: CHANNEL_META[ch]?.name ?? item.label,
         description: study.brief || item.description || NO_DESC,
-        cost: costs.length > 0 ? costs.join(' + ') : NO_DESC,
+        cost: costs.join(' + '),
         impacts: 'All notebooks',
-        effect: row ? `${pct(row.sellRate, 1)} sell-rate` : NO_DESC,
+        effect: row && row.inventoryCost > 0
+          ? `${money(row.inventoryCost)} / unsold unit`
+          : 'No holding cost',
       };
     }),
-    tables: chIds.length === 0 ? [] : [
+    tables: items.length === 0 ? [] : [
       {
+        // GENRES × channels, cells straight from the `sales_channel` impact.
+        // Decision-critical: `customersObtained` is marketShare ×
+        // availableMarket × productScore, and this reach is how much of a
+        // market's demand a channel puts in front of the player — without it
+        // the number cannot be reasoned about, only observed.
+        //
+        // Rows are GENRES read LAZILY (refilled in place at boot) and columns
+        // are `gi.inputs`, so neither axis is a hardcoded list. The previous
+        // version of this table read a local genre × channel table instead,
+        // which is what pinned the channel count at three.
         caption: 'Reach by market (share of demand)',
-        columns: ['Market', ...chNames],
-        rows: genreIds().map((g) => [
-          GENRES.find((x) => x.id === g)?.name ?? g,
-          ...chIds.map((ch) => {
-            const r = rowFor(ch, g);
-            return r ? pct(r.split) : '-';
-          }),
-        ]),
-      },
-      {
-        caption: 'Sell-rate by market',
-        columns: ['Market', ...chNames],
-        rows: genreIds().map((g) => [
-          GENRES.find((x) => x.id === g)?.name ?? g,
-          ...chIds.map((ch) => {
-            const r = rowFor(ch, g);
-            return r ? pct(r.sellRate, 2) : '-';
-          }),
-        ]),
+        columns: ['Market', ...items.map((i) => CHANNEL_META[i.key as ChannelId]?.name ?? i.label)],
+        rows: GENRES.map((g) => [g.name, ...items.map((item) => reachFor(item, g.id))]),
       },
       {
         caption: 'Running cost',
-        columns: ['Channel', 'Per phase', 'Per sale', 'Inventory'],
+        columns: ['Channel', 'Per phase', 'Per sale', 'Per unsold unit'],
         rows: items.map((item) => {
-          const ch = item.key as ChannelId;
-          const r = flatRow(ch);
+          const r = rowFor(item.key as ChannelId);
           return [
-            CHANNEL_META[ch]?.name ?? item.label,
+            CHANNEL_META[item.key as ChannelId]?.name ?? item.label,
             money(item.cost),
             r && r.consignment > 0 ? money(r.consignment) : '-',
             r && r.inventoryCost > 0 ? money(r.inventoryCost) : '-',
@@ -149,7 +147,7 @@ export function budgetDetail(gi?: GlobalInputDto): SectionDetail {
     // applies to both the cost and the impact.
     const steps = Object.entries(item.options ?? {}).map(([stepKey, mult]) => ({
       stepKey,
-      spend: Math.ceil((item.cost ?? 0) * mult),
+      spend: (item.cost ?? 0) * mult,
       demand: impact * mult,
     }));
     const top = steps.reduce<typeof steps[number] | null>(

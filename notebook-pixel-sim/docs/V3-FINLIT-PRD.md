@@ -95,9 +95,10 @@ scaling). Choosing a vendor that doesn't cover your genre wastes the pick.
 
 ## 3. New/changed simulation systems (from the PDF)
 
-1. **Start routes**: self-funded **$1000**, or investor **$5000 but begin at −$4000
-   profit** (the obligation). Route affects gameplay + final score. *(current app:
-   self $1000/$0 debt, investor $2500/$3000 debt — numbers differ)*
+1. ~~**Start routes**: self-funded **$1000**, or investor **$5000 but begin at −$4000
+   profit** (the obligation). Route affects gameplay + final score.~~
+   **DROPPED 2026-09-09 — see DEC D.** The mechanic was removed from the app
+   entirely; opening cash is now one operator-configured figure.
 2. **Energy** — ⚠️ **the PDF states two different models** (see §5 forks).
 3. **Key Decisions** — per-phase cards with **energy + money cost + prerequisites**,
    carry across phases, some are prereqs for later ones:
@@ -135,7 +136,7 @@ scaling). Choosing a vendor that doesn't cover your genre wastes the pick.
 | Key decisions | upgrades (unlockDay/requires) | per-phase cards w/ energy+money+prereq | Rework decision cards |
 | Energy | 30/45/60 per phase | 100/30 **or** 50/20 (conflict) | **FORK C** |
 | Events | A/B/C/D on fixed days | every 15d, P1:1/P2:2/P3:2, skip-conditions | Cadence + skip logic |
-| Routes | self $1000/$0 · investor $2500/$3000 debt | self $1000 · investor $5000 w/ −$4000 profit | **FORK D** |
+| ~~Routes~~ | ~~self $1000/$0 · investor $2500/$3000 debt~~ | ~~self $1000 · investor $5000 w/ −$4000 profit~~ | **REMOVED — see DEC D** |
 | Market share | cannibalization inside fit model | explicit per-genre capped "steal" | Extend model |
 | **Scoring** | **Net 50 / Inventory 25 / Insight 25** | **identical formulas** | ✅ **already matches** |
 | P&L revisit | bottom stats + Stats drawer | always available post-Phase-0 | ✅ minor |
@@ -144,8 +145,9 @@ scaling). Choosing a vendor that doesn't cover your genre wastes the pick.
 ### 4.6 Scoring already matches
 Spec: Net Profit 50 (`obtained ÷ max × 50`) · Inventory Cleanliness 25
 (`1 − (stockout + overstock) × 25`) · Insight 25 (`correct ÷ total × 25`).
-`src/engine/scoring.ts` implements exactly this. Only tunables (MAX_EXPECTED,
-investor bonus/penalty) may shift with FORK D.
+`src/engine/scoring.ts` implements exactly this, and since 2026-09-09 it
+implements ONLY this — the investor bonus/penalty term is gone with the route
+mechanic. `MAX_EXPECTED_NET_PROFIT` remains the one tunable.
 
 ---
 
@@ -168,9 +170,23 @@ investor bonus/penalty) may shift with FORK D.
   Key-Choices). Over a run: 50 → 80 → 100(cap). **Tunable** — P1 (engine) will
   balance-test it against the decision costs (6/12/14/18) so a player can afford a
   sensible number of decisions/phase. Replaces the current 30/45/60.
-- **DEC D — Routes: self $1000 · investor $5000 @ −$4000 profit.** Adopt the PDF
-  numbers; investor's P&L opens at −$4000 (the obligation). Rework
-  `scoring.ts` investor bonus/penalty + `MAX_EXPECTED_NET_PROFIT` around this.
+- **DEC D — Routes: REVERSED 2026-09-09. The mechanic is removed, not
+  reconciled.** The original decision was to adopt the PDF numbers (self $1000 ·
+  investor $5000 @ −$4000 profit) and rework scoring around them. It was never
+  implemented: the `ROUTE_START` constant carrying those numbers had **no reader
+  for its whole life** — only the config hydrator wrote to it — so the console
+  could edit it and nothing happened, while the live app kept the older
+  $1000/$2500 + $3000-debt numbers from `data/balance.ts` and a third set of
+  figures sat hand-typed in the route cards' copy. Three sources, two of them
+  wrong, none of them teaching anything: the choice was made once at minute zero,
+  before the player knew enough to choose, and never resurfaced except as a score
+  modifier at the end. Removed rather than reconciled. Opening cash is now a
+  single operator-configured `STARTING_CASH`; the screen keeps only the studio
+  naming step. The backend's matching `difficulty` impact key went in the same
+  pass: `IMPACT_CONFIG` declared it as `target: "pnl", affects: "pnl"`, but
+  `calcFinancials` branches only on `inventoryRate`, `customersObtained`,
+  `dynamicCost` and `inventoryCost` — no `"pnl"` branch was ever written, so
+  selecting a difficulty item charged nothing and changed nothing.
 - **DEC E — Scenario count: P1:1 / P2:2 / P3:2 (=5).** Use the explicit Progression
   list; place triggers on 15-day marks that avoid phase-end evaluation days
   (≈ day 15 · 45/55 · 75/85). "Every 15 days" is the cadence guide, 5 the count.
@@ -224,7 +240,8 @@ Behavioral harness 9→10/10 (both stockout AND overstock reachable).
 
 **P2 flow** — `run.ts` chains 3 phases (inventory/cash/energy carry) → final
 50/25/25 score. Harness 6/6: an optimised config nets **+$3716 / score 31**, a
-bad config scores 0, investor opens exactly **−$4000** below self.
+bad config scores 0. *(A sixth assertion — "investor opens exactly −$4000 below
+self" — was retired with the route mechanic on 2026-09-09.)*
 
 **FINDING — demand vs production scale mismatch (needs P6 balance).** The sheet
 sizes the market for ~12 competing teams (~60 buyers/day/player) while
@@ -318,8 +335,9 @@ render, full 90-day E2E completes, zero console errors.
 ### Backlog pass (done — commit after this)
 - **Custom dropdown**: new `PixelSelect` primitive (body-portaled, flip-aware,
   cost hints, keyboard) replaces the native `<select>`s in the Design drawer's
-  Production Spec. (The Amelia-voice picker in StatsDrawer stays native — settings
-  detail.)
+  Production Spec. *(The Amelia-voice picker mentioned here lived in StatsDrawer,
+  behind `VOICE_DISABLED = true` so it never rendered; both it and the drawer were
+  deleted on 2026-09-09.)*
 - **Hiring visual hook**: Studio hiring cards now carry a distinct card-height
   candidate portrait each (printing / staff / packaging / binding), the intent
   behind the OperationsPanel icon request applied to the live V3 panel.

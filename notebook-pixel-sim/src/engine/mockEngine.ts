@@ -54,7 +54,11 @@ import { defaultPlacementFor, PLACEMENT_BOUNDS } from '@/data/addOnDefaults';
 // ---- Public engine API (re-exports) -------------------------------------
 // Only what the UI actually imports.
 export { currentAddOns } from './cost';
-export { calcDemandToday } from './demand';
+// `calcDemandToday` and the whole of `demand.ts` are GONE (2026-09-09). It was
+// a SECOND demand model, unrelated to the server's — the client never imported
+// `calcMarketModel` and could not. `customersObtained` from the server is the
+// only demand figure now.
+//
 // `dayTick` / `advanceDay` are GONE, with `simulationEngine.ts`.
 //
 // There is no day-tick. The sim advances by ROUND: `PhaseActionBar` →
@@ -491,7 +495,7 @@ export const clearGlobalInputSelection = (s: GameState, key: string, energyRefun
 
 /**
  * Name (or rename) the player's shop. Called when founding the business on the
- * route screen and from the rename affordances in-run. Trims, caps the length,
+ * naming screen and from the HUD menu in-run. Trims, caps the length,
  * and falls back to the default so the shop is never nameless. A no-op rename
  * doesn't get a history entry.
  */

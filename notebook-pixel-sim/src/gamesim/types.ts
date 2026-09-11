@@ -117,6 +117,11 @@ export interface GlobalInputItemDto {
   minPossibleValue: number | null;
   maxPossibleValue: number | null;
   cost: number;
+  /** Which side of the Gross Profit line `cost` falls on — the operator's
+   *  choice, per item. The decision snapshot carries it as a `{ cogs, opex }`
+   *  split; see `mapping.ts`. Absent on containers written before the field
+   *  existed, which `readCostTreatment` books as a period cost. */
+  costTreatment?: 'cogs' | 'opex';
   energy: number;
   productsImpacted: Id[];
   impacts: Record<string, GlobalInputImpactDto>;
@@ -146,6 +151,12 @@ export interface DecisionGlobalInputDto {
   description?: string | null;
   selectedStepKey?: string | null;
   cost?: number;
+  /** The COGS/OpEx split of `cost`, derived from the item's `costTreatment`.
+   *  OMITTED, never sent as zeros: the server distinguishes absent (book `cost`
+   *  as a period cost) from an explicit split, and a `{ cogs: 0, opex: 0 }`
+   *  would read as "charge neither side" — which is what silently zeroed every
+   *  scored round's Operating Expenses. */
+  costTreatment?: { cogs: number; opex: number };
   energy?: number;
   productsImpacted?: Id[];
   impacts?: Record<string, GlobalInputImpactDto>;

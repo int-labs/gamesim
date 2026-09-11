@@ -98,7 +98,7 @@ export const createGlobalInputItem = async (req: Request, res: Response): Promis
     const {
       key, label, description,
       minPossibleValue, maxPossibleValue, minDelta, maxDelta,
-      cost, energy, productsImpacted, impacts, impactLevel, options
+      cost, costTreatment, energy, productsImpacted, impacts, impactLevel, options
     } = req.body;
 
     if (!key || !label) {
@@ -114,6 +114,9 @@ export const createGlobalInputItem = async (req: Request, res: Response): Promis
             key, label, description,
             minPossibleValue, maxPossibleValue, minDelta, maxDelta,
             cost, energy, productsImpacted, impacts, impactLevel,
+            // Omitted when unsent so the schema default ("opex") applies rather
+            // than writing an explicit undefined over it.
+            ...(costTreatment ? { costTreatment } : {}),
             options: options ?? {},
           }
         }
@@ -152,7 +155,7 @@ export const updateGlobalInputItem = async (req: Request, res: Response): Promis
     const {
       label, description,
       minPossibleValue, maxPossibleValue, minDelta, maxDelta,
-      cost, energy, productsImpacted, impacts, impactLevel, options
+      cost, costTreatment, energy, productsImpacted, impacts, impactLevel, options
     } = req.body;
 
     const globalInput = await GlobalInput.findOneAndUpdate(
@@ -171,6 +174,10 @@ export const updateGlobalInputItem = async (req: Request, res: Response): Promis
           "inputs.$.impacts":          impacts,
           "inputs.$.impactLevel":      impactLevel,
           "inputs.$.options":          options ?? {},
+          // Only when sent: a `$set` of undefined would UNSET a treatment the
+          // operator had already chosen, and this handler is also reached by
+          // callers that patch other fields.
+          ...(costTreatment ? { "inputs.$.costTreatment": costTreatment } : {}),
         },
       },
       { new: true, runValidators: true }

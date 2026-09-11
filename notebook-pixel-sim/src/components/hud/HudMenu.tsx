@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MoreHorizontal,
-  Package,
   History as HistoryIcon,
   Volume2,
   VolumeX,
@@ -23,8 +22,6 @@ import { HistoryDropdown } from '@/components/hud/HistoryDropdown';
 import { Tooltip } from '@/components/primitives/Tooltip';
 
 interface Props {
-  /** Opens the full Stats & KPIs drawer (owned by TopHUD). */
-  onOpenStats: () => void;
   /** Fires Amelia's quick-refresher help script (owned by TopHUD). */
   onHelp: () => void;
 }
@@ -42,7 +39,7 @@ interface Props {
  * Decision history and log-out open as centered MODALS (shared by both layouts),
  * never as a second popup stacked on the menu.
  */
-export function HudMenu({ onOpenStats, onHelp }: Props) {
+export function HudMenu({ onHelp }: Props) {
   const shopName = useGame((s) => s.meta.shopName);
   const apply = useGame((s) => s.apply);
   // The gamesim session logout — `lockAccess()` alone only flips the local
@@ -65,7 +62,6 @@ export function HudMenu({ onOpenStats, onHelp }: Props) {
   const close = () => setOpen(false);
 
   // Shared action handlers — used by BOTH the inline toolbar and the dropdown.
-  const openStats = () => { close(); onOpenStats(); };
   const openHistory = () => { close(); setHistoryOpen(true); };
   const doHelp = () => { close(); onHelp(); };
   const askLogout = () => { close(); setConfirmLogout(true); };
@@ -133,8 +129,6 @@ export function HudMenu({ onOpenStats, onHelp }: Props) {
         <span className="hidden sm:inline-flex items-center gap-1">
           <span aria-hidden className="game-hud-divider" />
         </span>
-        {/* All stats & KPIs — visible at EVERY width, phones included. */}
-        <ToolbarIcon icon={Package} tip="All stats & KPIs" onClick={openStats} />
         {/* Decision history — bar icon on sm+; in the ⋯ menu on phones. */}
         <span className="hidden sm:inline-flex">
           <ToolbarIcon icon={HistoryIcon} tip="Decision history" onClick={openHistory} />

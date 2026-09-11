@@ -7,12 +7,12 @@ import {
   useTransform,
 } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
-import { useGame, MAX_SHOP_NAME } from '@/state/store';
+import { useGame } from '@/state/store';
 import { EnvironmentBackground } from './EnvironmentBackground';
 import { Notebook, sizeScale } from './Notebook';
 import { lineSize } from '@/engine/selectors';
 import { AddOnLayer } from './AddOnLayer';
-import { currentAddOns, renameProductLine, setShopName } from '@/engine/mockEngine';
+import { currentAddOns, renameProductLine } from '@/engine/mockEngine';
 import { archetypeLabel } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { NotebookCycler } from '@/components/canvas/NotebookCycler';
@@ -70,24 +70,6 @@ export function NotebookCanvas() {
   useEffect(() => {
     if (editing) inputRef.current?.select();
   }, [editing]);
-
-  // Shop sign rename — same pattern as the notebook title, on the desk sign.
-  const shopName = useGame((s) => s.meta.shopName);
-  const [editingShop, setEditingShop] = useState(false);
-  const [shopDraft, setShopDraft] = useState('');
-  const shopInputRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    if (editingShop) shopInputRef.current?.select();
-  }, [editingShop]);
-  const startShopRename = () => {
-    setShopDraft(shopName);
-    setEditingShop(true);
-    playSfx('click-soft');
-  };
-  const commitShopRename = () => {
-    apply((s) => setShopName(s, shopDraft));
-    setEditingShop(false);
-  };
 
   // Chevron direction (−1 prev / +1 next) so the hero SLIDES the way you
   // navigate instead of popping. 0 = config change → gentle scale-fade.
@@ -388,41 +370,6 @@ export function NotebookCanvas() {
         className="absolute bottom-[84px] sm:bottom-3 left-1/2 -translate-x-1/2 z-30"
         onCycle={setSlideDir}
       />
-
-      {/* The SHOP SIGN, bottom-left — the player's business name on the desk.
-          Was a decorative "Notebook Studio" stamp; now it's their shop and the
-          in-run rename affordance (click it, like the notebook title card). */}
-      <div className="absolute bottom-3 left-3 z-30 hidden sm:block">
-        {editingShop ? (
-          <input
-            ref={shopInputRef}
-            value={shopDraft}
-            autoFocus
-            onChange={(e) => setShopDraft(e.target.value)}
-            onBlur={commitShopRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitShopRename();
-              if (e.key === 'Escape') setEditingShop(false);
-            }}
-            maxLength={MAX_SHOP_NAME}
-            aria-label="Shop name"
-            className="w-[200px] bg-cream-50 border-2 border-primary text-ink-900 stamp outline-none px-2 py-0.5"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); startShopRename(); }}
-            aria-label={`Shop name: ${shopName}. Click to rename.`}
-            className="group inline-flex items-center gap-1.5 px-2 py-0.5 bg-surface border-2 border-border text-text stamp shadow-[1px_1px_0_0_var(--c-shadow)] select-none cursor-text hover:border-primary transition-colors"
-          >
-            <span className="w-1 h-1 bg-primary" aria-hidden />
-            <span>{shopName}</span>
-            <span aria-hidden className="opacity-60 group-hover:opacity-100 transition-opacity">
-              <NavIcon icon={Pencil} size={9} color="var(--c-text-3)" />
-            </span>
-          </button>
-        )}
-      </div>
 
       {/* Smooth-scrolls to the in-flow projection & P&L tables below the canvas
           (they're plain page content now, not a drawer). Label tracks that

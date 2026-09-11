@@ -58,9 +58,9 @@ export const hireSteps = (
     sellBonus:      value('sales_channel') * multiplier,
     marketingBonus: value('marketing')     * multiplier,
     costReduction:  value('dynamic_cost')  * multiplier,
-    // Scaled by the same multiplier as the effects, then rounded UP so a step
-    // never charges less than a weaker one.
-    cost:   Math.ceil(item.cost   * multiplier),
+    // Scaled by the same multiplier as the effects. Cost stays exact — the
+    // formatter rounds; energy is a whole-unit budget, so it rounds UP here.
+    cost:   item.cost * multiplier,
     energy: Math.ceil(item.energy * multiplier),
   }));
 };

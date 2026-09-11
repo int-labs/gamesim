@@ -29,7 +29,6 @@ export type {
  * day-tick used to be.
  */
 export type Phase = number;
-export type Route = 'self' | 'investor';
 export type Segment = 'students' | 'creators' | 'professionals' | 'gift';
 /**
  * A notebook's identity = the market it is made for.

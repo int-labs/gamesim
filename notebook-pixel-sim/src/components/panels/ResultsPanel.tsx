@@ -18,7 +18,6 @@ export function ResultsPanel() {
   const insights = useGame((s) => s.insights);
   const day = useGame((s) => s.meta.day);
   const ended = useGame((s) => s.meta.ended);
-  const route = useGame((s) => s.meta.route);
   const score = ended ? finalScore(useGame.getState()) : null;
   const [tab, setTab] = useState<SubTab>('evaluation');
 
@@ -94,11 +93,6 @@ export function ResultsPanel() {
                 <li>Inventory Cleanliness · 25 pts (avoid stockout & overstock)</li>
                 <li>Insight Bonus · 25 pts (correct insight checks at evals)</li>
               </ul>
-              {route === 'investor' && (
-                <div className="mt-3 body-xs text-ink-700 leading-snug">
-                  Investor route: −15 pts if $3,000 isn't repaid by Day 90.
-                </div>
-              )}
             </div>
           )}
         </PixelPanel>

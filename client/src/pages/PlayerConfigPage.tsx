@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   getSimulationTypes,
   getGlobalInputs,
+  getProducts,
   getImageAssets,
   getPlayerConfig,
   createPlayerConfig,
@@ -21,23 +22,37 @@ interface ConfigEntry {
   id: string;
   imageAssetId: string;
   caseStudy: CaseStudy;
+  /** `drivers` only — overrides the ProductField's own label. Blank = use it. */
+  label: string;
+  /** `drivers` only — the tooltip on the market card's driver row. */
+  hint: string;
 }
 
 const BLANK_CASE_STUDY: CaseStudy = { title: "", brief: "", bestWhen: "", watchOut: "" };
-const BLANK_ENTRY: ConfigEntry = { id: "", imageAssetId: "", caseStudy: { ...BLANK_CASE_STUDY } };
+const BLANK_ENTRY: ConfigEntry = {
+  id: "", imageAssetId: "", caseStudy: { ...BLANK_CASE_STUDY }, label: "", hint: "",
+};
 
-type Section = "vendors" | "candidates" | "marketingTeams" | "channels";
+type Section = "vendors" | "candidates" | "marketingTeams" | "channels" | "drivers";
 
 // `key` is the section name stored on PlayerConfig.config and read by the
-// player's configHydrator; `globalInputKey` is the container whose ITEM KEYS
-// become the valid ids. Channels carry case-study copy only — the numbers come
-// off the globalInput itself.
-const SECTIONS: { key: Section; label: string; globalInputKey: string }[] = [
-  { key: "vendors",       label: "Vendors",         globalInputKey: "supply_chain" },
-  { key: "candidates",    label: "Candidates",       globalInputKey: "hiring" },
-  { key: "marketingTeams",label: "Marketing Teams",  globalInputKey: "marketing" },
-  { key: "channels",      label: "Channels",         globalInputKey: "channel" },
+// player's configHydrator. `idsFrom` says where the valid ids come from:
+//
+//   globalInput:<key>  — that container's ITEM KEYS
+//   productFields      — the PRODUCT FIELD keys, across every product
+//
+// Channels carry case-study copy only; drivers carry label + hint only. In both
+// cases the NUMBERS live on the backend object and are read straight off it.
+const SECTIONS: { key: Section; label: string; idsFrom: string }[] = [
+  { key: "vendors",       label: "Vendors",         idsFrom: "globalInput:supply_chain" },
+  { key: "candidates",    label: "Candidates",       idsFrom: "globalInput:hiring" },
+  { key: "marketingTeams",label: "Marketing Teams",  idsFrom: "globalInput:marketing" },
+  { key: "channels",      label: "Channels",         idsFrom: "globalInput:channel" },
+  { key: "drivers",       label: "Customer Drivers", idsFrom: "productFields" },
 ];
+
+/** Sections whose entries are COPY ONLY — no artwork, no case study. */
+const COPY_ONLY_SECTIONS = new Set<Section>(["drivers"]);
 
 /** An empty bucket per section, derived from SECTIONS so adding one above is
  *  the only edit — this literal used to be repeated at six call sites. */
@@ -115,18 +130,44 @@ export default function PlayerConfigPage() {
     }
   };
 
+  // ONE fetch per source, not one per section: this used to call
+  // getGlobalInputs inside the per-section loop, firing four identical requests
+  // for the same payload.
   const loadAvailableIds = async () => {
     const ids: Record<Section, string[]> = emptyBySection<string>();
-    await Promise.all(
-      SECTIONS.map(async ({ key, globalInputKey }) => {
-        try {
-          const res = await getGlobalInputs(selectedSimTypeId, undefined);
-          const all: any[] = res.data?.data ?? res.data;
-          const gi = all.find((g: any) => g.key === globalInputKey);
-          ids[key] = (gi?.inputs ?? []).map((item: any) => item.key);
-        } catch {}
-      })
-    );
+
+    const needsGlobalInputs = SECTIONS.some((s) => s.idsFrom.startsWith("globalInput:"));
+    const needsProductFields = SECTIONS.some((s) => s.idsFrom === "productFields");
+
+    const [giAll, productAll] = await Promise.all([
+      needsGlobalInputs
+        ? getGlobalInputs(selectedSimTypeId, undefined)
+            .then((r) => (r.data?.data ?? r.data) as any[])
+            .catch(() => [] as any[])
+        : Promise.resolve([] as any[]),
+      needsProductFields
+        ? getProducts(selectedSimTypeId)
+            .then((r) => (r.data?.data ?? r.data) as any[])
+            .catch(() => [] as any[])
+        : Promise.resolve([] as any[]),
+    ]);
+
+    for (const { key, idsFrom } of SECTIONS) {
+      if (idsFrom === "productFields") {
+        // Deduped across products: the same field key appears on every product,
+        // and one hint describes the axis, not one product's copy of it.
+        const keys = new Set<string>();
+        for (const p of productAll) {
+          for (const f of p?.fields ?? []) if (f?.key) keys.add(String(f.key));
+        }
+        ids[key] = [...keys];
+        continue;
+      }
+      const giKey = idsFrom.slice("globalInput:".length);
+      const gi = giAll.find((g: any) => g.key === giKey);
+      ids[key] = (gi?.inputs ?? []).map((item: any) => item.key);
+    }
+
     setAvailableIds(ids);
   };
 
@@ -135,6 +176,8 @@ export default function PlayerConfigPage() {
   const normaliseEntry = (raw: any): ConfigEntry => ({
     id:           raw.id ?? "",
     imageAssetId: raw.imageAssetId ?? "",
+    label:        raw.label ?? "",
+    hint:         raw.hint ?? "",
     caseStudy: {
       title:    raw.caseStudy?.title    ?? "",
       brief:    raw.caseStudy?.brief    ?? "",
@@ -173,6 +216,8 @@ export default function PlayerConfigPage() {
     setEntryForm({
       id:           entry.id,
       imageAssetId: entry.imageAssetId,
+      label:        entry.label ?? "",
+      hint:         entry.hint ?? "",
       caseStudy:    { ...entry.caseStudy },
     });
     setEditingIndex(idx);
@@ -257,10 +302,10 @@ export default function PlayerConfigPage() {
             ))}
           </div>
 
-          {/* ── Available IDs from globalInputs ── */}
+          {/* ── Available IDs, from whichever source this section declares ── */}
           {availableIds[activeSection].length > 0 && (
             <p style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
-              Available IDs from <code>{sectionMeta.globalInputKey}</code>:{" "}
+              Available IDs from <code>{sectionMeta.idsFrom}</code>:{" "}
               {availableIds[activeSection].join(", ")}
             </p>
           )}
@@ -326,10 +371,41 @@ export default function PlayerConfigPage() {
                   )}
                 </td>
               </tr>
+              {/* Drivers: label + hint, and nothing else. The axis NAME already
+                  comes from ProductField.label, so this override exists only for
+                  when the operator wants player-facing wording that differs from
+                  the field name they administer by. */}
+              {COPY_ONLY_SECTIONS.has(activeSection) && (
+                <>
+                  <tr>
+                    <td>Label override</td>
+                    <td>
+                      <input
+                        placeholder="blank = use the ProductField's own label"
+                        value={entryForm.label}
+                        onChange={e => setEntryForm(f => ({ ...f, label: e.target.value }))}
+                        style={{ width: 320 }}
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Hint</td>
+                    <td>
+                      <textarea
+                        placeholder="tooltip on the driver row — blank = no tooltip"
+                        value={entryForm.hint}
+                        onChange={e => setEntryForm(f => ({ ...f, hint: e.target.value }))}
+                        rows={2}
+                        style={{ width: 320 }}
+                      />
+                    </td>
+                  </tr>
+                </>
+              )}
               {/* Channels render no artwork, so the player's hydrator ignores
                   imageAssetId for them — offering the picker would invite an
                   operator to set a value that does nothing. */}
-              {activeSection !== "channels" && (
+              {activeSection !== "channels" && !COPY_ONLY_SECTIONS.has(activeSection) && (
               <tr>
                 <td>Image Asset</td>
                 <td>
@@ -354,23 +430,27 @@ export default function PlayerConfigPage() {
                 </td>
               </tr>
               )}
-              <tr><td colSpan={2}><strong>Case Study</strong></td></tr>
-              <tr>
-                <td>Title</td>
-                <td><input value={entryForm.caseStudy.title} onChange={e => setCaseStudyField("title", e.target.value)} style={{ width: 320 }} /></td>
-              </tr>
-              <tr>
-                <td>Brief</td>
-                <td><textarea value={entryForm.caseStudy.brief} onChange={e => setCaseStudyField("brief", e.target.value)} rows={3} style={{ width: 320 }} /></td>
-              </tr>
-              <tr>
-                <td>Best When</td>
-                <td><textarea value={entryForm.caseStudy.bestWhen} onChange={e => setCaseStudyField("bestWhen", e.target.value)} rows={2} style={{ width: 320 }} /></td>
-              </tr>
-              <tr>
-                <td>Watch Out</td>
-                <td><textarea value={entryForm.caseStudy.watchOut} onChange={e => setCaseStudyField("watchOut", e.target.value)} rows={2} style={{ width: 320 }} /></td>
-              </tr>
+              {!COPY_ONLY_SECTIONS.has(activeSection) && (
+                <>
+                  <tr><td colSpan={2}><strong>Case Study</strong></td></tr>
+                  <tr>
+                    <td>Title</td>
+                    <td><input value={entryForm.caseStudy.title} onChange={e => setCaseStudyField("title", e.target.value)} style={{ width: 320 }} /></td>
+                  </tr>
+                  <tr>
+                    <td>Brief</td>
+                    <td><textarea value={entryForm.caseStudy.brief} onChange={e => setCaseStudyField("brief", e.target.value)} rows={3} style={{ width: 320 }} /></td>
+                  </tr>
+                  <tr>
+                    <td>Best When</td>
+                    <td><textarea value={entryForm.caseStudy.bestWhen} onChange={e => setCaseStudyField("bestWhen", e.target.value)} rows={2} style={{ width: 320 }} /></td>
+                  </tr>
+                  <tr>
+                    <td>Watch Out</td>
+                    <td><textarea value={entryForm.caseStudy.watchOut} onChange={e => setCaseStudyField("watchOut", e.target.value)} rows={2} style={{ width: 320 }} /></td>
+                  </tr>
+                </>
+              )}
             </tbody>
           </table>
           <div style={{ marginTop: 6 }}>

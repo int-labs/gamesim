@@ -249,7 +249,7 @@ export const selectCashBalance = (
    *  has not calculated it. Called for EVERY phase from 1 to `phase`. */
   operatingProfitFor: (p: number) => number | null | undefined,
 ): number => {
-  // Round 1 opens on the starting capital — the only entry `setRoute` seeds.
+  // Round 1 opens on the starting capital — the entry `startingState` seeds.
   // Every later round opens on the previous round's CLOSING balance, so this
   // accumulates rather than reading `cashOpeningByRound[phase]`: that map is
   // written only when the PLAYER crosses a boundary, and the operator can score
@@ -302,7 +302,7 @@ export function selectProjectedCash(
     // that is not a configured option (0).
     breakdown.push({
       decision: item.label,
-      cost: Math.ceil(item.cost * stepMultiplier(item, sel.selectedStepKey)),
+      cost: item.cost * stepMultiplier(item, sel.selectedStepKey),
     });
   }
 
@@ -318,7 +318,7 @@ export function selectProjectedCash(
     // the figure tracks the slider instead of the last recalc.
     const produced = Math.min(line.targetPerPhase ?? 0, capacity);
     if (produced <= 0) return;
-    breakdown.push({ decision: `Build ${line.name}`, cost: Math.ceil(produced * unit) });
+    breakdown.push({ decision: `Build ${line.name}`, cost: produced * unit });
   });
 
   const delta = -breakdown.reduce((sum, b) => sum + b.cost, 0);

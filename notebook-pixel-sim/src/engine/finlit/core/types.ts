@@ -3,9 +3,6 @@
 
 import type { GenreId, ProductionSpec, ChannelId } from './config';
 
-/** 'self' = bootstrapped/self-funded, 'investor' = took outside investment. Ported verbatim from notebook-pixel-sim src/types/index.ts. */
-export type Route = 'self' | 'investor';
-
 /** One notebook line the player produces + sells. */
 export interface FinlitLine {
   id: string;
@@ -31,17 +28,6 @@ export interface FinlitLine {
   finished: number;
 }
 
-/** Company-wide decisions in force for a phase. */
-export interface FinlitDecisions {
-  route: Route;
-  /** All hired candidates for this phase (up to maxSelections from globalInputs). */
-  hires: { candidate: string; level: 1 | 2 | 3 | 4 }[];
-  /** Direct demand multiplier from marketing globalInput options[selectedStepKey] (1.0 = no spend). */
-  marketingMult: number;
-  /** Global demand/sell multipliers from key-decision cards (e.g. +15% demand). */
-  demandMult: number; // default 1
-  sellMult: number; // default 1
-}
 
 /** One day of simulated results for the whole portfolio. */
 export interface FinlitDaySnapshot {

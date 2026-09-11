@@ -106,9 +106,8 @@ assets/                          # Vite's publicDir (NOT 'public/')
       intro_first_visit__1.mp3   # SCRIPT_INTRO message 1
       intro_first_visit__2.mp3
       intro_first_visit__3.mp3
-      route_chosen_self__0.mp3
-      route_chosen_self__1.mp3
-      route_chosen_investor__0.mp3
+      shop_named__0.mp3          # SCRIPT_AFTER_NAMING message 0
+      shop_named__1.mp3
       …
       first_product_page__0.mp3
       …

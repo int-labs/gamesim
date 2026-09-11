@@ -106,16 +106,19 @@ Deploys to **Vercel** (project linked in `.vercel/`).
 
 ### The engine facade — read this first
 
-`src/engine/mockEngine.ts` is the **single import surface** for all game logic. Despite the name, it is **not a mock** — it re-exports the real, modular engine and owns the decision mutators directly. The name is kept only so the ~25 UI files importing `@/engine/mockEngine` never had to change. **The README's "Step 3 / mock engine" framing is stale** — the real engine (`simulationEngine.ts` + supporting modules) is live.
+`src/engine/mockEngine.ts` is the **single import surface** for all game logic. Despite the name, it is **not a mock** — it re-exports the real, modular engine and owns the decision mutators directly. The name is kept only so the ~25 UI files importing `@/engine/mockEngine` never had to change. What it fronts is now a set of state mutators and pure selectors — **not a simulator**. Every figure that is simulated comes from the server.
 
 UI code should keep importing from `@/engine/mockEngine`, never from the individual modules behind it. Those modules:
 
+This table is the ELEVEN files in `src/engine/`. It previously also listed
+`simulationEngine.ts` and `production.ts` (deleted 2026-09-01 with the day-tick)
+and `demand.ts` (deleted 2026-09-09 — it was a second demand model; the server's
+`customersObtained` is the only one). If a row here has no file, the row is the
+thing that is wrong.
+
 | Module | Responsibility |
 |---|---|
-| `simulationEngine.ts` | `dayTick` / `advanceDay` orchestrator (per-line loop) |
-| `demand.ts` | per-line × per-segment demand, fit, cannibalization |
 | `cost.ts` | per-line cost/time/price; portfolio aggregates; line lookup helpers |
-| `production.ts` | shared-capacity allocation across lines; defect rate |
 | `complexity.ts` | complexity score → capacity/defect penalty (replaces hard line caps) |
 | `cashflow.ts` | DSO/DPO scheduling of pending cash (AR/AP) |
 | `modifiers.ts` | global event-modifier aggregation + expiry |
@@ -189,6 +192,8 @@ administrator has calculated the previous one.
 ### Screen flow
 
 `App.tsx` is a screen state machine keyed on `meta.screen` (`start → route → phase_intro → simulation → evaluation → final`). Within the simulation, `meta.sidebar` swaps the active panel. Two flows can drive events/evaluations:
+
+**The `'route'` screen id is a misnomer** — it renders `RouteChoiceScreen`, which since 2026-09-09 asks for the studio name and nothing else. It used to carry a funding-route choice (self-funded vs investor-backed) that set starting cash, a repayment obligation and a score modifier; that mechanic was removed whole because it taught nothing the rest of the game builds on. Opening cash is now one operator-configured figure seeded in `startingState`. The id was left alone to avoid churning five files for a rename.
 
 - The **unified `PhaseSequenceModal`** renders event + evaluation + result inline. While `meta.sequenceActive` is true, the standalone `EventModal` / `EvaluationScreen` are suppressed and `App.tsx`'s auto-promotion effects bow out. Check `sequenceActive` before touching screen-promotion logic.
 

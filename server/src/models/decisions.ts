@@ -11,6 +11,29 @@ const DecisionFieldSchema = new Schema(
   { _id: false }
 );
 
+/**
+ * The COGS/OpEx split of a globalInput's cost, as a SINGLE-NESTED SCHEMA with
+ * `default: undefined` — deliberately, so ABSENT MEANS ABSENT.
+ *
+ * This was an inline nested path with `default: 0` on both legs. Mongoose then
+ * materialised `{ cogs: 0, opex: 0 }` on every entry, including the ones the
+ * client submits without a treatment — and `readCostTreatment` tests
+ * `gi.costTreatment` for PRESENCE, so a truthy all-zero object took the explicit
+ * branch and booked the whole of globalInput spend to neither side of the Gross
+ * Profit line. Operating Expenses read 0.00 on every scored round.
+ *
+ * An inline nested path cannot express this: Mongoose materialises one as a
+ * truthy `{}` on the document instance even when it is absent in Mongo. A
+ * single-nested schema is genuinely `undefined` until written.
+ */
+const costTreatmentSchema = new Schema(
+  {
+    cogs: { type: Number, required: true },
+    opex: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
 // source GlobalInputItem don't retroactively change submitted decisions.
 const decisionGlobalInputSchema = new Schema(
   {
@@ -24,10 +47,7 @@ const decisionGlobalInputSchema = new Schema(
     // populate costTreatment; nothing reads `cost` except the legacy branch of
     // readCostTreatment() in sim/calcFinancials.ts.
     cost:              { type: Number, default: 0 },
-    costTreatment: {
-      cogs: { type: Number, default: 0 },
-      opex: { type: Number, default: 0 },
-    },
+    costTreatment:     { type: costTreatmentSchema, default: undefined },
     energy:            { type: Number, default: 0 },
     productsImpacted:  { type: [Schema.Types.ObjectId], ref: "Product", default: [] },
     impacts:           { type: Schema.Types.Mixed, default: {} },
@@ -98,7 +118,9 @@ export interface IDecisionGlobalInput {
   selectedStepKey:   string | null;
   /** Legacy total. Read only via `readCostTreatment`; new writes use costTreatment. */
   cost:              number;
-  costTreatment:     { cogs: number; opex: number };
+  /** ABSENT when the submitter sent no treatment — `readCostTreatment` then
+   *  books `cost` as a period cost. Never defaulted; see costTreatmentSchema. */
+  costTreatment?:    { cogs: number; opex: number };
   energy:            number;
   productsImpacted:  Types.ObjectId[];
   impacts:           Record<string, { type: "relative" | "absolute"; value: number }>;

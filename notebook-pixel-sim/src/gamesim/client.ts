@@ -272,8 +272,6 @@ export interface RunReportBody {
   insight: number;
   netDollar: number;
   cleanliness: number;
-  route?: string | null;
-  obligationMet?: boolean | null;
   insightsCorrect: number;
   insightsTotal: number;
   shopName?: string | null;

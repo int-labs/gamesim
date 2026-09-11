@@ -70,32 +70,17 @@ export const SCRIPT_INTRO: MascotScript = {
   ],
 };
 
-export const SCRIPT_AFTER_ROUTE_SELF: MascotScript = {
-  key: 'route_chosen_self',
-  title: 'Self-funded',
+export const SCRIPT_AFTER_NAMING: MascotScript = {
+  key: 'shop_named',
+  title: 'Open for business',
   messages: [
     {
-      body: 'Self-funded - patient and steady. You start with $1,000 and no debt to repay.',
+      body: "That's your studio. Every notebook you make carries that name from here on.",
       mood: 'happy_soft',
     },
     {
-      body: "Score lands clean: no multiplier, no penalty. Strong fit if you want to learn the basics before the pressure ramps up.",
+      body: 'Your opening cash is on the desk. Spend it on notebooks worth selling - and keep enough back to build them.',
       mood: 'pointing_right_explain',
-    },
-  ],
-};
-
-export const SCRIPT_AFTER_ROUTE_INVESTOR: MascotScript = {
-  key: 'route_chosen_investor',
-  title: 'Investor-backed',
-  messages: [
-    {
-      body: 'Investor-backed - bigger budget, bigger expectations. You start with $2,500 but owe $3,000 by the final phase.',
-      mood: 'thinking_side',
-    },
-    {
-      body: 'Win this and your final score gets a ×1.1 multiplier. Miss the repayment and you lose 15 points - so plan cash, not just revenue.',
-      mood: 'warning',
     },
   ],
 };
@@ -219,7 +204,7 @@ export const SCRIPT_PHASE3_START: MascotScript = {
       mood: 'thinking_side',
     },
     {
-      body: "If you're investor-backed, the $3,000 repayment is due by the final phase. Project your cash forward - don't be surprised in the last one.",
+      body: "Any loan you took is still owed. Project your cash forward - don't be surprised in the last one.",
       mood: 'warning_alert',
     },
     {
@@ -242,7 +227,7 @@ export const SCRIPT_FINAL: MascotScript = {
       mood: 'pointing_right_explain',
     },
     {
-      body: "Try a new run with a different audience or route. Two runs side-by-side teach more than one perfect run.",
+      body: "Try a new run with a different audience. Two runs side-by-side teach more than one perfect run.",
       mood: 'happy_soft',
     },
   ],
@@ -250,8 +235,7 @@ export const SCRIPT_FINAL: MascotScript = {
 
 export const ALL_SCRIPTS: MascotScript[] = [
   SCRIPT_INTRO,
-  SCRIPT_AFTER_ROUTE_SELF,
-  SCRIPT_AFTER_ROUTE_INVESTOR,
+  SCRIPT_AFTER_NAMING,
   SCRIPT_FIRST_PRODUCT_PAGE,
   SCRIPT_FIRST_BUSINESS_PAGE,
   SCRIPT_FIRST_ADDON,

@@ -21,6 +21,10 @@ export interface GlobalInputItem {
   minDelta:         number | null;
   maxDelta:         number | null;
   cost:             number;
+  /** Which side of the Gross Profit line `cost` lands on. The operator sets it
+   *  per item; the player client copies it into the decision snapshot as the
+   *  `{ cogs, opex }` split `calcFinancials` consumes. */
+  costTreatment:    "cogs" | "opex";
   energy:           number;
   productsImpacted: Types.ObjectId[];
   impacts:          Record<string, GlobalInputImpact>;
@@ -76,6 +80,10 @@ const globalInputItemSchema = new Schema<GlobalInputItem>(
     minDelta:         { type: Number, default: null },
     maxDelta:         { type: Number, default: null },
     cost:             { type: Number, required: true, default: 0 },
+    // Which side of the Gross Profit line this item's `cost` falls on.
+    // Defaults to "opex", which restates what the money path did with an
+    // untreated cost before this field existed.
+    costTreatment:    { type: String, enum: ["cogs", "opex"], default: "opex" },
     energy:           { type: Number, required: true, default: 0 },
     productsImpacted: { type: [Schema.Types.ObjectId], ref: "Product", default: [] },
     impacts:          { type: Schema.Types.Mixed, default: {}, validate: impactsValidator },

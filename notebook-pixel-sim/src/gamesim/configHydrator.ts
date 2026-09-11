@@ -38,7 +38,6 @@ import {
   GENRES,
   PAGE_DESIGN_OPTIONS,
   PAPER_OPTIONS,
-  ROUTE_START,
   SCENARIO_DAYS,
   SCENARIOS,
   SCENARIOS_PER_PHASE,
@@ -48,6 +47,7 @@ import {
 import { setCandidateImage } from '@/engine/finlit/core/config/hiring';
 import { setVendorImage } from '@/engine/finlit/core/config/vendors';
 import { setMarketingImage } from '@/engine/finlit/core/config/marketing';
+import { hydrateDriverCopy } from '@/engine/finlit/core/config/drivers';
 import {
   CANDIDATE_STUDIES,
   VENDOR_STUDIES,
@@ -67,7 +67,6 @@ import {
   SIZE_COST_MULT,
   SIZE_TIME_MULT,
   STARTING_CASH,
-  STARTING_DEBT,
 } from '@/data/balance';
 import { ADDONS } from '@/data/addOns';
 import { CHANNELS } from '@/data/channels';
@@ -340,6 +339,27 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
     applied.push('channels');
   }
 
+  // Drivers: the customer-decision axes on the market cards. Ids are PRODUCT
+  // FIELD keys — not a globalInput container's item keys, unlike every section
+  // above. The axes themselves and their names are derived from the fields, so
+  // PlayerConfig owns only the hint and an optional label override.
+  //
+  // Replaced wholesale rather than merged: there is no bundled copy to protect
+  // (see the note in `config/drivers.ts`), so a section that omits a field means
+  // that field has no hint, which is a legitimate state.
+  if (Array.isArray(cfg.drivers)) {
+    hydrateDriverCopy(
+      (cfg.drivers as Dict[])
+        .filter((src) => isObj(src) && typeof src.id === 'string' && src.id)
+        .map((src) => ({
+          id:    src.id as string,
+          label: typeof src.label === 'string' ? src.label : null,
+          hint:  typeof src.hint  === 'string' ? src.hint  : null,
+        })),
+    );
+    applied.push('drivers');
+  }
+
   section('scenarios', SCENARIOS as any, (rows) =>
     mergeById(SCENARIOS as any, rows, ['phase', 'title', 'body'], {
       image: 'imgPath',
@@ -478,21 +498,8 @@ const CONSTANT_OBJECTS: Record<string, Dict> = {
   PRICE_REFERENCE,
   PHASE_DEMAND_MULT,
   STARTING_CASH,
-  STARTING_DEBT,
   ENERGY_COSTS,
   SCENARIOS_PER_PHASE: SCENARIOS_PER_PHASE as unknown as Dict,
-};
-
-/**
- * The export flattens `ROUTE_START.self.cash` to `ROUTE_START_SELF_CASH` so the
- * console can edit it as a plain number. `ROUTE_START` itself is an object, so
- * unlike the true scalars these DO hydrate — they just need unflattening.
- */
-const ROUTE_START_KEYS: Record<string, [route: 'self' | 'investor', field: 'cash' | 'openingProfit']> = {
-  ROUTE_START_SELF_CASH: ['self', 'cash'],
-  ROUTE_START_SELF_OPENING_PROFIT: ['self', 'openingProfit'],
-  ROUTE_START_INVESTOR_CASH: ['investor', 'cash'],
-  ROUTE_START_INVESTOR_OPENING_PROFIT: ['investor', 'openingProfit'],
 };
 
 function applyConstants(cfg: Dict, applied: string[], skipped: HydrationReport['skipped']): void {
@@ -506,15 +513,6 @@ function applyConstants(cfg: Dict, applied: string[], skipped: HydrationReport['
     if (key === 'SCENARIO_DAYS') {
       if (Array.isArray(value) && value.length && value.every(num)) {
         replaceArray(SCENARIO_DAYS as unknown as number[], value as number[]);
-        touched = true;
-      }
-      continue;
-    }
-
-    const route = ROUTE_START_KEYS[key];
-    if (route) {
-      if (num(value)) {
-        (ROUTE_START as Dict)[route[0]][route[1]] = value;
         touched = true;
       }
       continue;
@@ -545,7 +543,7 @@ function applyConstants(cfg: Dict, applied: string[], skipped: HydrationReport['
 
   for (const key of Object.keys(cfg.constants)) {
     if (landed.has(key)) continue;
-    if (CONSTANT_OBJECTS[key] || ROUTE_START_KEYS[key] || key === 'SCENARIO_DAYS') continue;
+    if (CONSTANT_OBJECTS[key] || key === 'SCENARIO_DAYS') continue;
     unapplied.push(key);
   }
 

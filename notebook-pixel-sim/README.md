@@ -65,7 +65,7 @@ src/
     Toast.tsx
     SmallScreenGate.tsx
   screens/
-    StartScreen, RouteChoiceScreen, PhaseIntroScreen,
+    StartScreen, RouteChoiceScreen (studio naming), PhaseIntroScreen,
     SimulationScreen, EventModal, EvaluationScreen, FinalResultsScreen
   utils/                     format helpers, seeded RNG
   types/                     shared TS types
@@ -76,13 +76,17 @@ src/
 
 ## How the loop works
 
-1. **Start → Route choice → Phase 1 intro → Simulation.**
+1. **Start → Studio naming → Phase 1 intro → Simulation.**
 2. In the **Simulation screen**, the left sidebar swaps the right-side panel (Product / Audience / Add-ons / Operations / Inventory / Commercial / P&L / History).
-3. Decisions update the store directly. The **Bottom Action Bar** lets you advance days (1 or 5 at a time).
-4. Each day-tick computes demand, produces, sells, applies costs, and writes ledger entries with `cause` tags so the P&L is traceable.
-5. Days **15, 30, 45, 60, 75, 89** trigger Event modals (A/B/C/D, costs energy).
-6. Days **30, 60, 90** trigger Evaluation screens with charts + an Insight Check question scored against the engine's ground truth.
-7. **Day 90** is the Final Results screen with score (Net Profit /50 + Inventory Cleanliness /25 + Insight /25), decision timeline, and JSON export of the run.
+3. Decisions update the store directly and are submitted to the backend, which owns every monetary figure.
+4. **The sim advances by ROUND, not by day.** `PhaseActionBar` → `PhaseSequenceModal` → `advanceFinlitPhase`. There is no day-tick: `simulationEngine.ts`, `BottomActionBar`, `ConfirmDayModal` and `ConfirmPhaseModal` were deleted on 2026-09-01. `meta.day` still exists but nothing ticks it.
+5. A round cannot close until the administrator calculates it (limbo), which is what makes banking the round's scored profit at the boundary safe.
+6. Each phase end runs the event + evaluation + result inline through `PhaseSequenceModal`, including an Insight Check question.
+7. The **final phase** ends on the Final Results screen: score (Net Profit /50 + Inventory Cleanliness /25 + Insight /25), decision timeline, and JSON export of the run.
+
+> The funding-route choice — self-funded vs investor-backed, with its starting
+> cash, $3,000 repayment obligation and ±score modifier — was **removed on
+> 2026-09-09**. Opening cash is now a single operator-configured figure.
 
 ## Mascot system
 

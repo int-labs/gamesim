@@ -84,14 +84,6 @@ export let ENERGY_START = 50;
 export let ENERGY_PER_PHASE = 30;
 export let ENERGY_CAP = 100;
 
-// ── Start routes (DEC D) ──────────────────────────────────────────────────
-// Self-funded: $1000, clean books. Investor: $5000 cash but the P&L opens at
-// −$4000 (the obligation the player must earn back).
-export const ROUTE_START = {
-  self: { cash: 1000, openingProfit: 0 },
-  investor: { cash: 5000, openingProfit: -4000 },
-} as const;
-
 // ── Key Scenario cadence (DEC E) ──────────────────────────────────────────
 // P1:1, P2:2, P3:2 = 5 total, on 15-day marks avoiding phase-end eval days.
 export const SCENARIOS_PER_PHASE = { 1: 1, 2: 2, 3: 2 } as const;

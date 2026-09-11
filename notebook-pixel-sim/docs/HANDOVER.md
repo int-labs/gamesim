@@ -82,7 +82,7 @@ Energy refills **+15** at each phase boundary (capped at the phase max). **Energ
 ### Full user flow
 
 ```
-Start → Funding Route (Self $1,000  |  Investor $2,500 + $3,000 debt)
+Start → Name your studio (opening cash: one operator-configured figure)
       → Phase 1 Intro → Phase 1 Decisions → Confirm → Days 1–30 (pauses on events)
       → Phase 1 Evaluation (P&L snapshot + charts + insight check + Amelia debrief)
       → Phase 2 Intro → … → Days 31–60 → Phase 2 Evaluation
@@ -164,8 +164,9 @@ Phase snapshot + cash/profit charts + cost-mix stacked bar + Amelia debrief + on
 Net Profit      → up to 50 pts  (netProfit / $4,500 baseline, clamped)
 Inventory clean → up to 25 pts  (1 − stockout_rate − overstock_rate)
 Insight checks  → up to 25 pts  (correct / total)
-Investor route  → +5 if debt obligation met, −15 if not
 ```
+Those three are the whole rubric. A `±` investor-route modifier was removed with
+the funding-route mechanic on 2026-09-09.
 **Net Profit, not Revenue**, drives the big bucket — rewarding *sustainable* selling (margin, channel discipline, defect control), reinforcing LP3/LP4.
 
 ---
@@ -175,7 +176,7 @@ Investor route  → +5 if debt obligation met, −15 if not
 - **Stack:** Vite 5 + React 18 + TypeScript; Tailwind v3 (custom pixel tokens); Zustand + Immer + persist; `@dnd-kit` for add-on drag/drop; Framer Motion for overlays; hand-built SVG charts (no chart lib).
 - **Engine facade:** `src/engine/mockEngine.ts` is the **single import surface** for all game logic. *Despite the name it is NOT a mock* — it re-exports the real modular engine (`simulationEngine.ts`, `demand.ts`, `cost.ts`, `production.ts`, `cashflow.ts`, `modifiers.ts`, `scoring.ts`, …). UI always imports from `@/engine/mockEngine`.
 - **State:** one Zustand store (`src/state/store.ts`, `useGame`). Universal mutation path is `apply((s) => engineMutator(s, ...))` — engine functions are pure mutators over the Immer draft. Persist key `intlabs:sim:state:v1`, version 8 with a migration chain.
-- **Screens:** `App.tsx` is a state machine on `meta.screen` (`start → route → phase_intro → simulation → evaluation → final`); `meta.sidebar` swaps panels. A unified `PhaseSequenceModal` renders event+evaluation+result inline (gated by `meta.sequenceActive`).
+- **Screens:** `App.tsx` is a state machine on `meta.screen` (`start → route → phase_intro → simulation → evaluation → final`); `meta.sidebar` swaps panels. A unified `PhaseSequenceModal` renders event+evaluation+result inline (gated by `meta.sequenceActive`). The `'route'` id is now a misnomer — that screen asks only for the studio name.
 - **Determinism + safety:** seeded RNG (`mulberry32`/`seedFrom`); all numeric paths pass through `clamp`/`finite` (no NaN ever reaches state).
 - **Commands:** `npm run dev` (port 5173) · `npm run build` (= `tsc -b` + vite build) · `npm run preview` (4173). **No test runner, no linter** — `tsc -b` is the only automated check.
 

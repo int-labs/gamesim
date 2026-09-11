@@ -14,7 +14,6 @@ import { RouteChoiceScreen } from '@/screens/RouteChoiceScreen';
 import { PhaseIntroScreen } from '@/screens/PhaseIntroScreen';
 import { SimulationScreen } from '@/screens/SimulationScreen';
 import { VisualNovelMascot } from '@/components/mascot/VisualNovelMascot';
-import { AudiencePickerModal } from '@/components/AudiencePickerModal';
 import { Toast } from '@/components/Toast';
 import { SmallScreenGate } from '@/components/SmallScreenGate';
 import { AppShell } from '@/components/AppShell';
@@ -165,7 +164,7 @@ export default function App() {
               phase sequence, the standalone evaluation and the final score.
               Each is a focused flow whose whole purpose is a screen of numbers
               to read, and the mascot's scrim dims exactly that. The queue also
-              persists, so a script the player skipped earlier (a route-choice
+              persists, so a script the player skipped earlier (a naming-screen
               line, say) resurfaces at the next screen that allows the mascot
               and talks over an evaluation it has nothing to do with. */}
           {screen !== 'phase_intro'
@@ -173,11 +172,6 @@ export default function App() {
             && screen !== 'final'
             && !sequenceActive
             && <VisualNovelMascot />}
-          {/* Opens only when the run has no target audience — a migrated save,
-              or a player who cleared theirs. A fresh game derives one from the
-              starter genre, so it stays silent there. It shipped orphaned in the
-              vendor drop: the file existed but nothing ever rendered it. */}
-          <AudiencePickerModal />
           <DayAdvanceFlash />
           {/* Pixel-wipe transition on the big moments: game start, each
               round/phase change, and game end. */}

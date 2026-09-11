@@ -22,8 +22,8 @@ export const HOME = {
   ameliaIntro: "Hi, I'm Amelia. I'll guide you through the numbers and explain what each decision changes.",
   /** `totalRounds` is undefined in standalone play — the sentence then omits
    *  the total rather than asserting one. */
-  ameliaIntroReturning: (phase: number, route: 'self' | 'investor', totalRounds?: number) =>
-    `Welcome back. You're on Phase ${phase}${totalRounds ? ` of ${totalRounds}` : ''}, ${route === 'investor' ? 'investor-backed' : 'self-funded'}.`,
+  ameliaIntroReturning: (phase: number, totalRounds?: number) =>
+    `Welcome back. You're on Phase ${phase}${totalRounds ? ` of ${totalRounds}` : ''}.`,
   cta: {
     startFirst: 'Start business',
     continue: (phase: number) => `Continue · Phase ${phase}`,
@@ -142,31 +142,11 @@ export const LEARNING_POINTS = {
 export const ROUTE = {
   shop: {
     title: 'Name your studio',
-    hint: 'This is your business. You can rename it any time from the shop sign on your desk.',
+    hint: 'This is your business. You can rename it any time from Business ▸ Operations.',
   },
   eyebrow: 'Step 1',
-  title: 'Choose your funding route',
-  subtitle:
-    'Each route changes your starting cash, the pressure you feel, and how your final score is weighted. Either route can score 100.',
-  self: {
-    title: 'Self-funded',
-    tagline: 'Small budget. Patient run.',
-    startingCash: 1000,
-    perks: 'No debt. No repayment pressure. Straight scoring.',
-    risks: 'Slow start - every dollar matters. Mistakes hurt longer.',
-    summary:
-      'Best if you want a calmer run focused on learning fundamentals before scaling.',
-  },
-  investor: {
-    title: 'Investor-backed',
-    tagline: 'More cash. Real expectations.',
-    startingCash: 2500,
-    perks: 'Bigger upfront moves possible. ×1.1 score multiplier on success.',
-    risks: 'Repay $3,000 by the final phase or lose 15 points. Faster pace, less margin for error.',
-    summary:
-      'Best if you want pressure-tested scaling and a higher score ceiling.',
-  },
-  footer: 'Pick what fits your style. The simulation works either way.',
+  cta: 'Open for business',
+  footer: 'You can change this later. Nothing here affects your score.',
 };
 
 export const PHASE_INTRO = {

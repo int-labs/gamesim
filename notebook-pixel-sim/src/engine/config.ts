@@ -7,11 +7,6 @@
 // - Indirect cash flow: revenue accrues immediately, cash is delayed by DSO
 // - P&L groups: Revenue → COGS → Gross Profit → OpEx → Operating Profit
 
-export const STARTING_CAPITAL = { self: 1000, investor: 2500 } as const;
-export const INVESTOR_DEBT = 3000;            // payable by Day 90
-export const INVESTOR_PENALTY = 15;           // points off if not repaid
-export const INVESTOR_BONUS = 5;              // bonus points if repaid
-
 export const PHASE_MAX_ENERGY = { 1: 30, 2: 45, 3: 60 } as const;
 export const ENERGY_REPLENISH = 15;
 

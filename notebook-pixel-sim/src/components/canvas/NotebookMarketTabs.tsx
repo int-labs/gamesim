@@ -11,7 +11,11 @@
 //                         weight, so they sum to 100% and can be read against
 //                         each other.
 //   • GENRES[].demand   — the per-phase addressable market curve.
-//   • SEGMENTS[]        — buyer economics (price anchor, sensitivity, pull).
+//   • SEGMENTS[]        — NAME AND DESCRIPTION ONLY. Its economic fields
+//                         (preferredPriceRef, priceSensitivity, baseDemand,
+//                         preference) are bundled constants with no backend
+//                         equivalent, and no longer have any reader. The two
+//                         price stats that read them were removed 2026-09-09.
 //
 // This header used to claim the bars came from `GENRES[].voc`, "the exact
 // weights vocFit() uses". That was already false: the code reads FIELD_CONFIG,
@@ -30,22 +34,19 @@
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { GENRES, genreGrowth, type GenreDef, type GenreId } from '@/engine/finlit/core/config/genres';
-import { FIELD_CONFIG } from '@/engine/finlit/core/config/fieldConfig';
+import { driverAxes, type DriverAxis } from '@/engine/finlit/core/config/fieldConfig';
+import { driverCopy } from '@/engine/finlit/core/config/drivers';
 import { GENRE_TO_SEGMENT } from '@/engine/mockEngine';
 import { segmentById } from '@/data/segments';
 import { ARCHETYPE_INFO } from '@/data/notebookArchetypes';
 import { PixelBadge } from '@/components/primitives';
 import type { Archetype } from '@/types';
 
-/** Decision axes shown in the "What they weigh" VoC bars — backend field keys + display labels. */
-const VOC_AXES = [
-  { key: 'stickers',       label: 'Stickers',      hint: 'Decorative stickers and charms on the cover' },
-  { key: 'addons',         label: 'Add-Ons',        hint: 'Physical add-ons: pen holder, spiral case, paper pocket' },
-  { key: 'page_design',    label: 'Page Design',    hint: 'Ruling style: lined, dotted, grid, blank' },
-  { key: 'cover_page',     label: 'Cover',          hint: 'Cover material and finish' },
-  { key: 'paper_material', label: 'Paper',          hint: 'Paper stock quality' },
-  { key: 'page_size',      label: 'Size',           hint: 'Format and page count' },
-] as const;
+// The "What they weigh" rows are DERIVED — `driverAxes(genreId)` reads the
+// product's own fields, in the operator's `order`, labelled with their own
+// `label`. A hardcoded six-key list used to live here; see the note on
+// `driverAxes` for what that broke. Hints come from the operator too, via
+// PlayerConfig's `drivers` section.
 
 const PHASES = [
   { key: 'pMinus1', label: 'Pre' },
@@ -79,9 +80,9 @@ const fmt = (n: number) => n.toLocaleString('en-US');
  * Negative weights are floored at 0: a bar cannot show less than nothing, and a
  * negative in the denominator would distort every other axis on the card.
  */
-function weightShare(genreId: GenreId, key: string): number {
-  const weightOf = (k: string) => Math.max(0, FIELD_CONFIG[genreId]?.[k]?.direction ?? 0);
-  const total = VOC_AXES.reduce((sum, axis) => sum + weightOf(axis.key), 0);
+function weightShare(axes: DriverAxis[], key: string): number {
+  const weightOf = (k: string) => Math.max(0, axes.find((a) => a.key === k)?.direction ?? 0);
+  const total = axes.reduce((sum, axis) => sum + Math.max(0, axis.direction), 0);
   return total > 0 ? weightOf(key) / total : 0;
 }
 
@@ -111,6 +112,10 @@ export function BuyerInterestTab({ arch }: { arch: Archetype }) {
 function MarketCard({ genre, arch, index }: { genre: GenreDef; arch: Archetype; index: number }) {
   const seg = segmentById(GENRE_TO_SEGMENT[genre.id]);
   const fit = fitsArchetype(genre.id, arch);
+  // Derived per render, never memoised at module scope: `FIELD_CONFIG` is filled
+  // at boot by `hydrateFieldConfig`, so a snapshot taken on import would freeze
+  // an empty table. See the container-hydration rule in CLAUDE.md.
+  const axes = driverAxes(genre.id);
 
   return (
     <motion.div
@@ -136,28 +141,37 @@ function MarketCard({ genre, arch, index }: { genre: GenreDef; arch: Archetype; 
       <div className="p-3.5 flex flex-col gap-3.5">
         <p className="body-xs text-text-2">{genre.blurb}</p>
 
+        {/* TWO SLOTS ARE FREE HERE. What was removed: "Price anchor"
+            (seg.preferredPriceRef) and "Price sens." (seg.priceSensitivity).
+            Neither field exists on the backend — both came from the bundled
+            `data/segments.ts` table, for a segment GENRE_TO_SEGMENT may have
+            guessed. Do not refill from `seg`: nothing on it is operator-owned.
+            `genre` IS hydrated from the backend and is safe to read. */}
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Market now" value={fmt(genre.demand.p0)} note="units of demand" delay={0.05 * index} />
-          <Stat label="Price anchor" value={`$${seg.preferredPriceRef}`} note="what feels right" delay={0.05 * index + 0.05} />
-          <Stat
-            label="Price sens."
-            value={`${seg.priceSensitivity}x`}
-            note={seg.priceSensitivity >= 1.3 ? 'very picky' : seg.priceSensitivity >= 0.9 ? 'moderate' : 'tolerant'}
-            delay={0.05 * index + 0.1}
-          />
         </div>
 
         <div className="flex flex-col gap-2">
           <div className="stat-label">What they weigh</div>
-          {VOC_AXES.map((axis, i) => (
-            <VocBar
-              key={axis.key}
-              label={axis.label}
-              hint={axis.hint}
-              value={weightShare(genre.id, axis.key)}
-              delay={0.05 * index + 0.04 * i}
-            />
-          ))}
+          {axes.length === 0 ? (
+            // No fields for this genre means `hydrateFieldConfig` matched no
+            // product to it — say so, rather than render an empty rack of bars
+            // that reads as "buyers weigh nothing".
+            <div className="body-xs text-text-3 italic">No decision axes configured for this market.</div>
+          ) : (
+            axes.map((axis, i) => {
+              const copy = driverCopy(axis.key);
+              return (
+                <VocBar
+                  key={axis.key}
+                  label={copy.label ?? axis.label}
+                  hint={copy.hint}
+                  value={weightShare(axes, axis.key)}
+                  delay={0.05 * index + 0.04 * i}
+                />
+              );
+            })
+          )}
         </div>
 
         <div className="body-xs text-text-2 border-t border-border-soft pt-2.5">
@@ -206,7 +220,7 @@ function Stat({ label, value, note, delay = 0 }: { label: string; value: string;
  *
  * Do NOT "fix" this by scaling `value` up — that would misreport the share.
  */
-function VocBar({ label, hint, value, delay }: { label: string; hint: string; value: number; delay: number }) {
+function VocBar({ label, hint, value, delay }: { label: string; hint?: string; value: number; delay: number }) {
   const pips = 10;
   const filled = Math.round(Math.max(0, Math.min(1, value)) * pips);
   return (

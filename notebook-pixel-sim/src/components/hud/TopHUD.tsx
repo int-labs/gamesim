@@ -17,8 +17,6 @@ import { SafeImage } from '@/components/primitives/SafeImage';
 import { CountUp } from '@/components/primitives/CountUp';
 import { A } from '@/assets';
 import { HudMenu } from '@/components/hud/HudMenu';
-import { HistoryDropdown } from '@/components/hud/HistoryDropdown';
-import { StatsDrawer } from '@/components/hud/StatsDrawer';
 import clsx from 'clsx';
 import { HUD_TOOLTIPS } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
@@ -136,8 +134,6 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
 
   // Phase-change pulse on the phase chip
   const [phasePulse, setPhasePulse] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const lastPhase = useRef(phase);
   useEffect(() => {
     if (lastPhase.current !== phase) {
@@ -301,19 +297,8 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
             music, help, log out — into one "More" menu that fits at every
             width. Its log out calls the gamesim provider, which is what
             actually ends the session. */}
-        <HudMenu onOpenStats={() => setStatsOpen(true)} onHelp={helpClick} />
+        <HudMenu onHelp={helpClick} />
       </div>
-      {/* StatsDrawer's History row opens this. HudMenu owns its own copy for
-          the bar/menu path; both are the same self-contained modal. */}
-      {historyOpen && <HistoryDropdown onClose={() => setHistoryOpen(false)} />}
-      {statsOpen && (
-        <StatsDrawer
-          open={statsOpen}
-          onClose={() => setStatsOpen(false)}
-          onOpenHistory={() => setHistoryOpen(true)}
-          liveProjection={liveProjectionState?.liveProjection ?? null}
-        />
-      )}
     </header>
   );
 }
