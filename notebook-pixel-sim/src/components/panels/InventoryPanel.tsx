@@ -38,12 +38,18 @@ interface LineStats {
  * like a real one.
  */
 function statsFor(
-  line: { genre?: GenreId; price: number; targetPerPhase?: number; inventory: { finished: number } },
+  line: {
+    /** The backend Product this line makes — its whole identity. */
+    productId: string;
+    price: number;
+    targetPerPhase?: number;
+    inventory: { finished: number };
+  },
   capacity: number | null,
   openingStock: number,
   unitCost: number | null,
 ): LineStats {
-  const genre = (line.genre ?? 'indie') as GenreId;
+  const genre = line.productId as GenreId;
   return {
     genre,
     capacity,
@@ -81,8 +87,8 @@ export function InventoryPanel({
   const apply = useGame((s) => s.apply);
 
 
-  // `byProduct` is index-aligned with portfolio order, the same assumption the
-  // rest of the gamesim bridge makes.
+  // Keyed by productId below — `byProduct` is ordered by the server's own
+  // pairing, which is NOT portfolio order.
   const byProduct = liveProjection?.byProduct ?? null;
   // The same base the chip and the P&L show — see selectCashBalance.
   const { financialsByRound } = useGamesimSession();
@@ -93,8 +99,8 @@ export function InventoryPanel({
       (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
     ),
   );
-  const stats = lines.map((l, i) => {
-    const p = byProduct?.[i];
+  const stats = lines.map((l) => {
+    const p = byProduct?.find((bp) => bp.productId === l.productId);
     return statsFor(l, p?.inventoryQty ?? null, Math.round(p?.closingStock ?? 0), p?.dynamicCost ?? null);
   });
   const totalTarget = stats.reduce((a, s) => a + s.target, 0);

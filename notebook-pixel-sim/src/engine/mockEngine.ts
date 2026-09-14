@@ -38,9 +38,10 @@ import {
 } from '@/data/finlit';
 import { clamp, phaseOf } from '@/utils/format';
 import type {
-  LedgerEntry, Segment, ProductLine, Archetype, AddOnInstance,
+  LedgerEntry, ProductLine, Archetype, AddOnInstance,
   FinlitGenreId, FinlitProductionSpec,
 } from '@/types';
+import { priceAnchorSpec } from '@/engine/finlit/core/config/production';
 import { hireStep } from '@/engine/finlit/core/config/hiring';
 import { vendorStep } from '@/engine/finlit/core/config/vendors';
 import type { GlobalInputItemDto } from '@/gamesim/types';
@@ -132,8 +133,15 @@ export const nextNameForArchetype = (s: GameState, archetype: Archetype): string
   return `${base}-${n}`;
 };
 
-/** The notebook a new line makes when the caller doesn't name one. */
-export const defaultNotebookId = (): Archetype => GENRES[0].id;
+/**
+ * The notebook a new line makes when the caller doesn't name one.
+ *
+ * `''` when the catalogue is empty — it ships empty and is filled from the
+ * backend at bootstrap, so an unreachable server must not crash a render.
+ * `addProductLine` is the only caller and is gated on the picker, which shows
+ * nothing to click when there are no products.
+ */
+export const defaultNotebookId = (): Archetype => GENRES[0]?.id ?? '';
 
 /**
  * The add-on list for a line's current notebook, created on first use.
@@ -144,23 +152,27 @@ export const defaultNotebookId = (): Archetype => GENRES[0].id;
  * crash on `undefined.push`.
  */
 export const addOnsForLine = (line: ProductLine): AddOnInstance[] => {
-  const key = line.archetype;
-  let list = line.addOnsByArchetype[key];
+  const key = line.productId;
+  let list = line.addOnsByProduct[key];
   if (!list) {
     list = [];
-    line.addOnsByArchetype[key] = list;
+    line.addOnsByProduct[key] = list;
   }
   return list;
 };
 
-const defaultLine = (id: string, name: string, archetype: Archetype = defaultNotebookId()): ProductLine => {
-  // Identity and market are the same thing now, so there is nothing to map.
-  const genre = archetype;
+const defaultLine = (
+  id: string,
+  name: string,
+  productId: string = defaultNotebookId(),
+): ProductLine => {
   return {
     id,
+    // The backend product this line IS — its ONLY identity since 2026-09-14.
+    // `archetype` and `genre` were two more names for this same value.
+    productId,
     name,
     isCustomName: false,
-    archetype,
     cover: 'hardcover',
     binding: 'ring',
     size: 'm',
@@ -168,61 +180,40 @@ const defaultLine = (id: string, name: string, archetype: Archetype = defaultNot
     pricePoint: 'balanced',
     price: 16,
     // Seeded for this notebook only; other ids get a list when first used.
-    addOnsByArchetype: { [archetype]: [] },
+    addOnsByProduct: { [productId]: [] },
     quantityTarget: 30,
-    targetSegment: segmentForGenre(genre),
     inventory: { raw: 0, finished: 0, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
-    // V3 defaults — a valid market + a lean/cheap spec.
-    genre,
-    finlitSpec: { type: genre, paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
+    // The reference spec, shared with the price anchor on the market cards, so
+    // what a notebook is quoted at and what it starts as cannot drift apart.
+    finlitSpec: priceAnchorSpec(productId),
   };
 };
 
 /**
  * Add a new notebook item. Respects phase cap.
  *
- * Auto-names based on archetype: "Student" / "Student-2" / "Student-3", etc.
- * In Phase 1 the new item inherits the shared global target segment.
+ * Auto-names from the notebook's own label: "Indie" / "Indie-2" / "Indie-3".
+ * `productId` is the line's whole identity — the picker lists the backend
+ * catalogue, so the id it hands over IS the Product `_id`.
  */
-export const addProductLine = (s: GameState, archetype: Archetype = defaultNotebookId()): string | null => {
+export const addProductLine = (
+  s: GameState,
+  productId: Archetype = defaultNotebookId(),
+): string | null => {
   if (!canAddProductLine(s)) return null;
   const id = newLineId();
-  const name = nextNameForArchetype(s, archetype);
-  const line = defaultLine(id, name, archetype);
-  if (phaseOf(s.meta.day) === 1) line.targetSegment = s.market.targetSegment;
+  const name = nextNameForArchetype(s, productId);
+  const line = defaultLine(id, name, productId);
   s.portfolio.productLines.push(line);
-  s.market.fitBySegmentByLineId[id] = { students: 0.5, creators: 0.4, professionals: 0.4, gift: 0.4 };
   // If portfolio was empty, this is now the active item.
   if (!s.portfolio.activeLineId) s.portfolio.activeLineId = id;
   s.history.push({ day: s.meta.day, text: `Added notebook: ${line.name}`, cause: 'line_add' });
   return id;
 };
 
-/** Duplicate an existing line (same design, fresh inventory and id). */
-export const duplicateProductLine = (s: GameState, sourceId: string): string | null => {
-  if (!canAddProductLine(s)) return null;
-  const src = s.portfolio.productLines.find((l) => l.id === sourceId);
-  if (!src) return null;
-  const id = newLineId();
-  const copy: ProductLine = {
-    ...src,
-    id,
-    name: `${src.name} (copy)`,
-    // Copy whatever notebooks this line actually has lists for — the set is
-    // open-ended, so enumerating ids here would silently drop the rest.
-    addOnsByArchetype: Object.fromEntries(
-      Object.entries(src.addOnsByArchetype).map(([k, list]) => [
-        k,
-        (list ?? []).map((a) => ({ ...a, id: 'inst-' + Math.random().toString(36).slice(2, 8) })),
-      ]),
-    ),
-    inventory: { raw: 0, finished: 0, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
-  };
-  s.portfolio.productLines.push(copy);
-  s.market.fitBySegmentByLineId[id] = { ...(s.market.fitBySegmentByLineId[sourceId] ?? { students: 0.5, creators: 0.4, professionals: 0.4, gift: 0.4 }) };
-  s.history.push({ day: s.meta.day, text: `Duplicated line: ${src.name} → ${copy.name}`, cause: 'line_duplicate' });
-  return id;
-};
+// `duplicateProductLine` is GONE. It had no caller, and one line per notebook
+// type makes it incoherent — a copy would carry the source's `productId`, so
+// two lines would submit against one product.
 
 /**
  * Remove a notebook item. Permitted to delete the last one — the UI will
@@ -234,7 +225,6 @@ export const removeProductLine = (s: GameState, lineId: string): boolean => {
   if (idx < 0) return false;
   const removed = s.portfolio.productLines[idx];
   s.portfolio.productLines.splice(idx, 1);
-  delete s.market.fitBySegmentByLineId[lineId];
   if (s.portfolio.activeLineId === lineId) {
     s.portfolio.activeLineId = s.portfolio.productLines[0]?.id ?? '';
   }
@@ -312,7 +302,7 @@ export const placeAddOn = (
     rotation: def.rotation ?? 0,
     zIndex: def.zIndex,
   });
-  s.history.push({ day: s.meta.day, text: `Added add-on (${line.name}/${line.archetype}): ${defId}`, cause: 'addon_' + defId });
+  s.history.push({ day: s.meta.day, text: `Added add-on (${line.name}/${line.productId}): ${defId}`, cause: 'addon_' + defId });
   return true;
 };
 
@@ -357,7 +347,7 @@ export const resetAddOnPlacement = (s: GameState, instId: string, lineId?: strin
 
 export const removeAddOn = (s: GameState, instId: string, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  line.addOnsByArchetype[line.archetype] = addOnsForLine(line).filter((a) => a.id !== instId);
+  line.addOnsByProduct[line.productId] = addOnsForLine(line).filter((a) => a.id !== instId);
   s.history.push({ day: s.meta.day, text: `Removed add-on (${line.name})`, cause: 'addon_remove' });
 };
 
@@ -377,8 +367,8 @@ export const setProductField = <K extends keyof ProductLine>(
 ) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   (line as any)[k] = v;
-  if (k === 'archetype' && !line.isCustomName) {
-    // Pick the next available default name for the new archetype, but
+  if (k === 'productId' && !line.isCustomName) {
+    // Pick the next available default name for the new notebook, but
     // exclude THIS line's current name from the "taken" set so we don't
     // append a needless suffix when the line is being renamed in-place.
     const others = s.portfolio.productLines.filter((l) => l.id !== line.id);
@@ -392,28 +382,8 @@ export const setProductField = <K extends keyof ProductLine>(
   s.history.push({ day: s.meta.day, text: `Changed ${line.name} ${String(k)} → ${String(v)}`, cause: 'product_' + String(k) });
 };
 
-/**
- * Set the target segment.
- *
- * In Phase 1, all lines share the global target — this mutator updates the
- * global value AND propagates to every line. In Phase 2+ it can be scoped
- * to a single line via `lineId`.
- */
-export const setSegment = (s: GameState, seg: Segment, lineId?: string) => {
-  const phase = phaseOf(s.meta.day);
-  if (phase === 1 || !lineId) {
-    // Global: every line shares the same target.
-    s.market.targetSegment = seg;
-    for (const l of s.portfolio.productLines) l.targetSegment = seg;
-    s.history.push({ day: s.meta.day, text: `Targeted segment: ${seg} (all lines)`, cause: 'segment_' + seg });
-    return;
-  }
-  // Per line (P2+): just this line.
-  const line = getLineOrThrow(s, lineId);
-  line.targetSegment = seg;
-  s.market.targetSegment = seg; // keep "lead" target in sync
-  s.history.push({ day: s.meta.day, text: `${line.name} → segment ${seg}`, cause: 'segment_' + seg });
-};
+// `setSegment` is GONE with the V2 segment axis (2026-09-14). The four-value
+// union it wrote had no backend counterpart, and a notebook IS its market now.
 
 /** Set price on a line. `lineId` defaults to active. */
 export const setPrice = (s: GameState, n: number, lineId?: string) => {
@@ -427,25 +397,14 @@ export const setPrice = (s: GameState, n: number, lineId?: string) => {
 // Set the FinLit fields on a line (genre/spec/channels/target) and the company
 // decision slice (hire/marketing). All route through apply() like the rest.
 
-// Genre → legacy segment, so choosing a V3 market also clears the V2
-// "pick a target audience" phase-gate until that gate is migrated to genres.
-// Re-exported from the config module, which is where `src/data/` reads it
-// without importing this facade (that would be circular).
-export { GENRE_TO_SEGMENT } from './finlit/core/config/genreSegments';
-import { segmentForGenre } from './finlit/core/config/genreSegments';
-
 /**
  * Set the notebook a line makes. `genre` is the identity, and `archetype`
  * mirrors it so the two never disagree — see the note on ProductLine.
  */
 export const setLineGenre = (s: GameState, genre: FinlitGenreId, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  line.genre = genre;
-  line.archetype = genre;
-  // Bridge to the legacy target so the phase-confirm gate is satisfied.
-  const seg = segmentForGenre(genre);
-  line.targetSegment = seg;
-  s.market.targetSegment = seg;
+  line.productId = genre;
+  line.productId = genre;
   s.history.push({ day: s.meta.day, text: `${line.name} → ${genre} market`, cause: 'finlit_genre' });
 };
 
@@ -630,7 +589,6 @@ export const clearFinlitVendor = (s: GameState, item?: GlobalInputItemDto): void
  *   - supplier_bulk: +20 raw added to ACTIVE line (one-shot)
  *   - finance_loan: cash +500 / debt +560
  *   - marketing_campaign: marketingPerDay +6
- *   - marketing_loyalty: +0.1 retention to every segment
  */
 export const acquireUpgrade = (s: GameState, upgradeId: string, costs: { time: number; energy: number; cash: number }) => {
   if (s.player.energy < costs.energy) return false;
@@ -670,10 +628,8 @@ export const acquireUpgrade = (s: GameState, upgradeId: string, costs: { time: n
     pushLedger(s, { kind: 'cash-in', amount: 500, cause: 'upgrade_finance_loan' });
   }
   if (upgradeId === 'marketing_campaign') { s.channels.marketingPerDay += 6; }
-  if (upgradeId === 'marketing_loyalty') {
-    for (const k of Object.keys(s.market.retention) as Array<keyof typeof s.market.retention>)
-      s.market.retention[k] = clamp(s.market.retention[k] + 0.1, 0, 1);
-  }
+  // `marketing_loyalty` bumped `market.retention`, a per-segment map deleted
+  // with the V2 segment axis. Its only reader (demand.ts) was already gone.
   pushLedger(s, { kind: 'opex-tool', amount: -Math.max(0, costs.cash), cause: 'upgrade_' + upgradeId });
   s.history.push({ day: s.meta.day, text: `Acquired upgrade: ${upgradeId}`, cause: 'upgrade_' + upgradeId });
   return true;

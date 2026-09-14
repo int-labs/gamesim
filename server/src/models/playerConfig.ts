@@ -22,11 +22,24 @@ export interface PlayerConfigCaseStudy {
 }
 
 export interface PlayerConfigEntry {
-  /** The GlobalInput item's `key` this decorates. */
+  /** What this row decorates, by id. Which id depends on the SECTION: a
+   *  GlobalInput item's `key` for vendors/candidates/marketingTeams/channels,
+   *  a Product FIELD key for `drivers`, a Product `_id` for `products`. */
   id: string;
   /** Full asset URL, or an ImageAsset id the read path resolves to one. */
   imageAssetId?: string | null;
   caseStudy?:    PlayerConfigCaseStudy | null;
+  /** `drivers`: overrides the ProductField's label. `products`: overrides
+   *  `Product.productName`. Blank means use the backend's own. */
+  label?:        string | null;
+  /** `drivers`: the driver row's tooltip. `products`: the one-line blurb. */
+  hint?:         string | null;
+  /** `products` only — the longer prose the Details tab shows. */
+  description?:  string | null;
+  /** `products` only — the Details tab's STRENGTHS bullets. */
+  bestFor?:      string[] | null;
+  /** `products` only — the Details tab's WEAKNESS bullets. */
+  watchOut?:     string[] | null;
 }
 
 export interface PlayerConfigInterface extends Document {

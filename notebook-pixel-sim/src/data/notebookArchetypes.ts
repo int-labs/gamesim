@@ -10,15 +10,13 @@
 // appear here too — no code change, no second list to update.
 
 import { GENRES, genreArt, genreById, type GenreDef } from '@/engine/finlit/core/config/genres';
-import { GENRE_TO_SEGMENT } from '@/engine/finlit/core/config/genreSegments';
-import type { Archetype, Segment } from '@/types';
+import type { Archetype } from '@/types';
 
 export interface ArchetypeInfo {
   id: Archetype;
   title: string;
   tagline: string;
   description: string;
-  bestFor: Segment[];
   strengths: string[];
   tradeoffs: string[];
   /** Cover art, resolved through the filename convention or an operator upload. */
@@ -31,7 +29,6 @@ const describe = (g: GenreDef): ArchetypeInfo => ({
   title: g.name,
   tagline: g.tagline ?? g.blurb,
   description: g.description ?? g.blurb,
-  bestFor: [GENRE_TO_SEGMENT[g.id] ?? 'students'],
   strengths: g.strengths ?? [],
   tradeoffs: g.tradeoffs ?? [],
   art: genreArt(g.id),
@@ -49,8 +46,12 @@ export const notebookCatalogue = (): ArchetypeInfo[] => GENRES.map(describe);
 /** One notebook by id. Throws on an unknown id, like every other accessor. */
 export const archetypeInfo = (id: Archetype): ArchetypeInfo => describe(genreById(id));
 
-/** The id used when nothing else is known — always a real, present notebook. */
-export const defaultArchetype = (): Archetype => GENRES[0].id;
+/**
+ * The id used when nothing else is known. `''` before the backend catalogue has
+ * loaded — `GENRES` ships empty, so this must not throw during a render that
+ * happens before bootstrap or after an unreachable server.
+ */
+export const defaultArchetype = (): Archetype => GENRES[0]?.id ?? '';
 
 /**
  * Back-compat shim for the `ARCHETYPE_INFO[id]` call sites.

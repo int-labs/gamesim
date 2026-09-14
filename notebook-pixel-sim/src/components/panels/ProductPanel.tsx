@@ -100,13 +100,13 @@ export function DesignControls() {
     <div className="flex flex-col gap-5">
       <Group title="Notebook type" hint="Each type keeps its own add-ons.">
         <ArchetypeDropdown
-          value={product.archetype}
+          value={product.productId}
           // Counts for every notebook this line has decorated, derived from
           // the map itself — the id set is open-ended.
           ownCounts={Object.fromEntries(
-            Object.entries(product.addOnsByArchetype).map(([id, list]) => [id, (list ?? []).length]),
+            Object.entries(product.addOnsByProduct).map(([id, list]) => [id, (list ?? []).length]),
           )}
-          onChange={(arch) => set('archetype', arch)}
+          onChange={(arch) => set('productId', arch)}
         />
       </Group>
 

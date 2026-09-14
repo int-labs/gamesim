@@ -270,10 +270,10 @@ export const selectCashBalance = (
 
 export function selectProjectedCash(
   s: GameState,
-  /** Server projection, index-aligned with portfolio order. Without it the
+  /** Server projection, matched to each line by `productId`. Without it the
    *  build cost is omitted rather than guessed — an invented unit cost reads
    *  exactly like a real one. */
-  byProduct?: Array<{ inventoryQty?: number; dynamicCost?: number }> | null,
+  byProduct?: Array<{ productId: string; inventoryQty?: number; dynamicCost?: number }> | null,
   /** The round's cash balance from `selectCashBalance`. Defaults to
    *  `player.cash`, which is the ROUND-START figure and therefore lags a scored
    *  round — pass the balance so the chip matches the P&L. */
@@ -308,8 +308,10 @@ export function selectProjectedCash(
 
   // The build. Largest claim on the round's budget, and it had no term here at
   // all — moving a produce slider left the chip untouched.
-  s.portfolio.productLines.forEach((line, i) => {
-    const p = byProduct?.[i];
+  s.portfolio.productLines.forEach((line) => {
+    // By productId, not position: this is the cash gate, so a mismatched row
+    // would price the build off another notebook's unit cost.
+    const p = byProduct?.find((bp) => bp.productId === line.productId);
     const capacity = p?.inventoryQty ?? null;
     const unit = p?.dynamicCost ?? null;
     if (capacity == null || unit == null) return;
@@ -337,7 +339,7 @@ export function selectProjectedCash(
  */
 export const selectCashHeadroom = (
   s: GameState,
-  byProduct?: Array<{ inventoryQty?: number; dynamicCost?: number }> | null,
+  byProduct?: Array<{ productId: string; inventoryQty?: number; dynamicCost?: number }> | null,
   baseCash?: number | null,
 ): number => selectProjectedCash(s, byProduct, baseCash).projected;
 
@@ -349,6 +351,6 @@ export const selectCashHeadroom = (
 export const canSpend = (
   s: GameState,
   extra: number,
-  byProduct?: Array<{ inventoryQty?: number; dynamicCost?: number }> | null,
+  byProduct?: Array<{ productId: string; inventoryQty?: number; dynamicCost?: number }> | null,
   baseCash?: number | null,
 ): boolean => extra <= 0 || extra <= selectCashHeadroom(s, byProduct, baseCash);

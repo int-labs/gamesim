@@ -58,7 +58,7 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
   );
   const apply = useGame((s) => s.apply);
   // Hooks run unconditionally (before the empty-portfolio early return).
-  const [arch, setArch] = useState<Archetype>(product?.archetype ?? defaultArchetype());
+  const [arch, setArch] = useState<Archetype>(product?.productId ?? defaultArchetype());
   const [view, setView] = useState<View>('angle');
   const [tab, setTab] = useState<TabId>('product');
 
@@ -115,7 +115,7 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
            three stay visible while the panel beside them changes. ── */}
       <div role="group" aria-label="Notebook to inspect" className="w-[92px] sm:w-[108px] shrink-0 border-r border-border-soft bg-cream-200 p-2 flex flex-col gap-2 overflow-y-auto">
         {notebookIds().map((id) => (
-          <RailTile key={id} id={id} active={id === arch} owned={id === product.archetype} onPick={() => pick(id)} />
+          <RailTile key={id} id={id} active={id === arch} owned={id === product.productId} onPick={() => pick(id)} />
         ))}
       </div>
 
@@ -192,17 +192,17 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
 
         {/* ── Footer — the only action this modal offers. Always visible so
              it never hides below a long scroll. ── */}
-        {arch !== product.archetype && (
+        {arch !== product.productId && (
           <div className="shrink-0 flex items-center justify-between gap-3 px-3.5 py-2.5 border-t border-border-soft bg-cream-200">
             <div className="hint text-text-2 leading-snug min-w-0 truncate">
-              Currently making <span className="strong text-text">{ARCHETYPE_INFO[product.archetype].title}</span>
+              Currently making <span className="strong text-text">{ARCHETYPE_INFO[product.productId].title}</span>
             </div>
             <PixelButton
               variant="primary"
               size="md"
               onClick={() => {
                 playSfx('coin');
-                apply((s) => setProductField(s, 'archetype', arch));
+                apply((s) => setProductField(s, 'productId', arch));
                 if (onClose) onClose();
               }}
             >

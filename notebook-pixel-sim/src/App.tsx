@@ -48,7 +48,6 @@ export default function App() {
   const pushMascotSequence = useGame((s) => s.pushMascotSequence);
   const day = useGame((s) => s.meta.day);
   const phase = useGame((s) => s.meta.phase);
-  const segment = useGame((s) => s.market.targetSegment);
   const cash = useGame((s) => s.player.cash);
   const finished = useGame((s) => s.inventory.totalFinished);
   // Engine writes via apply elsewhere; not needed in App effects.
@@ -113,7 +112,7 @@ export default function App() {
     if (screen !== 'simulation') return;
     const messages = evaluateFeedback(useGame.getState(), 1);
     for (const m of messages) pushMascot(m);
-  }, [screen, day, cash, segment, finished, pushMascot]);
+  }, [screen, day, cash, finished, pushMascot]);
 
   // Phase rollover → re-route to PhaseIntroScreen so each phase feels like a chapter
   const lastSeenPhase = useGame((s) => s.meta.phase);

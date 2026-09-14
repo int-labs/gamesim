@@ -13,17 +13,17 @@ import {
 } from '@/engine/mockEngine';
 import type { ProductLine, Archetype } from '@/types';
 import { notebookCatalogue, ARCHETYPE_INFO } from '@/data/notebookArchetypes';
+import { typeBaseCost } from '@/engine/finlit/core/config/fieldConfig';
 import { PixelIcon } from '@/components/icons/PixelIcon';
+import { fmt$ } from '@/utils/format';
 import { playSfx } from '@/audio/audioManager';
 
 /** Live catalogue — see notebookArchetypes.ts. */
 const notebookIds = (): Archetype[] => notebookCatalogue().map((n) => n.id);
 
-const ARCH_DESC: Record<Archetype, string> = {
-  student: 'Affordable, school-focused notebooks for the student segment.',
-  planner: 'Structured planners for professionals and creators.',
-  daily: 'Premium daily journals - gift-friendly, high margin.',
-};
+// No description in the picker: the Details tab owns that copy. An `ARCH_DESC`
+// map used to render one here, keyed by the RETIRED V2 archetypes, so against
+// the operator's real genres every lookup missed and the line was blank anyway.
 
 const archetypeThumb = (archetype: Archetype): string =>
   ARCHETYPE_INFO[archetype]?.art ?? '';
@@ -51,7 +51,15 @@ export function ProductLineList() {
   const activeLineId = useGame((s) => s.portfolio.activeLineId);
   const phase = useGame((s) => s.meta.phase);
   const apply = useGame((s) => s.apply);
-  const canAdd = useGame((s) => canAddProductLine(s));
+
+  // ONE LINE PER NOTEBOOK TYPE. Two lines of the same type would target the
+  // same market with the same fields — there is nothing to choose between them,
+  // so the type itself is the decision. A type already made is disabled in the
+  // picker, and once every type is made the picker has nothing left to offer.
+  const takenTypes = new Set(lines.map((l) => l.productId));
+  const catalogue = notebookCatalogue();
+  const allTypesTaken = catalogue.length > 0 && catalogue.every((n) => takenTypes.has(n.id));
+  const canAdd = useGame((s) => canAddProductLine(s)) && !allTypesTaken;
 
   // Rename
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -112,6 +120,7 @@ export function ProductLineList() {
   };
   const handleAdd = (archetype: Archetype) => {
     playSfx('coin');
+    // The picker lists the backend catalogue, so this IS the Product `_id`.
     apply((s) => addProductLine(s, archetype));
     setAddOpen(false);
     // Juice: the newcomer pops onto the canvas behind the drawer.
@@ -160,7 +169,7 @@ export function ProductLineList() {
           <div className="flex flex-col gap-2">
             {lines.map((line, cardIdx) => {
               const isActive = line.id === activeLineId;
-              const thumb = archetypeThumb(line.archetype);
+              const thumb = archetypeThumb(line.productId);
               return (
                 // Opacity-only stagger — a transform here would override the
                 // CSS hover-lift (framer leaves inline transform behind).
@@ -222,14 +231,14 @@ export function ProductLineList() {
                     )}
                     {/* SUBTITLE — smaller, muted. */}
                     <div className="hint truncate leading-tight -mt-0.5 pr-12">
-                      {archetypeLabel(line.archetype)}
+                      {archetypeLabel(line.productId)}
                     </div>
                     {/* TAG — the market genre, the quietest level: tiny caps
                         pill, subordinate to the title (not a second heading). */}
-                    {line.genre && (
+                    {line.productId && (
                       <div className="mt-auto">
                         <span className="inline-flex items-center px-1.5 py-px border border-border-soft bg-surface-2 stat-label">
-                          {line.genre}
+                          {line.productId}
                         </span>
                       </div>
                     )}
@@ -296,16 +305,11 @@ export function ProductLineList() {
           )}
         >
           <PixelIcon kind="plus" size={10} />
-          {canAdd ? 'Add Notebook' : 'Notebook limit reached'}
+          {canAdd
+            ? 'Add Notebook'
+            : 'Notebook limit reached' }
           {canAdd && <PixelIcon kind="chevron-down" size={8} />}
         </button>
-
-        {/* A calm invitation to expand — each new notebook opens another
-            genre/market. Capacity/production trade-offs surface on the
-            Inventory tab, not here. */}
-        <div className="mt-1.5 px-2 py-0.5 hint">
-          Each notebook targets a different genre. Add lines to reach new markets.
-        </div>
       </div>
 
       {/* Add Notebook popover — portaled to body, position: fixed, so the
@@ -332,13 +336,22 @@ export function ProductLineList() {
             <div className="px-3 py-2 border-b border-border-soft stat-label bg-surface-2">
               Choose notebook type
             </div>
-            {notebookIds().map((arch) => (
+            {notebookIds().map((arch) => {
+              const taken = takenTypes.has(arch);
+              return (
               <button
                 key={arch}
                 type="button"
                 role="menuitem"
+                disabled={taken}
+                aria-disabled={taken}
                 onClick={() => handleAdd(arch)}
-                className="w-full flex items-start gap-2.5 px-3 py-2 text-left hover:bg-surface-2 cursor-pointer border-b border-border-soft last:border-b-0"
+                className={clsx(
+                  'w-full flex items-start gap-2.5 px-3 py-2 text-left border-b border-border-soft last:border-b-0',
+                  taken
+                    ? 'opacity-40 cursor-not-allowed'
+                    : 'hover:bg-surface-2 cursor-pointer',
+                )}
               >
                 {archetypeThumb(arch) && (
                   <img
@@ -352,13 +365,19 @@ export function ProductLineList() {
                 <div className="flex flex-col min-w-0">
                   <span className="item-name text-text leading-tight">
                     {archetypeLabel(arch)}
+                    {taken && <span className="hint ml-1.5">· already made</span>}
                   </span>
-                  <span className="hint mt-0.5">
-                    {ARCH_DESC[arch]}
+                  {/* The FLOOR this type commits you to per unit. Design
+                      choices add on top, and the drawer shows each as a delta —
+                      quoting the starting spec here instead would print a total
+                      the player could never reconcile with that drawer. */}
+                  <span className="num-xs text-text-2 mt-0.5">
+                    from {fmt$(typeBaseCost(arch))} / unit
                   </span>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>,
           document.body,
         )}
@@ -388,7 +407,7 @@ export function ProductLineList() {
               <div className="px-4 py-4 body-sm text-text-2">
                 <p>
                   This will remove <span className="strong text-text">{confirmLine.name}</span>
-                  {' '}({archetypeLabel(confirmLine.archetype)}) and all of its configuration,
+                  {' '}({archetypeLabel(confirmLine.productId)}) and all of its configuration,
                   add-ons, and inventory. This cannot be undone.
                 </p>
               </div>

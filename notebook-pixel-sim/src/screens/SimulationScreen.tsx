@@ -5,7 +5,6 @@ import { TopHUD } from '@/components/hud/TopHUD';
 import type { MainPage } from '@/components/hud/MainNav';
 import { PhaseActionBar } from '@/components/hud/PhaseActionBar';
 import { BottomStats } from '@/components/hud/MetricsTable';
-import { AmeliaReactions } from '@/components/mascot/AmeliaReactions';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { playSfx } from '@/audio/audioManager';
 import { ProductPage } from '@/pages/ProductPage';
@@ -63,12 +62,9 @@ export function SimulationScreen() {
   return (
     <div className="absolute inset-0 flex flex-col">
       <TopHUD liveProjectionState={liveProjectionState} />
-      {/* Live commentary — Amelia reacts to fit jumps, maxed add-ons and
-          bold pricing (renders nothing; one-shot per notebook). */}
-      {/* Passed the projection rather than calling `useLiveProjection()` itself:
-          that hook owns a per-round recalc latch, and a second caller would
-          fire an extra `/projections/recalc` on every round. */}
-      <AmeliaReactions liveProjection={liveProjectionState.liveProjection} />
+      {/* `AmeliaReactions` was REMOVED here on 2026-09-14. Its three live
+          reactions were scored off the obsolete local `vocFit` model, and the
+          trigger is being redesigned with the wider UX pass. */}
 
       {/* Content area — relative so the floating page tabs can pin to its
           top-center, over whichever page is active. */}

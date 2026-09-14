@@ -73,7 +73,7 @@ const calcComplexityScore = (s: GameState): number => {
   if (lines.length === 0) return 0;
   let totalAddOns = 0;
   for (const l of lines) totalAddOns += currentAddOnsForLine(l).length;
-  const uniqueArchetypes = new Set(lines.map((l) => l.archetype)).size;
+  const uniqueArchetypes = new Set(lines.map((l) => l.productId)).size;
   return lines.length * LINE_WEIGHT
     + totalAddOns * ADDON_WEIGHT
     + uniqueArchetypes * ARCHETYPE_WEIGHT;
@@ -116,7 +116,7 @@ export const selectComplexity = (s: GameState): ComplexityState => {
   const lines = s.portfolio.productLines;
   let totalAddOns = 0;
   for (const l of lines) totalAddOns += currentAddOnsForLine(l).length;
-  const uniqueArchetypes = new Set(lines.map((l) => l.archetype)).size;
+  const uniqueArchetypes = new Set(lines.map((l) => l.productId)).size;
   const score = lines.length * LINE_WEIGHT
     + totalAddOns * ADDON_WEIGHT
     + uniqueArchetypes * ARCHETYPE_WEIGHT;

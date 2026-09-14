@@ -86,7 +86,9 @@ export function channelDetail(
       // `item.cost` — the SAME field every other lever charges from, and the
       // one the server turns into `costTreatment`.
       const costs: string[] = [`${money(item.cost)} / phase`];
-      if (row && row.consignment > 0) costs.push(`${money(row.consignment)} / sale`);
+      // A RATE on the selling price, not a dollar fee — `money()` rendered
+      // retail's 0.2 as "$0.20" when it means a fifth of every sale.
+      if (row && row.consignment > 0) costs.push(`${pct(row.consignment)} of each sale`);
       return {
         name: CHANNEL_META[ch]?.name ?? item.label,
         description: study.brief || item.description || NO_DESC,
@@ -115,13 +117,14 @@ export function channelDetail(
       },
       {
         caption: 'Running cost',
-        columns: ['Channel', 'Per phase', 'Per sale', 'Per unsold unit'],
+        columns: ['Channel', 'Per phase', 'Cut of each sale', 'Per unsold unit'],
         rows: items.map((item) => {
           const r = rowFor(item.key as ChannelId);
           return [
             CHANNEL_META[item.key as ChannelId]?.name ?? item.label,
             money(item.cost),
-            r && r.consignment > 0 ? money(r.consignment) : '-',
+            // A rate, not a fee — see the note on `costs` above.
+            r && r.consignment > 0 ? pct(r.consignment) : '-',
             r && r.inventoryCost > 0 ? money(r.inventoryCost) : '-',
           ];
         }),

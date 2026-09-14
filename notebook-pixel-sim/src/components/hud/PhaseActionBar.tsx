@@ -15,7 +15,7 @@ import { useTotalRounds } from '@/gamesim/GamesimProvider';
  * Action bar that runs the entire current phase to its end day in one click.
  * Phase 1 = D1-30, Phase 2 = D31-60, Phase 3 = D61-90.
  *
- * Validation surfacing: when the user can't confirm yet (no audience selected
+ * Validation surfacing: when the user can't confirm yet (no notebook added
  * or game-state is blocked), the button is disabled AND a clearly-visible
  * inline reason renders next to it — so the user never has to guess why
  * nothing happened on click.
@@ -31,7 +31,6 @@ export function PhaseActionBar({
   const ended = useGame((s) => s.meta.ended);
   const pendingEvent = useGame((s) => s.meta.pendingEventId);
   const pendingEval = useGame((s) => s.meta.pendingEvalPhase);
-  const segment = useGame((s) => s.market.targetSegment);
   const lineCount = useGame((s) => s.portfolio.productLines.length);
   const pushMascot = useGame((s) => s.pushMascot);
   const pushMascotSequence = useGame((s) => s.pushMascotSequence);
@@ -56,8 +55,10 @@ export function PhaseActionBar({
   const stateBlocked = ended || !!pendingEvent || pendingEval !== null;
   // Validation blocks (player needs to make a required decision)
   const needsAnyNotebook = lineCount === 0;
-  const needsSegment = !segment;
-  const blocked = stateBlocked || needsAnyNotebook || needsSegment;
+  // A `needsSegment` gate sat here. It could never fire — `targetSegment` was
+  // seeded at startup and `segmentForGenre` never returned null — and the axis
+  // it guarded is gone.
+  const blocked = stateBlocked || needsAnyNotebook;
 
   const blockReason = ended
     ? VALIDATION.runEnded
@@ -67,8 +68,6 @@ export function PhaseActionBar({
     ? VALIDATION.pendingEval
     : needsAnyNotebook
     ? VALIDATION.noNotebook
-    : needsSegment
-    ? VALIDATION.noSegment
     : null;
 
   const phaseTitle =
@@ -104,19 +103,6 @@ export function PhaseActionBar({
         id: 'no-notebook',
         type: 'warning',
         body: 'You need at least one notebook product before simulating the phase. Add one on the Product page.',
-        priority: 1,
-        mood: 'concerned_soft',
-      });
-      return;
-    }
-    if (needsSegment) {
-      playSfx('warning');
-      flashWarn();
-      showToast({ kind: 'warning', text: TOAST.audienceFirst, ms: 2800 });
-      pushMascot({
-        id: 'no-segment',
-        type: 'warning',
-        body: 'Pick a market first - open the Design drawer and choose a genre. Without a market, demand stays cold no matter how nice the notebook looks.',
         priority: 1,
         mood: 'concerned_soft',
       });
@@ -167,16 +153,14 @@ export function PhaseActionBar({
         <SessionChip />
 
         {blockReason && (
-          (needsSegment || needsAnyNotebook) ? (
+          needsAnyNotebook ? (
             // Validation block has a fix the player can act on right now.
             // Render the warning as a clickable button that jumps the
             // user directly to the page that resolves it. The pulse
             // draws attention; the right-arrow + cursor-pointer signal
             // "tap me." Subtle but unmistakable on first run.
             <Tooltip
-              content={needsAnyNotebook
-                ? 'Add a notebook on the Product page first.'
-                : 'Open Design and pick a market genre so demand can build.'}
+              content="Add a notebook on the Product page first."
               placement="top"
             >
             <button
@@ -187,10 +171,9 @@ export function PhaseActionBar({
                 // don't need to lift page/tab state into the store.
                 // SimulationScreen + BusinessPage each listen for this
                 // and update their local tab state.
-                const detail = needsAnyNotebook
-                  ? { page: 'product' }
-                  : { page: 'business', tab: 'audience' };
-                window.dispatchEvent(new CustomEvent('intlabs:goto', { detail }));
+                window.dispatchEvent(
+                  new CustomEvent('intlabs:goto', { detail: { page: 'product' } }),
+                );
               }}
               className={clsx(
                 'game-warn-chip order-3 sm:order-none w-full sm:w-auto sm:ml-auto cursor-pointer ready-pulse hover:brightness-105',

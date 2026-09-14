@@ -90,10 +90,12 @@ export const SCENARIOS_PER_PHASE = { 1: 1, 2: 2, 3: 2 } as const;
 export const SCENARIO_DAYS = [15, 45, 55, 75, 85] as const;
 
 // ── Demand phase index ────────────────────────────────────────────────────
-// The sheet's demand columns are Phase −1 … Phase 3. In-game phases are 1..3;
-// we use the P1/P2/P3 columns for the three playable phases and keep P0 as the
-// pre-game baseline (used for the opening "market briefing").
-export type DemandPhaseKey = 'pMinus1' | 'p0' | 'p1' | 'p2' | 'p3';
+// In-game phases are 1..3; the P1/P2/P3 columns serve them and P0 is the
+// pre-play baseline (used for the opening "market briefing").
+//
+// The sheet also has a Phase −1 column. It is NOT read: it exists for a printed
+// edition of the copy and means nothing on the web.
+export type DemandPhaseKey = 'p0' | 'p1' | 'p2' | 'p3';
 // The sheet only ever had three demand columns, so a round beyond 3 has no
 // column of its own and reuses P3 rather than indexing off the end.
 export const GAME_PHASE_TO_DEMAND: Record<number, DemandPhaseKey> = {

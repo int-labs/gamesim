@@ -29,15 +29,18 @@ export type {
  * day-tick used to be.
  */
 export type Phase = number;
-export type Segment = 'students' | 'creators' | 'professionals' | 'gift';
+// `Segment` is GONE (2026-09-14). The four-value union named buyers the backend
+// does not model — `Product.segmentId` is ONE segment per simulation type, not
+// one per notebook — and a notebook IS its market now. If segments return they
+// come from the SEGMENTS collection, not from a frontend union.
 /**
- * A notebook's identity = the market it is made for.
+ * A notebook's identity = the backend `Product._id` it is made from.
  *
  * This used to be a closed union of V2 product shapes ('student' | 'planner' |
- * 'daily') that sat ALONGSIDE `genre`, holding a 1:1 duplicate of it. Two
- * fields for one concept is what made the product model confusing, so the
- * archetype axis is gone and `genre` is the single identity. The alias is kept
- * only so existing call sites read naturally; it is a genre id.
+ * 'daily'), then a frontend genre slug. Both sat alongside `ProductLine.genre`
+ * holding a 1:1 duplicate. As of 2026-09-14 there is ONE identity field,
+ * `ProductLine.productId`; this alias survives only as the parameter type on
+ * helpers that take a notebook id.
  */
 export type Archetype = FinlitGenreId;
 export type Cover = 'hardcover' | 'leather';
@@ -172,24 +175,36 @@ export interface ProductLineInventory {
 }
 
 export interface ProductLine {
-  /** Stable id used as ledger tag, key in lookup maps, and React key. */
+  /** Stable LOCAL id used as ledger tag, key in lookup maps, and React key. */
   id: string;
-  /** Player-editable name. Defaults from archetype: "Student", "Planner-2", … */
+  /**
+   * The backend `Product._id` this line makes. Set when the line is created and
+   * never changed — it is the line's identity to the server.
+   *
+   * Everything the server returns per product (`byProduct`, `scored`,
+   * `projections`) is keyed by this. Correlating the two sides any other way —
+   * by array position, or by matching `name` against `productName` — is what
+   * made the design drawer read a different notebook's figures whenever a line
+   * was renamed.
+   *
+   * REQUIRED since 2026-09-14. The picker sets it, and the v22 migration drops
+   * any older line that lacks one rather than guessing. This is the line's ONLY
+   * identity — `archetype` and `genre` were removed, having become two more
+   * names for this same value.
+   */
+  productId: string;
+  /**
+   * Player-editable name. COSMETIC ONLY — nothing reads it, and the server is
+   * never told. The card shows the backend's `productName`; this is a label the
+   * player puts on top of it.
+   */
   name: string;
   /**
-   * True when the player has manually renamed this line. While false,
-   * changing the archetype updates the name to match the new archetype's
-   * default ("Student" → "Planner"). Becomes true on any explicit rename.
+   * True when the player has manually renamed this line. While false, the name
+   * tracks the notebook's own default. Becomes true on any explicit rename.
    */
   isCustomName: boolean;
 
-  /**
-   * The notebook this line makes = the market it targets. Mirrors `genre`
-   * below, which is the canonical field; this alias stays populated so the
-   * many `line.archetype` call sites keep working and a saved game written by
-   * either name still loads. Both always hold the same genre id.
-   */
-  archetype: Archetype;
   cover: Cover;
   binding: Binding;
   size: Size;
@@ -198,15 +213,14 @@ export interface ProductLine {
   price: number;
 
   /**
-   * Add-on lists keyed by notebook id, so switching a line between notebooks
+   * Add-on lists keyed by PRODUCT ID, so switching a line between notebooks
    * keeps the decoration the player built up for each. Only the active id's
    * list affects unit cost / time / fit / demand.
    *
-   * A partial Record, not a total one: notebook ids are open-ended now (the
-   * operator can publish more), so an entry is created on demand rather than
-   * every id being present up front.
+   * A partial Record, not a total one: product ids are operator data, so an
+   * entry is created on demand rather than every id being present up front.
    */
-  addOnsByArchetype: Partial<Record<Archetype, AddOnInstance[]>>;
+  addOnsByProduct: Partial<Record<string, AddOnInstance[]>>;
 
   /**
    * Player intent for the WHOLE PHASE (units). Engine divides by phase
@@ -215,19 +229,10 @@ export interface ProductLine {
    */
   quantityTarget: number;
 
-  /**
-   * Per-line target segment. In Phase 1 this is set globally for all lines
-   * by the audience picker; in Phase 2+ each line can override.
-   * `null` means "no target" — line still produces but demand is weak.
-   */
-  targetSegment: Segment | null;
-
   inventory: ProductLineInventory;
 
   // ── V3 (FinLit) fields — optional; the engine adapter falls back to sensible
   //    defaults for lines that predate them. See docs/V3-FINLIT-PRD.md. ──
-  /** The notebook genre this line targets (its market). */
-  genre?: FinlitGenreId;
   /** Multiplicative production spec (type/paper/size/pageDesign/addon/cover). */
   finlitSpec?: Partial<FinlitProductionSpec>;
   // No `vendor` field: a shipping vendor is a COMPANY-WIDE globalInput
@@ -274,7 +279,6 @@ export interface AddOnDef {
   imgPath: string;
   thumbPath?: string;
   costPerUnit: number;     // contributes to COGS
-  segmentBoost?: Partial<Record<Segment, number>>; // 0..1
   perceivedValue: number;  // 0..1 effect on price ceiling
   slot: import('@/data/addOnSlots').AddOnSlot; // canonical placement
   description: string;
@@ -321,14 +325,6 @@ export interface LedgerEntry {
   decisionId?: string;
 }
 
-export interface DemandSnapshot {
-  day: number;
-  bySegment: Record<Segment, number>;
-  total: number;
-  sold: number;
-  lostSales: number;
-}
-
 export interface EventOption {
   id: 'A' | 'B' | 'C' | 'D';
   label: string;
@@ -373,23 +369,6 @@ export interface UpgradeDef {
   effects: string[];
 }
 
-export interface SegmentDef {
-  id: Segment;
-  name: string;
-  description: string;
-  baseDemand: number;
-  priceSensitivity: number; // higher = more sensitive
-  preferredPriceRef: number;
-  preference: {
-    paperQuality: number; // 0..1 weight
-    coverPremium: number;
-    decorative: number;
-    functional: number;
-    packaging: number;
-  };
-  imgPath: string;
-}
-
 export interface ChannelDef {
   id: ChannelId;
   name: string;
@@ -398,6 +377,5 @@ export interface ChannelDef {
   dailyCost: number;
   unlockEnergy: number;
   unlockCash: number;
-  segmentAffinity: Partial<Record<Segment, number>>;
   imgPath?: string;
 }

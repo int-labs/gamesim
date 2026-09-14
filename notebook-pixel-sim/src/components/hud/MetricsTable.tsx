@@ -291,9 +291,6 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
   const line = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
   );
-  const lineIndex = useGame((s) =>
-    s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId),
-  );
   // Channels are BINARY: stored with `selectedStepKey: null` by design, so
   // PRESENCE is the selection. Filtering on a non-null step key counts zero.
   const channelCount = useGame((s) =>
@@ -306,11 +303,14 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
 
   if (!line) return <EmptyMetrics text="No notebook selected. Open Notebook Items to add one." />;
 
-  const genre: GenreId = line.genre ?? 'indie';
+  const genre: GenreId = line.productId;
   const genreName = GENRES.find((g) => g.id === genre)?.name ?? genre;
 
-  // Server projection for this specific line (index-aligned with portfolio order).
-  const proj: ServerProductProjection | null = liveProjection?.byProduct[lineIndex] ?? liveProjection?.byProduct[0] ?? null;
+  // Server projection for THIS line, keyed by productId. `byProduct` follows the
+  // server's own pairing, not portfolio order, so an index read showed another
+  // notebook's unit cost and capacity whenever the two diverged.
+  const proj: ServerProductProjection | null =
+    liveProjection?.byProduct.find((p) => p.productId === line.productId) ?? null;
 
   const unitCost = proj?.dynamicCost;
   const capacity = proj?.inventoryQty;
@@ -738,7 +738,7 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
 
   if (lines.length === 0) return <EmptyMetrics text="No notebooks yet. Open Notebook Items to add one." />;
 
-  const genresInPlay = new Set(lines.map((l) => l.genre ?? 'indie')).size;
+  const genresInPlay = new Set(lines.map((l) => l.productId)).size;
 
   const bp = liveProjection?.byProduct ?? [];
   const avgCost = bp.length

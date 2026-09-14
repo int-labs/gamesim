@@ -64,43 +64,8 @@ function totalOpProfitSoFar(state: GameState): number {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const RULES: FeedbackRule[] = [
-  // No audience â€” top priority. Demand is dead until this is fixed.
-  // Fires from day 1 so a fresh-start player gets immediate spoken
-  // guidance before they even notice the disabled Confirm button.
-  {
-    key: 'no_audience',
-    evaluate: ({ state }) => {
-      if (state.market.targetSegment) return null;
-      return {
-        id: bucketedId('no_audience', state.meta.day),
-        type: 'warning',
-        priority: 1,
-        mood: 'pointing_right_explain',
-        body:
-          "First move: open Business â†’ Audience and pick a segment. Without a target, demand stays cold because the product has no clear buyer.",
-      };
-    },
-  },
-
-  // Active line has weak fit (<35%) â€” design / target mismatch.
-  {
-    key: 'weak_fit',
-    evaluate: ({ state }) => {
-      const seg = state.market.targetSegment;
-      if (!seg) return null;
-      const fit =
-        state.market.fitBySegmentByLineId[state.portfolio.activeLineId]?.[seg] ?? null;
-      if (fit === null || fit >= 0.35) return null;
-      return {
-        id: bucketedId('weak_fit', state.meta.day, 7),
-        type: 'warning',
-        priority: 2,
-        mood: 'thinking_side',
-        body:
-          "This notebook does not match your audience well. Try changing type, price, paper quality, or add-ons until fit moves above 50%.",
-      };
-    },
-  },
+  // `no_audience` and `weak_fit` were DELETED here on 2026-09-14 with the V2
+  // segment axis. Both read `market.targetSegment` / `fitBySegmentByLineId`.
 
   // Two rules — `high_demand_no_stock` and `high_stock_low_demand` — were
   // DELETED here on 2026-09-09 with the local demand engine they depended on.
@@ -162,27 +127,8 @@ const RULES: FeedbackRule[] = [
     },
   },
 
-  // Cannibalization â€” multiple lines fighting for the same audience.
-  {
-    key: 'cannibalization',
-    evaluate: ({ state }) => {
-      const seg = state.market.targetSegment;
-      if (!seg) return null;
-      const lines = state.portfolio.productLines;
-      if (lines.length < 2) return null;
-      const fitMap = state.market.fitBySegmentByLineId;
-      const linesAtSeg = lines.filter((l) => (fitMap[l.id]?.[seg] ?? 0) > 0.5);
-      if (linesAtSeg.length < 2) return null;
-      return {
-        id: bucketedId('cannibalization', state.meta.day, 12),
-        type: 'hint',
-        priority: 3,
-        mood: 'thinking',
-        body:
-          "Two or more of your lines are aimed at the same audience. They'll compete with each other instead of widening demand. Pick a different segment for one of them.",
-      };
-    },
-  },
+  // `cannibalization` was DELETED here on 2026-09-14 with the V2 segment axis.
+  // "Two lines aimed at the same audience" has no subject without segments.
 ];
 
 /**

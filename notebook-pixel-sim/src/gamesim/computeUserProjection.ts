@@ -6,7 +6,7 @@
 // Kept out of `engine/` on purpose. The local engine models the simulation; this
 // models the player's forecast, and the two must not be confused again.
 
-import type { ProductProjectionDto } from './types';
+import type { ServerProductProjection } from './sync';
 
 /** What the "User Projection" section reports, rolled up across the portfolio. */
 export interface UserProjectionTotals {
@@ -40,20 +40,21 @@ export interface UserProjectionTotals {
  * they belong to the actual result, not to a forecast the player can make from
  * their own inputs.
  *
- * `lines` and `byProduct` are index-aligned, which is the same assumption the
- * rest of the gamesim bridge makes about portfolio order.
+ * Each line is matched to its projection by `productId`. This used to pair them
+ * by ARRAY POSITION, which was wrong: `byProduct` is ordered by the server's own
+ * pairing, so whenever that order differed from portfolio order a line was
+ * costed and priced against another notebook's figures.
  */
 export function computeUserProjection(
-  lines: Array<{ price: number; targetPerPhase?: number }>,
-  byProduct: ProductProjectionDto[] | undefined,
+  lines: Array<{ productId: string; price: number; targetPerPhase?: number }>,
+  byProduct: ServerProductProjection[] | undefined,
 ): UserProjectionTotals {
   const bp = byProduct ?? [];
   let revenue = 0;
   let demand = 0;
   let profit = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    const p = bp[i];
+  for (const l of lines) {
+    const p = bp.find((x) => x.productId === l.productId);
     // The produce target IS the player's demand estimate — there is no separate
     // estimate any more. Clamped by capacity, matching the server's
     // `produced = min(target, inventoryQty)`.

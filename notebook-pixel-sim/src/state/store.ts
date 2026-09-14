@@ -7,7 +7,6 @@ import type {
   MascotMessage,
   Phase,
   ScreenId,
-  Segment,
   SidebarCategory,
   MascotMood,
   BubbleType,
@@ -16,7 +15,6 @@ import type {
 import { STARTING_CASH } from '@/data/balance';
 import { DAYS_PER_PHASE } from '@/engine/config';
 import { ENERGY_START, ENERGY_CAP, GENRES } from '@/data/finlit';
-import { segmentForGenre } from '@/engine/finlit/core/config/genreSegments';
 import type { ActiveModifier } from '@/engine/modifiers';
 import type { PendingCash } from '@/engine/cashflow';
 import type { GlobalInputDto } from '@/gamesim/types';
@@ -105,22 +103,11 @@ export interface GameState {
     productLines: ProductLine[];
     activeLineId: string;
   };
-  market: {
-    /**
-     * Global "lead" target segment. In Phase 1 the audience picker writes
-     * this AND propagates it to every line (single shared focus). In
-     * Phase 2+ the picker still updates the global value but lines can
-     * override their own `targetSegment` independently.
-     */
-    targetSegment: Segment | null;
-    retention: Record<Segment, number>;
-    /**
-     * Per-line, per-segment fit. Recomputed daily from each line's
-     * design vs each segment's preference weights.
-     * Shape: fitBySegmentByLineId[lineId][segment] = 0..1
-     */
-    fitBySegmentByLineId: Record<string, Record<Segment, number>>;
-  };
+  // The `market` slice is GONE with the V2 segment axis (2026-09-14). It held
+  // `targetSegment`, `retention` and `fitBySegmentByLineId` — the last of which
+  // had FIVE writers and not one that computed fit, so every line sat on a
+  // seeded literal forever. A notebook IS its market now; what a market wants
+  // is the product's own field `direction` weights.
   ops: {
     capacity: number;
     hires: number;
@@ -203,10 +190,10 @@ export interface GameState {
     queue: MascotMessage[];
     current: MascotMessage | null;
     /**
-     * Past messages, oldest → newest. The runtime pushes the *current*
-     * message onto history before promoting the next from the queue;
-     * `prevMascot()` then pops from history to step back. Capped at
-     * MASCOT_HISTORY_MAX so it can't grow unbounded.
+     * The Prev NAV STACK, oldest → newest — nothing else. `popMascot` pushes
+     * the current message here before promoting the next; `prevMascot` pops to
+     * step back. Capped at 20 and cleared by Skip/Finish, so it is NOT a record
+     * of what the player has seen — `seenMessages` is.
      */
     history: MascotMessage[];
     /**
@@ -216,6 +203,16 @@ export interface GameState {
      * `pushMascotSequence` and refuses to enqueue a known script.
      */
     seenScripts: string[];
+    /**
+     * Message ids the player has already been SHOWN, append-only and persisted.
+     *
+     * This is the seen-set. `history` used to do this job as well as being the
+     * Prev nav stack, and the two want opposite things: the nav stack is capped
+     * (20) and popped by `prevMascot`/`clearMascotQueue`, so ids fell out of it
+     * and every reaction re-fired — Amelia reappearing each time the player
+     * changed a decision and changed it back. Nothing here is ever removed.
+     */
+    seenMessages: string[];
     mood: MascotMood;
     minimized: boolean;
     /** Floating position relative to viewport (px from top-left). null = use default top-right. */
@@ -272,46 +269,10 @@ export interface GameState {
   availableGlobalInputs: GlobalInputDto[];
 }
 
-const STARTER_LINE_ID = 'line-starter';
-
-/**
- * The one notebook a fresh run opens with. Every identity field — sprite,
- * market, legacy segment gate, spec type and name — is read off the same genre
- * so they can never disagree.
- */
-/**
- * The genre a fresh run opens on. Named explicitly rather than taken as
- * `GENRES[0]`, so the catalogue's display order and the starter choice are
- * independent decisions. Falls back to the first genre if an operator's
- * published catalogue somehow lacks this id.
- */
-const STARTER_GENRE_ID = 'indie';
-
-/** The starter genre's legacy segment — shared by the line and the market slice. */
-const starterSegment = () =>
-  segmentForGenre((GENRES.find((g) => g.id === STARTER_GENRE_ID) ?? GENRES[0]).id);
-
-const starterLine = (): ProductLine => {
-  const genre = GENRES.find((g) => g.id === STARTER_GENRE_ID) ?? GENRES[0];
-  return {
-    id: STARTER_LINE_ID,
-    name: genre.name,
-    archetype: genre.id,
-    genre: genre.id,
-    cover: 'hardcover', binding: 'ring', size: 'm', paperQuality: 'standard',
-    pricePoint: 'balanced',
-    price: 14,
-    isCustomName: false,
-    addOnsByArchetype: { [genre.id]: [] },
-    quantityTarget: 25,
-    targetSegment: starterSegment(),
-    inventory: { raw: 2, finished: 1, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
-    finlitSpec: { type: genre.id, paper: 'recycled', size: 'b5', pageDesign: 'blank', addon: 'bookmark', cover: 'plastic' },
-    // No `targetPerPhase`. Absent means ZERO on both sides — production is a
-    // decision the player has to make, and a new line must not arrive with a
-    // build already planned. See `produced` in server/src/sim/calcFinancials.ts.
-  };
-};
+// `starterLine` and its STARTER_* constants are GONE (2026-09-14). A fresh run
+// seeded one notebook off `GENRES`, which meant the frontend authoring a
+// product baseline — name, market and spec — that no backend Product had
+// agreed to. The player adds their first notebook from the picker instead.
 
 const startingState = (): GameState => ({
   meta: {
@@ -338,34 +299,13 @@ const startingState = (): GameState => ({
     maxEnergy: ENERGY_CAP,
     brand: 5,
   },
-  // Fresh game starts with a SINGLE notebook — the player grows the portfolio
-  // deliberately. It carries a V3 market + lean spec so the game is immediately
-  // valid (a genre = a target, satisfying the phase-gate).
-  //
-  // Everything about the starter line derives from ONE genre, because writing
-  // these fields independently is what produced the bug this replaces: the line
-  // was drawn as `GENRES[0]` (Cute), scored as `'minimalist'`, and labelled
-  // "Student" — a name from the retired archetype set. Three identities for one
-  // notebook. `startingState` is a factory, so reading GENRES here still picks
-  // up an operator's hydrated catalogue rather than freezing the bundle.
+  // Fresh game starts with NO notebook. The player adds one from the picker,
+  // which is the flow regardless — and a seeded line meant inventing a product
+  // baseline (name, market, spec) the backend never authorised. The phase gate
+  // already blocks confirmation until a notebook exists (`needsAnyNotebook`).
   portfolio: {
-    productLines: [starterLine()],
-    activeLineId: STARTER_LINE_ID,
-  },
-  market: {
-    // Derived from the SAME genre as the starter line, so the global lead
-    // segment and the line's own target cannot disagree on the first frame.
-    // This was hardcoded to 'professionals' — correct only for the retired
-    // "Student → minimalist" starter — while the line targeted students.
-    targetSegment: starterSegment(),
-    retention: { students: 0, creators: 0, professionals: 0, gift: 0 },
-    // Keyed on the line that actually exists. The old map was keyed on
-    // 'line-student' / 'line-planner' / 'line-daily', none of which are created
-    // any more, so the starter line opened with no fit entry at all. The engine
-    // recomputes this every tick; these are just the first-frame values.
-    fitBySegmentByLineId: {
-      [STARTER_LINE_ID]: { students: 0.55, creators: 0.40, professionals: 0.35, gift: 0.40 },
-    },
+    productLines: [],
+    activeLineId: '',
   },
   ops: {
     capacity: 5,
@@ -401,7 +341,7 @@ const startingState = (): GameState => ({
   cashOpeningByRound: { 1: STARTING_CASH.self },
   history: [{ day: 1, text: 'Started a notebook business out of the dorm.', cause: 'start' }],
   series: { cash: [], revenue: [], profit: [], sold: [], finished: [], raw: [], demand: [], stockout: [], overstock: [] },
-  mascot: { queue: [], current: null, history: [], seenScripts: [], mood: 'idle', minimized: false, position: null },
+  mascot: { queue: [], current: null, history: [], seenScripts: [], seenMessages: [], mood: 'idle', minimized: false, position: null },
   audio: { sfxEnabled: true, musicEnabled: false },
   ui: { leftDrawer: null, rightDrawer: null, viewMode: 'focus', dismissedTips: [] },
   finlit: { demandMult: 1, sellMult: 1, resolvedScenarios: [] },
@@ -447,6 +387,32 @@ interface Actions {
 
 export type Store = GameState & Actions;
 
+/** Cap on `mascot.seenMessages`. Generous — ids are short and it is the only
+ *  thing keeping a reaction from re-firing, so it must outlive a long run. */
+const MASCOT_SEEN_MAX = 500;
+
+/** Has this id ever been queued or shown? Checks the persisted seen-set, plus
+ *  what is in flight right now (queued ids are not seen until promoted). */
+const alreadySeen = (st: Store, id: string): boolean =>
+  st.mascot.current?.id === id ||
+  st.mascot.queue.some((q) => q.id === id) ||
+  st.mascot.seenMessages.includes(id);
+
+/**
+ * Promote the next queued message to `current` and record it as SEEN.
+ *
+ * Seen is recorded on DISPLAY, not on push: a message dropped from the queue by
+ * Skip before the player ever read it should still be allowed to come back.
+ */
+function promoteNext(st: Store): void {
+  st.mascot.current = st.mascot.queue.shift() ?? null;
+  const shown = st.mascot.current;
+  if (shown && !st.mascot.seenMessages.includes(shown.id)) {
+    st.mascot.seenMessages.push(shown.id);
+    if (st.mascot.seenMessages.length > MASCOT_SEEN_MAX) st.mascot.seenMessages.shift();
+  }
+}
+
 export const useGame = create<Store>()(
   persist(
     immer((set) => ({
@@ -456,12 +422,9 @@ export const useGame = create<Store>()(
       setSidebar: (c) => set((st) => { st.meta.sidebar = c; }),
       pushMascot: (m) =>
         set((st) => {
-          // Don't queue duplicates by id (current, queued, or already shown).
-          const seen =
-            st.mascot.current?.id === m.id ||
-            st.mascot.queue.some((q) => q.id === m.id) ||
-            st.mascot.history.some((h) => h.id === m.id);
-          if (!seen) {
+          // Don't queue duplicates by id (current, queued, or ever shown).
+          // `seenMessages`, not `history` — see the note on the field.
+          if (!alreadySeen(st, m.id)) {
             st.mascot.queue.push(m);
             // Sort by priority — but only outside of an active sequence,
             // so script messages stay in order.
@@ -470,7 +433,7 @@ export const useGame = create<Store>()(
             }
           }
           if (!st.mascot.current) {
-            st.mascot.current = st.mascot.queue.shift() ?? null;
+            promoteNext(st);
           }
           if (m.mood) st.mascot.mood = m.mood;
         }),
@@ -482,14 +445,10 @@ export const useGame = create<Store>()(
           const seqId = messages.find((m) => m.seqId)?.seqId;
           if (seqId && st.mascot.seenScripts.includes(seqId)) return;
           for (const m of messages) {
-            const seen =
-              st.mascot.current?.id === m.id ||
-              st.mascot.queue.some((q) => q.id === m.id) ||
-              st.mascot.history.some((h) => h.id === m.id);
-            if (!seen) st.mascot.queue.push(m);
+            if (!alreadySeen(st, m.id)) st.mascot.queue.push(m);
           }
           if (!st.mascot.current) {
-            st.mascot.current = st.mascot.queue.shift() ?? null;
+            promoteNext(st);
           }
           const lastMood = messages.find((m) => m.mood)?.mood;
           if (lastMood) st.mascot.mood = lastMood;
@@ -502,7 +461,7 @@ export const useGame = create<Store>()(
             st.mascot.history.push(done);
             if (st.mascot.history.length > 20) st.mascot.history.shift();
           }
-          st.mascot.current = st.mascot.queue.shift() ?? null;
+          promoteNext(st);
           if (st.mascot.current?.mood) st.mascot.mood = st.mascot.current.mood;
 
           // A script is SEEN once its last message has been advanced past —
@@ -532,9 +491,9 @@ export const useGame = create<Store>()(
       clearMascotQueue: () =>
         set((st) => {
           // Mark every seqId currently in flight as seen so it won't
-          // re-fire on revisit. Single-message pushes (no seqId) are
-          // ignored — those are reactive feedback rules that are
-          // already deduped by id-bucketing.
+          // re-fire on revisit. Single-message pushes (no seqId) need no
+          // handling here: `seenMessages` already recorded each one when it
+          // was displayed, and that survives this clear.
           const inFlight: MascotMessage[] = [
             ...(st.mascot.current ? [st.mascot.current] : []),
             ...st.mascot.queue,
@@ -548,6 +507,8 @@ export const useGame = create<Store>()(
           st.mascot.queue = [];
           st.mascot.current = null;
           st.mascot.history = [];
+          // `seenMessages` is deliberately NOT cleared. Skip/Finish dismisses
+          // what is on screen; it does not mean "show me all of this again".
         }),
       setMood: (m) => set((st) => { st.mascot.mood = m; }),
       toggleMascotMinimize: () => set((st) => { st.mascot.minimized = !st.mascot.minimized; }),
@@ -591,7 +552,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 21,
+      version: 24,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -634,6 +595,41 @@ export const useGame = create<Store>()(
           toast: null,
         }) as unknown as Store,
       migrate: (persisted: any, fromVersion) => {
+
+        // v23: `mascot.seenMessages` — the append-only seen-set that replaced
+        // `history` for dedupe. Seeded EMPTY rather than from the persisted
+        // history (which partialize wipes anyway), so an existing save gets
+        // each reaction at most once more, then never again.
+        if (fromVersion < 23 && persisted?.mascot && !Array.isArray(persisted.mascot.seenMessages)) {
+          persisted.mascot.seenMessages = [];
+        }
+
+        // v22: `ProductLine.productId` — the backend Product this line makes.
+        //
+        // Lines written before it are DROPPED, not backfilled. The old pairing
+        // was name-match-then-positional, so re-running it here would guess a
+        // productId, and a wrong one submits this notebook's design against
+        // another product — silently, and on the money path. A lost local draft
+        // costs a reload; this store is a cache in front of a server that holds
+        // the real state.
+        if (fromVersion < 22 && persisted?.portfolio) {
+          type PersistedLine = { id?: string; productId?: unknown };
+          const lines: PersistedLine[] = persisted.portfolio.productLines ?? [];
+          const kept = lines.filter((l) => typeof l?.productId === 'string' && l.productId);
+          if (kept.length !== lines.length) {
+            persisted.portfolio.productLines = kept;
+            // The active line may have been one of the dropped ones.
+            if (!kept.some((l) => l.id === persisted.portfolio.activeLineId)) {
+              persisted.portfolio.activeLineId = kept[0]?.id ?? null;
+            }
+            // Per-line maps keyed by the ids that no longer exist.
+            const ids = new Set(kept.map((l) => l.id));
+            const fit = persisted.market?.fitBySegmentByLineId;
+            if (fit) {
+              for (const id of Object.keys(fit)) if (!ids.has(id)) delete fit[id];
+            }
+          }
+        }
         // v21: the route choice is gone. A save mid-run keeps its own
         // `cashOpeningByRound[1]`, so the opening it played with stands; only
         // the now-meaningless field is dropped. Runs that never reached the
@@ -652,7 +648,7 @@ export const useGame = create<Store>()(
         if (fromVersion < 2 && persisted?.product) {
           const old = persisted.product.addOns ?? [];
           const arch = persisted.product.archetype ?? 'student';
-          persisted.product.addOnsByArchetype = {
+          persisted.product.addOnsByProduct = {
             student: arch === 'student' ? old : [],
             planner: arch === 'planner' ? old : [],
             daily: arch === 'daily' ? old : [],
@@ -691,14 +687,11 @@ export const useGame = create<Store>()(
         }
         // v6: single-product → portfolio. Convert legacy s.product into
         //     productLines[0]; convert legacy s.inventory into the line's
-        //     inventory + a new aggregate rollup; convert market.fitBySegment
-        //     into market.fitBySegmentByLineId; ensure each line has the
-        //     new fields (quantityTarget, targetSegment).
+        //     inventory + a new aggregate rollup; ensure each line has the
+        //     new field (quantityTarget).
         if (fromVersion < 6) {
           const oldProduct = persisted?.product;
           const oldInv = persisted?.inventory ?? {};
-          const oldFit = persisted?.market?.fitBySegment ?? { students: 0.5, creators: 0.4, professionals: 0.4, gift: 0.4 };
-          const oldTarget = persisted?.market?.targetSegment ?? null;
 
           if (oldProduct) {
             const arch = oldProduct.archetype ?? 'student';
@@ -714,9 +707,8 @@ export const useGame = create<Store>()(
               paperQuality: oldProduct.paperQuality ?? 'standard',
               pricePoint: oldProduct.pricePoint ?? 'balanced',
               price: oldProduct.price ?? 8,
-              addOnsByArchetype: oldProduct.addOnsByArchetype ?? { student: [], planner: [], daily: [] },
+              addOnsByProduct: oldProduct.addOnsByProduct ?? { student: [], planner: [], daily: [] },
               quantityTarget: 30,
-              targetSegment: oldTarget as Segment | null,
               inventory: {
                 raw: oldInv.raw ?? 5,
                 finished: oldInv.finished ?? 0,
@@ -728,26 +720,13 @@ export const useGame = create<Store>()(
             persisted.portfolio = { productLines: [line], activeLineId: 'line-1' };
             delete persisted.product;
           } else {
-            // No old product to migrate; seed a fresh default line.
-            persisted.portfolio = persisted.portfolio ?? {
-              productLines: [{
-                id: 'line-1',
-                name: 'Student',
-                isCustomName: false,
-                archetype: GENRES[0].id,
-                cover: 'hardcover',
-                binding: 'ring',
-                size: 'm',
-                paperQuality: 'standard',
-                pricePoint: 'balanced',
-                price: 8,
-                addOnsByArchetype: { student: [], planner: [], daily: [] },
-                quantityTarget: 30,
-                targetSegment: null,
-                inventory: { raw: 5, finished: 0, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
-              }],
-              activeLineId: 'line-1',
-            };
+            // No old product to migrate; start empty. This used to seed a
+            // default line off `GENRES[0].id`, which THROWS now that the
+            // catalogue ships empty and is filled from the backend at
+            // bootstrap — long after migrations run. Seeding one would be
+            // pointless anyway: v22 below drops every line without a
+            // `productId`, and an invented line has none.
+            persisted.portfolio = persisted.portfolio ?? { productLines: [], activeLineId: '' };
           }
 
           // Aggregate inventory rollup
@@ -762,14 +741,8 @@ export const useGame = create<Store>()(
             linesWithOverstock: [],
           };
 
-          // Per-line fit map seeded from old global fit (best we can do).
-          if (persisted.market) {
-            persisted.market.fitBySegmentByLineId = {};
-            for (const l of lines) {
-              persisted.market.fitBySegmentByLineId[l.id] = { ...oldFit };
-            }
-            delete persisted.market.fitBySegment;
-          }
+          // The per-line fit map this step seeded is gone with the V2 segment
+          // axis; the later migration drops the whole `market` slice anyway.
         }
         // v7: AddOnInstance gains free-canvas placement fields (x, y,
         //     scale, rotation, zIndex). Migrate existing instances by
@@ -801,7 +774,7 @@ export const useGame = create<Store>()(
           // pre-existing add-ons.
           const lines = persisted?.portfolio?.productLines ?? [];
           for (const line of lines) {
-            const arches = line.addOnsByArchetype ?? {};
+            const arches = line.addOnsByProduct ?? {};
             for (const arch of Object.keys(arches)) {
               const list = arches[arch] ?? [];
               for (const inst of list) {
@@ -872,8 +845,13 @@ export const useGame = create<Store>()(
           const LEGACY_TO_GENRE: Record<string, string> = {
             student: 'minimalist', planner: 'indie', daily: 'cute',
           };
+          // `GENRES` is EMPTY here — it is filled from the backend at bootstrap,
+          // long after migrations run — so `known` is empty and every line falls
+          // through to `fallback`. That is harmless only because v22 below drops
+          // every one of these lines (none carries a `productId`). Do not start
+          // trusting this block's output.
           const known = new Set(GENRES.map((g) => g.id));
-          const fallback = GENRES[0]?.id ?? 'cute';
+          const fallback = GENRES[0]?.id ?? '';
 
           for (const line of persisted.portfolio.productLines) {
             // The line's own genre wins when it is still valid — it was always
@@ -906,7 +884,7 @@ export const useGame = create<Store>()(
 
             // Carry the decoration across to the new key so switching notebooks
             // does not silently wipe what the player placed.
-            const lists = line.addOnsByArchetype;
+            const lists = line.addOnsByProduct;
             if (lists && typeof lists === 'object') {
               if (oldKey !== next && Array.isArray(lists[oldKey])) {
                 lists[next] = lists[oldKey];
@@ -917,7 +895,7 @@ export const useGame = create<Store>()(
               }
               if (!Array.isArray(lists[next])) lists[next] = [];
             } else {
-              line.addOnsByArchetype = { [next]: [] };
+              line.addOnsByProduct = { [next]: [] };
             }
           }
         }
@@ -1029,6 +1007,38 @@ export const useGame = create<Store>()(
             let n = 2;
             while (taken.has(candidate)) candidate = `${label}-${n++}`;
             line.name = candidate;
+          }
+        }
+
+        // ── v24: ONE identity per line ─────────────────────────────────────
+        //
+        // `archetype` and `genre` were two more names for what `productId`
+        // already held, and the catalogue id space moved from frontend slugs
+        // ('cute', 'indie') to the backend `Product._id`. Both fields are
+        // deleted here and `addOnsByArchetype` is renamed to
+        // `addOnsByProduct`, re-keyed onto the product id so placed decoration
+        // follows its notebook.
+        //
+        // LAST in the chain on purpose: it reads `productId`, which only exists
+        // after v22 has dropped every line that lacks one. Nothing is guessed —
+        // a line with no productId is already gone by this point.
+        if (fromVersion < 24 && Array.isArray(persisted?.portfolio?.productLines)) {
+          for (const line of persisted.portfolio.productLines) {
+            const pid = typeof line?.productId === 'string' ? line.productId : null;
+            const oldKey = line?.archetype ?? line?.genre;
+            delete line.archetype;
+            delete line.genre;
+            // The persisted key is the OLD name; adopt it, then re-key.
+            const map = line.addOnsByProduct ?? line.addOnsByArchetype ?? {};
+            delete line.addOnsByArchetype;
+            if (pid && oldKey && oldKey !== pid && map[oldKey]) {
+              map[pid] = map[oldKey];
+              delete map[oldKey];
+            }
+            line.addOnsByProduct = map;
+            if (pid && line.finlitSpec && typeof line.finlitSpec === 'object') {
+              line.finlitSpec.type = pid;
+            }
           }
         }
         return persisted as Store;

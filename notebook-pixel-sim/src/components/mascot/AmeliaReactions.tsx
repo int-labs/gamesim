@@ -12,9 +12,13 @@ import { fmt$ } from '@/utils/format';
  *   • its margin goes negative (price below unit cost) → a gentle warning
  *   • its fit drifts below 85% → a nudge that the design is off-market
  *
- * Each reaction fires once per notebook per session (pushMascot de-dupes by
- * id, and ids embed the line id), stays quiet during the phase sequence, and
- * renders nothing — a pure watcher mounted by SimulationScreen.
+ * Each reaction fires ONCE per notebook, for good: ids embed the line id and
+ * `pushMascot` de-dupes against the persisted `mascot.seenMessages`. It used to
+ * dedupe against `history`, which is capped at 20 and wiped by Skip/Finish — so
+ * changing a decision and changing it back re-fired the same hint.
+ *
+ * Stays quiet during the phase sequence, and renders nothing — a pure watcher
+ * mounted by SimulationScreen.
  */
 const DEFAULT_SPEC: ProductionSpec = {
   type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
@@ -23,18 +27,16 @@ const DEFAULT_SPEC: ProductionSpec = {
 export function AmeliaReactions({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
   const pushMascot = useGame((s) => s.pushMascot);
   const line = useGame((s) => s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId));
-  const lineIndex = useGame((s) => s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId));
-
-  const genre: GenreId = (line?.genre ?? 'indie') as GenreId;
+  const genre: GenreId = (line?.productId ?? '') as GenreId;
   const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line?.finlitSpec ?? {}) };
   const price = line?.price ?? 0;
-  const stickersSpend = Math.min((line?.addOnsByArchetype?.[line?.archetype ?? genre] ?? []).length * 0.15, 100);
+  const stickersSpend = Math.min((line?.addOnsByProduct?.[line?.productId ?? genre] ?? []).length * 0.15, 100);
   const fit = line ? vocFit(spec, price, stickersSpend, genre) : 1;
 
   // The SERVER's `dynamicCost` — the same figure the P&L shows, so her warning
   // cannot contradict it. `null` = no projection yet; the margin check is
   // SKIPPED rather than defaulting the cost to 0 (which reads as infinite margin).
-  const proj = liveProjection?.byProduct[lineIndex] ?? liveProjection?.byProduct[0] ?? null;
+  const proj = liveProjection?.byProduct.find((p) => p.productId === line?.productId) ?? null;
   const serverUnitCost = proj?.dynamicCost ?? null;
   const margin = line && serverUnitCost != null ? price - serverUnitCost : null;
 

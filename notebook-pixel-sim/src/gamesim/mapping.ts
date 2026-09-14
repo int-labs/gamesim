@@ -50,7 +50,7 @@ export type LineDecisionValues = Record<keyof typeof FIELD_KEYS, number>;
 
 export function lineDecisionValues(line: StoreLine, projectedMarketShare: number): LineDecisionValues {
   const spec      = line.finlitSpec ?? {};
-  const instances = line.addOnsByArchetype?.[line.archetype] ?? [];
+  const instances = line.addOnsByProduct?.[line.productId] ?? [];
   const stickersSpend = Math.min(instances.length * 0.15, 100);
 
   // SCORES (0-100), not dollars — the server multiplies by the field's own
@@ -78,34 +78,11 @@ export function toDecisionFields(product: ProductDto, values: LineDecisionValues
     });
 }
 
-/**
- * Pairs local product lines with the operator-configured Products.
- *
- * The player invents lines locally; Products exist server-side. There is no id
- * in common, so pairing is by name (case-insensitive, punctuation-insensitive)
- * and then positionally for whatever is left, in the order both sides list
- * them. Lines with no Product left to pair with are DROPPED from the
- * submission — the server has nowhere to put them.
- */
-export function pairLinesWithProducts(
-  lines: StoreLine[],
-  products: ProductDto[],
-): Array<{ line: StoreLine; product: ProductDto }> {
-  const remaining = [...products];
-  const pairs: Array<{ line: StoreLine; product: ProductDto }> = [];
-  const unmatched: StoreLine[] = [];
-
-  for (const line of lines) {
-    const idx = remaining.findIndex((p) => normalize(p.productName) === normalize(line.name));
-    if (idx >= 0) pairs.push({ line, product: remaining.splice(idx, 1)[0] });
-    else unmatched.push(line);
-  }
-  for (const line of unmatched) {
-    const product = remaining.shift();
-    if (product) pairs.push({ line, product });
-  }
-  return pairs;
-}
+// `pairLinesWithProducts` was DELETED on 2026-09-14. Its premise — "there is no
+// id in common" — stopped being true when `ProductLine.productId` became the
+// line's identity. It paired on the player's renameable `line.name` and then
+// positionally, so a rename silently re-pointed a notebook's whole submission
+// at a different Product. `toDecisionInputs` resolves by id now.
 
 /**
  * The neutral projected-market-share claim for a product: the midpoint of the
@@ -147,11 +124,25 @@ export function toDecisionInputs({
   defaultProjectedMarketShare,
 }: ToDecisionInputsArgs): DecisionPayload {
   const activeProducts = products.filter((p) => p.active !== false);
-  const pairs = pairLinesWithProducts(state.portfolio.productLines, activeProducts);
+  const byId = new Map(activeProducts.map((p) => [String(p._id), p]));
 
-  const inputs: DecisionProductInput[] = pairs.map(({ line, product }) => {
+  // Resolved BY ID. This used to call `pairLinesWithProducts`, which matched the
+  // player's COSMETIC, renameable `line.name` against `productName` and then
+  // filled the remainder positionally — so renaming a notebook re-paired it
+  // against a different Product, on the submission path. A line whose product
+  // is gone is dropped rather than silently paired with whatever is left over.
+  const inputs: DecisionProductInput[] = [];
+  for (const line of state.portfolio.productLines) {
+    const product = byId.get(String(line.productId));
+    if (!product) {
+      console.warn(
+        '[gamesim] a product line references a product that is not active and was not submitted',
+        { lineId: line.id, productId: line.productId },
+      );
+      continue;
+    }
     const share = projectedShareByLine[line.id] ?? defaultProjectedMarketShare ?? defaultProjectedShareFor(product);
-    return {
+    inputs.push({
       productId:   product._id,
       segmentId:   product.segmentId,
       productName: product.productName,
@@ -159,8 +150,8 @@ export function toDecisionInputs({
       // ceiling, which is exactly what the planner shows for an untouched line.
       produced:    line.targetPerPhase ?? null,
       fields:      toDecisionFields(product, lineDecisionValues(line, share)),
-    };
-  });
+    });
+  }
 
   // ── Selections → globalInput snapshots, resolved BY BACKEND ID ───────────
   //
@@ -235,7 +226,8 @@ export function toDecisionInputs({
   return { inputs, globalInputs };
 }
 
-const normalize = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+// `normalize` went with `pairLinesWithProducts` — it existed only to fuzzy-match
+// a product name against a player-chosen line name.
 const clamp01   = (v: number) => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0));
 const round2    = (v: number) => Math.round(v * 100) / 100;
 const round4    = (v: number) => Math.round(v * 10000) / 10000;

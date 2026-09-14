@@ -11,6 +11,8 @@ import {
 import * as gamesim from './client';
 import { hydratePlayerConfig } from './configHydrator';
 import { hydrateFieldConfig } from '@/engine/finlit/core/config/fieldConfig';
+import { hydrateGenres, GENRES } from '@/engine/finlit/core/config/genres';
+import { hydrateTypeOptions } from '@/engine/finlit/core/config/production';
 import { hydrateChannels } from '@/engine/finlit/core/config/channels';
 import { useGame } from '@/state/store';
 import { computeFinalScore } from '@/engine/mockEngine';
@@ -255,10 +257,19 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
         const rounds = await gamesim.getRounds(session.simulationId);
         const [products, baseData, globalInputs] = await Promise.all([
           gamesim.getProducts(simulation.simulationTypeId),
-          gamesim.getBaseData(simulation.simulationTypeId).catch(() => []),
+          // `null`, not `[]` — the endpoint 404s when an operator has published
+          // no base data, and the demand curve is then genuinely absent.
+          gamesim.getBaseData(simulation.simulationTypeId).catch(() => null),
           gamesim.getGlobalInputs(simulation.simulationTypeId).catch(() => []),
         ]);
         if (cancelled) return;
+        // Catalogue BEFORE field config: both key off `Product._id`, and
+        // `hydrateGenres` layers PlayerConfig copy (already applied above) onto
+        // the backend's own products.
+        hydrateGenres(products, baseData);
+        // The design drawer's TYPE axis is the product choice — same ids, or
+        // `configOption` throws the moment a spec carries a product id.
+        hydrateTypeOptions(GENRES.map((g) => ({ id: g.id, name: g.name })));
         hydrateFieldConfig(products);
         useGame.getState().setAvailableGlobalInputs(globalInputs);
         // No hiring hydration: the UI reads the hiring container straight out of
@@ -280,7 +291,7 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
           rounds,
           round: pickCurrentRound(rounds),
           products,
-          baseData: baseData[0] ?? null,
+          baseData,
           globalInputs,
         });
         hasLoadedRef.current = true;

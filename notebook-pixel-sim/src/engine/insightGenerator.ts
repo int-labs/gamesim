@@ -56,28 +56,15 @@ export function generateInsightQuestion(state: GameState, phase: Phase): Insight
   const toDay = phase === 1 ? 30 : phase === 2 ? 60 : 90;
 
   if (phase === 1) {
-    // What drove demand most? Correct = "audience focus" if a segment was set
-    // and the BEST line fit > 0.55, else "neither — no audience picked".
-    const hadSegment = state.market.targetSegment !== null;
-    let fit = 0;
-    if (state.market.targetSegment) {
-      const target = state.market.targetSegment;
-      // Take best fit across all lines for the target segment.
-      for (const lineId of Object.keys(state.market.fitBySegmentByLineId)) {
-        const f = state.market.fitBySegmentByLineId[lineId]?.[target] ?? 0;
-        if (f > fit) fit = f;
-      }
-    }
-    const correctIdx = hadSegment && fit >= 0.55 ? 0 : (!hadSegment ? 3 : 0);
+    // Copy unchanged. The correct answer used to be picked from
+    // `market.targetSegment` + best `fitBySegmentByLineId`, both deleted with
+    // the V2 segment axis; it now resolves to the same branch that ran whenever
+    // a segment WAS set, so the question is fixed rather than state-derived.
     const opts: InsightQuestion['options'] = [
-      { id: 'A', text: 'Picking and matching a target audience', correct: correctIdx === 0 },
+      { id: 'A', text: 'Picking and matching a target audience', correct: true },
       { id: 'B', text: 'Buying lots of raw materials', correct: false },
       { id: 'C', text: 'Setting the highest price possible', correct: false },
-      {
-        id: 'D',
-        text: hadSegment ? 'Adding many decorative items' : "I didn't pick an audience - demand stayed weak",
-        correct: correctIdx === 3,
-      },
+      { id: 'D', text: 'Adding many decorative items', correct: false },
     ];
     return {
       id: 'phase1_demand_driver',
@@ -85,9 +72,7 @@ export function generateInsightQuestion(state: GameState, phase: Phase): Insight
       question: 'In Phase 1, which lever drove your demand the most?',
       options: opts,
       explanation:
-        hadSegment && fit >= 0.55
-          ? "You picked an audience and your design fit them - that's why demand had a base to grow from."
-          : "Demand was thin because no clear audience was chosen - fit drives every other lever.",
+        "You picked an audience and your design fit them - that's why demand had a base to grow from.",
     };
   }
 

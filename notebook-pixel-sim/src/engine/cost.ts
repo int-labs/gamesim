@@ -31,7 +31,7 @@ export const getActiveLine = (s: GameState): ProductLine =>
 
 /** Add-ons currently active on a line (only the line's CURRENT archetype). */
 export const currentAddOnsForLine = (line: ProductLine) =>
-  line.addOnsByArchetype[line.archetype] ?? [];
+  line.addOnsByProduct[line.productId] ?? [];
 
 /** Backwards-compat: active line's add-ons. */
 export const currentAddOns = (s: GameState) => currentAddOnsForLine(getActiveLine(s));

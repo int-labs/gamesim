@@ -427,13 +427,33 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     let dynamicPriceAugment      = baseVariables.dynamicPriceBase      ?? 0.55; // quality augmentation from inventory-affecting global inputs
     let inventoryCostPerUnit     = 0;   // currency per unsold unit, not a rate
 
+    /**
+     * One entry per SELECTED channel: its cut as a RATE on the selling price,
+     * and its share of demand.
+     *
+     * Collected as pairs rather than summed in place, because the split between
+     * channels is not a free choice — a channel's `sales_channel` impact IS its
+     * share of the customers obtained, so the same weighting that decides how
+     * many units sell decides which channel sold them. Summing the raw rates
+     * would charge every channel's cut on every unit; a plain average would
+     * ignore that a channel pulling 67% of demand carries 67% of the sales.
+     */
+    const channelTerms: Array<{ rate: number; weight: number; side: "cogs" | "opex" }> = [];
+
     globalInputs.forEach((entry) => {
       const stepMultiplier = getGlobalInputQuantity(decision, entry);
       const hasOptions     = entry.options && Object.keys(entry.options).length > 0;
       const effectiveMultiplier = hasOptions ? stepMultiplier : 1;
-      
+
       if (effectiveMultiplier === 0) return;
-      
+
+      // Paired from THIS entry before its impacts are dispatched below — the
+      // rate and the weight are two SEPARATE impacts on one item
+      // (`consignment` and `sales_channel`), and they must not be matched across
+      // items.
+      let entryRate   = 0;
+      let entryWeight = 0;
+
       Object.entries(entry.impacts).forEach(([metricKey, impact]) => {
         const config = IMPACT_CONFIG[metricKey];
         if (!config) return;
@@ -478,6 +498,12 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
           } else {
             customersObtainedAugment += (impactValue * effectiveMultiplier);
           }
+          // A `sales_channel` pull doubles as this entry's share of the sales.
+          // Other customersObtained sources (marketing) are company-wide and
+          // route no units, so they must not weight the consignment split.
+          if (metricKey === "sales_channel") {
+            entryWeight += Math.max(0, impactValue * effectiveMultiplier);
+          }
         }
 
         if (config.affects === "dynamicCost") {
@@ -495,8 +521,59 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
             inventoryCostPerUnit += impactValue * effectiveMultiplier;
           }
         }
+
+        if (config.affects === "consignment") {
+          // `impactValue`, not `× effectiveMultiplier`: a channel is binary, so
+          // that term is always 1 here. Live data carries no per-product
+          // `selections[]` on this key, so `impactValue` is the base rate — but
+          // it is read through the same override path as everything else, so
+          // adding one later needs no change here.
+          entryRate += impactValue;
+        }
       });
+
+      // A channel that pulls demand but takes no cut still belongs here: it
+      // carries sales at a zero rate, which correctly dilutes the paid channels'
+      // share. Only an entry with neither is skipped.
+      if (entryRate !== 0 || entryWeight !== 0) {
+        // The OPERATOR'S choice, not a constant: `costTreatment` is the item's
+        // own `cogs`/`opex` enum, already split into legs by `readCostTreatment`
+        // at the entry point, so whichever leg carries the cost names the side.
+        // Both legs zero — a free item — falls to "opex", which is the schema
+        // default the enum itself carries.
+        const side = entry.costTreatment.cogs > 0 ? "cogs" : "opex";
+        channelTerms.push({ rate: entryRate, weight: entryWeight, side });
+      }
     });
+
+    /**
+     * The blended cut ONE unit pays: each channel's rate weighted by its share
+     * of demand.
+     *
+     * RENORMALISED over the SELECTED channels. The operator's per-product
+     * `sales_channel.selections[]` already sum to 1 across all three, but a team
+     * that picked only one sends 100% of its sales through it, not that
+     * channel's share of a full line-up.
+     *
+     * With no weights recorded — a rate configured with no `sales_channel`
+     * impact beside it — there is nothing to apportion by, so the rates sum
+     * rather than silently vanishing. That is the pessimistic reading, and it
+     * shows up in the P&L instead of hiding.
+     */
+    const totalChannelWeight = channelTerms.reduce((sum, t) => sum + t.weight, 0);
+
+    // Accumulated PER SIDE, because the treatment is the operator's per-item
+    // choice — two selected channels may sit on opposite sides of the line, and
+    // one blended figure could not honour both.
+    let consignmentCogsPerUnit = 0;
+    let consignmentOpexPerUnit = 0;
+    for (const t of channelTerms) {
+      const share = totalChannelWeight > 0 ? t.weight / totalChannelWeight : 1;
+      // A RATE on the selling price — retail 0.2 takes a fifth of every sale.
+      const perUnit = sellingPrice * t.rate * share;
+      if (t.side === "cogs") consignmentCogsPerUnit += perUnit;
+      else                   consignmentOpexPerUnit += perUnit;
+    }
     
     const inventoryQty = productFields
       .filter((f) => f.direction !== undefined && f.direction !== null && f.key !== SELLING_PRICE_KEY)
@@ -568,6 +645,11 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     // to make.
     const holdingCost = closingStock * inventoryCostPerUnit;
 
+    // Consignment: the channel's cut, on units that actually SOLD. Not on units
+    // built — an unsold notebook pays no storefront fee.
+    const consignmentCogs = unitsSold * consignmentCogsPerUnit;
+    const consignmentOpex = unitsSold * consignmentOpexPerUnit;
+
     // ── Cost breakdown, partitioned by declared treatment ────────────────────
     const incurredCosts: IncurredCostBreakdown[] = [];
     const globalInputCosts: GlobalInputCostBreakdown[] = [];
@@ -594,6 +676,34 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       incurredCost: holdingCost,
       treatment:    "opex",
     });
+
+    // One row per SIDE, and only when that side charged — the treatment is the
+    // operator's, so this array must not assert one. Two rows appear only when
+    // selected channels genuinely sit on opposite sides of the line.
+    if (consignmentCogs !== 0) {
+      incurredCosts.push({
+        key:          "consignment_cogs",
+        label:        "Channel consignment",
+        category:     "sales_channel",
+        inputQty:     unitsSold,
+        leftover:     0,
+        costPerUnit:  consignmentCogsPerUnit,
+        incurredCost: consignmentCogs,
+        treatment:    "cogs",
+      });
+    }
+    if (consignmentOpex !== 0) {
+      incurredCosts.push({
+        key:          "consignment_opex",
+        label:        "Channel consignment",
+        category:     "sales_channel",
+        inputQty:     unitsSold,
+        leftover:     0,
+        costPerUnit:  consignmentOpexPerUnit,
+        incurredCost: consignmentOpex,
+        treatment:    "opex",
+      });
+    }
 
     // Group global inputs by category. No branch and no default: the entry
     // arrives already normalised by readCostTreatment at the entry point.
@@ -654,9 +764,9 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     // Revenue is arithmetically identical to the old ternary: unitsSold is
     // min(customersObtained, inventoryQty), which is what that branch computed.
     const revenue           = unitsSold * sellingPrice;
-    const COGS              = unitCOGS + globalInputCOGS;
+    const COGS              = unitCOGS + globalInputCOGS + consignmentCogs;
     const grossProfit       = revenue - COGS;
-    const operatingExpenses = holdingCost + globalInputOpex;
+    const operatingExpenses = holdingCost + consignmentOpex + globalInputOpex;
     const operatingProfit   = grossProfit - operatingExpenses;
 
     return {

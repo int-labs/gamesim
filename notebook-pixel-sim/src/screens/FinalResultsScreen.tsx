@@ -136,7 +136,6 @@ export function FinalResultsScreen() {
         };
 
   const didWell: string[] = [];
-  if (state.market.targetSegment) didWell.push(FINAL.didWell.pickedSegment);
   if (state.upgrades.acquired.includes('process_qa')) didWell.push(FINAL.didWell.qualityProcess);
   if (state.channels.active.length >= 2) didWell.push(FINAL.didWell.diversifiedChannels);
   if (state.player.cash > 0) didWell.push(FINAL.didWell.cashPositive);
@@ -145,9 +144,8 @@ export function FinalResultsScreen() {
   const hurt: string[] = [];
   if (state.inventory.stockoutDays > 3) hurt.push(FINAL.hurt.stockouts);
   if (state.inventory.overstockDays > 3) hurt.push(FINAL.hurt.overstock);
-  if (!state.market.targetSegment) hurt.push(FINAL.hurt.noSegment);
   if (state.player.cash < 0) hurt.push(FINAL.hurt.cashNegative);
-  if (state.portfolio.productLines.every((line) => Object.values(line.addOnsByArchetype).every((arr) => (arr ?? []).length === 0)))
+  if (state.portfolio.productLines.every((line) => Object.values(line.addOnsByProduct).every((arr) => (arr ?? []).length === 0)))
     hurt.push(FINAL.hurt.noDifferentiation);
 
   const takeaway =

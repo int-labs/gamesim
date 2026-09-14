@@ -141,7 +141,16 @@ export function getProducts(simulationTypeId: Id): Promise<ProductDto[]> {
   return request(`/products${qs({ simulationTypeId })}`);
 }
 
-export function getBaseData(simulationTypeId: Id): Promise<BaseDataDto[]> {
+/**
+ * ONE document, not a list. `GET /base-data?simulationTypeId=` is a `findOne`
+ * and returns the document itself (404 when there is none).
+ *
+ * This was typed `BaseDataDto[]`, and the caller took `[0]` — which is
+ * `undefined` on an object, so the market curve silently resolved to zero for
+ * every notebook. Nothing read baseData until the catalogue started sourcing
+ * demand from it, so the lie went unnoticed.
+ */
+export function getBaseData(simulationTypeId: Id): Promise<BaseDataDto> {
   return request(`/base-data${qs({ simulationTypeId })}`);
 }
 

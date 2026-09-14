@@ -13,16 +13,17 @@ import { A } from '@/assets';
 import { addOnById } from '@/data/addOns';
 import { genreById, configOption, type GenreId, type ProductionSpec } from '@/data/finlit';
 import { lineSize } from '@/engine/selectors';
-import type { ProductLine, Segment } from '@/types';
+import type { ProductLine } from '@/types';
 
-const GALLERY_DEFAULT_SPEC: ProductionSpec = {
-  type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
+// No `type`: it is always overridden by the line's own notebook id below.
+const GALLERY_DEFAULT_SPEC: Omit<ProductionSpec, 'type'> = {
+  paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
 };
 
 /**
  * NotebookGallery — the SHELF view. Browse every notebook in the portfolio at
  * once, each as a front-facing "book" resting on a wooden ledge, with an
- * insight caption (type, price, segment fit, add-ons, stock). Warm wood-grain
+ * insight caption (type, price, add-ons, stock). Warm wood-grain
  * backdrop so it reads as a shelf rather than a blank grid. Click a book to
  * focus it; an empty slot adds a new one. Hover lifts the book; a gentle
  * staggered idle sway keeps the shelf alive (reduced-motion aware).
@@ -41,8 +42,6 @@ const SHELF_BG: CSSProperties = {
 export function NotebookGallery() {
   const lines = useGame((s) => s.portfolio.productLines);
   const activeLineId = useGame((s) => s.portfolio.activeLineId);
-  const marketTarget = useGame((s) => s.market.targetSegment);
-  const fitMap = useGame((s) => s.market.fitBySegmentByLineId);
   const apply = useGame((s) => s.apply);
   const setViewMode = useGame((s) => s.setViewMode);
   const openDrawer = useGame((s) => s.openDrawer);
@@ -105,11 +104,6 @@ export function NotebookGallery() {
               line={l}
               index={i}
               active={l.id === activeLineId}
-              fit={(() => {
-                const seg = l.targetSegment ?? marketTarget;
-                return seg ? (fitMap[l.id]?.[seg] ?? null) : null;
-              })()}
-              segment={l.targetSegment ?? marketTarget}
               reduced={!!reduced}
               onClick={() => focus(l.id)}
             />
@@ -125,20 +119,16 @@ function BookCard({
   line,
   index,
   active,
-  fit,
-  segment,
   reduced,
   onClick,
 }: {
   line: ProductLine;
   index: number;
   active: boolean;
-  fit: number | null;
-  segment: Segment | null;
   reduced: boolean;
   onClick: () => void;
 }) {
-  const instances = line.addOnsByArchetype[line.archetype] ?? [];
+  const instances = line.addOnsByProduct[line.productId] ?? [];
   const stock = line.inventory.finished;
   // V3 caption — genre market, spec summary, channels.
   //
@@ -148,11 +138,13 @@ function BookCard({
   // Removed rather than repointed at `productScore` — that is a 0–1 pricing-fit
   // score, not vocFit's 0.6–1.2 multiplier, so any thresholds would have been
   // invented.
-  const genre: GenreId = (line.genre ?? 'indie') as GenreId;
+  // `genre` IS the product id post-v24; `productId` is the same value and the
+  // only honest fallback. A hardcoded slug here named a notebook that no
+  // longer exists in the catalogue.
+  const genre: GenreId = line.productId as GenreId;
   const spec: ProductionSpec = { ...GALLERY_DEFAULT_SPEC, type: genre, ...(line.finlitSpec ?? {}) };
-  const stickersSpend = Math.min((line.addOnsByArchetype?.[line.archetype] ?? []).length * 0.15, 100);
+  const stickersSpend = Math.min((line.addOnsByProduct?.[line.productId] ?? []).length * 0.15, 100);
   const specSummary = `${configOption('paper', spec.paper).name.split(' ')[0]} · ${spec.size.toUpperCase()} · ${configOption('pageDesign', spec.pageDesign).name}`;
-  void fit; void segment;
 
   return (
     <motion.button
@@ -197,7 +189,7 @@ function BookCard({
           <div className="relative w-full h-full flex items-center justify-center">
             <div className="relative h-full aspect-square">
               <Notebook
-                archetype={line.archetype}
+                archetype={line.productId}
                 cover={line.cover}
                 binding={line.binding}
                 size={lineSize(line)}

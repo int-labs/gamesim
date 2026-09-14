@@ -20,7 +20,6 @@ import { ChevronDown, Pencil } from 'lucide-react';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { A } from '@/assets';
 import { ViewToggle } from './ViewToggle';
-import { DismissibleTip } from '@/components/hud/DismissibleTip';
 import { DustMotes } from '@/components/fx/DustMotes';
 import { PixelBurstLayer } from '@/components/fx/PixelBurst';
 import { playSfx } from '@/audio/audioManager';
@@ -55,7 +54,6 @@ export function NotebookCanvas() {
   const { isOver, setNodeRef: setDropRef } = useDroppable({ id: 'notebook-canvas' });
   const hasNotebook = useGame((s) => s.portfolio.productLines.length > 0);
   const apply = useGame((s) => s.apply);
-  const segment = useGame((s) => (product?.targetSegment ?? s.market.targetSegment));
   const addOns = useGame((s) => (hasNotebook ? currentAddOns(s) : []));
   const openDrawer = useGame((s) => s.openDrawer);
   const detailsOpen = useGame((s) => s.ui.rightDrawer === 'details');
@@ -211,7 +209,7 @@ export function NotebookCanvas() {
           notebooks (scale-fade for config changes), then LIVES: leans toward
           the cursor, bobs in place, and squashes when patted. */}
       <motion.div
-        key={`${product.id}-${product.archetype}-${product.cover}-${product.binding}-${drawnSize}`}
+        key={`${product.id}-${product.productId}-${product.cover}-${product.binding}-${drawnSize}`}
         initial={{
           opacity: 0,
           x: slideDir * 72,
@@ -251,7 +249,7 @@ export function NotebookCanvas() {
                   </div>
                 )}
                 <Notebook
-                  archetype={product.archetype}
+                  archetype={product.productId}
                   cover={product.cover}
                   binding={product.binding}
                   size={drawnSize}
@@ -337,7 +335,7 @@ export function NotebookCanvas() {
           </div>
           <span aria-hidden className="hidden md:block w-px h-6 bg-border-soft shrink-0" />
           <div className="hidden md:block hint text-text-2 truncate">
-            {labelArch(product.archetype)} · {product.cover === 'leather' ? 'Leather' : 'Hardcover'} · {product.binding === 'ring' ? 'Ring' : 'Staple'} · {sizeLabel(drawnSize)}
+            {labelArch(product.productId)} · {product.cover === 'leather' ? 'Leather' : 'Hardcover'} · {product.binding === 'ring' ? 'Ring' : 'Staple'} · {sizeLabel(drawnSize)}
           </div>
         </div>
       </div>
@@ -385,13 +383,6 @@ export function NotebookCanvas() {
         <NavIcon icon={ChevronDown} size={13} color="currentColor" />
       </button>
 
-      {!segment && (
-        <div className="absolute bottom-[136px] sm:bottom-16 left-1/2 -translate-x-1/2 z-20">
-          <DismissibleTip id="canvas-audience" tone="warn">
-            Open <strong>Business → Audience</strong> to start scoring fit.
-          </DismissibleTip>
-        </div>
-      )}
     </div>
   );
 }

@@ -48,6 +48,7 @@ import { setCandidateImage } from '@/engine/finlit/core/config/hiring';
 import { setVendorImage } from '@/engine/finlit/core/config/vendors';
 import { setMarketingImage } from '@/engine/finlit/core/config/marketing';
 import { hydrateDriverCopy } from '@/engine/finlit/core/config/drivers';
+import { hydrateProductCopy } from '@/engine/finlit/core/config/productCopy';
 import {
   CANDIDATE_STUDIES,
   VENDOR_STUDIES,
@@ -72,7 +73,6 @@ import { ADDONS } from '@/data/addOns';
 import { CHANNELS } from '@/data/channels';
 import { EVENTS } from '@/data/events';
 import { INSIGHTS } from '@/data/insights';
-import { SEGMENTS } from '@/data/segments';
 import { UPGRADES } from '@/data/upgrades';
 import * as CONTENT from '@/content/copy';
 import { getGamesimBaseUrl, getGamesimToken } from './client';
@@ -120,6 +120,11 @@ const assetUrl = (path?: string | null): string | undefined => {
  */
 const imageFor = (row: Dict): string | undefined =>
   (typeof row.imageAssetId === 'string' && row.imageAssetId) || assetUrl(row.imagePath);
+
+/** A published list of bullets, or null. Non-strings are dropped rather than
+ *  coerced — `String(obj)` would render "[object Object]" on the page. */
+const strList = (v: unknown): string[] | null =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()) : null;
 
 /** Copy `src`'s own keys onto `dst`, skipping undefined and the image fields
  *  (those are resolved separately into the player's `imgPath` shape). */
@@ -203,10 +208,12 @@ function mergeById(
  * bootstrap via hydrateChannels().
  */
 function coupledCoreIsSafe(cfg: Dict): string | null {
-  const { genres, vendors, productionOptions } = cfg;
+  const { vendors, productionOptions } = cfg;
 
-  if (genres !== undefined && !keepsAllIds(GENRES, genres))
-    return 'genres would drop a bundled genre';
+  // No `genres` check. The catalogue ships EMPTY and is filled from the backend's
+  // Products at bootstrap (`hydrateGenres`), so there is no bundled row to
+  // protect — and this hydrator runs BEFORE that fetch, so `GENRES` is empty
+  // here regardless. Notebook presentation comes from the `products` section.
 
   if (vendors !== undefined) {
     // Vendors are backend-hydrated from globalInputs (supply_chain); the
@@ -241,17 +248,10 @@ const AXES: Record<string, Array<{ id: string }>> = {
 
 // ── Section appliers ────────────────────────────────────────────────────
 function applyCoupledCore(cfg: Dict, applied: string[]): void {
-  if (Array.isArray(cfg.genres)) {
-    // The identity fields travel with the genre so an operator-published
-    // notebook arrives complete — name, copy AND art — without a code change.
-    mergeById(
-      GENRES as any,
-      cfg.genres,
-      ['name', 'blurb', 'demand', 'voc', 'tagline', 'description', 'strengths', 'tradeoffs'],
-      { image: 'imgPath' },
-    );
-    applied.push('genres');
-  }
+  // The `genres` section is GONE (2026-09-14). It merged operator copy into a
+  // bundled catalogue that no longer exists: `GENRES` is filled from the
+  // backend's Products, and their presentation comes from the `products`
+  // section, keyed by `Product._id`.
 
   if (isObj(cfg.productionOptions)) {
     for (const [axis, table] of Object.entries(AXES)) {
@@ -360,6 +360,30 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
     applied.push('drivers');
   }
 
+  // Products: the notebook catalogue's PRESENTATION. Ids are the PRODUCT _ids —
+  // opaque, so the console picks them by name and stores the id. Every number
+  // stays on the Product document; this section carries art and prose only.
+  //
+  // Replaced wholesale, like drivers: there is no bundled copy to protect, so a
+  // section that omits a product means that product shows its backend
+  // `productName` and no prose — a legitimate state, not a failure.
+  if (Array.isArray(cfg.products)) {
+    hydrateProductCopy(
+      (cfg.products as Dict[])
+        .filter((src) => isObj(src) && typeof src.id === 'string' && src.id)
+        .map((src) => ({
+          id:          src.id as string,
+          name:        typeof src.label       === 'string' ? src.label       : null,
+          blurb:       typeof src.hint        === 'string' ? src.hint        : null,
+          description: typeof src.description === 'string' ? src.description : null,
+          art:         imageFor(src) ?? null,
+          bestFor:     strList(src.bestFor),
+          watchOut:    strList(src.watchOut),
+        })),
+    );
+    applied.push('products');
+  }
+
   section('scenarios', SCENARIOS as any, (rows) =>
     mergeById(SCENARIOS as any, rows, ['phase', 'title', 'body'], {
       image: 'imgPath',
@@ -382,25 +406,21 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
       // `active: false` is the console's way of retiring an add-on without
       // deleting it — the id survives for saved games, it just leaves the shop.
       rows.filter((r) => r.active !== false),
-      ['name', 'category', 'costPerUnit', 'perceivedValue', 'segmentBoost', 'slot', 'description'],
+      ['name', 'category', 'costPerUnit', 'perceivedValue', 'slot', 'description'],
       { image: 'imgPath', thumb: true },
     ),
   );
 
-  section('segments', SEGMENTS as any, (rows) =>
-    mergeById(
-      SEGMENTS as any,
-      rows,
-      ['name', 'description', 'baseDemand', 'priceSensitivity', 'preferredPriceRef', 'preference'],
-      { image: 'imgPath' },
-    ),
-  );
+  // The `segments` section is GONE with the V2 segment axis (2026-09-14). It
+  // offered the operator six fields — `baseDemand`, `priceSensitivity`,
+  // `preferredPriceRef`, `preference` among them — that had lost every reader,
+  // on a table that named buyers the backend does not model.
 
   section('channelsV2', CHANNELS as any, (rows) =>
     mergeById(
       CHANNELS as any,
       rows,
-      ['name', 'description', 'reach', 'dailyCost', 'unlockEnergy', 'unlockCash', 'segmentAffinity'],
+      ['name', 'description', 'reach', 'dailyCost', 'unlockEnergy', 'unlockCash'],
       { image: 'imgPath' },
     ),
   );

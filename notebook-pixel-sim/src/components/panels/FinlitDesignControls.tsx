@@ -33,8 +33,10 @@ const AXES: { axis: ConfigAxis; label: string }[] = [
   { axis: 'cover', label: 'Cover Material' },
 ];
 
-const DEFAULT_SPEC: ProductionSpec = {
-  type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
+// No `type`: this only supplies the five design axes below, and a hardcoded
+// type slug named a notebook the catalogue no longer has.
+const DEFAULT_SPEC: Omit<ProductionSpec, 'type'> = {
+  paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
 };
 
 export function FinlitDesignControls({
@@ -48,9 +50,6 @@ export function FinlitDesignControls({
   const line = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
   );
-  const lineIndex = useGame((s) =>
-    s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId),
-  );
   const apply = useGame((s) => s.apply);
   // Channels from globalInputSelections (backend-driven, company-wide).
   const activeChannels = useGame((s) =>
@@ -63,7 +62,7 @@ export function FinlitDesignControls({
     return <div className="body-sm text-text-2 p-2">Add a notebook first, then design it here.</div>;
   }
 
-  const genre: GenreId = line.genre ?? 'indie';
+  const genre: GenreId = line.productId;
   // Full spec = the line's overrides on top of defaults (type follows genre).
   const spec: ProductionSpec = {
     type: line.finlitSpec?.type ?? genre,
@@ -88,7 +87,12 @@ export function FinlitDesignControls({
   //
   // Absent data now reads as absent. `null` here means "the server has not said
   // yet", and the display shows that rather than inventing an answer.
-  const proj = liveProjection?.byProduct[lineIndex] ?? liveProjection?.byProduct[0] ?? null;
+  // Keyed by productId, never by position. `byProduct` is ordered by the
+  // server's own pairing, so an index read showed another notebook's figures
+  // whenever the two orders diverged. No `?? byProduct[0]` fallback either: a
+  // miss means the server has not projected THIS notebook, and borrowing the
+  // first one's numbers is the same lie in a quieter form.
+  const proj = liveProjection?.byProduct.find((p) => p.productId === line?.productId) ?? null;
   const uCost = proj?.dynamicCost ?? null;
   const capacityPerPhase = proj?.inventoryQty ?? null;
   const margin = uCost != null ? line.price - uCost : null;

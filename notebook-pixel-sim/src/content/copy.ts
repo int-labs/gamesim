@@ -274,7 +274,6 @@ export const FINAL = {
     home: 'Back to Home',
   },
   didWell: {
-    pickedSegment: 'Picked a clear target audience early.',
     qualityProcess: 'Quality process kept defects low.',
     diversifiedChannels: 'Diversified channels.',
     cashPositive: 'Stayed cash-positive throughout.',
@@ -284,7 +283,6 @@ export const FINAL = {
   hurt: {
     stockouts: 'Stockouts left demand on the table.',
     overstock: 'Overstock trapped cash in unsold inventory.',
-    noSegment: 'Never settled on a clear segment.',
     cashNegative: 'Cash went negative - even with revenue.',
     noDifferentiation: 'Every line lacked differentiation across all variants.',
   },
@@ -292,13 +290,11 @@ export const FINAL = {
 
 export const TOAST = {
   addOnCap: 'Add-on cap reached or sub-category already placed.',
-  audienceFirst: 'Open the Design drawer and pick a market (genre) first.',
   notebookFirst: 'Add at least one notebook product before simulating.',
 };
 
 export const VALIDATION = {
   noNotebook: 'Add at least one notebook to continue.',
-  noSegment: 'Pick a market - open Design and choose a genre.',
   runEnded: 'This run is finished. Start a new game from Home.',
   pendingEvent: 'Resolve the event before confirming the next phase.',
   pendingEval: 'Finish the phase evaluation before continuing.',

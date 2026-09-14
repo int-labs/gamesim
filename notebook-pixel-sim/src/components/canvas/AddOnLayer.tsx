@@ -201,7 +201,7 @@ export function AddOnLayer({ addOns }: Props) {
                 apply((s) => {
                   const ln = s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId);
                   if (!ln) return;
-                  const cur = ln.addOnsByArchetype[ln.archetype]?.find((a) => a.id === inst.id)?.scale ?? inst.scale;
+                  const cur = ln.addOnsByProduct[ln.productId]?.find((a) => a.id === inst.id)?.scale ?? inst.scale;
                   updateAddOnPlacement(s, inst.id, { scale: cur + by });
                 })
               }
@@ -211,7 +211,7 @@ export function AddOnLayer({ addOns }: Props) {
                 apply((s) => {
                   const ln = s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId);
                   if (!ln) return;
-                  const cur = ln.addOnsByArchetype[ln.archetype]?.find((a) => a.id === inst.id)?.rotation ?? inst.rotation ?? 0;
+                  const cur = ln.addOnsByProduct[ln.productId]?.find((a) => a.id === inst.id)?.rotation ?? inst.rotation ?? 0;
                   // Wrap into [-180, 180) so the value stays sane after
                   // many clicks.
                   let next = cur + by;

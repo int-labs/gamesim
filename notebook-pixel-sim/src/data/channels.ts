@@ -10,7 +10,6 @@ export const CHANNELS: ChannelDef[] = [
     dailyCost: 0,
     unlockEnergy: 0,
     unlockCash: 0,
-    segmentAffinity: { students: 0.7, creators: 0.4 },
     imgPath: A.ui.commercial.social_media,
   },
   {
@@ -21,7 +20,6 @@ export const CHANNELS: ChannelDef[] = [
     dailyCost: 8,
     unlockEnergy: 2,
     unlockCash: 60,
-    segmentAffinity: { students: 1.4, creators: 0.7 },
     imgPath: A.ui.commercial.bulk_order,
   },
   {
@@ -32,7 +30,6 @@ export const CHANNELS: ChannelDef[] = [
     dailyCost: 14,
     unlockEnergy: 4,
     unlockCash: 200,
-    segmentAffinity: { students: 1.2, professionals: 0.9 },
     imgPath: A.ui.commercial.limited_drop,
   },
   {
@@ -43,7 +40,6 @@ export const CHANNELS: ChannelDef[] = [
     dailyCost: 6,
     unlockEnergy: 3,
     unlockCash: 120,
-    segmentAffinity: { creators: 1.3, gift: 1.2, professionals: 1.0, students: 0.9 },
     imgPath: A.ui.commercial.social_media,
   },
   {
@@ -54,7 +50,6 @@ export const CHANNELS: ChannelDef[] = [
     dailyCost: 30,
     unlockEnergy: 5,
     unlockCash: 250,
-    segmentAffinity: { creators: 1.6, gift: 1.3, students: 1.1 },
     imgPath: A.ui.commercial.influencer,
   },
   {
@@ -65,7 +60,6 @@ export const CHANNELS: ChannelDef[] = [
     dailyCost: 4,
     unlockEnergy: 3,
     unlockCash: 80,
-    segmentAffinity: { students: 1.3, creators: 0.9 },
     imgPath: A.ui.commercial.loyalty,
   },
 ];

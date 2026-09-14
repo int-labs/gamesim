@@ -18,7 +18,7 @@ import type { GlobalInputItemDto } from '@/gamesim/types';
 import { impactFor } from '@/gamesim/impacts';
 import { canSpend, selectCashBalance } from '@/engine/selectors';
 import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
-import { fmt$ } from '@/utils/format';
+import { fmt$, fmtPct } from '@/utils/format';
 import type { ServerProjectionResult } from '@/gamesim/sync';
 import { DAYS_PER_PHASE } from '@/engine/config';
 import { playSfx } from '@/audio/audioManager';
@@ -147,11 +147,11 @@ export function StudioPanel({
   const activeLine = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
   );
-  const activeLineIndex = useGame((s) => {
-    const idx = s.portfolio.productLines.findIndex((l) => l.id === s.portfolio.activeLineId);
-    return idx >= 0 ? idx : 0;
-  });
-  const projDynamicCost = (liveProjection?.byProduct[activeLineIndex] ?? liveProjection?.byProduct[0])?.dynamicCost ?? null;
+  // Keyed by productId, never by position — `byProduct` is ordered by the
+  // server's pairing, not by portfolio order.
+  const activeProj =
+    liveProjection?.byProduct.find((p) => p.productId === activeLine?.productId) ?? null;
+  const projDynamicCost = activeProj?.dynamicCost ?? null;
   // The cash gate needs every line's ceiling and unit cost — the build is part
   // of what the round has already committed.
   const cashByProduct = liveProjection?.byProduct ?? null;
@@ -243,11 +243,10 @@ export function StudioPanel({
     s.globalInputSelections.filter((sel) => sel.key === 'supply_chain' && sel.inputId != null),
   );
   const vendorMaxSelections = vendorGI?.maxSelections ?? 1;
-  // The product the active line is paired with — what `productsImpacted` and the
-  // per-product override are resolved against. Comes from the server projection,
-  // which is the only place the line↔product pairing is known here.
-  const activeProductId =
-    (liveProjection?.byProduct[activeLineIndex] ?? liveProjection?.byProduct[0])?.productId ?? null;
+  // The product the active line makes — what `productsImpacted` and the
+  // per-product override are resolved against. The LINE knows this now; it no
+  // longer has to be recovered from the server's projection ordering.
+  const activeProductId = activeLine?.productId ?? null;
   const vendorRefund = vendorSelections.reduce((sum, sel) => {
     const item = vendorGI?.inputs.find((i) => String(i._id) === sel.inputId);
     return sum + (item ? vendorStep(item, sel.selectedStepKey ?? null)?.energy ?? 0 : 0);
@@ -432,9 +431,11 @@ export function StudioPanel({
                     "this one is running". */}
                 <div className="grid grid-cols-2 gap-2 mt-auto">
                   <StatChip label="Per phase" value={channelItem ? fmt$(channelItem.cost) : '–'} tone="money" />
+                  {/* A RATE on the selling price, not a dollar fee — retail's
+                      0.2 is 20% of every sale. `fmt$` rendered it "$0.20". */}
                   <StatChip
                     label="Per sale"
-                    value={row.consignment > 0 ? fmt$(row.consignment) : 'None'}
+                    value={row.consignment > 0 ? fmtPct(row.consignment) : 'None'}
                     tone={row.consignment > 0 ? 'money' : 'good'}
                   />
                 </div>
