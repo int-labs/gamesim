@@ -1,0 +1,80 @@
+Section,Decision,aunn's team,ayera's team,newbie's team
+Financial,Revenue,5907.00,-,9608.37
+Financial,COGS,4677.27,-,4676.41
+Financial,Gross Profit,1229.73,-,4931.96
+Financial,Operating Expenses,907.70,-,1273.84
+Financial,Operating Profit,322.03,-,3658.12
+Financial,Customers Obtained,649.15,-,384.33
+
+Notebook: Anime book,Made this notebook,Yes,No,Yes
+Notebook: Anime book,Produce / phase,537,-,587
+Notebook: Anime book,Stickers,0,-,0.15
+Notebook: Anime book,Selling Price,11,-,25
+Notebook: Anime book,Market Share,1,-,1
+Notebook: Anime book,Add-Ons,10,-,10
+Notebook: Anime book,Page Size,6,-,10
+Notebook: Anime book,Paper Material,6,-,6
+Notebook: Anime book,Page Design,5,-,5
+Notebook: Anime book,Cover Page,10,-,10
+Notebook: Anime book,Charms,-,-,-
+Notebook: Anime book,Ribbons,-,-,-
+Notebook: Anime book,Functional,-,-,-
+
+Notebook: Minimalist Notebook,Made this notebook,No,No,No
+Notebook: Minimalist Notebook,Produce / phase,-,-,-
+Notebook: Minimalist Notebook,Stickers,-,-,-
+Notebook: Minimalist Notebook,Selling Price,-,-,-
+Notebook: Minimalist Notebook,Market Share,-,-,-
+Notebook: Minimalist Notebook,Add-Ons,-,-,-
+Notebook: Minimalist Notebook,Page Size,-,-,-
+Notebook: Minimalist Notebook,Paper Material,-,-,-
+Notebook: Minimalist Notebook,Page Design,-,-,-
+Notebook: Minimalist Notebook,Cover Page,-,-,-
+Notebook: Minimalist Notebook,Charms,-,-,-
+Notebook: Minimalist Notebook,Ribbons,-,-,-
+Notebook: Minimalist Notebook,Functional,-,-,-
+
+Notebook: Indie Notebook,Made this notebook,No,No,No
+Notebook: Indie Notebook,Produce / phase,-,-,-
+Notebook: Indie Notebook,Stickers,-,-,-
+Notebook: Indie Notebook,Selling Price,-,-,-
+Notebook: Indie Notebook,Market Share,-,-,-
+Notebook: Indie Notebook,Add-Ons,-,-,-
+Notebook: Indie Notebook,Page Size,-,-,-
+Notebook: Indie Notebook,Paper Material,-,-,-
+Notebook: Indie Notebook,Page Design,-,-,-
+Notebook: Indie Notebook,Cover Page,-,-,-
+Notebook: Indie Notebook,Charms,-,-,-
+Notebook: Indie Notebook,Ribbons,-,-,-
+Notebook: Indie Notebook,Functional,-,-,-
+
+Notebook: Cutesy Notebook,Made this notebook,No,No,No
+Notebook: Cutesy Notebook,Produce / phase,-,-,-
+Notebook: Cutesy Notebook,Stickers,-,-,-
+Notebook: Cutesy Notebook,Selling Price,-,-,-
+Notebook: Cutesy Notebook,Market Share,-,-,-
+Notebook: Cutesy Notebook,Add-Ons,-,-,-
+Notebook: Cutesy Notebook,Page Size,-,-,-
+Notebook: Cutesy Notebook,Paper Material,-,-,-
+Notebook: Cutesy Notebook,Page Design,-,-,-
+Notebook: Cutesy Notebook,Cover Page,-,-,-
+Notebook: Cutesy Notebook,Charms,-,-,-
+Notebook: Cutesy Notebook,Ribbons,-,-,-
+Notebook: Cutesy Notebook,Functional,-,-,-
+
+Vendors,Al's Material Store,-,-,-
+Vendors,Emil's Bookstore,-,-,Yes
+Vendors,Phoebe's Home Economics,-,-,-
+Vendors,Nine's Supply Service,Yes,-,-
+
+Channels,Online Channel,-,-,-
+Channels,Direct Channel,Yes,-,Yes
+Channels,Retail Channel,-,-,-
+
+Marketing Investment,Social Media Marketing,5,-,7
+Marketing Investment,Web Marketing,-,-,-
+Marketing Investment,Advertiser Marketing,-,-,-
+
+Hiring Options,Production Team,-,-,1
+Hiring Options,Materials Team,-,-,1
+

@@ -3,7 +3,7 @@ import { useGame } from '@/state/store';
 import {
   engageFinlitHire, clearFinlitHire, engageFinlitVendor, clearFinlitVendor,
   setFinlitMarketingBudget,
-  finlitCompanyChannels, toggleFinlitChannelAll
+  finlitCompanyChannels, toggleFinlitChannelAll, channelEnergyCost
 } from '@/engine/mockEngine';
 import {
   CHANNEL_META, channelRow,
@@ -429,14 +429,28 @@ export function StudioPanel({
                     state — a green "Per sale: None" tile sat inside every OFF
                     card, which is exactly the colour that is supposed to mean
                     "this one is running". */}
-                <div className="grid grid-cols-2 gap-2 mt-auto">
-                  <StatChip label="Per phase" value={channelItem ? fmt$(channelItem.cost) : '–'} tone="money" />
+                {/* Wraps rather than holding three fixed thirds — see the note
+                    on the same row in OperationsKit's detail modal. */}
+                <div className="flex flex-wrap gap-2 mt-auto">
+                  <StatChip className="grow basis-[104px]" label="Per phase" value={channelItem ? fmt$(channelItem.cost) : '–'} tone="money" />
                   {/* A RATE on the selling price, not a dollar fee — retail's
                       0.2 is 20% of every sale. `fmt$` rendered it "$0.20". */}
                   <StatChip
+                    className="grow basis-[104px]"
                     label="Per sale"
                     value={row.consignment > 0 ? fmtPct(row.consignment) : 'None'}
                     tone={row.consignment > 0 ? 'money' : 'good'}
+                  />
+                  {/* Opening a channel SPENDS ENERGY, and the card never said
+                      so — the only way to find out was to click and watch the
+                      meter drop, or be refused. Same expression the mutator
+                      charges (`item.energy || CHANNEL_ENERGY`), so the figure
+                      quoted here cannot disagree with what is taken. */}
+                  <StatChip
+                    className="grow basis-[104px]"
+                    label="Energy"
+                    value={channelItem ? <EnergyValue amount={channelEnergyCost(channelItem)} size={13} /> : '–'}
+                    tone="energy"
                   />
                 </div>
                 </div>

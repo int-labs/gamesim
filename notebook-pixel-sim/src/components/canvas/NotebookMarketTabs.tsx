@@ -99,74 +99,73 @@ function maxDriverWeight(): number {
   return max;
 }
 
-/** Axis keys ordered strongest-first, so a driver's RANK within its market is
- *  its index here. Ties keep the operator's own field order. */
-function rankOrder(axes: DriverAxis[]): string[] {
-  return [...axes].sort((a, b) => b.direction - a.direction).map((a) => a.key);
-}
+// `rankOrder` is GONE — the chart sorts its own axes strongest-first, so rank is
+// the point's POSITION on the x-axis. It existed to number a separate legend.
 
 // ── Tab 2 · Buyer Interest ───────────────────────────────────────────────────
 
+/**
+ * ONE card — the notebook the tab strip has selected.
+ *
+ * It used to render all four markets at once, ranked so the active one floated
+ * to the top and carrying a "This notebook"/"Other market" badge to say which
+ * was which. That duplicated the tab strip's whole job: the tabs already page
+ * between notebooks, so four stacked tables meant scrolling past three
+ * irrelevant ones to reach the selected one.
+ *
+ * `scaleMax` still spans EVERY market, so the interest line's y-axis does not
+ * rescale as you tab. A peak that looks taller on one notebook than another
+ * still IS taller — that comparison survives the change.
+ */
 export function BuyerInterestTab({ arch }: { arch: Archetype }) {
-  const ranked = [...GENRES].sort(
-    (a, b) => Number(isSameMarket(b.id, arch)) - Number(isSameMarket(a.id, arch)),
-  );
+  const genre = GENRES.find((g) => g.id === arch);
   const scaleMax = maxDriverWeight();
+
+  if (!genre) {
+    return (
+      <div className="body-xs text-text-3 italic">
+        This notebook is not in the published catalogue.
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <p className="body-xs text-text-2">
-        Every market buys notebooks, and each one weighs your decisions differently. The line traces
-        how much a market cares about each axis, on the same scale across all of them — a higher peak
-        really is a stronger preference. Build toward a market's #1 and the same notebook sells more.
+        Each market weighs your decisions differently. The line traces how much this one cares about
+        each axis, on the same scale every market is drawn at — a higher peak really is a stronger
+        preference. Build toward its #1 and the same notebook sells more.
       </p>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {ranked.map((g, i) => (
-          <MarketCard key={g.id} genre={g} arch={arch} index={i} scaleMax={scaleMax} />
-        ))}
-      </div>
+      <MarketCard genre={genre} scaleMax={scaleMax} />
     </div>
   );
 }
 
 function MarketCard({
   genre,
-  arch,
-  index,
   scaleMax,
 }: {
   genre: GenreDef;
-  arch: Archetype;
-  index: number;
-  /** Shared across all four cards — see `maxDriverWeight`. */
+  /** Spans every market, not just this one — see `maxDriverWeight`. */
   scaleMax: number;
 }) {
-  const fit = isSameMarket(genre.id, arch);
   // Derived per render, never memoised at module scope: `FIELD_CONFIG` is filled
   // at boot by `hydrateFieldConfig`, so a snapshot taken on import would freeze
   // an empty table. See the container-hydration rule in CLAUDE.md.
   const axes = driverAxes(genre.id);
 
+  // No fit border or badge: this is the only card on screen, so "this notebook"
+  // has nothing to contrast against. The tab strip already says which is open.
   return (
     <motion.div
-      className={clsx(
-        'border-2 bg-cream-50 shadow-pixel-1 flex flex-col',
-        fit ? 'border-ink-900' : 'border-ink-700/35',
-      )}
+      className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1 flex flex-col"
       initial={{ opacity: 0, y: 16, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: 0.05 * index, type: 'spring', stiffness: 260, damping: 20 }}
-      whileHover={{ y: -4, transition: { type: 'spring', stiffness: 320, damping: 16 } }}
+      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
     >
-      <div
-        className={clsx(
-          'flex items-center justify-between gap-2 px-3.5 py-2.5 border-b-2',
-          fit ? 'border-ink-900 bg-success-soft' : 'border-ink-700/35 bg-cream-200',
-        )}
-      >
+      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b-2 border-ink-900 bg-success-soft">
         <div className="h3 uppercase text-ink-900">{genre.name}</div>
-        <PixelBadge tone={fit ? 'success' : 'neutral'}>{fit ? 'This notebook' : 'Other market'}</PixelBadge>
       </div>
 
       <div className="p-3.5 flex flex-col gap-3.5">
@@ -176,12 +175,12 @@ function MarketCard({
             bundled `data/segments.ts` table, for a segment `GENRE_TO_SEGMENT`
             may only have guessed at — neither exists now. */}
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="Market now" value={fmt(genre.demand.p0)} note="units of demand" delay={0.05 * index} />
+          <Stat label="Market now" value={fmt(genre.demand.p0)} note="units of demand" delay={0} />
           <Stat
             label="Price anchor"
             value={fmt$(priceAnchorCost(genre.id))}
             note="costs, at a lean build"
-            delay={0.05 * index + 0.05}
+            delay={0.05}
           />
           {/* No figure here on purpose — whether a market tolerates a price
               change is the whole decision; a "±$X" would invite arithmetic
@@ -190,7 +189,7 @@ function MarketCard({
             label="Price sens."
             value={priceSensitivity(genre.id).label}
             note="how much price matters"
-            delay={0.05 * index + 0.1}
+            delay={0.1}
           />
         </div>
 
@@ -202,7 +201,7 @@ function MarketCard({
             // reads as "buyers weigh nothing".
             <div className="body-xs text-text-3 italic">No decision axes configured for this market.</div>
           ) : (
-            <VocInterestChart axes={axes} scaleMax={scaleMax} delay={0.05 * index} />
+            <VocInterestChart axes={axes} scaleMax={scaleMax} delay={0.15} />
           )}
         </div>
 
@@ -253,17 +252,21 @@ function Stat({ label, value, note, delay = 0 }: { label: string; value: string;
  * Do NOT "fix" this by scaling `value` up — that would misreport the share.
  */
 /**
- * The interest graph: one point per decision axis, in the operator's own field
- * order, joined into a line.
+ * The interest curve: one point per decision axis, SORTED strongest-first, with
+ * each axis named on the x-axis beneath its own point.
+ *
+ * Sorting is a frontend-only presentation choice. In the operator's `order` the
+ * line zig-zagged and you had to read a separate ranked legend to learn which
+ * spike was which — two things to cross-reference for one fact. Sorted, the
+ * curve descends monotonically, so POSITION IS RANK: leftmost is what this
+ * market cares about most, and the drop-off shape shows how sharply interest
+ * falls away. The legend stops having a job.
  *
  * NO figure is printed. `direction` is a coefficient `calcFinancials` feeds into
  * dynamicPrice — not a share, not a percentage, and not something a player can
- * do arithmetic with. What they can act on is the SHAPE (which axes this market
- * spikes on) and the RANK (#1 is where the money goes first), so that is what
- * this shows. Same reasoning as the price-sensitivity chip next to it.
+ * do arithmetic with. Shape and rank are the actionable parts.
  *
- * The y-scale is shared across all four cards, so a peak that looks taller IS
- * taller — the comparison the tab is for.
+ * The y-scale spans EVERY market, so a peak that looks taller IS taller.
  */
 function VocInterestChart({
   axes,
@@ -274,77 +277,77 @@ function VocInterestChart({
   scaleMax: number;
   delay: number;
 }) {
-  const order = rankOrder(axes);
-  const W = 300;
-  const H = 74;
-  const padX = 6;
-  const padY = 8;
-  const span = W - padX * 2;
-  const step = axes.length > 1 ? span / (axes.length - 1) : 0;
-  const x = (i: number) => padX + i * step;
-  const y = (v: number) => padY + (H - padY * 2) * (1 - (scaleMax > 0 ? v / scaleMax : 0));
+  const ranked = [...axes].sort((a, b) => b.direction - a.direction);
 
-  const pts = axes.map((a, i) => `${x(i)},${y(a.direction)}`).join(' ');
-  const area = `${padX},${H - padY} ${pts} ${padX + (axes.length - 1) * step},${H - padY}`;
+  // Uniform scaling — NOT `preserveAspectRatio="none"`, which stretches the
+  // viewBox to the container width and would squash the axis labels' glyphs.
+  const W = 620;
+  const PLOT_H = 130;
+  const LABEL_H = 78;
+  const H = PLOT_H + LABEL_H;
+  const padX = 30;
+  const padY = 12;
+  const span = W - padX * 2;
+  const step = ranked.length > 1 ? span / (ranked.length - 1) : 0;
+  const x = (i: number) => (ranked.length > 1 ? padX + i * step : W / 2);
+  const y = (v: number) => padY + (PLOT_H - padY * 2) * (1 - (scaleMax > 0 ? v / scaleMax : 0));
+  const baseline = PLOT_H - padY;
+
+  const pts = ranked.map((a, i) => `${x(i)},${y(a.direction)}`).join(' ');
+  const area = `${x(0)},${baseline} ${pts} ${x(ranked.length - 1)},${baseline}`;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-auto"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Relative buyer interest across each decision axis"
-      >
-        <polygon points={area} fill="rgba(154,107,58,0.14)" />
-        <motion.polyline
-          points={pts}
-          fill="none"
-          stroke="var(--c-primary-strong)"
-          strokeWidth={2}
-          vectorEffect="non-scaling-stroke"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ delay, duration: 0.5, ease: 'easeOut' }}
-        />
-        {axes.map((a, i) => (
-          <circle
-            key={a.key}
-            cx={x(i)}
-            cy={y(a.direction)}
-            r={order[0] === a.key ? 4 : 2.5}
-            fill={order[0] === a.key ? 'var(--c-primary-strong)' : 'var(--c-surface)'}
-            stroke="var(--c-primary-strong)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-      </svg>
-
-      {/* The axis legend carries the rank — the chart shows shape, this says
-          which point is which and where it places. */}
-      <div className="flex flex-col gap-[3px]">
-        {axes.map((a) => {
-          const copy = driverCopy(a.key);
-          const rank = order.indexOf(a.key) + 1;
-          return (
-            <div key={a.key} className="flex items-center gap-2 hint text-text-2" title={copy.hint}>
-              <span
-                className={clsx(
-                  'num-xs w-[22px] shrink-0 text-right',
-                  rank === 1 ? 'text-primary-strong' : 'text-text-3',
-                )}
-              >
-                #{rank}
-              </span>
-              <span className={clsx('truncate', rank === 1 && 'text-text strong')}>
-                {copy.label ?? a.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full h-auto"
+      role="img"
+      aria-label="Relative buyer interest across each decision axis, strongest first"
+    >
+      <polygon points={area} fill="rgba(154,107,58,0.14)" />
+      <line
+        x1={padX} y1={baseline} x2={W - padX} y2={baseline}
+        stroke="var(--c-border-soft)" strokeWidth={1} vectorEffect="non-scaling-stroke"
+      />
+      <motion.polyline
+        points={pts}
+        fill="none"
+        stroke="var(--c-primary-strong)"
+        strokeWidth={2}
+        vectorEffect="non-scaling-stroke"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ delay, duration: 0.5, ease: 'easeOut' }}
+      />
+      {ranked.map((a, i) => {
+        const copy = driverCopy(a.key);
+        const top = i === 0;
+        return (
+          <g key={a.key}>
+            <title>{copy.hint ?? copy.label ?? a.label}</title>
+            <circle
+              cx={x(i)} cy={y(a.direction)} r={top ? 5 : 3.5}
+              fill={top ? 'var(--c-primary-strong)' : 'var(--c-surface)'}
+              stroke="var(--c-primary-strong)"
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+            />
+            {/* Rotated so nine long field names fit without colliding. Anchored
+                at the END so each label's last character sits under its point. */}
+            <text
+              x={x(i)}
+              y={baseline + 10}
+              transform={`rotate(-45 ${x(i)} ${baseline + 10})`}
+              textAnchor="end"
+              fontSize={10}
+              fontWeight={top ? 700 : 500}
+              fill={top ? 'var(--c-primary-strong)' : 'var(--c-text-2)'}
+            >
+              {copy.label ?? a.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -356,6 +359,7 @@ function VocInterestChart({
 // ── Tab 3 · Market Data ──────────────────────────────────────────────────────
 
 export function MarketDataTab({ arch }: { arch: Archetype }) {
+  const active = GENRES.find((g) => g.id === arch);
   const maxDemand = Math.max(...GENRES.flatMap((g) => PHASES.map((p) => g.demand[p.key])));
   const totalNow = GENRES.reduce((sum, g) => sum + g.demand.p0, 0);
   const totalEnd = GENRES.reduce((sum, g) => sum + g.demand.p3, 0);
@@ -382,33 +386,37 @@ export function MarketDataTab({ arch }: { arch: Archetype }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {GENRES.map((g, i) => (
-          <DemandChart key={g.id} genre={g} max={maxDemand} arch={arch} index={i} />
-        ))}
-      </div>
+      {/* ONE chart — the selected notebook. Four of them duplicated the table
+          below, which carries the same figures for every market in a quarter
+          the space. `max` still spans EVERY market so the bars stay comparable
+          as you tab. */}
+      {active && <DemandChart genre={active} max={maxDemand} />}
 
+      {/* The table stays whole: this tab asks which market grows fastest, and
+          that needs more than one row. It is the comparison; the chart above is
+          the detail for the one you are on. */}
       <DemandTable arch={arch} />
     </div>
   );
 }
 
 /** Hand-built bars. The codebase deliberately ships no chart library. */
-function DemandChart({ genre, max, arch, index }: { genre: GenreDef; max: number; arch: Archetype; index: number }) {
-  const fit = isSameMarket(genre.id, arch);
+// No `arch`/fit: this is the only chart on screen, so there is nothing to
+// contrast it against. The badge now carries GROWTH, which is information,
+// rather than doubling as a "this is yours" marker.
+function DemandChart({ genre, max }: { genre: GenreDef; max: number }) {
   const growth = Math.round(genreGrowth(genre, 'p0', 'p3') * 100);
 
   return (
     <motion.div
-      className={clsx('border-2 bg-cream-50 shadow-pixel-1 p-3.5', fit ? 'border-ink-900' : 'border-ink-700/35')}
+      className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1 p-3.5"
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.06 * index, type: 'spring', stiffness: 260, damping: 20 }}
-      whileHover={{ y: -3, transition: { type: 'spring', stiffness: 320, damping: 16 } }}
+      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="h3 uppercase text-ink-900">{genre.name}</div>
-        <PixelBadge tone={fit ? 'success' : 'neutral'}>+{growth}%</PixelBadge>
+        <PixelBadge tone="success">+{growth}%</PixelBadge>
       </div>
 
       {/* items-stretch (not items-end) is required: with items-end the columns
@@ -430,11 +438,11 @@ function DemandChart({ genre, max, arch, index }: { genre: GenreDef; max: number
                 {/* Height is static and only scaleY animates: it keeps the
                     grow-up motion off the layout path (compositor-only). */}
                 <motion.div
-                  className={clsx('absolute inset-x-0 bottom-0 border-2 border-ink-900', fit ? 'bg-ui-primary' : 'bg-cream-200')}
+                  className="absolute inset-x-0 bottom-0 border-2 border-ink-900 bg-ui-primary"
                   style={{ height: `${pct * 100}%`, transformOrigin: 'bottom' }}
                   initial={{ scaleY: 0 }}
                   animate={{ scaleY: 1 }}
-                  transition={{ delay: 0.06 * index + i * 0.06, type: 'spring', stiffness: 220, damping: 18 }}
+                  transition={{ delay: i * 0.06, type: 'spring', stiffness: 220, damping: 18 }}
                 />
               </div>
               <div className="stat-label">{p.label}</div>

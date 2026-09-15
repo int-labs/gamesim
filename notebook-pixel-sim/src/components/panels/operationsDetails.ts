@@ -9,13 +9,19 @@ import { CHANNEL_ROWS, CHANNEL_META, type ChannelId } from '@/engine/finlit/core
 import { GENRES } from '@/engine/finlit/core/config/genres';
 import { hireSteps } from '@/engine/finlit/core/config/hiring';
 import { vendorSteps, vendorQuality } from '@/engine/finlit/core/config/vendors';
+import { channelEnergyCost } from '@/engine/mockEngine';
 import type { DetailInput, DetailTable } from './OperationsKit';
 import type { GlobalInputDto } from '@/gamesim/types';
 import { studyFor } from '@/content/finlitCaseStudies';
+import { fmt$ } from '@/utils/format';
 
 const NO_DESC = 'No description provided';
 
-const money = (n: number) => `$${n % 1 === 0 ? n : n.toFixed(2)}`;
+// THE app-wide money formatter, not a local one. This was
+// `$${n % 1 === 0 ? n : n.toFixed(2)}`, which dropped the decimals on a whole
+// number — so the same channel read "$137" on its detail sheet and "$137.00" on
+// its card. Two spellings of one figure reads as two figures.
+const money = fmt$;
 const pct = (n: number, dp = 0) => `${(n * 100).toFixed(dp)}%`;
 
 export interface SectionDetail {
@@ -83,20 +89,24 @@ export function channelDetail(
       const ch = item.key as ChannelId;
       const row = rowFor(ch);
       const study = studyFor('channel', item.key);
-      // `item.cost` — the SAME field every other lever charges from, and the
-      // one the server turns into `costTreatment`.
-      const costs: string[] = [`${money(item.cost)} / phase`];
-      // A RATE on the selling price, not a dollar fee — `money()` rendered
-      // retail's 0.2 as "$0.20" when it means a fifth of every sale.
-      if (row && row.consignment > 0) costs.push(`${pct(row.consignment)} of each sale`);
       return {
         name: CHANNEL_META[ch]?.name ?? item.label,
         description: study.brief || item.description || NO_DESC,
-        cost: costs.join(' + '),
+        // The figure ALONE — the chip's caption says "/ phase". These used to
+        // be joined into one string ("$137 / phase + 20% of each sale"), which
+        // said the same thing as the card's two chips in a different shape and
+        // overflowed its box.
+        // `item.cost` — the SAME field every other lever charges from, and the
+        // one the server turns into `costTreatment`.
+        cost: money(item.cost),
+        // A RATE on the selling price, not a dollar fee — `money()` rendered
+        // retail's 0.2 as "$0.20" when it means a fifth of every sale.
+        perSale: row && row.consignment > 0 ? pct(row.consignment) : 'None',
+        // WAS MISSING ENTIRELY, so every channel's sheet read "Energy: None"
+        // while the toggle charged 12. Same accessor the mutator and the card
+        // use, so all three now quote one figure.
+        energy: channelEnergyCost(item),
         impacts: 'All notebooks',
-        effect: row && row.inventoryCost > 0
-          ? `${money(row.inventoryCost)} / unsold unit`
-          : 'No holding cost',
       };
     }),
     tables: items.length === 0 ? [] : [
@@ -167,10 +177,10 @@ export function budgetDetail(gi?: GlobalInputDto): SectionDetail {
     inputs: levers.map(({ item, top }) => ({
       name: item.label ?? 'Marketing budget',
       description: item.description ?? 'Awareness. Lifts demand, so more people want what you make.',
-      cost: top ? `up to ${money(top.spend)} / phase` : NO_DESC,
+      // Figure only; the chip caption carries "/ phase".
+      cost: top ? `up to ${money(top.spend)}` : NO_DESC,
       energy: item.energy ?? 0,
       impacts: 'All notebooks',
-      effect: top ? `+${(top.demand * 100).toFixed(1)}%` : '—',
     })),
     // One table per lever, captioned by name so several are still readable.
     tables: levers
@@ -205,11 +215,10 @@ export function hiringDetail(gi?: GlobalInputDto): SectionDetail {
         // per-phase expression the engage modal shows as "Wage / phase". The
         // sheet was multiplying it by 30 and contradicting that tile.
         cost: first
-          ? `${money(first.cost)} to ${money(top.cost)} / phase`
+          ? `${money(first.cost)} to ${money(top.cost)}`
           : money(item.cost),
         energy: first?.energy ?? item.energy,
         impacts: 'All notebooks',
-        effect: top ? `+${top.prodBonus.toFixed(1)}` : '—',
       };
     }),
     tables: (gi?.inputs ?? [])
@@ -248,12 +257,9 @@ export function vendorDetail(gi?: GlobalInputDto): SectionDetail {
         name: item.label,
         description: item.description
           ?? (scoped ? `Supplies ${scoped} of your products.` : 'Supplies all markets.'),
-        cost: `${money(top?.cost ?? item.cost)} / phase`,
+        cost: money(top?.cost ?? item.cost),
         energy: top?.energy ?? item.energy,
         impacts: scoped ? `Production rate (${scoped} products)` : 'Production rate',
-        effect: top
-          ? `+${(top.prodBonus * 100).toFixed(0)}% prod (${vendorQuality(top.prodBonus)})`
-          : '—',
       };
     }),
     tables: [

@@ -767,6 +767,16 @@ import { computeFinalScore } from './scoring';
 
 const CHANNEL_ENERGY = 12; // matches globalInputs MongoDB (channel.inputs[*].energy)
 
+/**
+ * What opening this channel costs in energy.
+ *
+ * Exported so the CARD can quote the same figure the toggle charges — the two
+ * were separate before, which is to say the card quoted nothing at all and the
+ * player only learned the cost by being refused.
+ */
+export const channelEnergyCost = (item: GlobalInputItemDto): number =>
+  item.energy || CHANNEL_ENERGY;
+
 /** Engage or upgrade a hiring candidate. Spends only the energy delta vs the
  *  current level so upgrading costs the difference, not the full new amount.
  *  Pass maxSelections from the hydrated availableGlobalInputs at the call site. */
@@ -895,7 +905,7 @@ export const toggleFinlitChannelAll = (
   const idx = s.globalInputSelections.findIndex(
     (sel) => sel.key === 'channel' && sel.inputId === itemId,
   );
-  const energy = item.energy || CHANNEL_ENERGY;
+  const energy = channelEnergyCost(item);
   if (idx >= 0) {
     s.globalInputSelections.splice(idx, 1);
     s.player.energy = clamp(s.player.energy + energy, 0, s.player.maxEnergy);

@@ -430,6 +430,13 @@ type RowSource =
   | 'gross-profit'
   | 'op-ex'
   | 'op-profit'
+  // ── The cash walk ──────────────────────────────────────────────────────
+  // Endpoints alone ('cash-opening' → 'cash-closing') hide the part that
+  // matters: cash LEAVES on the build and only returns if the stock sells.
+  // These four rows put that swing on the page.
+  | 'cash-opening'
+  | 'cogs-total'
+  | 'cash-before-opex'
   | 'cash'
   | { costKey: string };
 
@@ -441,6 +448,10 @@ interface PnLRow {
   cause: string;
   group: 'revenue' | 'cogs' | 'opex' | 'profit' | 'cash';
   source: RowSource;
+  /** A second figure tucked under this row's own, smaller and muted. For a
+   *  P&L subtotal that belongs BESIDE a cash position rather than in the cash
+   *  chain — it would otherwise read as another step in the running total. */
+  sub?: { source: RowSource; label: string };
 }
 
 /** One round's aggregated `incurredCosts` entry. */
@@ -468,21 +479,87 @@ const ROW_REVENUE: PnLRow = {
   label: 'Gross Revenue', icon: A.ui.pnl.gross_revenue, sign: 'plus',
   group: 'revenue', source: 'revenue', cause: 'Units sold × selling price',
 };
-const ROW_GROSS_PROFIT: PnLRow = {
-  label: 'Gross Profit', icon: A.ui.metrics.profit, sign: 'plus', emphasis: 'subtotal',
-  group: 'profit', source: 'gross-profit', cause: 'Revenue − COGS, as the server computed it',
+/**
+ * The running CASH position once production is paid for and the stock has sold,
+ * before period costs — `starting − COGS + revenue`.
+ *
+ * Equivalently `cash left after the build + sales`: for round 0 that is
+ * 322.73 + 5,907.00. The 322.73 is the money tied up in stock and the figure
+ * the HUD chip gates spending on, so this row carries that information without
+ * needing a line of its own.
+ *
+ * Sits ABOVE Gross Profit so the column's cash chain stays unbroken —
+ * Starting Cash → here → Cash Balance — with the P&L subtotals reading as the
+ * aside they are.
+ */
+const ROW_CASH_BEFORE_OPEX: PnLRow = {
+  label: 'Cash before expenses', icon: A.ui.pnl.net_revenue, sign: 'plus', emphasis: 'subtotal',
+  group: 'cash', source: 'cash-before-opex',
+  cause:
+    'Starting cash − cost of goods sold + gross revenue. What you hold before operating expenses. ' +
+    'Gross profit (revenue − COGS) is shown above it — the trading result, not a step in the cash chain',
+  sub: { source: 'gross-profit', label: 'Gross Profit' },
 };
+// Gross Profit has no row of its own — it is the `sub` on Cash before expenses
+// above, so the column reads as one cash chain rather than two interleaved.
 const ROW_OPEX: PnLRow = {
   label: 'Operating Expenses', icon: A.ui.pnl.fulfillment_cost, sign: 'minus', emphasis: 'subtotal',
   group: 'profit', source: 'op-ex', cause: 'Holding on unsold stock plus every cost declared as opex',
 };
-const ROW_OP_PROFIT: PnLRow = {
-  label: 'Operating Profit', icon: A.ui.pnl.operating_profit, sign: 'plus', emphasis: 'highlight',
-  group: 'profit', source: 'op-profit', cause: 'Gross profit − operating expenses',
+// Operating Profit has no row of its own — it is the `sub` on Cash Balance, the
+// same way Gross Profit sits over Cash before expenses. Each cash position
+// carries its P&L counterpart directly above it, so the column is one cash chain with
+// the trading result read alongside rather than interleaved into it.
+/**
+ * The P&L, BRACKETED BY CASH.
+ *
+ * Opening and closing cash top and tail the statement, so the round reads as
+ * "I had 5,000, I earned 322, I now hold 5,322" — the sheet previously showed
+ * only the middle and looked like a collapse (5,907 → 322) on a round that
+ * gained.
+ *
+ * COGS sits ABOVE revenue on purpose: money leaves on the build before any
+ * comes back on the sale, and that order is the working-capital lesson. The
+ * profit rows are P&L subtotals, not a running cash total — `Gross Profit` is
+ * `revenue − COGS`, while the cash chain is `opening + operating profit`.
+ */
+/**
+ * THE BRIDGE ACROSS ROUNDS. Every column's Starting Cash is the PREVIOUS
+ * column's Cash Balance, so the sheet joins up round to round instead of each
+ * one opening on an unexplained figure. Round 1 has no prior round and starts
+ * on the operator's starting capital.
+ */
+const ROW_CASH_OPENING: PnLRow = {
+  label: 'Starting Cash', icon: A.ui.pnl.net_revenue, sign: 'plus',
+  group: 'cash', source: 'cash-opening',
+  cause: 'Last round’s cash balance — its closing cash plus its operating profit',
 };
+/**
+ * ONE row, not a breakdown — unlike OpEx below it.
+ *
+ * The cogs side of `incurredCosts` is production cost and reads as a single
+ * idea; itemising it alongside an aggregate printed the same figure twice.
+ * OpEx stays itemised because its categories are operator-authored and
+ * genuinely distinct.
+ */
+const ROW_COGS: PnLRow = {
+  label: 'Cost of Goods Sold', icon: A.ui.pnl.material_cost, sign: "minus",
+  group: 'cogs', source: 'cogs-total',
+  cause: 'Charged on units PRODUCED, not sold — it leaves when you commit the build',
+};
+/**
+ * Must account for EVERY row above it — that is what lets `Tied up in stock`
+ * stay off the sheet and be inferred instead. Both derivations are named
+ * because the column carries two chains: walk the cash rows, or take the P&L's
+ * bottom line. They agree by definition.
+ */
 const ROW_CASH: PnLRow = {
   label: 'Cash Balance', icon: A.ui.pnl.net_revenue, sign: 'plus', emphasis: 'highlight',
-  group: 'cash', source: 'cash', cause: 'Opening cash plus every scored round’s operating profit',
+  group: 'cash', source: 'cash',
+  cause:
+    'Starting cash − cost of goods sold + gross revenue − operating expenses. ' +
+    'Same thing as starting cash + operating profit — which is the figure above it.',
+  sub: { source: 'op-profit', label: 'Operating Profit' },
 };
 
 export function FinanceTable() {
@@ -565,13 +642,22 @@ export function FinanceTable() {
     }));
   })();
 
+  // Opening cash → the P&L → closing cash, in one column.
+  //
+  // Every label stays true to what the server computed, so the sheet still
+  // reproduces from the competitor export. Folding opening cash (or COGS) INTO
+  // revenue was tried and rejected: it balances arithmetically but prints a
+  // "Gross Revenue" no export can reproduce, and a losing round still shows a
+  // large positive while capital remains.
   const rows: PnLRow[] = [
+    ROW_CASH_OPENING,
+    ROW_COGS,
     ROW_REVENUE,
-    ...costRows.filter((r) => r.group === 'cogs'),
-    ROW_GROSS_PROFIT,
+    // No standalone Gross Profit row — it sits over Cash before expenses as
+    // a sub-figure, so the column reads as one cash chain.
+    ROW_CASH_BEFORE_OPEX,
     ...costRows.filter((r) => r.group === 'opex'),
     ROW_OPEX,
-    ROW_OP_PROFIT,
     ROW_CASH,
   ];
 
@@ -588,6 +674,21 @@ export function FinanceTable() {
       const last = phases[phases.length - 1] ?? phaseNow;
       return cashThrough(p === 'total' ? last : p);
     }
+    // A BALANCE does not add up across columns — only flows do. The run's
+    // opening is the FIRST phase's, not the sum of three openings, which would
+    // print a number with no meaning. (Closing is handled above; COGS, revenue
+    // and the expense rows are flows and sum correctly below.)
+    if (p === 'total' && r.source === 'cash-opening') {
+      const first = phases[0] ?? phaseNow;
+      return cashThrough(first - 1);
+    }
+    // Also a balance: the run's figure is the LAST phase's, matching Cash
+    // Balance's own total, not a sum of three positions.
+    if (p === 'total' && r.source === 'cash-before-opex') {
+      const last = phases[phases.length - 1] ?? phaseNow;
+      const f = officialFor(last);
+      return f ? cashThrough(last - 1) - (f.revenue - f.grossProfit) + f.revenue : null;
+    }
     // Server costs arrive POSITIVE and `PnLCell` renders the minus, so nothing
     // here negates.
     //
@@ -600,11 +701,24 @@ export function FinanceTable() {
       if (typeof r.source === 'object') {
         return costByPhase.get(phase)?.get(r.source.costKey)?.amount ?? 0;
       }
+      // What the team held when this phase OPENED — the previous phase's closing
+      // balance, from the same function the Closing Cash row uses, so the two
+      // ends of the walk cannot drift apart. `phase` is 1-based, so phase 1
+      // opens on `cashThrough(0)`: the starting capital, no scored round added.
+      const opening = () => cashThrough(phase - 1);
       switch (r.source) {
         case 'revenue':      return f.revenue;
         case 'gross-profit': return f.grossProfit;
         case 'op-ex':        return f.operatingExpenses;
         case 'op-profit':    return f.operatingProfit;
+        case 'cash-opening': return opening();
+        // The server's own COGS — `revenue − grossProfit` is exactly what
+        // `calcFinancials` subtracted, not a re-derivation from units × cost.
+        case 'cogs-total':   return f.revenue - f.grossProfit;
+        // starting − COGS + revenue. Equals Cash Balance + operating expenses,
+        // so the two cash rows cannot disagree.
+        case 'cash-before-opex':
+          return opening() - (f.revenue - f.grossProfit) + f.revenue;
         default:             return 0;
       }
     };
@@ -658,6 +772,15 @@ export function FinanceTable() {
                 perPhase: phases.map((p) => computeRow(r, p)),
                 total: computeRow(r, 'total'),
               };
+              // Same resolver, so a sub-figure can never drift from the row it
+              // sits under.
+              const subRow = r.sub ? { ...r, source: r.sub.source } : null;
+              const subValues = subRow
+                ? {
+                    perPhase: phases.map((p) => computeRow(subRow, p)),
+                    total: computeRow(subRow, 'total'),
+                  }
+                : null;
               const emphasisCls =
                 r.emphasis === 'highlight' ? 'bg-surface-2 item-name'
                 : r.emphasis === 'subtotal' ? 'bg-surface-2/40'
@@ -683,7 +806,16 @@ export function FinanceTable() {
                       <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2/60 shrink-0">
                         <img src={r.icon} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
                       </span>
-                      <span className={clsx('truncate', r.emphasis ? 'item-name' : 'body-xs')}>{r.label}</span>
+                      {/* Two lines when the row carries a sub-figure, so the
+                          label column mirrors the value column's shape. The
+                          sub sits ABOVE: it is the input the cash position
+                          below it lands on, so it reads in that order. */}
+                      <span className="flex flex-col min-w-0 leading-tight">
+                        {r.sub && (
+                          <span className="hint text-text-3 truncate">{r.sub.label}</span>
+                        )}
+                        <span className={clsx('truncate', r.emphasis ? 'item-name' : 'body-xs')}>{r.label}</span>
+                      </span>
                     </span>
                   </td>
                   {/* The live phase is marked down the whole COLUMN. A 4px
@@ -692,9 +824,20 @@ export function FinanceTable() {
                       read - so the column you are playing carries a tint and
                       side rules for its full height. */}
                   {phases.map((p, ci) => (
-                    <PnLCell key={p} value={values.perPhase[ci]} row={r} live={phaseNow === p} />
+                    <PnLCell
+                      key={p}
+                      value={values.perPhase[ci]}
+                      row={r}
+                      live={phaseNow === p}
+                      subValue={subValues?.perPhase[ci] ?? null}
+                    />
                   ))}
-                  <PnLCell value={values.total} row={r} emphasis />
+                  <PnLCell
+                    value={values.total}
+                    row={r}
+                    emphasis
+                    subValue={subValues?.total ?? null}
+                  />
                 </motion.tr>
               );
             })}
@@ -705,7 +848,20 @@ export function FinanceTable() {
   );
 }
 
-function PnLCell({ value, row, emphasis, live }: { value: number | null; row: PnLRow; emphasis?: boolean; live?: boolean }) {
+function PnLCell({
+  value,
+  row,
+  emphasis,
+  live,
+  subValue,
+}: {
+  value: number | null;
+  row: PnLRow;
+  emphasis?: boolean;
+  live?: boolean;
+  /** Rendered under the figure, smaller and muted. See `PnLRow.sub`. */
+  subValue?: number | null;
+}) {
   const liveCls = live ? 'bg-primary-soft/55 border-x border-primary/45' : '';
   if (value === null) {
     return <td className={clsx('py-2 px-2 text-right num-xs text-text-3', liveCls)}>-</td>;
@@ -725,8 +881,25 @@ function PnLCell({ value, row, emphasis, live }: { value: number | null; row: Pn
   const display = isDeduction && value !== 0 ? `−${fmt$(Math.abs(value))}` : fmt$(value);
 
   return (
-    <td className={clsx('py-2 px-2 text-right num-xs whitespace-nowrap', color, liveCls, emphasis && 'pr-3')}>
-      {display}
+    <td className={clsx('py-2 px-2 text-right whitespace-nowrap', liveCls, emphasis && 'pr-3')}>
+      {subValue != null && (
+        // ABOVE its parent, matching the label column. A step down in SIZE
+        // only — it keeps the profit palette, because whether the trading
+        // result is positive or negative is the whole point of showing it.
+        // Muting the colour would hide a loss.
+        <div
+          className={clsx(
+            // `num-xs`, not `hint`: every numeral keeps Inter 700 + tabular
+            // figures so the column still aligns. Only the SIZE steps down —
+            // `text-[12px]` overrides the 15px baked into `.num-xs`.
+            'num-xs text-[12px] leading-tight mb-0.5',
+            subValue > 0 ? 'text-fin-profit' : subValue < 0 ? 'text-danger' : 'text-text-3',
+          )}
+        >
+          {subValue < 0 ? `−${fmt$(Math.abs(subValue))}` : fmt$(subValue)}
+        </div>
+      )}
+      <div className={clsx('num-xs', color)}>{display}</div>
     </td>
   );
 }

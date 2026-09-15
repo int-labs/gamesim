@@ -91,17 +91,35 @@ export function StatChip({
     // lines tall, so five facts became a five-storey block and the card was
     // mostly chips. On one baseline a chip is a row in a table - caption left,
     // figure right - which is how you read a set of numbers against each other.
-    // The label truncates and the FIGURE never does: a clipped "$11.50 / uni"
-    // hides exactly what the player came for, so the value keeps its width and
-    // the caption gives way.
-    <div className={clsx('readout px-2.5 py-1.5 min-w-0 flex items-baseline justify-between gap-2', CHIP_TONE[tone], className)}>
-      {/* WRAPS rather than truncates. Side by side there is far less room for a
-          caption than there was stacked, and "OUTPUT / P…" / "BREAKEVEN…" tells
-          you nothing - the words are the only thing naming the figure. The grid
-          row stretches its cells, so a caption taking two lines lifts its whole
-          row and the chips stay level. */}
-      <div className="stat-label stat-label-on-tint min-w-0 leading-tight">{label}</div>
-      <div className="num-sm leading-tight shrink-0 text-right">{value}</div>
+    //
+    // WRAPS to a second line when both halves cannot share one. The value used
+    // to be `shrink-0` on the reasoning that a clipped "$11.50 / uni" hides
+    // what the player came for - true for a short figure, but these values are
+    // not all figures. "$150 / phase" and "No holding cost" in a `grid-cols-3`
+    // third simply ran out over the caption and clipped it, so the chip read
+    // "COS$150 / phase". Neither half is allowed to overrun the other now:
+    // `min-w-0` lets both give way, and the row wraps before anything clips.
+    <div
+      className={clsx(
+        // `content-center` is what keeps a ROW of chips aligned. Flex siblings
+        // stretch to the tallest, so a chip whose caption wrapped to two lines
+        // made its neighbours tall boxes with their content pinned to the top.
+        // Centring the flex LINES puts every chip's content on the same visual
+        // middle whatever its neighbours do.
+        'readout px-2.5 py-1.5 min-w-0 flex flex-wrap content-center items-baseline justify-between gap-x-2 gap-y-0.5',
+        CHIP_TONE[tone],
+        className,
+      )}
+    >
+      {/* The caption names the figure - "OUTPUT / P…" tells you nothing, so it
+          wraps rather than truncating. The grid row stretches its cells, so a
+          caption taking two lines lifts its whole row and the chips stay level. */}
+      <div className="stat-label stat-label-on-tint min-w-0 leading-tight break-words">{label}</div>
+      {/* `ml-auto` keeps it right-aligned even once it has wrapped onto a line
+          of its own, where `justify-between` would otherwise flush it left.
+          `num-xs` not `num-sm`: at 17px a three-word value could not share a
+          third of a card with its caption at any wrap point. */}
+      <div className="num-xs leading-tight min-w-0 ml-auto text-right break-words">{value}</div>
     </div>
   );
 }
@@ -201,14 +219,17 @@ export interface DetailInput {
   /** Option name, e.g. "Offline" or "Ains L2". */
   name: string;
   description: string;
-  /** Per-phase or one-off money cost. Omit when the option is free. */
+  /** The per-phase money figure ALONE — "$137.00", not "$137 / phase". The
+   *  chip's caption carries the unit, exactly as it does on the option cards.
+   *  Omit when the option is free. */
   cost?: string;
+  /** A per-sale rate, where the lever charges one (channel consignment).
+   *  Omit where the concept does not apply — the chip is then not rendered. */
+  perSale?: string;
   /** Energy to activate. Omit when it costs none. */
   energy?: number;
   /** Which products this applies to, e.g. "All notebooks". */
   impacts: string;
-  /** What it actually changes in the sim. */
-  effect: string;
 }
 
 export interface DetailTable {
@@ -299,14 +320,38 @@ export function OperationsDetailModal({
                 </div>
                 <div className="p-3 flex flex-col gap-2">
                   <p className="body-xs text-text-2">{inp.description}</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <StatChip label="Cost" value={inp.cost ?? 'Free'} tone={inp.cost ? 'money' : 'muted'} />
+                  {/* FLEX-WRAP, not `grid-cols-3`. Three fixed thirds gave
+                      every chip the same width whatever it held, so "No holding
+                      cost" and "$150 / phase" were crushed into the same space
+                      as "None". Each chip takes an equal share while they fit
+                      and drops to its own full-width line when they do not. */}
+                  {/* SAME captions and SAME value shape as the option cards on
+                      the page behind this sheet — "Per phase / $137.00", not
+                      "Cost / $137 / phase + 20% of each sale". One lever
+                      described two ways reads as two different levers, and the
+                      crammed string was also what overflowed its chip. */}
+                  <div className="flex flex-wrap gap-2">
                     <StatChip
+                      className="grow basis-[132px]"
+                      label="Per phase" value={inp.cost ?? 'Free'} tone={inp.cost ? 'money' : 'muted'}
+                    />
+                    {inp.perSale !== undefined && (
+                      <StatChip
+                        className="grow basis-[132px]"
+                        label="Per sale" value={inp.perSale}
+                        tone={inp.perSale === 'None' ? 'good' : 'money'}
+                      />
+                    )}
+                    <StatChip
+                      className="grow basis-[132px]"
                       label="Energy"
                       value={inp.energy ? <EnergyValue amount={inp.energy} size={13} /> : 'None'}
                       tone={inp.energy ? 'energy' : 'muted'}
                     />
-                    <StatChip label="Effect" value={inp.effect} tone="good" />
+                    {/* No "Effect" chip. Every channel's read "No holding
+                        cost", and the other sections reduced a whole step
+                        curve to one unlabelled figure ("+0.3"). The tables
+                        below carry the real per-step effects. */}
                   </div>
                 </div>
               </motion.div>
