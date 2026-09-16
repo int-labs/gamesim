@@ -543,7 +543,7 @@ const ROW_CASH_OPENING: PnLRow = {
  * genuinely distinct.
  */
 const ROW_COGS: PnLRow = {
-  label: 'Cost of Goods Sold', icon: A.ui.pnl.material_cost, sign: "minus",
+  label: 'Cost of Goods Sold', icon: A.ui.pnl.material_cost, sign: "plus",
   group: 'cogs', source: 'cogs-total',
   cause: 'Charged on units PRODUCED, not sold — it leaves when you commit the build',
 };

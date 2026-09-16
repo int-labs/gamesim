@@ -69,6 +69,33 @@ export const updateResult = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// DELETE /results?simulationId=&roundNumber=
+//
+// The first step of a round RESET. It MUST run before the decisions delete:
+// `deleteDecisionsByRound` refuses with 409 while results for the round still
+// exist, so clearing results first satisfies that guard instead of bypassing it
+// with ?force=true.
+//
+// Lived in roundControllers and was mounted on `/rounds`, so the console's
+// `DELETE /results?...` matched no route and 404'd — results were never deleted
+// and the decisions guard could never be satisfied.
+export const deleteResultsByRound = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { simulationId, roundNumber } = req.query;
+    if (!simulationId || roundNumber === undefined) {
+      res.status(400).json({ message: "simulationId and roundNumber are required." });
+      return;
+    }
+    const { deletedCount } = await Result.deleteMany({
+      simulationId,
+      roundNumber: Number(roundNumber),
+    });
+    res.status(200).json({ message: "Results deleted.", deletedCount });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to delete results." });
+  }
+};
+
 // DELETE /results/:id
 export const deleteResult = async (req: Request, res: Response): Promise<void> => {
   try {

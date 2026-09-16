@@ -772,34 +772,12 @@ function EvaluationStep({
         <MascotAvatar mood={goodPhase ? 'happy' : 'thinking_side'} size={66} />
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <PixelBadge tone="brand">Phase {phase} debrief</PixelBadge>
-            <span className="stat-label">
-              Days {summary.fromDay}-{summary.toDay}
-            </span>
+            <PixelBadge tone="brand">Phase {phase} Insight Check</PixelBadge>
           </div>
-          <p className="body-sm text-text leading-snug">
-            {/* A profitable phase spent entirely out of stock is not a phase
-                that "paid off" - it is money left on the table, and inventory
-                discipline is a quarter of the final rubric. Congratulating the
-                player here taught the opposite of the lesson, so a stockout
-                qualifies the headline instead of being buried in a side tile. */}
-            {goodPhase
-              ? summary.unitsLost > 5
-                ? `Profit ${fmt$(summary.opProfit)} this phase - but you sold out on ${summary.stockoutDays} of ${summary.toDay - summary.fromDay + 1} days and turned away about ${fmtInt(summary.unitsLost)} buyers. Make more of what was already selling.`
-                : `Profit ${fmt$(summary.opProfit)} this phase - your decisions paid off.`
-              : `Profit dipped (${fmt$(summary.opProfit)}). Trace it back to costs and timing in the P&L below.`}
-          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <Stat icon="revenue" label="Revenue" value={fmt$(summary.revenue)} tone="info" />
-        <Stat icon="profit" label="Op Profit" value={fmt$(summary.opProfit)} tone={goodPhase ? 'cash' : 'warn'} />
-        <Stat icon="stock" label="Lost sales" value={fmtInt(summary.unitsLost)} sub={`${summary.stockoutDays}d stockout`} tone={summary.unitsLost > 5 ? 'warn' : 'neutral'} />
-      </div>
-
       <div className="panel-muted px-3.5 py-3">
-        <div className="panel-title text-text mb-2">Insight check</div>
         <p className="body-sm text-text mb-2">{insight.question}</p>
         <div className="flex flex-col gap-1.5">
           {insight.options.map((o) => {

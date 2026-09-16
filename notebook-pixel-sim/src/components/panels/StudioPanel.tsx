@@ -28,8 +28,8 @@ import { PixelButton } from '@/components/primitives';
 import { SafeImage } from '@/components/primitives/SafeImage';
 import { A } from '@/assets';
 import { studyFor, type CaseStudy } from '@/content/finlitCaseStudies';
-import { OpsSection, StatChip, OperationsDetailModal } from './OperationsKit';
-import { channelDetail, budgetDetail, hiringDetail, vendorDetail, type SectionDetail } from './operationsDetails';
+import { OpsSection, StatChip, OperationsDetailSheet, type DetailSection } from './OperationsKit';
+import { channelDetail, budgetDetail, hiringDetail, vendorDetail } from './operationsDetails';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
@@ -226,8 +226,9 @@ export function StudioPanel({
   // Raw text per candidate so the field can be empty mid-typing; it is parsed
   // and clamped before anything reaches the engine.
   const [levelDraft, setLevelDraft] = useState<Record<string, string>>({});
-  // Which section's reference sheet is open, if any.
-  const [detail, setDetail] = useState<SectionDetail | null>(null);
+  // ONE sheet for all four sections. The value is which TAB is showing; `null`
+  // means closed, so open-state and selected-tab cannot disagree.
+  const [detailTab, setDetailTab] = useState<string | null>(null);
 
   // Days remaining in the current phase — see the Hiring hint for why the
   // per-phase figures need this qualifier. Derived from a PRIMITIVE read on
@@ -291,8 +292,49 @@ export function StudioPanel({
     setPending(null);
   };
 
+  // The four sections, in page order, as tabs. Built only while the sheet is
+  // open: each builder walks its global input's items and the four ran on every
+  // render of this panel once they stopped being behind a click.
+  //
+  // `channelDetail` takes `products` to resolve the reach impact's per-product
+  // overrides onto genres for the reach matrix.
+  const detailSections: DetailSection[] = detailTab === null ? [] : [
+    { id: 'channels', label: 'Sales Channels',   icon: SECTION_ICON.channels, ...channelDetail(channelGI, bootstrap?.products) },
+    { id: 'budget',   label: 'Marketing Budget', icon: SECTION_ICON.budget,   ...budgetDetail(marketingGI) },
+    { id: 'hiring',   label: 'Hiring',           icon: SECTION_ICON.hiring,   ...hiringDetail(hiringGI) },
+    { id: 'vendor',   label: 'Vendor',           icon: SECTION_ICON.vendor,   ...vendorDetail(vendorGI) },
+  ];
+
   return (
     <div className="flex flex-col gap-4">
+      {/* ── The page's ONE reference control. Right-aligned at the top, which is
+           where the Product page keeps its own Details button — the point is
+           that it does not move: not between sections, and not between pages.
+           Same classes as that button so the two read as one control, not two
+           designs. ── */}
+      <div className="flex items-center justify-end">
+        <button
+          aria-expanded={detailTab !== null}
+          onClick={() => {
+            playSfx('click-soft');
+            // Opens on the FIRST tab every time rather than remembering the
+            // last one: a sheet that reopens somewhere else is the moving
+            // target this replaced.
+            setDetailTab('channels');
+          }}
+          className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
+        >
+          <img
+            src={A.ui.pixel.info}
+            alt=""
+            className="w-[14px] h-[14px] object-contain"
+            style={{ imageRendering: 'pixelated' }}
+            draggable={false}
+          />
+          <span>Details</span>
+        </button>
+      </div>
+
       {/* No page-level status strip. The page already opened with THREE
           stacked bands of meta-text — the panel masthead, the tab explainer,
           and a "company decisions · reversible" line — before a single
@@ -307,9 +349,6 @@ export function StudioPanel({
         icon={SECTION_ICON.channels}
         title="Sales Channels"
         hint="Where you sell. Applies to every notebook."
-        // `products` resolves the reach impact's per-product overrides onto
-        // genres for the reach matrix.
-        onDetails={() => setDetail(channelDetail(channelGI, bootstrap?.products))}
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {(Object.keys(CHANNEL_META) as ChannelId[]).map((ch) => {
@@ -465,7 +504,6 @@ export function StudioPanel({
         icon={SECTION_ICON.budget}
         title="Marketing Budget"
         hint="Budget to grow, shown per phase. Set back to $0 to switch off and refund the energy."
-        onDetails={() => setDetail(budgetDetail(marketingGI))}
       >
         <div className={clsx('grid gap-3', marketingLevers.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
           {marketingLevers.map((lv) => {
@@ -538,7 +576,6 @@ export function StudioPanel({
             ? `Costs are per phase and recur while engaged - ${daysLeftInPhase}d left, figures show a full phase.`
             : 'One at a time. Costs are per phase and recur while engaged.'
         }
-        onDetails={() => setDetail(hiringDetail(hiringGI))}
       >
         {/* Two columns from xl. Four candidates stacked full-width left each
             row ~1330px wide around ~500px of content, so every card carried a
@@ -740,7 +777,6 @@ export function StudioPanel({
             ? `Company-wide. Figures shown for ${activeLine.name} — some vendors only supply certain notebooks.`
             : 'Add a notebook first.'
         }
-        onDetails={() => setDetail(vendorDetail(vendorGI))}
       >
         {activeLine ? (
           <div className="flex flex-col gap-2">
@@ -852,15 +888,14 @@ export function StudioPanel({
         ) : null}
       </OpsSection>
 
-      {/* Per-section reference sheet: cost/energy/impact on the left, the
-          market numbers behind it on the right. */}
-      <OperationsDetailModal
-        open={detail !== null}
-        onClose={() => setDetail(null)}
-        title={detail?.title ?? ''}
-        intro={detail?.intro}
-        inputs={detail?.inputs ?? []}
-        tables={detail?.tables ?? []}
+      {/* The reference sheet: one tab per section, cost/energy/impact on the
+          left of each, the market numbers behind it on the right. */}
+      <OperationsDetailSheet
+        open={detailTab !== null}
+        onClose={() => setDetailTab(null)}
+        sections={detailSections}
+        activeId={detailTab ?? ''}
+        onSelect={setDetailTab}
       />
 
       {/* Case-study gate — the PDF's "read before choosing". */}

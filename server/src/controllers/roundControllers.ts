@@ -2,7 +2,6 @@
 import mongoose from "mongoose";
 import Round from "../models/rounds";
 import Simulation from "../models/simulations";
-import Results from "../models/results";
 import { runRoundCalculation } from "../services/roundCalculation";
 
 // GET /rounds?simulationId=
@@ -244,19 +243,4 @@ export const endRound = async (req: Request, res: Response): Promise<void> => {
     return;
   }
   res.status(200).json(state.payload ?? { message: "Round ended." });
-};
-
-// DELETE /results?simulationId=&roundNumber=
-export const deleteResultsByRound = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { simulationId, roundNumber } = req.query;
-    if (!simulationId || roundNumber === undefined) {
-      res.status(400).json({ message: "simulationId and roundNumber are required." });
-      return;
-    }
-    await Results.deleteMany({ simulationId, roundNumber: Number(roundNumber) });
-    res.status(200).json({ message: "Results deleted." });
-  } catch (err: any) {
-    res.status(500).json({ message: err?.message ?? "Failed to delete results." });
-  }
 };

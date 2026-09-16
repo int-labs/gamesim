@@ -5,7 +5,6 @@ import {
   createRound,
   updateRoundStatus,
   deleteRound,
-  deleteResultsByRound,
 } from "../controllers/roundControllers";
 import { authenticate } from "../middleware/authentication";
 import { authorize } from "../middleware/authorization";
@@ -22,7 +21,6 @@ router.use(authenticate);
 // GET    /rounds/:id             → get single round
 // PATCH  /rounds/:id/status      → advance/update round status (admin/operator)
 // DELETE /rounds/:id             → delete round (admin)
-router.delete("/", authenticate, authorize([ROLES.ADMIN]), deleteResultsByRound);
 router.get("/", getRoundsBySimulation);
 router.post("/:id/calculate", authenticate, authorize([ROLES.ADMIN, ROLES.OPERATOR]), calculateRound);
 // Atomic close + calculate + advance — the normal operator flow.

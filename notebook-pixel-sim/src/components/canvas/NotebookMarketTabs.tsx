@@ -194,7 +194,7 @@ function MarketCard({
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="stat-label">What they weigh</div>
+          <div className="stat-label">Customer Preference</div>
           {axes.length === 0 ? (
             // No fields for this genre means `hydrateFieldConfig` matched no
             // product to it — say so, rather than render an empty chart that

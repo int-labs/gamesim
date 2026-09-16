@@ -8,8 +8,8 @@
 //
 // Three pieces fix that:
 //   StatChip   — every cost / energy / effect gets a bordered, labelled chip
-//   OpsSection — a real framed container: icon, title, hint, Details button
-//   OperationsDetailModal — the reference sheet behind each section
+//   OpsSection — a real framed container: icon, title, hint
+//   OperationsDetailSheet — ONE reference sheet, every section a tab
 //
 // Typography follows the shared scale in src/styles/index.css. Numerals are
 // always .num-* (Inter, tabular) and never a pixel face.
@@ -141,21 +141,23 @@ export function EnergyTag({ amount, className }: { amount: number; className?: s
 // ── Section shell ────────────────────────────────────────────────────────────
 
 /**
- * A framed section. The icon + heavy border give each decision a clear edge,
- * and `onDetails` puts the reference sheet exactly where the brief asked: top
- * right of the section it explains.
+ * A framed section. The icon + heavy border give each decision a clear edge.
+ *
+ * NO Details button. Each section used to carry its own, opening its own popup,
+ * so the control the player reaches for most moved four times down one page and
+ * the reference sheet arrived with no sense of what else it covered. The page
+ * now has ONE Details button in a fixed spot and one sheet with a tab per
+ * section — see `OperationsDetailSheet`.
  */
 export function OpsSection({
   icon,
   title,
   hint,
-  onDetails,
   children,
 }: {
   icon: string;
   title: string;
   hint?: string;
-  onDetails?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -181,32 +183,6 @@ export function OpsSection({
           <h3 className="section-heading text-ink-900">{title}</h3>
           {hint && <p className="body-xs text-text-2 mt-1 measure">{hint}</p>}
         </div>
-        {onDetails && (
-          <motion.button
-            onClick={() => {
-              playSfx('click-soft');
-              onDetails();
-            }}
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            className="ctl-btn shrink-0 self-center flex items-center gap-1.5 border-2 border-ink-900 bg-cream-50 hover:bg-cream-100 px-2.5 py-1.5 cursor-pointer"
-          >
-            {/* The glyph carries the meaning ("there's more to read here"), so it
-                leads; the word follows. Sized to the cap-height of eyebrow-sm so
-                the two sit on one optical line. */}
-            <img
-              src={A.ui.pixel.info}
-              alt=""
-              className="w-3.5 h-3.5 object-contain shrink-0"
-              style={{ imageRendering: 'pixelated' }}
-              draggable={false}
-            />
-            {/* .btn-label-sm, not .stat-label — this is a control the player
-                clicks, not a caption naming a number. */}
-            <span className="btn-label-sm uppercase text-text">Details</span>
-          </motion.button>
-        )}
       </header>
       <div className="p-3.5">{children}</div>
     </section>
@@ -263,28 +239,160 @@ function PaneHeader({ icon, title, blurb }: { icon: string; title: string; blurb
 }
 
 /**
- * Two panes, matching the brief: what the option costs and changes on the left,
- * the market numbers behind it on the right. Both halves are real engine
- * config, so the sheet can't disagree with the simulation.
+ * One Operations section, as a tab in the sheet.
+ *
+ * Structurally a `SectionDetail` (from operationsDetails.ts) plus the three
+ * fields the tab bar needs. Spread rather than imported — `operationsDetails`
+ * already imports `DetailInput`/`DetailTable` from here, and naming its type in
+ * this file would close the loop.
  */
-export function OperationsDetailModal({
-  open,
-  onClose,
-  title,
-  intro,
-  inputs,
-  tables,
-}: {
-  open: boolean;
-  onClose: () => void;
+export interface DetailSection {
+  id: string;
+  /** Tab label. The section's own name, verbatim — the tab and the OpsSection
+   *  masthead it explains must read as the same word. */
+  label: string;
+  icon: string;
   title: string;
   intro?: string;
   inputs: DetailInput[];
   tables: DetailTable[];
+}
+
+/**
+ * THE reference sheet for the whole Operations page: one tab per section.
+ *
+ * Was four separate modals, each opened by a Details button in its own
+ * section's masthead. Two costs, both structural:
+ *
+ *   1. the trigger MOVED. Four buttons down a long scrolling page meant the
+ *      most-used control on the screen was never twice in the same place, and
+ *      never where the Product page keeps its own Details button.
+ *   2. four popups over one dataset. The sections are a single source of truth
+ *      about one company — comparing a channel's per-phase cost against a
+ *      hire's meant closing one popup, scrolling, and opening another from
+ *      memory.
+ *
+ * The tab bar is deliberately the SAME component shape as ArchetypeDetailModal's
+ * (tab-label-sm, 2px top border, shared-layout underline): two sheets that
+ * behave differently are two things to learn.
+ */
+export function OperationsDetailSheet({
+  open,
+  onClose,
+  sections,
+  activeId,
+  onSelect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sections: DetailSection[];
+  activeId: string;
+  onSelect: (id: string) => void;
 }) {
+  // Falls back to the first tab rather than rendering an empty sheet: `sections`
+  // is derived from the backend global inputs, so an id can go away under a
+  // config change while the open sheet still holds it.
+  const active = sections.find((s) => s.id === activeId) ?? sections[0] ?? null;
+
   return (
-    <PixelModal open={open} onClose={onClose} title={title} size="lg" playful>
+    <PixelModal
+      open={open}
+      onClose={onClose}
+      // A FIXED title. The section name moves with the tabs, inside the panel —
+      // if the modal's own heading changed too, the one piece of chrome that
+      // tells you where you are would be the piece that keeps moving.
+      title="Business Details"
+      size="lg"
+      playful
+      className="h-[min(660px,calc(100dvh-48px))]"
+      // The panel owns the scroll, so the tab bar stays put while it moves.
+      bodyClassName="overflow-hidden"
+    >
+      <div className="flex flex-col h-full min-h-0">
+        {/* ── Tab bar ── */}
+        <div
+          role="tablist"
+          aria-label="Operations sections"
+          className="shrink-0 flex items-end gap-1 px-2 pt-2 border-b border-border-soft bg-cream-200 overflow-x-auto"
+        >
+          {sections.map((s) => {
+            const isActive = s.id === active?.id;
+            return (
+              <motion.button
+                key={s.id}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => {
+                  if (s.id === active?.id) return;
+                  playSfx('whoosh');
+                  onSelect(s.id);
+                }}
+                whileTap={{ scale: 0.95 }}
+                whileHover={isActive ? undefined : { y: -2 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+                className={clsx(
+                  'relative tab-label-sm px-3.5 sm:px-4 py-2.5 border-2 border-b-0 transition-colors cursor-pointer whitespace-nowrap',
+                  isActive
+                    ? 'bg-cream-50 border-ink-900 text-ink-900 -mb-[2px] pb-[12px]'
+                    : 'bg-cream-100 border-ink-700/30 text-text-2 hover:text-text hover:bg-cream-50',
+                )}
+              >
+                {s.label}
+                {isActive && (
+                  // Its own layoutId, not the Product sheet's — a shared one
+                  // would make two mounted sheets fight over one element.
+                  <motion.div
+                    layoutId="ops-detail-tab-underline"
+                    className="absolute left-0 right-0 -bottom-[2px] h-[3px] bg-cream-50"
+                  />
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+
+        {/* ── Panel ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-3.5 bg-cream-50">
+          {active && (
+            // Keyed remount replays the enter animation on every tab change
+            // with no exit gap — the same trick the Product sheet uses.
+            <motion.div
+              key={active.id}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.18, ease: [0.2, 1, 0.4, 1] }}
+            >
+              <DetailPanes section={active} />
+            </motion.div>
+          )}
+        </div>
+      </div>
+    </PixelModal>
+  );
+}
+
+/**
+ * Two panes, matching the brief: what the option costs and changes on the left,
+ * the market numbers behind it on the right. Both halves are real engine
+ * config, so the sheet can't disagree with the simulation.
+ */
+function DetailPanes({ section }: { section: DetailSection }) {
+  const { intro, inputs, tables } = section;
+  return (
       <div className="flex flex-col gap-5">
+        {/* The section's own name, INSIDE the panel. The modal heading is fixed
+            now, so without this the sheet would not say which of the four you
+            are reading. */}
+        <div className="flex items-center gap-3">
+          <img
+            src={section.icon}
+            alt=""
+            className="w-9 h-9 object-contain shrink-0"
+            style={{ imageRendering: 'pixelated' }}
+            draggable={false}
+          />
+          <h3 className="section-heading text-ink-900 min-w-0">{section.title}</h3>
+        </div>
         {intro && (
           <p className="body-sm text-text-2 leading-relaxed border-l-4 border-info pl-3">{intro}</p>
         )}
@@ -436,6 +544,5 @@ export function OperationsDetailModal({
           </div>
         </div>
       </div>
-    </PixelModal>
   );
 }

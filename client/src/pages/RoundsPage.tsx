@@ -49,14 +49,20 @@ export default function RoundsPage() {
 
   const handleReset = async (round: any) => {
     if (!confirm(`Reset round ${round.roundNumber}? This will delete all decisions, results and calculated projections for this round.`)) return;
+    setError("");
     try {
       // THREE collections. Deleting fewer leaves a round that reports itself
       // reset while still serving old figures.
-      await Promise.all([
-        deleteDecisionsByRound(round.simulationId, round.roundNumber),
-        deleteResultsByRound(round.simulationId, round.roundNumber),
-        deleteProjectionsByRound(round.simulationId, round.roundNumber),
-      ]);
+      //
+      // ORDERED, not Promise.all. `deleteDecisionsByRound` refuses with 409
+      // while the round still has results ("deleting its decisions would orphan
+      // those results"), so results must be gone BEFORE decisions are asked for.
+      // Run concurrently, the decisions call raced the results call and lost.
+      // Sequencing satisfies the guard on its own terms — it is not bypassed
+      // with ?force=true, so it still protects every other caller.
+      await deleteResultsByRound(round.simulationId, round.roundNumber);
+      await deleteDecisionsByRound(round.simulationId, round.roundNumber);
+      await deleteProjectionsByRound(round.simulationId, round.roundNumber);
       await load();
     } catch (e: any) {
       setError(e.response?.data?.message ?? e.message);
