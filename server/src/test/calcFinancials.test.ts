@@ -4,7 +4,7 @@
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────
  * calcFinancials had no coverage at all while it was rewritten to produce a
  * correct P&L (COGS on units SOLD rather than on the whole inventory build,
- * period costs moved below the gross-profit line, `inventory_cost` wired up
+ * period costs moved below the gross-profit line, the holding charge removed
  * from the channel globalInput). Typecheck was the only verification.
  *
  * The suite is deliberately in two layers, because the first one alone is
@@ -267,11 +267,19 @@ describe("calcFinancials · COGS is charged on units PRODUCED", () => {
   it("bills a produced unit once — the COGS entry carries the build", () => {
     const r = run();
     const cogsEntry = r.incurredCosts.find((e) => e.key === "inventory");
-    const holding = r.incurredCosts.find((e) => e.key === "holding");
 
     expect(cogsEntry?.inputQty).toBe(Math.round(r.produced));
-    // Holding is charged on what is CARRIED, not on the whole build.
-    expect(holding?.leftover).toBe(r.closingStock);
+  });
+
+  it("charges NOTHING on stock that did not sell", () => {
+    // The whole cost of an unsold unit is its COGS, recognised on the build.
+    // There is no second charge on what it left behind — no `holding` entry
+    // exists, and nothing else may key off `closingStock`.
+    const r = run({ produced: Number.MAX_SAFE_INTEGER });
+
+    expect(r.closingStock).toBeGreaterThan(0);
+    expect(r.incurredCosts.find((e) => e.key === "holding")).toBeUndefined();
+    expect(r.incurredCosts.some((e) => e.leftover > 0)).toBe(false);
   });
 });
 
@@ -308,36 +316,6 @@ describe("calcFinancials · Layer B1 — every lever moves the promised directio
     const big = run({ marketShare: 0.4 });
 
     expect(big.customersObtained).toBeGreaterThan(small.customersObtained);
-  });
-
-  it("a non-zero inventory_cost ⇒ strictly higher operating expenses", () => {
-    // This is the impact that IMPACT_CONFIG had no entry for, so calcFinancials
-    // silently discarded it. Without this test, wiring it up is unobservable.
-    // Built to the ceiling: holding is charged on CLOSING stock, and an
-    // unstated target now produces nothing to hold.
-    const free = run({
-      produced: Number.MAX_SAFE_INTEGER,
-      globalInputs: [
-        gi({
-          category: "Channels",
-          costTreatment: { cogs: 0, opex: 0 },
-          impacts: { inventory_cost: { type: "absolute", value: 0 } },
-        }),
-      ],
-    });
-    const charged = run({
-      produced: Number.MAX_SAFE_INTEGER,
-      globalInputs: [
-        gi({
-          category: "Channels",
-          costTreatment: { cogs: 0, opex: 0 },
-          impacts: { inventory_cost: { type: "absolute", value: 11.8 } },
-        }),
-      ],
-    });
-
-    expect(charged.operatingExpenses).toBeGreaterThan(free.operatingExpenses);
-    expect(charged.operatingProfit).toBeLessThan(free.operatingProfit);
   });
 
   it("a dynamic_cost impact reduces unit cost", () => {
@@ -414,56 +392,67 @@ describe("calcFinancials · Layer B1b — per-product impact overrides", () => {
   // ── absolute impacts: the override ADDS, it does not scale ────────────────
   //
   // These are the cases the first cut of this feature got wrong. It multiplied
-  // both types, so an override of 0.5 on the operator's flat 11.8 per-unit
-  // holding cost silently became 5.90 instead of 12.3. Every test above passed
-  // regardless, because they all exercise `relative` impacts.
+  // both types, so an override of 0.5 on a flat quantity of 11.8 silently
+  // became 5.90 instead of 12.3. Every test above passed regardless, because
+  // they all exercise `relative` impacts.
+  //
+  // They used to ride on `inventory_cost`, the only key IMPACT_CONFIG declared
+  // `via: "absolute"`. That impact is gone (2026-09-17, with the holding
+  // charge), but the RULE it happened to demonstrate is not: `impactValue`
+  // dispatches on the DOCUMENT's `impact.type`, not on the key, so ANY impact
+  // an operator authors `absolute` takes this path — the console lets them type
+  // any metric key and pick relative/absolute per impact.
+  //
+  // Re-pinned to `sales_channel`, deliberately: it is a key the live config
+  // actually authors, so this fixture is a real shape rather than a key chosen
+  // to suit the test. (`inventory` would have been the closer swap and is the
+  // wrong one — nothing authors it either, which is how the previous version
+  // ended up pinned to a lever that did not exist.)
 
-  const holding = (
+  const absChannel = (
     value: number,
     selections?: Array<{ productId: unknown; value: number }>,
   ) =>
     gi({
-      category: "Channel",
+      category: "Channels",
       costTreatment: { cogs: 0, opex: 0 },
-      impacts: { inventory_cost: { type: "absolute", value, selections } },
+      impacts: { sales_channel: { type: "absolute", value, selections } },
     });
 
   it("ADDS an absolute override to the base quantity", () => {
-    const base = run({ produced: Number.MAX_SAFE_INTEGER, globalInputs: [holding(11.8)] });
+    const base = run({ globalInputs: [absChannel(0.5)] });
     const raised = run({
-      produced: Number.MAX_SAFE_INTEGER,
-      globalInputs: [holding(11.8, [{ productId: PRODUCT_ID, value: 0.5 }])],
+      globalInputs: [absChannel(0.5, [{ productId: PRODUCT_ID, value: 0.5 }])],
     });
-    // 11.8 + 0.5 ⇒ a HIGHER per-unit holding charge, so higher opex. Under the
-    // old multiply rule this was 11.8 × 0.5 = 5.9 and opex went DOWN.
-    expect(raised.operatingExpenses).toBeGreaterThan(base.operatingExpenses);
+    // 0.5 + 0.5 ⇒ a LARGER augmentation, so more customers. Under the old
+    // multiply rule this was 0.5 × 0.5 = 0.25 and the figure went DOWN.
+    expect(raised.customersObtained).toBeGreaterThan(base.customersObtained);
   });
 
   it("lets a negative absolute override reduce the quantity", () => {
-    const base = run({ produced: Number.MAX_SAFE_INTEGER, globalInputs: [holding(11.8)] });
+    const base = run({ globalInputs: [absChannel(0.5)] });
     const cut = run({
-      produced: Number.MAX_SAFE_INTEGER,
-      globalInputs: [holding(11.8, [{ productId: PRODUCT_ID, value: -5 }])],
+      globalInputs: [absChannel(0.5, [{ productId: PRODUCT_ID, value: -0.25 }])],
     });
-    expect(cut.operatingExpenses).toBeLessThan(base.operatingExpenses);
+    expect(cut.customersObtained).toBeLessThan(base.customersObtained);
   });
 
   it("treats an ABSOLUTE override of 0 as no override", () => {
-    const base = run({ globalInputs: [holding(11.8)] });
+    const base = run({ globalInputs: [absChannel(0.5)] });
     const neutral = run({
-      globalInputs: [holding(11.8, [{ productId: PRODUCT_ID, value: 0 }])],
+      globalInputs: [absChannel(0.5, [{ productId: PRODUCT_ID, value: 0 }])],
     });
     // 0 is the additive identity — the opposite of the relative case, where 0
     // cancels. This pair is what pins the two rules apart.
-    expect(neutral.operatingExpenses).toBeCloseTo(base.operatingExpenses);
+    expect(neutral.customersObtained).toBeCloseTo(base.customersObtained);
   });
 
   it("leaves an absolute impact alone for a product the override does not name", () => {
-    const base = run({ globalInputs: [holding(11.8)] });
+    const base = run({ globalInputs: [absChannel(0.5)] });
     const other = run({
-      globalInputs: [holding(11.8, [{ productId: oid(), value: 100 }])],
+      globalInputs: [absChannel(0.5, [{ productId: oid(), value: 100 }])],
     });
-    expect(other.operatingExpenses).toBeCloseTo(base.operatingExpenses);
+    expect(other.customersObtained).toBeCloseTo(base.customersObtained);
   });
 
   it("scales a dynamic_cost impact too, not just inventory", () => {
@@ -530,20 +519,18 @@ describe("calcFinancials · Layer B2 — the game is playable", () => {
     // THE INVARIANT — relational, deliberately not pinned to a sign. A glut can
     // still be PROFITABLE at a luxury price: few buyers, high margin, and that
     // is good pricing rather than a failure. What must always hold is that units
-    // nobody bought cost money — they add COGS (expensed on production) and
-    // holding, and add no revenue. Retuning INVENTORY_BASE, inventory_cost or
-    // the margin cannot redden this.
+    // nobody bought cost money — they add COGS (expensed on production) and add
+    // no revenue. Retuning INVENTORY_BASE or the margin cannot redden this.
+    //
+    // COGS is now the WHOLE penalty. This test used to add an `inventory_cost`
+    // impact and assert opex rose too; with the holding charge gone the glut's
+    // opex is identical (consignment is on units SOLD, which is unchanged) and
+    // the invariant rests entirely on the build — which is the point of
+    // recognising cost on production.
     const opts = {
       sellingPrice: 14,
       materialValue: 1,
       materialUnitCost: 0.3,
-      globalInputs: [
-        gi({
-          category: "Channels",
-          costTreatment: { cogs: 0, opex: 0 },
-          impacts: { inventory_cost: { type: "absolute", value: 2 } },
-        }),
-      ],
     };
     const demand = run(opts).customersObtained;
     // CEIL, not floor: `customersObtained` is fractional, so flooring would
@@ -554,9 +541,9 @@ describe("calcFinancials · Layer B2 — the game is playable", () => {
     const glut    = run({ ...opts, produced: Number.MAX_SAFE_INTEGER });
 
     expect(glut.produced).toBe(glut.inventoryQty);
-    expect(glut.revenue).toBeCloseTo(matched.revenue);                        // extra units did not sell
-    expect(glut.COGS).toBeGreaterThan(matched.COGS);                          // but were built
-    expect(glut.operatingExpenses).toBeGreaterThan(matched.operatingExpenses); // and are held
+    expect(glut.revenue).toBeCloseTo(matched.revenue);                     // extra units did not sell
+    expect(glut.COGS).toBeGreaterThan(matched.COGS);                       // but were built
+    expect(glut.operatingExpenses).toBeCloseTo(matched.operatingExpenses); // and cost nothing to keep
     expect(glut.operatingProfit).toBeLessThan(matched.operatingProfit);
   });
 
@@ -569,13 +556,6 @@ describe("calcFinancials · Layer B2 — the game is playable", () => {
       materialValue: 1,
       materialUnitCost: 4,
       produced: Number.MAX_SAFE_INTEGER,
-      globalInputs: [
-        gi({
-          category: "Channels",
-          costTreatment: { cogs: 0, opex: 0 },
-          impacts: { inventory_cost: { type: "absolute", value: 2 } },
-        }),
-      ],
     });
 
     expect(r.operatingProfit).toBeLessThan(0);
@@ -640,22 +620,14 @@ describe("calcFinancials · Layer B3 — degenerate cases", () => {
   // Renamed from "treats the entire build as leftover when no one buys": under
   // COGS-on-production the build is a COST here, not merely idle stock.
   it("expenses the whole build when nothing sells", () => {
-    const r = run({
-      sellingPrice: 0,
-      globalInputs: [
-        gi({
-          category: "Channels",
-          costTreatment: { cogs: 0, opex: 0 },
-          impacts: { inventory_cost: { type: "absolute", value: 2 } },
-        }),
-      ],
-    });
-    const holding = r.incurredCosts.find((e) => e.key === "holding");
+    const r = run({ sellingPrice: 0 });
 
     expect(r.unitsSold).toBe(0);
+    // The build is the ENTIRE charge. Every unit is carried forward, and
+    // carrying costs nothing — so opex owes nothing to the leftovers.
     expect(r.COGS).toBeCloseTo(r.produced * r.dynamicCost);
-    expect(holding?.leftover).toBe(r.closingStock);
-    expect(holding?.incurredCost).toBeCloseTo(r.closingStock * 2);
+    expect(r.closingStock).toBe(Math.round(r.produced));
+    expect(r.operatingExpenses).toBeCloseTo(0);
   });
 });
 

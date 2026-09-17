@@ -36,9 +36,9 @@ export interface UserProjectionTotals {
  * Profit is GROSS profit — revenue − COGS — and stops there. It charges cost
  * against the same sellable units the revenue was earned on, so the two figures
  * can never describe different quantities of notebooks. Operating expenses are
- * NOT deducted: holding cost and period costs are the server's to compute, and
- * they belong to the actual result, not to a forecast the player can make from
- * their own inputs.
+ * NOT deducted: period costs are the server's to compute, and they belong to
+ * the actual result, not to a forecast the player can make from their own
+ * inputs.
  *
  * Each line is matched to its projection by `productId`. This used to pair them
  * by ARRAY POSITION, which was wrong: `byProduct` is ordered by the server's own

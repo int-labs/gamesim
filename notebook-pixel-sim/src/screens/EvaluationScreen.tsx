@@ -40,13 +40,31 @@ export function EvaluationScreen() {
   const seriesLen = useGame((s) => s.series.cash.length);
   const summary = useMemo(() => selectEvaluationSummary(useGame.getState() as any, phase), [phase, ledgerLen, seriesLen]);
   const trend = useMemo(() => selectCashTrend(useGame.getState() as any), [seriesLen]);
-  const grossRevenue = summary.revenue;
+  /**
+   * THE SERVER'S SCORED ROUND, when there is one.
+   *
+   * `summary.*` comes from `selectEvaluationSummary`, which sums `state.ledger`
+   * buckets — LOCAL money only (see CLAUDE.md: "the ledger is NOT the P&L
+   * source"). Several of those buckets are structurally empty in V3, so the
+   * headline figures here could differ from the finance sheet's while carrying
+   * the same names.
+   *
+   * Renaming this panel's "Operating Profit" to "Net Income" (2026-09-17, to
+   * match the sheet) made that intolerable: one name, two numbers, is the
+   * defect the rename exists to remove. So the figure itself now comes from the
+   * same field the sheet reads.
+   *
+   * Falls back to the local summary when the round is not scored — the run
+   * still has to render an evaluation in standalone play.
+   */
+  const official = financialsByRound[roundNumberFromPhase(phase)] ?? null;
+  const grossRevenue = official?.revenue ?? summary.revenue;
+  const netIncome = official?.operatingProfit ?? summary.opProfit;
   const matCost = summary.matCost;
   const labor = summary.labor;
   const marketing = summary.marketing;
   const tools = summary.tools;
   const channel = summary.channel;
-  const opProfit = summary.opProfit;
 
   const onSubmit = () => {
     if (!answer) return;
@@ -130,7 +148,7 @@ export function EvaluationScreen() {
             <PixelPanel title="Phase Snapshot">
               <div className="grid grid-cols-3 gap-2">
                 <Stat label="Gross Revenue" value={fmt$(grossRevenue)} tone="info" />
-                <Stat label="Operating Profit" value={fmt$(opProfit)} tone={opProfit >= 0 ? 'success' : 'error'} />
+                <Stat label="Net Income" value={fmt$(netIncome)} tone={netIncome >= 0 ? 'success' : 'error'} />
                 <Stat label="Cash" value={fmt$(cash)} tone={cash >= 0 ? 'success' : 'error'} />
                 <Stat label="Finished" value={String(inventory.totalFinished)} tone="neutral" />
                 <Stat label="Stockout days" value={String(inventory.stockoutDays)} tone={inventory.stockoutDays > 3 ? 'warn' : 'neutral'} />
@@ -149,7 +167,7 @@ export function EvaluationScreen() {
                 non-zero in the V3 economy. It used to plot Material · Labor ·
                 Marketing · Tools — of which Labor and Tools are structurally
                 always $0 (the FinLit bridge never emits `cogs-labor` or
-                `opex-tool`), while Channel & Holding, usually the LARGEST
+                `opex-tool`), while Channel, usually the LARGEST
                 cost, was not plotted at all. Amelia's debrief one panel over
                 tells the player to "open the cost mix to see which line ate
                 the margin", so the chart has to be able to show it. Legacy V2
@@ -159,7 +177,7 @@ export function EvaluationScreen() {
               <PixelStackedBar
                 data={[
                   { label: 'Material', value: matCost, color: '#e07a6a' },
-                  { label: 'Channel & holding', value: channel, color: '#6c93d9' },
+                  { label: 'Channel', value: channel, color: '#6c93d9' },
                   { label: 'Marketing / ops', value: marketing, color: '#e6b54a' },
                   { label: 'Labor', value: labor, color: '#9b6cd9' },
                   { label: 'Tools / upgrades', value: tools, color: 'var(--c-fin-cash)' },
@@ -173,12 +191,12 @@ export function EvaluationScreen() {
           <div className="flex flex-col gap-3">
             <PixelPanel title="Amelia's debrief" tone="paper">
               <div className="flex gap-2 items-start">
-                <MascotAvatar mood={opProfit >= 0 ? 'happy' : 'concerned'} size={68} />
+                <MascotAvatar mood={netIncome >= 0 ? 'happy' : 'concerned'} size={68} />
                 <div className="body-xs font-body text-ink-800 leading-relaxed">
                   <p className="mb-1.5">
-                    {opProfit >= 0
-                      ? `Profit positive (${fmt$(opProfit)}) - your decisions paid off this phase. The audience and price found each other.`
-                      : `Profit dipped (${fmt$(opProfit)}). Revenue alone is not the story - open the cost mix on the left to see which line ate the margin.`}
+                    {netIncome >= 0
+                      ? `Profit positive (${fmt$(netIncome)}) - your decisions paid off this phase. The audience and price found each other.`
+                      : `Profit dipped (${fmt$(netIncome)}). Revenue alone is not the story - open the cost mix on the left to see which line ate the margin.`}
                   </p>
                   {inventory.stockoutDays > 3 && (
                     <p className="mb-1.5">
@@ -190,7 +208,7 @@ export function EvaluationScreen() {
                       <strong>{inventory.overstockDays} overstock days</strong> - cash trapped in unsold notebooks. Lower your production target or boost demand with marketing.
                     </p>
                   )}
-                  {inventory.stockoutDays <= 3 && inventory.overstockDays <= 3 && opProfit >= 0 && (
+                  {inventory.stockoutDays <= 3 && inventory.overstockDays <= 3 && netIncome >= 0 && (
                     <p className="mb-1.5">
                       Inventory stayed clean and profit landed positive - solid run. Keep an eye on cost creep next phase.
                     </p>

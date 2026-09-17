@@ -34,22 +34,23 @@ export interface ChannelRow {
   /** Per-SALE fee. Hydrates and displays, but `calcFinancials` has no per-sale
    *  term, so it moves no money yet — deliberate, to surface in UAT. */
   consignment: number;
-  /** The `inventory_cost` impact — charged by the server on closing stock. */
-  inventoryCost: number;
+  // NO `inventoryCost`. It mirrored the server's `inventory_cost` impact, which
+  // was deleted with the holding charge on 2026-09-17: there is no warehouse
+  // here, and COGS already lands on the build.
 }
 
 export const CHANNEL_META: Record<string, { name: string; blurb: string }> = {
   offline: { name: 'Offline', blurb: 'Direct/pop-up sales. No consignment, lowest overhead.' },
   online: { name: 'Online', blurb: 'Always-on storefront. Consignment fee, broad reach.' },
-  retail: { name: 'Retail', blurb: 'Shelf placement. Highest overhead + inventory cost.' },
+  retail: { name: 'Retail', blurb: 'Shelf placement. Highest consignment cut.' },
 };
 
 /** Mutated in place by `hydrateChannels` — importers hold this array, so it
  *  must never be reassigned. See CLAUDE.md, Tunable game data. */
 export const CHANNEL_ROWS: ChannelRow[] = [
-  { channel: 'offline', consignment: 0, inventoryCost: 0 },
-  { channel: 'online', consignment: 8, inventoryCost: 0 },
-  { channel: 'retail', consignment: 11.8, inventoryCost: 11.8 },
+  { channel: 'offline', consignment: 0 },
+  { channel: 'online', consignment: 8 },
+  { channel: 'retail', consignment: 11.8 },
 ];
 
 /** Throws on an unknown channel, like every other accessor here — a dropped id
@@ -60,14 +61,13 @@ export const channelRow = (channel: ChannelId): ChannelRow => {
   return r;
 };
 
-// Impact key → ChannelRow field. `inventory_cost` is the only one the server
-// consumes (IMPACT_CONFIG → affects: inventoryCost). There is deliberately no
-// `sell_rate` impact: one that moves no number is a field the operator fills in
-// for nothing, and hydration for a key nobody authors is a path that says
-// nothing. Both crowd the thinking rather than clarifying it.
-const FIELDS: { impactKey: string; rowField: 'consignment' | 'inventoryCost' }[] = [
-  { impactKey: 'consignment',   rowField: 'consignment' },
-  { impactKey: 'inventory_cost',rowField: 'inventoryCost' },
+// Impact key → ChannelRow field. There is deliberately no `sell_rate` impact:
+// one that moves no number is a field the operator fills in for nothing, and
+// hydration for a key nobody authors is a path that says nothing. Both crowd
+// the thinking rather than clarifying it. `inventory_cost` was dropped from
+// this list on 2026-09-17 for the same reason once the holding charge went.
+const FIELDS: { impactKey: string; rowField: 'consignment' }[] = [
+  { impactKey: 'consignment', rowField: 'consignment' },
 ];
 
 /**
@@ -93,7 +93,7 @@ export function hydrateChannels(items: GlobalInputItemDto[]): void {
     if (!row) {
       // Zeros, not invented numbers — a fabricated fee reads exactly like a
       // real one. The impacts below overwrite whichever ones are configured.
-      row = { channel: chId, consignment: 0, inventoryCost: 0 };
+      row = { channel: chId, consignment: 0 };
       CHANNEL_ROWS.push(row);
     }
 

@@ -28,7 +28,7 @@ The authoritative P&L, computed server-side and to be displayed verbatim:
   Revenue           unitsSold × sellingPrice
 − COGS              produced  × dynamicCost + globalInput costs declared 'cogs'
 = Gross Profit
-− OpEx              closingStock × inventory_cost + globalInput costs declared 'opex'
+− OpEx              unitsSold × consignment + globalInput costs declared 'opex'
 = Operating Profit
 ```
 
@@ -50,8 +50,12 @@ Notes that will bite otherwise:
 - **`closingStock` carries across rounds** via `Projections{roundNumber}`; round
   N+1 reads round N as `openingStock`. Both money paths must pass it or the live
   projection and the score disagree from round 2 on.
-- Holding is charged on `closingStock`, at the operator's per-unit
-  `inventory_cost` (configured on the *channel* globalInput's impacts).
+- **`closingStock` is charged NOTHING.** There is no holding/carrying cost: the
+  penalty for overproducing is the COGS on its build, already recognised, and
+  the leftovers carry forward as an asset that sells later with no further COGS.
+  The `inventory_cost` impact was removed on 2026-09-17 (no live config authored
+  one); do not reintroduce a per-unsold-unit charge without a warehouse mechanic
+  to attach it to.
 - **`/projections/recalc` is triggered on interaction END**, not on state change:
   `onPointerUp`+`onKeyUp` for ranges, `onChange` for selects, `onClick` for
   buttons, modal commit for hires/vendors — via `liveProjectionState.recalc`,

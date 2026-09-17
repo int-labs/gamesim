@@ -268,16 +268,18 @@ export interface ProductProjectionDto {
    *  `targetPerPhase`. The two agree because the client clamps with the same
    *  `Math.floor(capacity)` the server clamps with. */
   produced?: number;
-  /** Unsold units at close: (openingStock + produced) − unitsSold. Charged
-   *  holding, and read as the NEXT round's opening stock. */
+  /** Unsold units at close: (openingStock + produced) − unitsSold. Carries no
+   *  charge of its own — COGS was recognised on the build — and is read as the
+   *  NEXT round's opening stock. */
   closingStock?: number;
   /** Units sold = min(customersObtained, openingStock + produced). */
   unitsSold?: number;
   revenue?: number;
   COGS?: number;
   grossProfit?: number;
-  /** Period costs — inventory holding on the unsold remainder plus every
-   *  globalInput cost declared as opex. Sits BELOW the gross-profit line. */
+  /** Period costs — the channel's cut of each sale plus every globalInput cost
+   *  declared as opex. Sits BELOW the gross-profit line. Unsold stock adds
+   *  NOTHING here: COGS is recognised on the build. */
   operatingExpenses?: number;
   operatingProfit?: number;
   productCostBreakdown?: Record<string, number>;

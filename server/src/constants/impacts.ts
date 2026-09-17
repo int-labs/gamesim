@@ -9,7 +9,10 @@ export type ImpactTarget =
 
 export interface ImpactConfig {
   target:  ImpactTarget;
-  affects: "inventoryRate" | "customersObtained" | "dynamicPrice" | "dynamicCost" | "inventoryCost" | "consignment";
+  affects: "inventoryRate" | "customersObtained" | "dynamicPrice" | "dynamicCost" | "consignment";
+  /** DECLARATIVE ONLY — nothing reads it. Every branch in calcFinancials
+   *  dispatches on the DOCUMENT's own `impact.type`, so this cannot constrain
+   *  how an operator authors the impact. */
   via:     "relative" | "absolute";
 }
 
@@ -34,15 +37,10 @@ export const IMPACT_CONFIG: Record<string, ImpactConfig> = {
     affects: "dynamicCost",
     via:     "relative",
   },
-  /** Per-unit carrying cost on inventory that did NOT sell. Charged on closing
-   *  stock. Dispatch is on THIS MAP KEY, on any item in any container — nothing
-   *  ties it to channels, and a storefront holding your stock cost models
-   *  nothing real. */
-  inventory_cost: {
-    target:  "inventory",
-    affects: "inventoryCost",
-    via:     "absolute",
-  },
+  // NO `inventory_cost`. It charged a per-unit carrying cost on unsold stock,
+  // which models nothing here: there is no warehouse, and COGS already lands on
+  // the BUILD, so overproduction is paid for in the round that produced it.
+  // Removed 2026-09-17; no channel in the live config authored one.
 
   /** A channel's cut, as a RATE on the selling price — retail 0.2 is 20% of
    *  every sale through retail, NOT $0.20. Charged on units SOLD, not units

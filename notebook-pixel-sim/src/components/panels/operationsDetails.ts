@@ -127,7 +127,14 @@ export function channelDetail(
       },
       {
         caption: 'Running cost',
-        columns: ['Channel', 'Per phase', 'Cut of each sale', 'Per unsold unit'],
+        // NO "Per unsold unit" column. It advertised a per-unit charge on stock
+        // that did not sell, as a reason to pick one channel over another — a
+        // cost the simulation does not have. The holding charge and its
+        // `inventory_cost` impact were removed on 2026-09-17: COGS lands on the
+        // BUILD, so an unsold unit is already paid for and carries forward as an
+        // asset. A column naming a cost that cannot be incurred is worse than no
+        // column: it is read as a real trade-off.
+        columns: ['Channel', 'Per phase', 'Cut of each sale'],
         rows: items.map((item) => {
           const r = rowFor(item.key as ChannelId);
           return [
@@ -135,7 +142,6 @@ export function channelDetail(
             money(item.cost),
             // A rate, not a fee — see the note on `costs` above.
             r && r.consignment > 0 ? pct(r.consignment) : '-',
-            r && r.inventoryCost > 0 ? money(r.inventoryCost) : '-',
           ];
         }),
       },

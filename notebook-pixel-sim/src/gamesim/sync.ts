@@ -266,7 +266,8 @@ export interface OfficialFinancials {
   revenue: number;
   cogs: number;
   grossProfit: number;
-  /** Below the gross-profit line: holding on unsold stock + opex globalInputs. */
+  /** Below the gross-profit line: the channel's cut of each sale + opex
+   *  globalInputs. Unsold stock adds nothing — COGS is on the build. */
   operatingExpenses: number;
   operatingProfit: number;
   customersObtained: number;

@@ -80,14 +80,26 @@ export function FinalResultsScreen() {
     .sort((a, b) => a - b)
     .map((r) => financialsByRound[r].operatingProfit);
 
+  // Same resolution as the P&L sheet's `containerLabel` — a globalInput cost is
+  // named by its CONTAINER'S LABEL, taken live, not by the `category` the
+  // server titles the row with. Without this the final chart, the P&L and the
+  // round CSV export each printed a different name for the same cost.
+  const containerLabel = (category: string): string =>
+    state.availableGlobalInputs.find((g) => g.category === category)?.label ?? category;
+
   const serverCostMix = (() => {
     const byLabel = new Map<string, number>();
     for (const p of latestFinancials?.byProduct ?? []) {
-      // Both arrays — globalInput spend is the larger half of the mix, and
-      // grouping is by label, which is the category for those rows.
-      for (const entry of [...(p.incurredCosts ?? []), ...(p.globalInputCosts ?? [])]) {
+      // `incurredCosts` carries the server's own fixed labels ("Cost of goods
+      // sold"); `globalInputCosts` is titled by category and gets resolved.
+      for (const entry of p.incurredCosts ?? []) {
         if (!entry?.label) continue;
         byLabel.set(entry.label, (byLabel.get(entry.label) ?? 0) + (entry.incurredCost ?? 0));
+      }
+      for (const entry of p.globalInputCosts ?? []) {
+        if (!entry?.category) continue;
+        const name = containerLabel(entry.category);
+        byLabel.set(name, (byLabel.get(name) ?? 0) + (entry.incurredCost ?? 0));
       }
     }
     return [...byLabel.entries()]

@@ -170,16 +170,17 @@ export interface TeamFinancials {
   /** Units actually built this round: min(the team's target, inventoryQty).
    *  This is what COGS is charged on. */
   produced:            number;
-  /** Unsold units at close: (openingStock + produced) − unitsSold. Charged
-   *  holding, and read as the next round's openingStock. */
+  /** Unsold units at close: (openingStock + produced) − unitsSold. Carries no
+   *  charge of its own — COGS was recognised on the build — and is read as the
+   *  next round's openingStock. */
   closingStock:        number;
   /** Units actually sold — demand clamped by opening stock plus production. */
   unitsSold:           number;
   revenue:             number;
   COGS:                number;
   grossProfit:         number;
-  /** Period costs: inventory holding on the unsold remainder, plus every
-   *  globalInput cost declared as opex. Sits BELOW the gross-profit line. */
+  /** Period costs: the channel's cut of each sale, plus every globalInput cost
+   *  declared as opex. Sits BELOW the gross-profit line. */
   operatingExpenses:   number;
   operatingProfit:     number;
   productCostBreakdown: ProductCostBreakdown[];
@@ -425,7 +426,6 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     let inventoryAugmentation = 1;
     let customersObtainedAugment = baseVariables.customersObtainedBase ?? 0.3;
     let dynamicPriceAugment      = baseVariables.dynamicPriceBase      ?? 0.55; // quality augmentation from inventory-affecting global inputs
-    let inventoryCostPerUnit     = 0;   // currency per unsold unit, not a rate
 
     /**
      * One entry per SELECTED channel: its cut as a RATE on the selling price,
@@ -511,14 +511,6 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
             dynamicCost = Math.max(0, dynamicCost * (1 - impactValue * effectiveMultiplier));
           } else {
             dynamicCost = Math.max(0, dynamicCost - impactValue * effectiveMultiplier);
-          }
-        }
-
-        if (config.affects === "inventoryCost") {
-          if (impact.type === "relative") {
-            inventoryCostPerUnit *= (1 + impactValue * effectiveMultiplier);
-          } else {
-            inventoryCostPerUnit += impactValue * effectiveMultiplier;
           }
         }
 
@@ -612,8 +604,8 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     // ── Production, stock, and what actually sells ───────────────────────────
     // `inventoryQty` is the CEILING on production, never the amount produced.
     // Conflating the two made the produce planner inert: the model assumed
-    // maximum output every round and billed holding on the remainder, so
-    // over-production was an unavoidable tax rather than a decision.
+    // maximum output every round, so over-production was an unavoidable tax
+    // rather than a decision.
     const producedRaw = decision?.inputs
       .find((inp) => inp.productId.equals(productId))?.produced;
 
@@ -639,11 +631,14 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     // cost-reducing candidate this round.
     const unitCOGS = produced * dynamicCost;
 
-    // Holding: the unsold remainder at the operator's per-unit inventory cost
-    // (channels → impacts → `inventory_cost`). Charged on closing stock — a
-    // team that produced conservatively is not billed for units it chose not
-    // to make.
-    const holdingCost = closingStock * inventoryCostPerUnit;
+    // NO holding charge on `closingStock`. There is no warehouse in this
+    // simulation, so a carrying cost modelled nothing the player can decide
+    // about — and the penalty for overproducing is already fully expressed:
+    // COGS lands on the BUILD, so an unsold unit has been paid for in the round
+    // that made it and carries forward as an asset that sells later at no
+    // further COGS. Removed 2026-09-17 on the owner's ruling. The lever behind
+    // it (`inventory_cost`) went with it; nothing in the live config authored
+    // one.
 
     // Consignment: the channel's cut, on units that actually SOLD. Not on units
     // built — an unsold notebook pays no storefront fee.
@@ -664,17 +659,6 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       costPerUnit:  dynamicCost,
       incurredCost: unitCOGS,
       treatment:    "cogs",
-    });
-
-    incurredCosts.push({
-      key:          "holding",
-      label:        "Inventory holding",
-      category:     "inventory",
-      inputQty:     closingStock,
-      leftover:     closingStock,
-      costPerUnit:  inventoryCostPerUnit,
-      incurredCost: holdingCost,
-      treatment:    "opex",
     });
 
     // One row per SIDE, and only when that side charged — the treatment is the
@@ -766,7 +750,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     const revenue           = unitsSold * sellingPrice;
     const COGS              = unitCOGS + globalInputCOGS + consignmentCogs;
     const grossProfit       = revenue - COGS;
-    const operatingExpenses = holdingCost + consignmentOpex + globalInputOpex;
+    const operatingExpenses = consignmentOpex + globalInputOpex;
     const operatingProfit   = grossProfit - operatingExpenses;
 
     return {

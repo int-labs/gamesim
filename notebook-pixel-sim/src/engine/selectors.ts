@@ -211,8 +211,12 @@ export interface ProjectedCashResult {
 
 /**
  * THE definition of a round's cash balance — the one the HUD chip, the stats
- * recap, the confirm modal and the P&L's Cash Balance row all read, so none of
- * them can disagree.
+ * recap and the confirm modal all read, so none of them can disagree.
+ *
+ * The P&L sheet no longer reads it. `FinanceTable` became a pure income
+ * statement on 2026-09-17 (Revenue → COGS → Gross Profit → OpEx → Net Income →
+ * margin), and its cash walk came out with it — cash position is now the HUD
+ * chip's alone.
  *
  * Three terms:
  *   round 1's opening capital

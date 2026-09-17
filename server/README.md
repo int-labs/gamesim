@@ -171,16 +171,22 @@ closingStock  = sellable − unitsSold                     ← next round's open
   Revenue           unitsSold × sellingPrice
 − COGS              produced × dynamicCost + globalInputs declared 'cogs'
 = Gross Profit
-− OpEx              closingStock × inventory_cost + globalInputs declared 'opex'
+− OpEx              unitsSold × consignment + globalInputs declared 'opex'
 = Operating Profit
 ```
 
 - `unitsSold` [`:554`](src/sim/calcFinancials.ts#L554) · `closingStock` [`:557`](src/sim/calcFinancials.ts#L557)
-- `unitCOGS` [`:564`](src/sim/calcFinancials.ts#L564) · `holdingCost` [`:570`](src/sim/calcFinancials.ts#L570)
+- `unitCOGS` [`:564`](src/sim/calcFinancials.ts#L564)
 
 **COGS is charged on units PRODUCED, not sold.** Cost is recognised when a unit
 is built, so carried stock sells later with no further COGS — and a round that
 sells nothing still expenses its whole build.
+
+**`closingStock` carries NO charge.** There is no holding cost: overproduction
+is paid for in full by the COGS on its build, and the leftovers carry forward as
+an asset that sells later for free. The `inventory_cost` impact that charged
+per unsold unit was removed on 2026-09-17 — nothing in the live config authored
+one, and a warehouse fee modelled nothing the player can decide about.
 
 **`inventoryQty` is the CEILING on production**, derived from the product's own
 field values and never persisted as a decision.
@@ -203,7 +209,7 @@ exists at all:
 
 | Array | Holds | Unit fields |
 |---|---|---|
-| `incurredCosts` [`:126`](src/sim/calcFinancials.ts#L126) | COGS and inventory holding | `inputQty × costPerUnit === incurredCost` holds for every entry |
+| `incurredCosts` [`:126`](src/sim/calcFinancials.ts#L126) | COGS and channel consignment | `inputQty × costPerUnit === incurredCost` holds for every entry |
 | `globalInputCosts` [`:143`](src/sim/calcFinancials.ts#L143) | globalInput spend, one row per category per side | none — the charge is `costTreatment × step`, already final |
 
 **Read BOTH or the sheet will not add up.** `Σ (incurredCosts + globalInputCosts)`
@@ -283,7 +289,7 @@ Things that must stay true. Each has broken at least once.
 1. **`roundNumber` is 0-based; `totalRounds` is a count.** Never compare them directly.
 2. **Both money paths call `readCostTreatment` and `toProjectionMetrics`.** One reader, one shape.
 3. **`calcFinancials` never computes a market share.** It receives one — see [Market share](#market-share) for where it comes from, and why the round runs `calcFinancials` twice.
-4. **Costs do not scale with market share.** COGS is on units produced, holding on closing stock — both decisions, not outcomes.
+4. **Costs do not scale with market share.** COGS is on units produced — a decision, not an outcome.
 5. **Carry-forward stock reads `Decision.scored`, never `Projections`.**
 6. **`Projections` is never authoritative.** If a number matters, it comes from `Decision.scored`.
 7. **A round is scored as a unit.** `scored` is replaced wholesale, not merged per product, so two calculations can never interleave.

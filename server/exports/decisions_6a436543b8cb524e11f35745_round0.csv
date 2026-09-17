@@ -1,35 +1,35 @@
 Section,Decision,aunn's team,ayera's team,newbie's team
-Financial,Revenue,5907.00,-,9608.37
-Financial,COGS,4677.27,-,4676.41
-Financial,Gross Profit,1229.73,-,4931.96
-Financial,Operating Expenses,907.70,-,1273.84
-Financial,Operating Profit,322.03,-,3658.12
-Financial,Customers Obtained,649.15,-,384.33
+Financial,Revenue,16153.00,20775.62,-
+Financial,COGS,4522.42,4499.25,-
+Financial,Gross Profit,11630.58,16276.36,-
+Financial,Operating Expenses,2026.05,2354.97,-
+Financial,Operating Profit,9604.53,13921.40,-
+Financial,Customers Obtained,1364.63,692.52,-
 
-Notebook: Anime book,Made this notebook,Yes,No,Yes
-Notebook: Anime book,Produce / phase,537,-,587
-Notebook: Anime book,Stickers,0,-,0.15
-Notebook: Anime book,Selling Price,11,-,25
-Notebook: Anime book,Market Share,1,-,1
-Notebook: Anime book,Add-Ons,10,-,10
-Notebook: Anime book,Page Size,6,-,10
-Notebook: Anime book,Paper Material,6,-,6
-Notebook: Anime book,Page Design,5,-,5
-Notebook: Anime book,Cover Page,10,-,10
+Notebook: Anime book,Made this notebook,Yes,Yes,No
+Notebook: Anime book,Produce / phase,416,394,-
+Notebook: Anime book,Stickers,0,0.3,-
+Notebook: Anime book,Selling Price,20,30,-
+Notebook: Anime book,Market Share,1,1,-
+Notebook: Anime book,Add-Ons,10,10,-
+Notebook: Anime book,Page Size,10,10,-
+Notebook: Anime book,Paper Material,6,7,-
+Notebook: Anime book,Page Design,5,5,-
+Notebook: Anime book,Cover Page,8,12,-
 Notebook: Anime book,Charms,-,-,-
 Notebook: Anime book,Ribbons,-,-,-
 Notebook: Anime book,Functional,-,-,-
 
-Notebook: Minimalist Notebook,Made this notebook,No,No,No
-Notebook: Minimalist Notebook,Produce / phase,-,-,-
-Notebook: Minimalist Notebook,Stickers,-,-,-
-Notebook: Minimalist Notebook,Selling Price,-,-,-
-Notebook: Minimalist Notebook,Market Share,-,-,-
-Notebook: Minimalist Notebook,Add-Ons,-,-,-
-Notebook: Minimalist Notebook,Page Size,-,-,-
-Notebook: Minimalist Notebook,Paper Material,-,-,-
-Notebook: Minimalist Notebook,Page Design,-,-,-
-Notebook: Minimalist Notebook,Cover Page,-,-,-
+Notebook: Minimalist Notebook,Made this notebook,Yes,Yes,No
+Notebook: Minimalist Notebook,Produce / phase,373,359,-
+Notebook: Minimalist Notebook,Stickers,0,0,-
+Notebook: Minimalist Notebook,Selling Price,21,30,-
+Notebook: Minimalist Notebook,Market Share,1,1,-
+Notebook: Minimalist Notebook,Add-Ons,10,10,-
+Notebook: Minimalist Notebook,Page Size,10,8,-
+Notebook: Minimalist Notebook,Paper Material,6,6,-
+Notebook: Minimalist Notebook,Page Design,5,5,-
+Notebook: Minimalist Notebook,Cover Page,8,8,-
 Notebook: Minimalist Notebook,Charms,-,-,-
 Notebook: Minimalist Notebook,Ribbons,-,-,-
 Notebook: Minimalist Notebook,Functional,-,-,-
@@ -63,18 +63,18 @@ Notebook: Cutesy Notebook,Ribbons,-,-,-
 Notebook: Cutesy Notebook,Functional,-,-,-
 
 Vendors,Al's Material Store,-,-,-
-Vendors,Emil's Bookstore,-,-,Yes
+Vendors,Emil's Bookstore,-,-,-
 Vendors,Phoebe's Home Economics,-,-,-
-Vendors,Nine's Supply Service,Yes,-,-
+Vendors,Nine's Supply Service,-,-,-
 
-Channels,Online Channel,-,-,-
-Channels,Direct Channel,Yes,-,Yes
+Channels,Online Channel,Yes,Yes,-
+Channels,Direct Channel,Yes,Yes,-
 Channels,Retail Channel,-,-,-
 
-Marketing Investment,Social Media Marketing,5,-,7
-Marketing Investment,Web Marketing,-,-,-
-Marketing Investment,Advertiser Marketing,-,-,-
+Marketing Investment,Social Media Marketing,10,11,-
+Marketing Investment,Web Marketing,10,15,-
+Marketing Investment,Advertiser Marketing,0,0,-
 
-Hiring Options,Production Team,-,-,1
-Hiring Options,Materials Team,-,-,1
+Hiring Options,Production Team,-,-,-
+Hiring Options,Materials Team,4,4,-
 

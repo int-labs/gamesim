@@ -5,7 +5,7 @@
 // - Cost-reduction-by-level for upgrades:  cost × (1 − k × level)
 // - Working-capital timing via DSO/DPO (channel and supplier)
 // - Indirect cash flow: revenue accrues immediately, cash is delayed by DSO
-// - P&L groups: Revenue → COGS → Gross Profit → OpEx → Operating Profit
+// - P&L groups: Revenue → COGS → Gross Profit → OpEx → Net Income → margin
 
 export const PHASE_MAX_ENERGY = { 1: 30, 2: 45, 3: 60 } as const;
 export const ENERGY_REPLENISH = 15;

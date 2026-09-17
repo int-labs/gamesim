@@ -81,14 +81,14 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
   // is passed in — the chip is the round's spending limit, not just a tally of
   // the discretionary levers.
   const byProduct = liveProjectionState?.liveProjection?.byProduct ?? null;
-  // The BASE is the round's cash balance, not `player.cash`. Same function the
-  // P&L's Cash Balance row uses, so the chip and the sheet agree — and it
-  // pivots as soon as the operator scores the round.
+  // The BASE is the round's cash balance, not `player.cash` — it pivots as soon
+  // as the operator scores the round.
   const { financialsByRound } = useGamesimSession();
-  // The chip's BASE is the ledger's figure — the same `selectCashBalance` call
-  // the P&L's Cash Balance row makes — minus what this round has committed but
-  // not yet been scored on. So the two read identically until a decision is
-  // made, and then diverge by exactly the committed spend.
+  // THE ONLY CASH SURFACE. The P&L sheet used to carry a parallel cash walk off
+  // the same `selectCashBalance`; it became a pure income statement on
+  // 2026-09-17, so this chip is now the single place a cash POSITION is stated.
+  // What it shows is that balance minus what this round has committed but not
+  // yet been scored on.
   const cashBalance = useGame((s) =>
     selectCashBalance(
       s,
