@@ -719,3 +719,111 @@ describe("calcFinancials · per-product seed overrides", () => {
     expect(bare.productScore).toBeCloseTo(explicit.productScore);
   });
 });
+
+// ─── Layer C — DECLINED levers ───────────────────────────────────────────────
+//
+// THE GAP THE REST OF THE SUITE CANNOT REACH. `scenario()` hands the SAME array
+// to the config and to the team's selection, so every test above plays a team
+// that chose every configured lever. "Configured but not selected" was
+// therefore inexpressible — and that is exactly the state a real bug lived in:
+//
+//   const m = hasOptions ? getGlobalInputQuantity(...) : 1;
+//
+// For a BINARY lever (no `options`) the ternary discarded the resolver's 0 and
+// substituted 1, because `hasOptions === false` cannot distinguish "binary and
+// chosen" from "binary and absent". Every declined binary lever was charged at
+// full cost and had all of its impacts applied. Channels are binary, so this
+// moved real money. Fixed 2026-09-22 by deleting the ternary; these tests are
+// what would have caught it.
+//
+// ABSENCE IS THE "NO": the player client submits only the levers it chose, so a
+// declined one has no entry at all. See services/reportMatrix (`!sel → "No"`).
+
+describe("calcFinancials · Layer C — declined levers", () => {
+  /** Config and selection kept SEPARATE, which `scenario()` deliberately does
+   *  not do. `selected` is what the team actually submitted. */
+  function withLevers(
+    config: DecisionGlobalInputEntry[],
+    selected: DecisionGlobalInputEntry[],
+  ) {
+    const input = scenario({ globalInputs: config });
+    input.decisions[0].globalInputs = selected;
+    return calcFinancials(input).results[0];
+  }
+
+  /** Binary: no `options`, so presence alone is the selection. */
+  const binaryCost = (): DecisionGlobalInputEntry =>
+    gi({ category: "channel", options: {}, cost: 40, costTreatment: { cogs: 0, opex: 40 } });
+
+  /** Stepped: `options` maps each step to its multiplier. */
+  const steppedCost = (): DecisionGlobalInputEntry =>
+    gi({
+      category: "hiring",
+      options: { low: 0.5, high: 1 },
+      cost: 100,
+      costTreatment: { cogs: 0, opex: 100 },
+      selectedStepKey: "high",
+    });
+
+  it("charges NOTHING for a binary lever the team declined", () => {
+    const lever = binaryCost();
+    const declined = withLevers([lever], []);
+
+    // The regression: this read 40 while the ternary stood.
+    expect(sumTreatment(allCosts(declined), "opex")).toBe(0);
+    expect(declined.globalInputCosts).toHaveLength(0);
+  });
+
+  it("still charges the same binary lever when the team DID select it", () => {
+    // The control. Without it the test above passes for a build that charges
+    // nothing ever, which would be a different bug with the same green tick.
+    const lever = binaryCost();
+    const chosen = withLevers([lever], [lever]);
+
+    expect(sumTreatment(allCosts(chosen), "opex")).toBeCloseTo(40);
+  });
+
+  it("applies NO IMPACT from a binary lever the team declined", () => {
+    // Covers the OTHER call site — the impacts loop, not the cost loop. A
+    // `dynamic_cost` impact at multiplier 1 would have cut unit cost by 20% for
+    // a lever nobody chose.
+    const lever = gi({
+      category: "channel",
+      options: {},
+      impacts: { dynamic_cost: { type: "relative", value: 0.2 } },
+    });
+
+    const declined = withLevers([lever], []);
+    const noLeverAtAll = withLevers([], []);
+
+    expect(declined.dynamicCost).toBeCloseTo(noLeverAtAll.dynamicCost);
+  });
+
+  it("charges nothing for a STEPPED lever the team declined", () => {
+    // This path was always correct — `options[undefined] ?? 0` resolves to 0 —
+    // but pinning it stops a future "fix" from routing both kinds through the
+    // binary rule.
+    const lever = steppedCost();
+    const declined = withLevers([lever], []);
+
+    expect(sumTreatment(allCosts(declined), "opex")).toBe(0);
+  });
+
+  it("scales a stepped lever by its selected step", () => {
+    const lever = steppedCost();
+    const half = withLevers([lever], [{ ...lever, selectedStepKey: "low" }]);
+    const full = withLevers([lever], [{ ...lever, selectedStepKey: "high" }]);
+
+    expect(sumTreatment(allCosts(half), "opex")).toBeCloseTo(50);
+    expect(sumTreatment(allCosts(full), "opex")).toBeCloseTo(100);
+  });
+
+  it("charges nothing for a stepped lever whose step key is not configured", () => {
+    // An unknown key collapses the entry rather than guessing a multiplier — a
+    // frontend-invented key must not silently bill the team at full rate.
+    const lever = steppedCost();
+    const bogus = withLevers([lever], [{ ...lever, selectedStepKey: "enormous" }]);
+
+    expect(sumTreatment(allCosts(bogus), "opex")).toBe(0);
+  });
+});

@@ -17,6 +17,7 @@ import type {
   ProjectionDto,
   RecalcProjectionsBody,
   ResultDto,
+  RoundDebriefDto,
   RoundDto,
   SimulationDto,
 } from './types';
@@ -189,6 +190,21 @@ export function getDecisions(args: {
   return request(`/decisions${qs(args)}`);
 }
 
+// ── Round debrief ───────────────────────────────────────────────────────
+/**
+ * GET /round-debrief — the limbo slide's cross-team chart data.
+ *
+ * A team token may only pull a round the operator has already CALCULATED; an
+ * open round comes back 404, which is the normal state while the team is still
+ * waiting, not an error to surface as one.
+ */
+export function getRoundDebrief(args: {
+  simulationId: Id;
+  roundNumber: number;
+}): Promise<RoundDebriefDto> {
+  return request(`/round-debrief${qs(args)}`);
+}
+
 // ── Results (cross-team shares) ─────────────────────────────────────────
 /** GET /results — one document per product+segment+round, holding EVERY team's
  *  weighted score and market share. Written by the operator's calculation run;
@@ -352,6 +368,7 @@ export type {
   ProjectionDto,
   RecalcProjectionsBody,
   ResultDto,
+  RoundDebriefDto,
   RoundDto,
   SimulationDto,
 } from './types';

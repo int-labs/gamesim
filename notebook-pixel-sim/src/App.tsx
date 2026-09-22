@@ -36,6 +36,11 @@ const EvaluationScreen = lazy(() =>
 const FinalResultsScreen = lazy(() =>
   import('@/screens/FinalResultsScreen').then((m) => ({ default: m.FinalResultsScreen })),
 );
+// Lazy for a different reason than the modals above: it pulls the whole chart
+// set, which nothing before the first calculated round needs.
+const LimboScreen = lazy(() =>
+  import('@/screens/LimboScreen').then((m) => ({ default: m.LimboScreen })),
+);
 
 export default function App() {
   const screen = useGame((s) => s.meta.screen);
@@ -48,6 +53,11 @@ export default function App() {
   const pushMascotSequence = useGame((s) => s.pushMascotSequence);
   const day = useGame((s) => s.meta.day);
   const phase = useGame((s) => s.meta.phase);
+  /** The phase the limbo debrief is ABOUT — the last one evaluated, 1-based. */
+  const debriefPhase = useGame((s) => {
+    const done = s.evaluations.resolved;
+    return done.length > 0 ? done[done.length - 1].phase : null;
+  });
   const cash = useGame((s) => s.player.cash);
   const finished = useGame((s) => s.inventory.totalFinished);
   // Engine writes via apply elsewhere; not needed in App effects.
@@ -136,6 +146,20 @@ export default function App() {
           {screen === 'route' && <RouteChoiceScreen />}
           {screen === 'phase_intro' && <PhaseIntroScreen />}
           {(screen === 'simulation' || screen === 'evaluation' || screen === 'final') && <SimulationScreen />}
+          {/* LIMBO is a full screen, not an overlay: it replaces the simulation
+              rather than dimming it.
+              NOT derived from `meta.phase` — that is already bumped to the NEXT
+              phase by the time the sequence modal exits, so it would debrief the
+              wrong round. The last resolved evaluation names the round actually
+              played; `phase` is 1-based and server roundNumber is 0-based. */}
+          {screen === 'limbo' && debriefPhase != null && (
+            <Suspense fallback={null}>
+              <LimboScreen
+                roundNumber={debriefPhase - 1}
+                onContinue={() => setScreen('phase_intro')}
+              />
+            </Suspense>
+          )}
 
           {/* Overlays. Each lazy-loaded chunk wraps in <Suspense fallback={null}>
               so the surrounding UI keeps rendering while the chunk fetches.

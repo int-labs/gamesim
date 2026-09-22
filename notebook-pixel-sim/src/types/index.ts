@@ -62,6 +62,10 @@ export type ScreenId =
   | 'phase_intro'
   | 'simulation'
   | 'evaluation'
+  /** LIMBO — the round debrief, after the operator calculates and before the
+   *  team confirms the next phase. No persist migration needed: `screen` is
+   *  forced back to 'start' on reload, so no saved game can hold this value. */
+  | 'limbo'
   | 'final';
 
 export type SidebarCategory =

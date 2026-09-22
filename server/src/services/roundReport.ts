@@ -13,9 +13,12 @@ import GlobalInput from "../models/globalInputs";
 import Decision from "../models/decisions";
 import TeamRunReport from "../models/teamRunReport";
 import LeaderboardConfig, { type LeaderboardMetric } from "../models/leaderboardConfig";
+import PlayerConfig from "../models/playerConfig";
 import {
+  buildCashWalk,
   buildCompetitorMatrix,
   buildDecisionMatrix,
+  type CashWalk,
   type ReportMatrix,
   type ReportRunMetrics,
   type ScoredLeaderboard,
@@ -23,7 +26,7 @@ import {
 import { accumulate, scoreRound, type RoundScore } from "./leaderboard";
 
 /** Bucket documents carrying a `roundNumber` by that round. */
-function groupByRound<T extends { roundNumber?: unknown }>(docs: T[]): Map<number, T[]> {
+export function groupByRound<T extends { roundNumber?: unknown }>(docs: T[]): Map<number, T[]> {
   const out = new Map<number, T[]>();
   for (const d of docs) {
     const r = Number(d.roundNumber);
@@ -32,6 +35,27 @@ function groupByRound<T extends { roundNumber?: unknown }>(docs: T[]): Map<numbe
     out.get(r)!.push(d);
   }
   return out;
+}
+
+/**
+ * The team's opening cash, from the operator's constant overrides.
+ *
+ * MAGIC PATH, and worth naming as one: `PlayerConfig.config` is typed as
+ * `Record<string, PlayerConfigEntry[]>` but is `Mixed` in the schema, and the
+ * player client's `applyConstants` reads a `constants` object out of it that the
+ * type does not describe. `.self` is a vestige of the deleted funding-route
+ * choice — the table stayed keyed when the mechanic went.
+ *
+ * `null` rather than a fallback when it is absent or not finite: the client's
+ * bundled default lives in that bundle, and restating it here would be a second
+ * place to set one number — exactly what PlayerConfig's own header forbids.
+ * The cash rows are then omitted instead of being drawn from an invented seed.
+ */
+export function openingCashFrom(playerConfig: unknown): number | null {
+  const constants = (playerConfig as { config?: { constants?: unknown } } | null)
+    ?.config?.constants as { STARTING_CASH?: { self?: unknown } } | undefined;
+  const seed = Number(constants?.STARTING_CASH?.self);
+  return Number.isFinite(seed) ? seed : null;
 }
 
 export type ReportKind = "decisions" | "competitor";
@@ -74,14 +98,16 @@ export async function buildRoundReport(
   // The leaderboard's Total points is cumulative — it sums what each round paid
   // out — so the prior rounds have to be scored, not just this one. Everything
   // else on the report reads only `roundNumber`.
-  const [teams, products, containers, allDecisions, allRunReports, config] = await Promise.all([
-    Team.find({ simulationId }).lean(),
-    Product.find({ simulationTypeId }).lean(),
-    GlobalInput.find({ simulationTypeId }).lean(),
-    Decision.find({ simulationId, roundNumber: { $lte: roundNumber } }).lean(),
-    TeamRunReport.find({ simulationId, roundNumber: { $lte: roundNumber } }).lean(),
-    LeaderboardConfig.findOne({ simulationTypeId }).lean(),
-  ]);
+  const [teams, products, containers, allDecisions, allRunReports, config, playerConfig] =
+    await Promise.all([
+      Team.find({ simulationId }).lean(),
+      Product.find({ simulationTypeId }).lean(),
+      GlobalInput.find({ simulationTypeId }).lean(),
+      Decision.find({ simulationId, roundNumber: { $lte: roundNumber } }).lean(),
+      TeamRunReport.find({ simulationId, roundNumber: { $lte: roundNumber } }).lean(),
+      LeaderboardConfig.findOne({ simulationTypeId }).lean(),
+      PlayerConfig.findOne({ simulationTypeId }).lean(),
+    ]);
 
   const decisions = allDecisions.filter(
     (d) => Number((d as { roundNumber: number }).roundNumber) === roundNumber,
@@ -109,6 +135,16 @@ export async function buildRoundReport(
   const stamp = new Date().toISOString().slice(0, 10);
   const teamCount = teams.length;
 
+  // Cash is walked from the opening across EVERY round up to this one, so it
+  // needs the same `$lte` set the leaderboard does — not the filtered `decisions`.
+  const teamIds = teams.map((t) => String((t as { _id: unknown })._id));
+  const seed = openingCashFrom(playerConfig);
+  const byRoundDecisions = groupByRound(allDecisions);
+  const cash: CashWalk | null =
+    seed == null
+      ? null
+      : buildCashWalk(seed, roundNumber, byRoundDecisions as never, teamIds);
+
   if (kind === "competitor") {
     // ── Score every round 0..N, carry only the POINTS forward ───────────────
     //
@@ -119,8 +155,9 @@ export async function buildRoundReport(
     let board: ScoredLeaderboard | null = null;
 
     if (metrics.length > 0) {
-      const teamIds = teams.map((t) => String((t as { _id: unknown })._id));
-      const byRoundDecisions = groupByRound(allDecisions);
+      // `teamIds` and `byRoundDecisions` are the ones built for the cash walk —
+      // both halves rank the same roster over the same rounds, and building a
+      // second copy here is how the two would drift.
       const byRoundRunMetrics = groupByRound(allRunReports);
 
       const perRound: Array<Map<string, number>> = [];
@@ -158,6 +195,7 @@ export async function buildRoundReport(
       products as never,
       containers as never,
       board,
+      cash,
     );
     return {
       matrix,
@@ -183,6 +221,7 @@ export async function buildRoundReport(
     teams as never,
     products as never,
     containers as never,
+    cash,
   );
   return {
     matrix,

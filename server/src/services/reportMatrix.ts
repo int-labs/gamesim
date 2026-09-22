@@ -21,6 +21,7 @@
  * marked. Everything else is read.
  */
 
+import { stepMultiplier } from "../sim/calcFinancials";
 import type { LeaderboardMetric } from "../models/leaderboardConfig";
 import type { RoundScore, Standings } from "./leaderboard";
 
@@ -47,6 +48,11 @@ export interface ReportProductField {
   key?:   string;
   label?: string;
   order?: number;
+  /** `money` / `number` / `percentage` — WHICH FORMULA applies, not an input
+   *  widget. The debrief's VoC filter keys off it. */
+  type?:  string;
+  minValue?: number | null;
+  maxValue?: number | null;
   /** The vocFit weight this field carries in `calcMarketModel`'s score. Bounded
    *  0..1 on the model, `required` with a default of 1 — so a field never lacks
    *  one, and 0 is the only way to say "this does not compete". */
@@ -86,6 +92,11 @@ export interface ReportDecision {
   globalInputs?: Array<{
     globalInputItemId: unknown;
     selectedStepKey?:  string | null;
+    /** SNAPSHOT of the item's energy at submission — not the live config's.
+     *  Editing a lever must not rewrite what a past round cost. */
+    energy?:           number;
+    /** The parent container's name, snapshotted the same way. */
+    category?:         string;
     options?:          Record<string, number> | null;
     impacts?: Record<string, {
       type?: string;
@@ -117,7 +128,9 @@ export interface ReportMatrix {
  *  mistaken for a missing column. */
 export const BLANK = "-";
 
-const id = (v: unknown): string => String((v as { $oid?: string })?.$oid ?? v);
+/** Exported so the debrief builder resolves ids identically — a lean document
+ *  and an HTTP-fetched one spell an ObjectId differently. */
+export const id = (v: unknown): string => String((v as { $oid?: string })?.$oid ?? v);
 
 export const money = (n: number | null | undefined): string =>
   n == null
@@ -187,6 +200,60 @@ export const scoredFor = (dec: ReportDecision | null, productId: unknown) =>
   dec?.scored?.[id(productId)] ?? null;
 
 /**
+ * CASH, walked forward from the configured opening.
+ *
+ *   cashStart(0) = seed
+ *   cashStart(r) = seed + Σ operatingProfit(i)   for every i < r
+ *   cashEnd(r)   = cashStart(r) + operatingProfit(r)
+ *
+ * A SECOND COMPUTATION ON PURPOSE. The player client banks the same
+ * `operatingProfit` into `player.cash` at each round boundary, so these two
+ * derive one number twice from the same inputs. Owner's call to keep both as a
+ * cross-check on what the client displays — if they ever disagree, THIS is the
+ * one to trust.
+ *
+ * An uncalculated round contributes 0, not a gap: `sumScored` returns null
+ * before a round is scored, and cash does not move on a round nobody ran.
+ */
+export interface CashWalk {
+  /** teamId → cash at the START of the reported round. */
+  opening: Map<string, number>;
+  /** teamId → cash at its END. */
+  closing: Map<string, number>;
+}
+
+export function buildCashWalk(
+  seed: number,
+  roundNumber: number,
+  byRound: Map<number, ReportDecision[]>,
+  teamIds: string[],
+): CashWalk {
+  const opening = new Map<string, number>();
+  const closing = new Map<string, number>();
+
+  // Ascending and bounded BELOW the reported round: a later round's profit
+  // cannot move this round's opening, and the report may be regenerated for an
+  // earlier round after later ones exist.
+  const priorRounds = [...byRound.keys()]
+    .filter((r) => r < roundNumber)
+    .sort((a, b) => a - b);
+
+  const profitFor = (r: number, teamId: string): number => {
+    const dec = (byRound.get(r) ?? []).find((d) => id(d.teamId) === teamId) ?? null;
+    return sumScored(dec, "operatingProfit") ?? 0;
+  };
+
+  for (const t of teamIds) {
+    let cash = seed;
+    for (const r of priorRounds) cash += profitFor(r, t);
+    opening.set(t, cash);
+    closing.set(t, cash + profitFor(roundNumber, t));
+  }
+
+  return { opening, closing };
+}
+
+/**
  * THE ONE DERIVED FIGURE — a team's channel split for one product.
  *
  * SECOND IMPLEMENTATION WARNING: mirrors `calcFinancials`' own `channelTerms →
@@ -212,9 +279,9 @@ export function channelSharesFor(
     const impact = gi.impacts?.["sales_channel"];
     if (!impact) continue;
 
-    const options = gi.options ?? {};
-    const hasOptions = Object.keys(options).length > 0;
-    const mult = hasOptions ? Number(options[gi.selectedStepKey ?? ""] ?? 0) : 1;
+    // calcFinancials' own resolver. No selection check: this loop iterates the
+    // DECISION, so every entry in it was chosen.
+    const mult = stepMultiplier(gi.options, gi.selectedStepKey);
     if (mult === 0) continue;
 
     const override = (impact.selections ?? []).find(
@@ -302,6 +369,23 @@ function context(
 /** The fixed columns, so a header can never disagree with what `emit` pushes. */
 const leadHeader = (ctx: Ctx, labelCol: string): string[] =>
   ["Section", labelCol, ...(ctx.weights ? ["Weight"] : [])];
+
+/** Cash rows, shared by both reports so they cannot drift on how it is shown.
+ *  `null` when no opening was configured — see the seed read in roundReport. */
+function emitCashRows(ctx: Ctx, cash: CashWalk | null): void {
+  if (!cash) return;
+  ctx.emit("Cash", "Opening", (_d, c) => money(cash.opening.get(c.id) ?? null));
+  ctx.emit("Cash", "Closing", (_d, c) => money(cash.closing.get(c.id) ?? null));
+  // The delta is what the round actually did to the balance. Printed rather
+  // than left to the reader because the two figures above are cumulative and
+  // subtracting them by eye across a wide table is where mistakes happen.
+  ctx.emit("Cash", "Change", (_d, c) => {
+    const o = cash.opening.get(c.id);
+    const l = cash.closing.get(c.id);
+    return o == null || l == null ? BLANK : money(l - o);
+  });
+  ctx.rows.push([]);
+}
 
 /** One lever container's rows: every configured item, chosen or not. */
 function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
@@ -407,6 +491,7 @@ export function buildCompetitorMatrix(
   products: ReportProduct[],
   containers: ReportContainer[],
   board: ScoredLeaderboard | null,
+  cash: CashWalk | null,
 ): ReportMatrix {
   // `true` — the Weight column. Competitor report only: the decision comparison
   // keeps its existing header.
@@ -462,6 +547,9 @@ export function buildCompetitorMatrix(
   });
   rows.push([]);
 
+  // Cash follows profit: it is the balance that profit moved.
+  emitCashRows(ctx, cash);
+
   const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   for (const p of ordered) {
     emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
@@ -502,6 +590,7 @@ export function buildDecisionMatrix(
   teams: ReportTeam[],
   products: ReportProduct[],
   containers: ReportContainer[],
+  cash: CashWalk | null,
 ): ReportMatrix {
   const ctx = context(decisions, teams);
   const { emit, rows, cols } = ctx;
@@ -518,6 +607,8 @@ export function buildDecisionMatrix(
     emit("Financial", label, (dec) => plain(sumScored(dec, field)));
   }
   rows.push([]);
+
+  emitCashRows(ctx, cash);
 
   const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 

@@ -26,6 +26,7 @@ import roundNoteRoutes      from "./roundNoteRoutes";
 import teamProgressRoutes  from "./teamProgressRoutes";
 import teamRunReportRoutes from "./teamRunReportRoutes";
 import debriefRoutes        from "./debriefRoutes";
+import roundDebriefRoutes   from "./roundDebriefRoutes";
 
 const router = Router();
 
@@ -52,6 +53,9 @@ router.use("/team-progress", teamProgressRoutes);
 router.use("/run-reports", teamRunReportRoutes);
 router.use("/round-notes", roundNoteRoutes);
 router.use("/debriefs", debriefRoutes);
+// The player's per-round chart data. Distinct from "/debriefs", which is the
+// operator's authored markdown wrap-up for the whole simulation.
+router.use("/round-debrief", roundDebriefRoutes);
 // router.use("/upload", uploadRoutes);
 router.use("/image-assets", imageAssetsRoutes);
 router.use("/initiatives", initiativeRoutes);

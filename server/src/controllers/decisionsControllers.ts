@@ -1,6 +1,22 @@
 ﻿import { Request, Response } from "express";
 import Decision from "../models/decisions"; // adjust import path to match your models folder
 import Results from "../models/results";
+import { ROLES } from "../constants/roles";
+
+/**
+ * The caller's own team, when the caller IS a team.
+ *
+ * A team token must only ever read its own decisions: the reads here are
+ * filterable by `simulationId` alone, which would otherwise hand a team every
+ * rival's submitted decision mid-round — the exact exposure `reportRoutes.ts`
+ * refuses to allow through the PDF path.
+ *
+ * `null` for admin and operator, who legitimately compare teams.
+ */
+function ownTeamFilter(req: Request): string | null {
+  const user = (req as { user?: { role?: string; teamId?: string } }).user;
+  return user?.role === ROLES.TEAM ? (user.teamId ?? "") : null;
+}
 
 /**
  * Client-origin leaderboard metrics, kept RAW but not kept blindly.
@@ -119,6 +135,18 @@ export const getDecisions = async (req: Request, res: Response): Promise<void> =
     if (teamId) filter.teamId = teamId;
     if (roundNumber !== undefined) filter.roundNumber = roundNumber;
 
+    // OVERWRITES any `teamId` the caller supplied — it must not be a default a
+    // query string can talk its way past.
+    const own = ownTeamFilter(req);
+    if (own !== null) {
+      // A team token carrying no teamId is a broken token, not a wildcard.
+      if (!own) {
+        res.status(403).json({ message: "Team token carries no team." });
+        return;
+      }
+      filter.teamId = own;
+    }
+
     const decisions = await Decision.find(filter).populate({ path: "inputs.fields.imageAssets" });
     res.status(200).json(decisions);
   } catch (err: any) {
@@ -132,6 +160,14 @@ export const getDecisionById = async (req: Request, res: Response): Promise<void
     const decision = await Decision.findById(req.params.id).populate({ path: "inputs.fields.imageAssets" });
 
     if (!decision) {
+      res.status(404).json({ message: "Decision not found." });
+      return;
+    }
+
+    // Same rule as the list read: an id is not an authorisation. 404 rather
+    // than 403 so a team cannot probe which decision ids exist.
+    const own = ownTeamFilter(req);
+    if (own !== null && String(decision.teamId) !== own) {
       res.status(404).json({ message: "Decision not found." });
       return;
     }

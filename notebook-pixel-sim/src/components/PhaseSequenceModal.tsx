@@ -392,8 +392,12 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
       onClose();
       setScreen('final');
     } else {
+      // LIMBO, not straight to the next phase. The round's decisions are in and
+      // the team now reads its debrief; `LimboScreen`'s Continue is what reaches
+      // `phase_intro`. A round the operator has not calculated yet renders as
+      // "waiting" there rather than blocking here.
       onClose();
-      setScreen('phase_intro');
+      setScreen('limbo');
     }
   };
 

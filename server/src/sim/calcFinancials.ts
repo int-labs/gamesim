@@ -315,6 +315,32 @@ const getDecisionInput = (
   );
 };
 
+/**
+ * THE step multiplier. One implementation — callers differ only in where they
+ * get the two operands, never in the rule.
+ *
+ *   no options              → 1   (radio/checkbox is binary)
+ *   options, no key         → 0
+ *   options, unknown key    → 0   (collapses the entry rather than guessing)
+ *
+ * IT SAYS NOTHING ABOUT WHETHER THE TEAM SELECTED THE ITEM. That is a separate
+ * question and belongs to the caller: a reader iterating a DECISION has it
+ * answered by construction, while one iterating the CONFIG must look the entry
+ * up first. Conflating the two is what charged every declined binary lever at
+ * full cost — see `getGlobalInputQuantity` below.
+ *
+ * Mirrored by `gamesim/impacts.ts` in the player repo, which cannot import this.
+ */
+export const stepMultiplier = (
+  options:         Record<string, number> | null | undefined,
+  selectedStepKey: string | null | undefined,
+): number => {
+  const opts = options ?? {};
+  if (Object.keys(opts).length === 0) return 1;
+  if (!selectedStepKey) return 0;
+  return opts[selectedStepKey] ?? 0;
+};
+
 const getGlobalInputQuantity = (
   decision: DecisionDocument | undefined,
   entry:    DecisionGlobalInputEntry
@@ -325,18 +351,13 @@ const getGlobalInputQuantity = (
     gi.globalInputItemId.equals(entry.globalInputItemId)
   );
 
-  // item not selected at all
+  // Item not selected at all. Checked HERE and not inside `stepMultiplier`,
+  // because absence is the "no" and a binary item that was never chosen must
+  // not reach the binary-is-1 rule.
   if (!match) return 0;
 
-  const hasOptions = entry.options && Object.keys(entry.options).length > 0;
-
-  if (hasOptions) {
-    if (!match.selectedStepKey) return 0;
-    return entry.options[match.selectedStepKey] ?? 0;
-  } else {
-    // radio/checkbox — binary: selected = 1
-    return 1;
-  }
+  // `options` from the CONFIG entry, the chosen key from the DECISION.
+  return stepMultiplier(entry.options, match.selectedStepKey);
 };
 
 const INVENTORY_BASE = 1000;
@@ -441,9 +462,17 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     const channelTerms: Array<{ rate: number; weight: number; side: "cogs" | "opex" }> = [];
 
     globalInputs.forEach((entry) => {
-      const stepMultiplier = getGlobalInputQuantity(decision, entry);
-      const hasOptions     = entry.options && Object.keys(entry.options).length > 0;
-      const effectiveMultiplier = hasOptions ? stepMultiplier : 1;
+      // ONE resolution, and it lives in `getGlobalInputQuantity` — which already
+      // returns 1 for a SELECTED binary item and 0 for one the team never
+      // selected. A `hasOptions ? m : 1` ternary used to sit here and restate
+      // that rule, but the restatement could not tell "binary and chosen" from
+      // "binary and absent": both are `hasOptions === false`, so a declined
+      // lever came back as 1 and had every impact below applied to it.
+      //
+      // ABSENCE IS THE "NO". There is no decline flag on the decision — the
+      // client submits selections only — and the reports read it the same way
+      // (`!sel → "No"` in reportMatrix).
+      const effectiveMultiplier = getGlobalInputQuantity(decision, entry);
 
       if (effectiveMultiplier === 0) return;
 
@@ -704,10 +733,10 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     }> = {};
 
     globalInputs.forEach((entry) => {
-      const stepMultiplier = getGlobalInputQuantity(decision, entry);
-      const hasOptions     = entry.options && Object.keys(entry.options).length > 0;
-      // slider — cost scales with the selected step; radio/checkbox — full cost
-      const m    = hasOptions ? stepMultiplier : 1;
+      // Slider — cost scales with the selected step; radio/checkbox — full
+      // cost; never selected — nothing. All three come from the one resolver;
+      // see the note at the channel loop for what the removed ternary broke.
+      const m    = getGlobalInputQuantity(decision, entry);
       const cogs = entry.costTreatment.cogs * m;
       const opex = entry.costTreatment.opex * m;
 

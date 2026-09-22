@@ -150,35 +150,69 @@ export const priceAnchorCost = (genre: string): number =>
   specUnitCost(genre, priceAnchorSpec(genre));
 
 /**
- * How PICKY a market is about price, from the WIDTH of its `selling_price`
- * band — not from `direction`, which is 0 on every product.
+ * How PICKY a market is about price — the VoC weight for `selling_price`, which
+ * cannot come from `direction` because that is 0 on every product.
  *
- * The server's price score is a two-sided curve around `dynamicPrice`, and both
- * halves take `stdDev = range / 4` (`calcBellCurveScore` under, and
- * `calcReverseDiminishingReturns` over). A narrower band is a smaller stdDev, so
- * the score falls away faster for the same dollar off the ideal price. Narrow
- * band = picky buyers, and nothing else has to be asserted for that to be true.
+ *     weight = min / (min + max)
  *
- * Thresholds sit at the MIDPOINTS of the operator's anchors (30 / 17 / 10) on
- * the 1-30 scale the price slider offers.
+ * How high the floor sits relative to the whole scale: a market that will not
+ * accept a cheap notebook is one where price is tightly constrained. Bounded
+ * [0, 0.5) for any `min < max`, which is what lets it share the VoC axis with
+ * the authored `direction` weights (live 0.03..0.15) instead of towering over
+ * them.
  *
- * A LABEL only, no figure. Whether a market tolerates a price move is the
- * decision; a derived "±$X" would invite arithmetic against a curve the player
- * cannot see, since it pivots on a server-computed `dynamicPrice`.
+ * ONE DEFINITION, TWO READERS — the market tab's label and the debrief's VoC
+ * tick. They were separate, and a notebook could read "Tolerant" on one and
+ * carry a high price weight on the other.
+ *
+ * NOT a band WIDTH. This replaced `maxValue − minValue`, which measured
+ * something else: equal widths at different heights (5/25 vs 40/60) score 0.167
+ * against 0.400 here. Old thresholds of 23.5/13.5 were dollars and do not
+ * convert.
  */
 export interface PriceSensitivity {
-  /** `maxValue − minValue` on the market's `selling_price` field. */
-  delta: number;
+  /** `min / (min + max)` on the market's `selling_price` field, [0, 0.5). */
+  weight: number;
   label: 'Tolerant' | 'Moderate' | 'Very picky';
 }
 
+/** Equal thirds of the [0, 0.5) the formula can reach. Owner-confirmed. */
+const PICKY_BANDS = { tolerant: 0.167, moderate: 0.333 } as const;
+
+/**
+ * THE formula, from bounds alone.
+ *
+ * Two entry points, one implementation: `priceSensitivity(genre)` resolves the
+ * bounds from the hydrated `FIELD_CONFIG`, while the round debrief already has
+ * them on the wire (`GET /round-debrief` ships raw `minValue`/`maxValue` rather
+ * than normalising, precisely so this stays the only definition).
+ */
+export const priceSensitivityFromBounds = (
+  minValue: number | null | undefined,
+  maxValue: number | null | undefined,
+): PriceSensitivity => {
+  const lo = Number(minValue) || 0;
+  const hi = Number(maxValue) || 0;
+  const span = lo + hi;
+  // Both bounds at 0 is an unauthored field, not a tolerant market — 0 keeps it
+  // off the VoC axis rather than ranking it as the most price-tolerant one.
+  const weight = span > 0 ? Math.max(0, lo) / span : 0;
+  return {
+    // INVERTED against the old delta version: a HIGH weight is picky, where a
+    // wide band used to be tolerant.
+    weight,
+    label:
+      weight < PICKY_BANDS.tolerant ? 'Tolerant'
+      : weight < PICKY_BANDS.moderate ? 'Moderate'
+      : 'Very picky',
+  };
+};
+
+/** By GENRE ID — not a product name. `fieldCfg` misses on a product name and
+ *  returns defaults silently, which type-checks and is wrong. */
 export const priceSensitivity = (genre: string): PriceSensitivity => {
   const cfg = fieldCfg(genre, 'selling_price');
-  const delta = Math.max(0, cfg.maxValue - cfg.minValue);
-  return {
-    delta,
-    label: delta >= 23.5 ? 'Tolerant' : delta >= 13.5 ? 'Moderate' : 'Very picky',
-  };
+  return priceSensitivityFromBounds(cfg.minValue, cfg.maxValue);
 };
 
 export const driverAxes = (genre: string): DriverAxis[] =>

@@ -351,3 +351,84 @@ export interface ResultDto {
   createdAt: string;
   updatedAt: string;
 }
+
+// ── Round debrief (the limbo slide) ─────────────────────────────────────
+// Mirrors `server/src/services/debriefSeries.ts` BY HAND, like every other
+// shape in this file. Numbers and RAW BOUNDS only — the server deliberately
+// ships no 0..1 normalisation, because `priceSensitivity()` and the investment
+// position are owned here. See that module's header.
+
+export interface DebriefTeamRef {
+  teamId: Id;
+  teamName: string;
+}
+
+/** A VoC-eligible product field. The server has already filtered out anything
+ *  weightless, so every row here belongs on the chart. */
+export interface DebriefFieldDto {
+  /** Join key for `DebriefTeamProductDto.fieldValues` — never array position. */
+  fieldId: Id;
+  key: string;
+  label: string;
+  /** The authored VoC weight. `selling_price` carries 0 and takes its tick from
+   *  `priceSensitivity()` instead. */
+  direction: number;
+  minValue: number | null;
+  maxValue: number | null;
+}
+
+export interface DebriefProductDto {
+  productId: Id;
+  productName: string;
+  fields: DebriefFieldDto[];
+}
+
+export interface DebriefTeamProductDto {
+  revenue: number | null;
+  customersObtained: number | null;
+  unitsSold: number | null;
+  produced: number | null;
+  inventoryQty: number | null;
+  closingStock: number | null;
+  marketShare: number | null;
+  /** The server's 0..1 pricing score — already normalised, read as-is. */
+  productScore: number | null;
+  sellingPrice: number | null;
+  /** fieldId → raw submitted value. */
+  fieldValues: Record<string, number>;
+}
+
+export interface DebriefTeamRoundDto {
+  energy: number;
+  cashOpening: number | null;
+  cashClosing: number | null;
+  revenue: number | null;
+  cogs: number | null;
+  grossProfit: number | null;
+  operatingExpenses: number | null;
+  netProfit: number | null;
+  unitsSold: number | null;
+  customersObtained: number | null;
+  /** Operator-owned FREE TEXT keys. Read them from the data; never hardcode. */
+  costByCategory: Record<string, number>;
+  /** Lever container → energy spent. The TnO breakdown. */
+  energyByLever: Record<string, number>;
+  byProduct: Record<string, DebriefTeamProductDto>;
+}
+
+export interface DebriefRoundDto {
+  roundNumber: number;
+  /** teamId → that team's figures for this round. */
+  teams: Record<string, DebriefTeamRoundDto>;
+}
+
+export interface RoundDebriefDto {
+  simulationId: Id;
+  roundNumber: number;
+  /** The reading team, so the slide can highlight it. */
+  you: Id | null;
+  teams: DebriefTeamRef[];
+  products: DebriefProductDto[];
+  /** Round 0 .. the reported round, ascending. */
+  rounds: DebriefRoundDto[];
+}
