@@ -210,6 +210,13 @@ export interface CreateDecisionBody {
     energyConsumption: number;
   }>;
   globalInputs?: DecisionGlobalInputDto[];
+  /**
+   * CLIENT-ORIGIN LEADERBOARD METRICS for this round, keyed by the SERVER's
+   * declared `source` names — the insight check, and anything else only the
+   * browser can compute. Raw values; the leaderboard config decides what they
+   * mean. Mirrors `Decision.clientMetrics` on the server.
+   */
+  clientMetrics?: Record<string, number>;
 }
 
 export interface DecisionDto extends CreateDecisionBody {

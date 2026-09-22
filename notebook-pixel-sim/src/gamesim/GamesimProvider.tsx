@@ -15,7 +15,7 @@ import { hydrateGenres, GENRES } from '@/engine/finlit/core/config/genres';
 import { hydrateTypeOptions } from '@/engine/finlit/core/config/production';
 import { hydrateChannels } from '@/engine/finlit/core/config/channels';
 import { useGame } from '@/state/store';
-import { computeFinalScore } from '@/engine/mockEngine';
+import { collectClientMetrics } from './clientMetrics';
 import { PassKeyScreen } from '@/components/passkey/PassKeyScreen';
 import { devSkip } from '@/access/passkey';
 import { GamesimStatusScreen } from '@/components/gamesim/GamesimStatusScreen';
@@ -94,6 +94,15 @@ interface GamesimSessionValue {
    * when the tab loses focus, and at each milestone.
    */
   reportProgress: () => void;
+  /**
+   * The `source` keys of every leaderboard metric the OPERATOR configured as
+   * `origin: 'client'` — the ones this app owes the server.
+   *
+   * Exposed because the decision submit carries them: the insight check is
+   * answered just before `POST /decisions`, and its figures ride on that same
+   * insert. Empty for a simulation with no leaderboard, which is normal.
+   */
+  clientMetricSources: string[];
   logout: () => void;
 }
 
@@ -216,6 +225,19 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     };
   }, [bootstrap]);
 
+  /**
+   * The `source` keys of every leaderboard metric with `origin: 'client'`.
+   *
+   * STATE, not a ref: it is handed to consumers through the context, and a ref
+   * read during render is both a lint error here and a real staleness bug —
+   * the value would not propagate when the bootstrap filled it in.
+   *
+   * It does not re-run the run-report effect, whose deps are unchanged.
+   * Empty until the bootstrap resolves, and empty for a simulation with no
+   * leaderboard configured — a normal state, not a failure.
+   */
+  const [clientMetricSources, setClientMetricSources] = useState<string[]>([]);
+
   // ── Bootstrap ─────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -255,14 +277,22 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
         }
 
         const rounds = await gamesim.getRounds(session.simulationId);
-        const [products, baseData, globalInputs] = await Promise.all([
+        const [products, baseData, globalInputs, leaderboard] = await Promise.all([
           gamesim.getProducts(simulation.simulationTypeId),
           // `null`, not `[]` — the endpoint 404s when an operator has published
           // no base data, and the demand curve is then genuinely absent.
           gamesim.getBaseData(simulation.simulationTypeId).catch(() => null),
           gamesim.getGlobalInputs(simulation.simulationTypeId).catch(() => []),
+          // WHICH METRIC KEYS THIS APP OWES THE LEADERBOARD. Fetched at
+          // bootstrap rather than when the run ends, so a network failure at
+          // the finish line cannot silently drop them — by then the run report
+          // is fire-and-forget and there is nothing left to retry into.
+          gamesim.getLeaderboardMetrics(simulation.simulationTypeId),
         ]);
         if (cancelled) return;
+        setClientMetricSources(
+          leaderboard.filter((m) => m.origin === 'client').map((m) => m.source),
+        );
         // Catalogue BEFORE field config: both key off `Product._id`, and
         // `hydrateGenres` layers PlayerConfig copy (already applied above) onto
         // the backend's own products.
@@ -496,17 +526,16 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     filedFor.current = round;
 
     const s = useGame.getState();
-    const score = computeFinalScore(s);
+    // ONLY the operator's client-origin leaderboard metrics, RAW — the keys the
+    // config asked for, and only those this build can resolve. See
+    // clientMetrics.ts for why an unresolvable one is omitted rather than 0.
+    //
+    // `computeFinalScore` used to run here to fill a fixed rubric (total /
+    // netProfit / inventory / insight / …). Nothing ever read those fields, so
+    // they were dropped on 2026-09-21 and the call with them.
     void gamesim.reportRunResult({
       roundNumber: round,
-      total: score.total,
-      netProfit: score.netProfit,
-      inventory: score.inventory,
-      insight: score.insight,
-      netDollar: score.netDollar,
-      cleanliness: score.cleanliness,
-      insightsCorrect: s.insights.score.correct,
-      insightsTotal: s.insights.score.total,
+      metrics: collectClientMetrics(s, clientMetricSources),
       shopName: s.meta.shopName,
     });
   }, [status, bootstrap?.round?._id, runEnded]);
@@ -559,6 +588,7 @@ export function GamesimProvider({ children }: { children: ReactNode }) {
     refetchBootstrap,
     refreshOfficial,
     reportProgress,
+    clientMetricSources,
     logout,
   };
 

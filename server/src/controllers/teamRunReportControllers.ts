@@ -12,12 +12,30 @@ import { ROLES } from "../constants/roles";
  * a run it never had.
  */
 
-const num = (v: unknown, fallback = 0): number =>
-  typeof v === "number" && Number.isFinite(v) ? v : fallback;
+/**
+ * Client-origin leaderboard metrics, kept RAW but not kept blindly.
+ *
+ * Dropped rather than coerced: a non-finite value, or a key that could not be a
+ * configured `source`, is a bug at the sender and storing a 0 for it would read
+ * as a team that scored nothing. Values are NOT clamped — the server has no
+ * range for an operator-declared metric, and inventing one would rewrite it.
+ *
+ * The key shape mirrors CLIENT_SOURCE_PATTERN in models/leaderboardConfig.ts.
+ * It is checked here too so a forged key cannot reach a Mixed field, which
+ * accepts anything by definition.
+ */
+const CLIENT_METRIC_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 
-/** Keep a rubric component inside the range the design PDF fixes for it. */
-const clamp = (v: unknown, max: number): number =>
-  Math.min(Math.max(num(v), 0), max);
+const sanitiseMetrics = (raw: unknown): Record<string, number> => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!CLIENT_METRIC_KEY.test(k)) continue;
+    if (typeof v !== "number" || !Number.isFinite(v)) continue;
+    out[k] = v;
+  }
+  return out;
+};
 
 /** PUT /run-reports — the player posts this once its 90-day run ends. */
 export const putRunReport = async (req: Request, res: Response): Promise<void> => {
@@ -39,23 +57,16 @@ export const putRunReport = async (req: Request, res: Response): Promise<void> =
       { simulationId, teamId, roundNumber: b.roundNumber },
       {
         $set: {
-          // Clamped to the rubric's own ranges rather than trusted: the client
-          // computes these, and a debrief showing 340/100 would be worse than
-          // showing nothing.
-          total: clamp(b.total, 100),
-          netProfit: clamp(b.netProfit, 50),
-          inventory: clamp(b.inventory, 25),
-          insight: clamp(b.insight, 25),
-
-          // Not clamped — a real run can end deeply negative, and hiding that
-          // would remove the most instructive outcome in the room.
-          netDollar: num(b.netDollar),
-          cleanliness: Math.min(Math.max(num(b.cleanliness), 0), 1),
-
-          route: b.route === "self" || b.route === "investor" ? b.route : null,
-          obligationMet: typeof b.obligationMet === "boolean" ? b.obligationMet : null,
-          insightsCorrect: num(b.insightsCorrect),
-          insightsTotal: num(b.insightsTotal),
+          // Client-origin leaderboard metrics, RAW. Only finite numbers survive
+          // and only keys the config could legitimately declare — the values
+          // are not clamped, because the server does not know what range a
+          // configured metric has, and inventing one would silently rewrite it.
+          //
+          // The fixed rubric that used to sit here — total / netProfit /
+          // inventory / insight / netDollar / cleanliness / route /
+          // obligationMet / insightsCorrect / insightsTotal — was write-only and
+          // was dropped on 2026-09-21 with its clamping. See the model.
+          metrics: sanitiseMetrics(b.metrics),
 
           shopName: typeof b.shopName === "string" ? b.shopName.slice(0, 80) : null,
           endedAt: new Date(),
@@ -93,7 +104,10 @@ export const getRunReports = async (req: Request, res: Response): Promise<void> 
     if (isTeam) filter.teamId = caller.teamId;
     if (roundNumber !== undefined) filter.roundNumber = Number(roundNumber);
 
-    const rows = await TeamRunReport.find(filter).sort({ total: -1 });
+    // By round, then most recent. It sorted `{ total: -1 }` — a rubric field
+    // that no longer exists, so every document compared equal and the order was
+    // whatever Mongo returned.
+    const rows = await TeamRunReport.find(filter).sort({ roundNumber: 1, endedAt: -1 });
     res.status(200).json({ data: rows });
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to load run reports." });

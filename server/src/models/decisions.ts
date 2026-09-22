@@ -151,6 +151,28 @@ export interface IDecision extends Document {
    *  absent until calculated. Also the immutable carry-forward source for
    *  `closingStock`. See ../../README.md#the-four-collections */
   scored?:          Record<string, ScoredMetrics> | null;
+  /**
+   * CLIENT-ORIGIN LEADERBOARD METRICS for this round — insight answers and
+   * anything else only the browser can compute.
+   *
+   * Keyed by the `source` of every `LeaderboardConfig` metric with
+   * `origin: 'client'`. The SERVER declares the keys; the player fills them.
+   *
+   * ── WHY IT LIVES HERE AND NOT ON THE DECISION INPUTS ────────────────────
+   * It is an OUTCOME of the round, not a choice, so it is written AFTER
+   * submission — the same way `scored` is. The decision INPUTS stay immutable;
+   * `POST /decisions` is still insert-only and this is never part of its body.
+   * It could not be: the insight questions are asked during the evaluation,
+   * which happens after the decision has already been posted.
+   *
+   * On the Decision rather than on `TeamRunReport` so one document per
+   * `simulation × team × round` carries both halves of the leaderboard, and the
+   * report reads them from a single place.
+   *
+   * SELF-REPORTED — the server stores what it is told. Never put anything
+   * `calcFinancials` can compute in here.
+   */
+  clientMetrics?:   Record<string, number> | null;
   createdAt:        Date;
   updatedAt:        Date;
 }
@@ -165,6 +187,9 @@ const DecisionSchema = new Schema<IDecision>(
     globalInputs: { type: [decisionGlobalInputSchema], required: true, default: [] },
     // null = not scored yet, which differs from an empty object.
     scored:       { type: Schema.Types.Mixed, default: null },
+    // null = the team has reported none yet. Mixed, because the key set is
+    // LeaderboardConfig's — adding a client metric must not need a migration.
+    clientMetrics: { type: Schema.Types.Mixed, default: null },
   },
   {
     timestamps: true,

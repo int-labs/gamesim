@@ -56,8 +56,11 @@ export function computeFinalScore(state: GameState): FinalScore {
   const cleanliness = computeCleanliness(state);
   const inventoryScore = cleanliness * 25;
 
-  const total = state.insights.score.total;
-  const correct = state.insights.score.correct;
+  // From `answered`, the run-long history — NOT `score`, which is reset every
+  // round now that its value is submitted per round on `Decision.clientMetrics`.
+  // Reading `score` here would band the final rubric on the LAST round alone.
+  const total = state.insights.answered.length;
+  const correct = state.insights.answered.filter((a) => a.correct).length;
   const insightScore = total > 0 ? (correct / total) * 25 : 0;
 
   let raw = netProfitScore + inventoryScore + insightScore;

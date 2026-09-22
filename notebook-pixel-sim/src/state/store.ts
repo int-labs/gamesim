@@ -153,6 +153,20 @@ export interface GameState {
   evaluations: {
     resolved: { phase: Phase; insightCorrect: boolean | null; day: number }[];
   };
+  /**
+   * TWO COUNTERS, TWO SCOPES — do not conflate them.
+   *
+   *   `answered` — the RUN. Append-only, never cleared. Every run-to-date
+   *                display derives its totals from this.
+   *   `score`    — THE CURRENT ROUND. Cleared by `advanceFinlitPhase` at every
+   *                phase rollover, after the round has been submitted.
+   *
+   * `score` is per round because that is what the server stores: one value per
+   * `simulation × team × round` on `Decision.clientMetrics`, submitted with the
+   * decision. A cumulative leaderboard is then a sum the backend can do
+   * whenever, and can change its mind about — where a cumulative client counter
+   * could never be taken apart again.
+   */
   insights: {
     answered: { id: string; correct: boolean }[];
     score: { correct: number; total: number };

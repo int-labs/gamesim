@@ -2,10 +2,35 @@
 import Decision from "../models/decisions"; // adjust import path to match your models folder
 import Results from "../models/results";
 
+/**
+ * Client-origin leaderboard metrics, kept RAW but not kept blindly.
+ *
+ * The key shape mirrors `CLIENT_SOURCE_PATTERN` in models/leaderboardConfig.ts.
+ * Checked here too, because `clientMetrics` is a Mixed field and accepts
+ * anything by definition.
+ *
+ * NOT clamped: the server has no range for an operator-declared metric and
+ * inventing one would silently rewrite it. `null` when the team sent nothing,
+ * which differs from an empty object — one means "did not report", the other
+ * "reported no metrics".
+ */
+const CLIENT_METRIC_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+
+const sanitiseClientMetrics = (raw: unknown): Record<string, number> | null => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!CLIENT_METRIC_KEY.test(k)) continue;
+    if (typeof v !== "number" || !Number.isFinite(v)) continue;
+    out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+};
+
 // POST /decisions
 export const createDecision = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { simulationId, teamId, roundNumber, inputs, initiativeInputs, globalInputs } = req.body;
+    const { simulationId, teamId, roundNumber, inputs, initiativeInputs, globalInputs, clientMetrics } = req.body;
 
     if (!simulationId || !teamId || roundNumber === undefined) {
       res.status(400).json({ message: "simulationId, teamId, and roundNumber are required." });
@@ -19,6 +44,15 @@ export const createDecision = async (req: Request, res: Response): Promise<void>
       inputs,
       initiativeInputs,
       globalInputs,
+      // Client-origin leaderboard figures for this round — insight answers and
+      // anything else only the browser can compute. Part of the SAME insert, so
+      // there is no second write and no window where a round exists without
+      // them: the insight check is asked before this POST, not after.
+      //
+      // Sanitised rather than trusted: dropped, not coerced, so a malformed key
+      // or non-finite value cannot land as a 0 that reads like a team scoring
+      // nothing.
+      clientMetrics: sanitiseClientMetrics(clientMetrics),
     });
 
     res.status(201).json(decision);

@@ -1,24 +1,28 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
 /**
- * How a team's own 90-day run finished.
+ * THE CLIENT-SIDE HALF OF A ROUND'S LEADERBOARD FIGURES.
  *
- * ── THIS IS NOT THE COMPETITIVE SCORE ───────────────────────────────────────
- * The platform already has two authoritative numbers, and this is neither:
+ * Every metric the competitor report ranks on comes from one of two places, and
+ * `LeaderboardConfig` decides which per metric:
  *
- *   `Results`      — how teams compared (calcMarketModel: weighted score, share)
- *   `Projections`  — the server's financials (calcFinancials)
+ *   origin: 'server'  →  `calcFinancials`, saved on `Decision.scored`
+ *   origin: 'client'  →  HERE
  *
- * This is the third, different thing: what the PLAYER's own FinLit engine
- * produced for that team — the rubric from the design PDF (Net Profit 50 ·
- * Inventory Cleanliness 25 · Insight 25). The two models genuinely differ and
- * always will; that is documented, not a defect. Storing this does not make it
- * authoritative for anything competitive, and nothing scores from it.
+ * A client metric exists only because the browser is the only place it can be
+ * computed — the insight questions are answered there and nowhere else. It is
+ * SELF-REPORTED: the server stores what it is told. Nothing `calcFinancials`
+ * can compute may be configured this way.
  *
- * It exists because the debrief and the standings were arguing about teams
- * without ever seeing what those teams actually experienced. A team that
- * finished with $6,700 and a clean inventory knows it; until now the console
- * did not.
+ * ── WHAT THIS USED TO BE ────────────────────────────────────────────────────
+ * A fixed rubric — `total` / `netProfit` / `inventory` / `insight` /
+ * `netDollar` / `cleanliness` / `route` / `obligationMet` / `insightsCorrect` /
+ * `insightsTotal` — computed by the player's own engine and clamped on arrival.
+ * Those fields were WRITE-ONLY: nothing in the server, the admin console or the
+ * player ever read one back. They were dropped on 2026-09-21 along with the
+ * clamping, and `metrics` is the first thing on this document anything actually
+ * consumes. Documents written before that date keep the old fields; nothing
+ * reads them, so no migration is needed.
  *
  * One row per `simulation × team × round`, upserted — a team replaying a round
  * overwrites its own report rather than accumulating.
@@ -29,21 +33,23 @@ export interface TeamRunReportInterface extends Document {
   teamId:       Types.ObjectId;
   roundNumber:  number;
 
-  /** The rubric, all as the player computed them. */
-  total:        number;  // 0..100
-  netProfit:    number;  // 0..50
-  inventory:    number;  // 0..25
-  insight:      number;  // 0..25
-
-  /** Raw net profit in dollars — the number a team actually quotes. */
-  netDollar:    number;
-  /** 0..1 — how little of the run was spent over- or under-stocked. */
-  cleanliness:  number;
-
-  route:        string | null;   // 'self' | 'investor'
-  obligationMet: boolean | null; // investor route only
-  insightsCorrect: number;
-  insightsTotal:   number;
+  /**
+   * CLIENT-ORIGIN LEADERBOARD METRICS, raw.
+   *
+   * Keyed by the `source` of every `LeaderboardConfig` metric whose `origin` is
+   * "client" — the SERVER declares which keys exist, the client fills them in.
+   * Values are stored AS SUBMITTED, not scored into a rubric: insight is the
+   * count of correct answers, not a 0..25 band.
+   *
+   * This is what lets a metric the server cannot compute sit on the same
+   * leaderboard as one it can. The insight questions are answered in the
+   * browser and nowhere else, so no server-side calculation could produce them
+   * — but the key set is still configuration, not something the client invents.
+   *
+   * SELF-REPORTED, and therefore never a home for anything `calcFinancials`
+   * computes. See the note on LeaderboardConfig.METRIC_ORIGINS.
+   */
+  metrics:      Record<string, number>;
 
   /** The team's own company name, as they chose it. */
   shopName:     string | null;
@@ -58,18 +64,9 @@ const teamRunReportSchema = new Schema<TeamRunReportInterface>(
     teamId:       { type: Schema.Types.ObjectId, required: true, ref: "Team", index: true },
     roundNumber:  { type: Number, required: true },
 
-    total:     { type: Number, default: 0 },
-    netProfit: { type: Number, default: 0 },
-    inventory: { type: Number, default: 0 },
-    insight:   { type: Number, default: 0 },
-
-    netDollar:   { type: Number, default: 0 },
-    cleanliness: { type: Number, default: 0 },
-
-    route:           { type: String, default: null },
-    obligationMet:   { type: Boolean, default: null },
-    insightsCorrect: { type: Number, default: 0 },
-    insightsTotal:   { type: Number, default: 0 },
+    // Mixed, not a fixed shape: the key set is LeaderboardConfig's, so adding a
+    // client metric must not need a schema change here.
+    metrics:  { type: Schema.Types.Mixed, default: {} },
 
     shopName: { type: String, default: null },
     endedAt:  { type: Date, default: Date.now },

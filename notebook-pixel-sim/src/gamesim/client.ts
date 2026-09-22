@@ -275,15 +275,47 @@ export interface TeamProgressBody {
  */
 export interface RunReportBody {
   roundNumber: number;
-  total: number;
-  netProfit: number;
-  inventory: number;
-  insight: number;
-  netDollar: number;
-  cleanliness: number;
-  insightsCorrect: number;
-  insightsTotal: number;
+  /**
+   * CLIENT-ORIGIN LEADERBOARD METRICS, raw and keyed by the SERVER's own
+   * declared `source` names — see `clientMetrics.ts`.
+   *
+   * This used to carry a fixed rubric alongside them — `total`, `netProfit`,
+   * `inventory`, `insight`, `netDollar`, `cleanliness`, `insightsCorrect`,
+   * `insightsTotal` — computed by the local engine and clamped server-side.
+   * Nothing ever read them back, so they were dropped on 2026-09-21. The values
+   * here are RAW: the leaderboard config decides what a number means, so the
+   * player reports it and scores nothing.
+   */
+  metrics?: Record<string, number>;
   shopName?: string | null;
+}
+
+/** One metric on the operator's leaderboard. Mirrors `LeaderboardMetric` in
+ *  server/src/models/leaderboardConfig.ts. */
+export interface LeaderboardMetricDto {
+  key: string;
+  label: string;
+  origin: 'server' | 'client';
+  source: string;
+  weight: number;
+  format: 'money' | 'number' | 'percent';
+  direction: 'desc' | 'asc';
+}
+
+/**
+ * GET /leaderboard-config/:simulationTypeId — which metrics the operator scores
+ * on, and which of them THIS app is responsible for reporting.
+ *
+ * Returns `[]` rather than throwing when nothing is configured: a simulation
+ * without a leaderboard is a normal state, and the run report still files its
+ * legacy rubric fields.
+ */
+export function getLeaderboardMetrics(simulationTypeId: string): Promise<LeaderboardMetricDto[]> {
+  return request<{ metrics?: LeaderboardMetricDto[] }>(
+    `/leaderboard-config/${simulationTypeId}`,
+  )
+    .then((r) => r?.metrics ?? [])
+    .catch(() => []);
 }
 
 /**

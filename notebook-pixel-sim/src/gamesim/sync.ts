@@ -137,6 +137,16 @@ function collectByProduct(
 export async function submitRoundDecision(
   ctx: RoundContext,
   args: BuildDecisionArgs,
+  /**
+   * CLIENT-ORIGIN LEADERBOARD METRICS for this round — the insight check, and
+   * anything else only the browser can compute.
+   *
+   * Part of the SAME insert as the decision, which is why the insight check is
+   * asked BEFORE this call rather than during the evaluation that follows it.
+   * A second write would have needed its own endpoint and left a window where a
+   * round existed with no metrics attached.
+   */
+  clientMetrics?: Record<string, number>,
 ): Promise<DecisionDto> {
   const { inputs, globalInputs } = buildDecisionInputs(args);
   if (inputs.length === 0) {
@@ -152,6 +162,7 @@ export async function submitRoundDecision(
       roundNumber: ctx.roundNumber,
       inputs,
       globalInputs,
+      ...(clientMetrics && Object.keys(clientMetrics).length > 0 ? { clientMetrics } : {}),
     });
   } catch (err) {
     if (err instanceof gamesim.GamesimApiError && err.status === 409) {

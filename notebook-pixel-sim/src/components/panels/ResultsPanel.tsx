@@ -65,8 +65,14 @@ export function ResultsPanel() {
               ))}
             </div>
           )}
+          {/* "so far" means the RUN, so it counts `answered` — the run-long
+              history. `score` is the per-round counter and is cleared at every
+              phase rollover, which would make this read 1/1 forever. */}
           <div className="mt-3 body-xs text-ink-700 leading-snug">
-            Insight score so far: <strong>{insights.score.correct}</strong> / {insights.score.total}
+            Insight score so far:{" "}
+            <strong>{insights.answered.filter((a) => a.correct).length}</strong>
+            {" / "}
+            {insights.answered.length}
           </div>
         </PixelPanel>
       )}

@@ -201,6 +201,81 @@ export const createPlayerConfig = (data: object) => api.post("/player-config", d
 export const updatePlayerConfig = (id: string, data: object) => api.patch(`/player-config/${id}`, data);
 export const deletePlayerConfig = (id: string) => api.delete(`/player-config/${id}`);
 
+// ── Leaderboard Config ────────────────────────────────────────
+/** Scores the competitor report's leaderboard. One document per simulationType;
+ *  weights must sum to 100 — the server refuses the save otherwise. */
+export const getLeaderboardConfig = (simulationTypeId: string) =>
+  api.get(`/leaderboard-config/${simulationTypeId}`);
+/** UPSERT — REPLACES the whole metric set. Right when the page holds the truth
+ *  (it just loaded); wrong for a partial edit, which would drop everything the
+ *  caller did not send. */
+export const putLeaderboardConfig = (simulationTypeId: string, metrics: object[]) =>
+  api.put(`/leaderboard-config/${simulationTypeId}`, { metrics });
+/** MERGE BY METRIC KEY — send only what changed. A key that exists is updated
+ *  field-by-field, a new one is appended, `removeKeys` deletes. 404s when no
+ *  config exists yet: PUT creates, PATCH edits. */
+export const patchLeaderboardConfig = (
+  simulationTypeId: string,
+  body: { metrics?: object[]; removeKeys?: string[] },
+) => api.patch(`/leaderboard-config/${simulationTypeId}`, body);
+/** The allowed `source` values, from the SERVER, so the dropdown cannot drift
+ *  from what the scorer accepts. */
+export const getLeaderboardSources = () => api.get(`/leaderboard-config/sources`);
+
+// ── Round reports (PDF) ───────────────────────────────────────
+/**
+ * Download a round report and hand the browser a save dialog.
+ *
+ * `blob`, not JSON — the endpoint streams a PDF. The failure path matters: on
+ * an error the server still replies JSON, but axios has already been told to
+ * expect a blob, so the message has to be read back OUT of it or the operator
+ * sees a bare "Request failed with status code 400" for something as ordinary
+ * as a round nobody has submitted to yet.
+ *
+ * Returns the filename it saved under, so the caller can say so.
+ */
+export const downloadRoundReport = async (
+  kind: "decisions" | "competitor",
+  simulationId: string,
+  roundNumber: number,
+): Promise<string> => {
+  try {
+    const res = await api.get(`/reports/${kind}`, {
+      params: { simulationId, roundNumber },
+      responseType: "blob",
+    });
+
+    // The server's own name for the file, exposed via a header a cross-origin
+    // fetch is allowed to read. Falls back to something sane if a proxy eats it.
+    const name =
+      (res.headers as Record<string, string>)["x-report-filename"] ??
+      `${kind}_${simulationId}_round${roundNumber}.pdf`;
+
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Freed on the next tick, not immediately: revoking before the browser has
+    // started the download cancels it in Safari and older Chrome.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return name;
+  } catch (e: any) {
+    const blob = e?.response?.data;
+    if (blob instanceof Blob) {
+      try {
+        const parsed = JSON.parse(await blob.text());
+        throw new Error(parsed?.message ?? "Failed to build the report.");
+      } catch (inner: any) {
+        if (inner instanceof Error && inner.message !== "Unexpected end of JSON input") throw inner;
+      }
+    }
+    throw new Error(e?.response?.data?.message ?? e?.message ?? "Failed to build the report.");
+  }
+};
+
 // ── Projection ─────────────────────────────────────────────────
 export const recalcProjections = (data: {
   simulationId:      string;

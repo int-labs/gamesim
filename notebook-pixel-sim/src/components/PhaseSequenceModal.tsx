@@ -31,6 +31,7 @@ import {
   type ServerProductProjection,
   type ServerProjectionResult,
 } from '@/gamesim/sync';
+import { collectClientMetrics } from '@/gamesim/clientMetrics';
 import { selectCashBalance, selectProjectedCash } from '@/engine/selectors';
 import {
   useGamesimSession,
@@ -45,7 +46,19 @@ import { EnergyValue } from '@/components/primitives/EnergyValue';
 // the operator's `config.totalRounds`, not a fixed 3.
 const phaseEndDay = (phase: number) => phase * DAYS_PER_PHASE;
 
-type Step = 'preview' | 'scenario' | 'simulating' | 'event' | 'evaluation' | 'result';
+/**
+ * `insight` sits BEFORE `simulating`, which is deliberate and was a change.
+ *
+ * The insight check is a fixed knowledge question — the copy and the correct
+ * answer are hardcoded per phase and derive from no state — so it is not a
+ * phase-end reflection and does not need the round's outcome in front of it.
+ *
+ * Asking it first is what lets its answer ride on the SAME `POST /decisions`
+ * as the decision itself. Asked during `evaluation`, it landed after the
+ * decision had already been posted, so persisting it needed a second endpoint
+ * and left a window where a round existed with no insight attached.
+ */
+type Step = 'preview' | 'scenario' | 'insight' | 'simulating' | 'event' | 'evaluation' | 'result';
 
 interface Props {
   open: boolean;
@@ -83,7 +96,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   const pendingEventId = useGame((s) => s.meta.pendingEventId);
   const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
   const setScreen = useGame((s) => s.setScreen);
-  const { canSubmit, canAdvance, bootstrap, roundContext, submittedDecision, refreshOfficial, financialsByRound } = useGamesimSession();
+  const { canSubmit, canAdvance, bootstrap, roundContext, submittedDecision, refreshOfficial, financialsByRound, clientMetricSources } = useGamesimSession();
   // Snapshot projected cash at the moment the decision is submitted so the modal
   // shows the locked-in numbers even as live projections continue updating elsewhere.
   const cashByProduct = liveProjection?.byProduct ?? null;
@@ -144,17 +157,30 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     }
     setSyncError(null);
     if (pendingScenarios.length > 0) setStep('scenario');
-    else void tick();
+    else setStep('insight');
   };
 
   const onScenarioPick = (opt: 'A' | 'B' | 'C' | 'D') => {
     const sc = pendingScenarios[0];
-    if (!sc) { void tick(); return; }
+    if (!sc) { setStep('insight'); return; }
     apply((s) => resolveFinlitScenario(s, sc.id, opt));
-    // Was that the last unresolved scenario? If so, simulate; else the head
-    // re-renders as the next one.
+    // Was that the last unresolved scenario? If so, on to the insight check;
+    // else the head re-renders as the next one.
     const stillPending = allPhaseScenarios.some((x) => x.id !== sc.id && !resolvedScenarios.includes(x.id));
-    if (!stillPending) void tick();
+    if (!stillPending) setStep('insight');
+  };
+
+  /**
+   * The insight check is answered, so the round can be submitted WITH it.
+   *
+   * Reads the answer straight out of the store rather than from local state:
+   * `answerInsight` has already folded it into `insights.score`, and
+   * `collectClientMetrics` resolves whatever keys the operator configured from
+   * exactly that — so the payload cannot disagree with what the player saw.
+   */
+  const onInsightContinue = () => {
+    playSfx('whoosh');
+    void tick();
   };
   // Reset to preview when the modal re-opens for a new phase confirm cycle.
   useEffect(() => {
@@ -232,11 +258,18 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
       // is not a reason to stop the game.
       if (canSubmit && roundContext) {
         const _gs2 = useGame.getState();
-        await submitRoundDecision(roundContext, {
-          state: _gs2 as any,
-          products: bootstrap?.products ?? [],
-          availableGlobalInputs: _gs2.availableGlobalInputs,
-        });
+        await submitRoundDecision(
+          roundContext,
+          {
+            state: _gs2 as any,
+            products: bootstrap?.products ?? [],
+            availableGlobalInputs: _gs2.availableGlobalInputs,
+          },
+          // The insight check has just been answered, so its figures go up in
+          // the SAME insert as the decision. Only the keys the operator
+          // configured as `origin: 'client'`.
+          collectClientMetrics(_gs2 as any, clientMetricSources),
+        );
         void refreshOfficial();
       }
     } catch (err) {
@@ -596,15 +629,27 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
           </div>
         )}
 
-        {step === 'evaluation' && insight && (
+        {/* BEFORE the submit, not after — see the note on `Step`. The question
+            is fixed per phase and reads no state, so nothing here needs the
+            round's outcome. */}
+        {step === 'insight' && insight && (
           <div className="flex flex-col gap-3">
-            <EvaluationStep
-              phase={(pendingEvalPhase ?? phaseAtOpen) as Phase}
+            <InsightCheck
+              phase={phaseAtOpen as Phase}
               insight={insight}
               answer={insightAnswer}
               revealed={insightRevealed}
               onPick={setInsightAnswer}
               onSubmit={onSubmitInsight}
+              onContinue={onInsightContinue}
+            />
+          </div>
+        )}
+
+        {step === 'evaluation' && (
+          <div className="flex flex-col gap-3">
+            <EvaluationStep
+              phase={(pendingEvalPhase ?? phaseAtOpen) as Phase}
               onContinue={onContinueFromEval}
             />
           </div>
@@ -745,8 +790,16 @@ function EventOptions({
   );
 }
 
-/* Evaluation step - summary + insight check. */
-function EvaluationStep({
+/**
+ * The insight check — a fixed knowledge question, asked BEFORE the round is
+ * submitted so its answer can ride on the same insert.
+ *
+ * It reads no round state on purpose: the question, the options and the correct
+ * answer are hardcoded per phase, so there is nothing here that needs the
+ * outcome. The mascot is neutral for the same reason — at this point the phase
+ * has not run, and a happy/concerned face would be reacting to the LAST round.
+ */
+function InsightCheck({
   phase,
   insight,
   answer,
@@ -763,13 +816,10 @@ function EvaluationStep({
   onSubmit: () => void;
   onContinue: () => void;
 }) {
-  const summary = useGame((s) => selectEvaluationSummary(s as any, phase));
-  const goodPhase = summary.opProfit >= 0;
-
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
-        <MascotAvatar mood={goodPhase ? 'happy' : 'thinking_side'} size={66} />
+        <MascotAvatar mood="thinking_side" size={66} />
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <PixelBadge tone="brand">Phase {phase} Insight Check</PixelBadge>
@@ -830,6 +880,50 @@ function EvaluationStep({
             Continue
           </PixelButton>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Evaluation step — the phase summary.
+ *
+ * The insight question USED to live here. It moved to `InsightCheck`, ahead of
+ * the submit, so its answer could be posted with the decision. What is left is
+ * what genuinely needs the round to have run.
+ */
+function EvaluationStep({
+  phase,
+  onContinue,
+}: {
+  phase: Phase;
+  onContinue: () => void;
+}) {
+  const summary = useGame((s) => selectEvaluationSummary(s as any, phase));
+  const goodPhase = summary.opProfit >= 0;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <MascotAvatar mood={goodPhase ? 'happy' : 'thinking_side'} size={66} />
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <PixelBadge tone={goodPhase ? 'success' : 'warn'}>
+              Phase {phase} review
+            </PixelBadge>
+          </div>
+          <p className="body-xs text-text-2 leading-snug">
+            {goodPhase
+              ? 'Your decisions paid off this phase.'
+              : 'Profit dipped this phase — check the cost mix before the next one.'}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <PixelButton variant="primary" onClick={onContinue}>
+          Continue
+        </PixelButton>
       </div>
     </div>
   );

@@ -12,6 +12,21 @@ export function advanceFinlitPhase(s: GameState, totalRounds: number): void {
   s.finlit.demandMult = 1;
   s.finlit.sellMult = 1;
 
+  // THE INSIGHT COUNTER IS PER ROUND TOO.
+  //
+  // Safe here and only here: the insight check is answered BEFORE the round is
+  // submitted, and this mutator runs AFTER that POST — so the figures have
+  // already gone up on `Decision.clientMetrics` by the time they are cleared.
+  //
+  // Per round because that is the primitive: the server holds one value per
+  // `simulation × team × round`, so a cumulative leaderboard is a sum it can do
+  // whenever, while a cumulative CLIENT counter could never be taken apart
+  // again. See `insights` in state/store.ts.
+  //
+  // `answered` is NOT cleared — it is the run-long history, and the two
+  // run-to-date displays derive their totals from it.
+  s.insights.score = { correct: 0, total: 0 };
+
   // `meta.day` is narrative copy. Nothing ticks it and nothing buckets by it.
   const endDay = phase * PHASE_LENGTH_DAYS;
   s.meta.day = endDay;
