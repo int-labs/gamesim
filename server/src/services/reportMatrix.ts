@@ -360,9 +360,14 @@ function emitDecisionCascade(
     for (const f of fields) {
       // The one field that is an OUTCOME, not a decision: every team submits 1
       // for `projected_market_share`, so the row read "1 1 1" and said nothing.
+      //
+      // NO WEIGHT on this row, deliberately. The field does carry a `direction`,
+      // but the cell beside it is the COMPETED market share, not the submission
+      // the weight applies to — printing one here would attribute a decision
+      // weight to an outcome.
       if (String(f.key) === PROJECTED_MARKET_SHARE_KEY) {
         ctx.emit(section, f.label ?? f.key ?? "", (dec) =>
-          pct(scoredFor(dec, p._id)?.marketShare), f.direction);
+          pct(scoredFor(dec, p._id)?.marketShare));
         continue;
       }
       ctx.emit(section, f.label ?? f.key ?? "", (dec) => {
