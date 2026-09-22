@@ -47,6 +47,10 @@ export interface ReportProductField {
   key?:   string;
   label?: string;
   order?: number;
+  /** The vocFit weight this field carries in `calcMarketModel`'s score. Bounded
+   *  0..1 on the model, `required` with a default of 1 — so a field never lacks
+   *  one, and 0 is the only way to say "this does not compete". */
+  direction?: number;
 }
 
 export interface ReportProduct {
@@ -127,6 +131,25 @@ export const plain = (n: number | null | undefined): string =>
 
 export const pct = (n: number | null | undefined, dp = 1): string =>
   n == null ? BLANK : `${(Number(n) * 100).toFixed(dp)}%`;
+
+/**
+ * A field's `direction`, for the Weight column.
+ *
+ * EMPTY rather than `BLANK`: most rows in that column are not product fields at
+ * all, and "-" here means "the team submitted nothing", which is a claim about a
+ * TEAM. A row with no weight is making no claim about anybody.
+ *
+ * A direction of 0 reads as empty too — it is the model's own way of saying the
+ * field does not compete (`selling_price` carries it), so printing "0.000"
+ * against it would suggest a weight that lost rather than one that never ran.
+ *
+ * 3dp: every live direction is authored to 3 or fewer, so this is lossless
+ * today. A finer-grained weight WOULD round here.
+ */
+const weightCell = (n: number | null | undefined): string => {
+  const v = Number(n);
+  return n == null || !Number.isFinite(v) || v === 0 ? "" : v.toFixed(3);
+};
 
 /** Points can be fractional — a per-product metric splits its weight across
  *  notebooks — but a trailing `.00` on a whole number is noise. */
@@ -241,22 +264,44 @@ interface Ctx {
   cols:   Array<{ id: string; name: string }>;
   byTeam: Map<string, ReportDecision>;
   rows:   string[][];
+  /** `weight` is only rendered when the context was built with `weights: true`;
+   *  passing one otherwise is silently ignored rather than shifting a column. */
   emit:   (
     section: string,
     label: string,
     valueFor: (dec: ReportDecision | null, col: { id: string; name: string }) => string,
+    weight?: number | null,
   ) => void;
+  weights: boolean;
 }
 
-function context(decisions: ReportDecision[], teams: ReportTeam[]): Ctx {
+/**
+ * `weights` adds the Weight column — COMPETITOR REPORT ONLY. The cascade below
+ * is shared by both reports, so the flag lives here rather than in the cascade:
+ * one place decides the row width, and the header cannot disagree with it.
+ */
+function context(
+  decisions: ReportDecision[],
+  teams: ReportTeam[],
+  weights = false,
+): Ctx {
   const byTeam = new Map(decisions.map((d) => [id(d.teamId), d]));
   // The roster's own order, so successive rounds line up column for column.
   const cols = teams.map((t) => ({ id: id(t._id), name: t.teamName ?? id(t._id) }));
   const rows: string[][] = [];
-  const emit: Ctx["emit"] = (section, label, valueFor) =>
-    rows.push([section, label, ...cols.map((c) => valueFor(byTeam.get(c.id) ?? null, c))]);
-  return { cols, byTeam, rows, emit };
+  const emit: Ctx["emit"] = (section, label, valueFor, weight) =>
+    rows.push([
+      section,
+      label,
+      ...(weights ? [weightCell(weight)] : []),
+      ...cols.map((c) => valueFor(byTeam.get(c.id) ?? null, c)),
+    ]);
+  return { cols, byTeam, rows, emit, weights };
 }
+
+/** The fixed columns, so a header can never disagree with what `emit` pushes. */
+const leadHeader = (ctx: Ctx, labelCol: string): string[] =>
+  ["Section", labelCol, ...(ctx.weights ? ["Weight"] : [])];
 
 /** One lever container's rows: every configured item, chosen or not. */
 function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
@@ -308,13 +353,16 @@ function emitDecisionCascade(
       return inp && inp.produced != null ? String(inp.produced) : BLANK;
     });
 
+    // `direction` is read PER PRODUCT, not per field key: the weights are
+    // genre-specific, so the same field carries a different one on each
+    // notebook (Minimalist page_size 0.145 against Anime's 0.057).
     const fields = [...(p.fields ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     for (const f of fields) {
       // The one field that is an OUTCOME, not a decision: every team submits 1
       // for `projected_market_share`, so the row read "1 1 1" and said nothing.
       if (String(f.key) === PROJECTED_MARKET_SHARE_KEY) {
         ctx.emit(section, f.label ?? f.key ?? "", (dec) =>
-          pct(scoredFor(dec, p._id)?.marketShare));
+          pct(scoredFor(dec, p._id)?.marketShare), f.direction);
         continue;
       }
       ctx.emit(section, f.label ?? f.key ?? "", (dec) => {
@@ -327,7 +375,7 @@ function emitDecisionCascade(
         return hit == null || hit.value == null || hit.value === ""
           ? BLANK
           : String(hit.value);
-      });
+      }, f.direction);
     }
     ctx.rows.push([]);
   }
@@ -355,7 +403,9 @@ export function buildCompetitorMatrix(
   containers: ReportContainer[],
   board: ScoredLeaderboard | null,
 ): ReportMatrix {
-  const ctx = context(decisions, teams);
+  // `true` — the Weight column. Competitor report only: the decision comparison
+  // keeps its existing header.
+  const ctx = context(decisions, teams, true);
   const { emit, rows, cols } = ctx;
 
   if (board) {
@@ -430,7 +480,7 @@ export function buildCompetitorMatrix(
 
   collapseSectionRuns(rows);
   return {
-    header: ["Section", "Metric", ...cols.map((c) => c.name)],
+    header: [...leadHeader(ctx, "Metric"), ...cols.map((c) => c.name)],
     rows,
     teamCount: cols.length,
     rowCount: rows.filter((r) => r.length > 0).length,
@@ -521,7 +571,7 @@ export function buildDecisionMatrix(
 
   collapseSectionRuns(rows);
   return {
-    header: ["Section", "Decision", ...cols.map((c) => c.name)],
+    header: [...leadHeader(ctx, "Decision"), ...cols.map((c) => c.name)],
     rows,
     teamCount: cols.length,
     rowCount: rows.filter((r) => r.length > 0).length,

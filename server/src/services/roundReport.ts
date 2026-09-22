@@ -164,11 +164,15 @@ export async function buildRoundReport(
       title: `Round ${roundNumber} - competitor report`,
       // ASCII hyphens only: the base-14 fonts are WinAnsi and U+2212 is not in
       // that set. See the note in reportPdf.ts.
+      // TWO different weights appear on this report and a reader must be able to
+      // tell them apart: the leaderboard weight sits in the `Point (weight N)`
+      // label, the Weight COLUMN is the product field's own `direction`.
       subtitle:
         `${simName}  ·  ${teamCount} teams  ·  generated ${stamp}  ·  ` +
         (metrics.length > 0
           ? `points = weight x (N - rank + 1), weighting from Leaderboard Config`
-          : `no leaderboard configured for this simulation type`),
+          : `no leaderboard configured for this simulation type`) +
+        `  ·  Weight column = that field's direction (0-1), blank where it does not compete`,
       filename: `competitor_${simulationId}_round${roundNumber}.pdf`,
     };
   }
