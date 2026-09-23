@@ -21,7 +21,7 @@ import { fmt$ } from '@/utils/format';
  * mounted by SimulationScreen.
  */
 const DEFAULT_SPEC: ProductionSpec = {
-  type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
+  type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', cover: 'plastic',
 };
 
 export function AmeliaReactions({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
@@ -30,8 +30,9 @@ export function AmeliaReactions({ liveProjection }: { liveProjection?: ServerPro
   const genre: GenreId = (line?.productId ?? '') as GenreId;
   const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line?.finlitSpec ?? {}) };
   const price = line?.price ?? 0;
-  const stickersSpend = Math.min((line?.addOnsByProduct?.[line?.productId ?? genre] ?? []).length * 0.15, 100);
-  const fit = line ? vocFit(spec, price, stickersSpend, genre) : 1;
+  // Stickers are a spec axis now, so `vocFit` reads them off `spec` like every
+  // other field — no canvas-derived spend passed in.
+  const fit = line ? vocFit(spec, price, genre) : 1;
 
   // The SERVER's `dynamicCost` — the same figure the P&L shows, so her warning
   // cannot contradict it. `null` = no projection yet; the margin check is

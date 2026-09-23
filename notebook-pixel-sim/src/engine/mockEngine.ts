@@ -33,6 +33,7 @@ import {
   BRAND_MIN,
 } from './config';
 import {
+  axisForAddOnCategory,
   scenarioById as finlitScenarioById,
   GENRES,
 } from '@/data/finlit';
@@ -278,10 +279,23 @@ export const placeAddOn = (
 ) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   const list = addOnsForLine(line);
+  // THREE, against FOUR axes — pick 3 of 4, deliberately (owner, 2026-09-23).
+  // A notebook cannot carry a charm AND a ribbon AND a sticker AND a functional
+  // piece; the fourth is refused. Not an arbitrary limit to raise when a new
+  // axis is added.
   if (list.length >= 3) return false;
   const cat = ADDONS.find((a) => a.id === defId)?.category;
   if (!cat) return false;
-  if (list.find((a) => ADDONS.find((x) => x.id === a.defId)?.category === cat)) return false;
+  // ONE PIECE PER AXIS, not per category: two sticker categories and three
+  // functional ones fold into a single axis that holds a single id, so allowing
+  // both sticker kinds would leave the canvas showing two and the submission
+  // carrying one. The drawer swaps within an axis; this is the backstop.
+  const axis = axisForAddOnCategory(cat);
+  const occupies = (other: string) =>
+    axis
+      ? axisForAddOnCategory(ADDONS.find((x) => x.id === other)?.category) === axis
+      : ADDONS.find((x) => x.id === other)?.category === cat;
+  if (list.find((a) => occupies(a.defId))) return false;
   const def = defaultPlacementFor(cat);
   const x = placement?.x !== undefined
     ? clamp(finite(placement.x, def.x), PLACEMENT_BOUNDS.xMin, PLACEMENT_BOUNDS.xMax)
@@ -302,6 +316,10 @@ export const placeAddOn = (
     rotation: def.rotation ?? 0,
     zIndex: def.zIndex,
   });
+  // The canvas instance IS the axis selection — set them together so the
+  // notebook a player sees and the score it submits cannot disagree. The
+  // catalogue id and the option id are deliberately the same string.
+  if (axis) line.finlitSpec = { ...(line.finlitSpec ?? {}), [axis]: defId };
   s.history.push({ day: s.meta.day, text: `Added add-on (${line.name}/${line.productId}): ${defId}`, cause: 'addon_' + defId });
   return true;
 };
@@ -347,7 +365,18 @@ export const resetAddOnPlacement = (s: GameState, instId: string, lineId?: strin
 
 export const removeAddOn = (s: GameState, instId: string, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
+  const going = addOnsForLine(line).find((a) => a.id === instId);
   line.addOnsByProduct[line.productId] = addOnsForLine(line).filter((a) => a.id !== instId);
+
+  // Clear the axis this piece occupied, so removing it submits 0 rather than
+  // leaving a score for something no longer on the notebook. Guarded on the
+  // instance's OWN defId matching what the spec holds: a swap removes the old
+  // piece AFTER placing the new one in some paths, and clearing blindly would
+  // wipe the incoming selection.
+  const axis = axisForAddOnCategory(ADDONS.find((x) => x.id === going?.defId)?.category);
+  if (axis && line.finlitSpec?.[axis] === going?.defId) {
+    line.finlitSpec = { ...line.finlitSpec, [axis]: undefined };
+  }
   s.history.push({ day: s.meta.day, text: `Removed add-on (${line.name})`, cause: 'addon_remove' });
 };
 

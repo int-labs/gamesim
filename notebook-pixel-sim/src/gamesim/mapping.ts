@@ -24,8 +24,14 @@ import type {
 
 /**
  * Field keys this glue submits. The SPEC half is DERIVED from `CONFIG_TABLES`
- * so the axis/field mapping exists in ONE place. The three below are not spec
- * axes (a price, a canvas-derived spend, a share claim), so they stay by hand.
+ * so the axis/field mapping exists in ONE place. The two below are not spec
+ * axes (a price and a share claim), so they stay by hand.
+ *
+ * `stickers` USED TO BE hand-written here, submitting
+ * `min(instances.length * 0.15, 100)` from the canvas. That 0.15 was the
+ * server's own `unitCost` for the field (verified live), so the multiplier was
+ * applied twice — the submission is a SCORE and the server converts it. It is a
+ * normal `CONFIG_TABLES` axis now, like `charms`, `ribbons` and `functional`.
  */
 const SPEC_FIELD_KEYS = Object.fromEntries(
   (Object.entries(CONFIG_TABLES) as [ConfigAxis, { fieldKey: string | null }][])
@@ -35,7 +41,6 @@ const SPEC_FIELD_KEYS = Object.fromEntries(
 
 export const FIELD_KEYS = {
   sellingPrice:         'selling_price',
-  stickers:             'stickers',
   projectedMarketShare: 'projected_market_share',
   ...SPEC_FIELD_KEYS,
 } as const;
@@ -49,12 +54,14 @@ const findField = (product: ProductDto, key: string): ProductFieldDto | undefine
 export type LineDecisionValues = Record<keyof typeof FIELD_KEYS, number>;
 
 export function lineDecisionValues(line: StoreLine, projectedMarketShare: number): LineDecisionValues {
-  const spec      = line.finlitSpec ?? {};
-  const instances = line.addOnsByProduct?.[line.productId] ?? [];
-  const stickersSpend = Math.min(instances.length * 0.15, 100);
+  const spec = line.finlitSpec ?? {};
 
   // SCORES (0-100), not dollars — the server multiplies by the field's own
   // `unitCost`. See ../../../server/README.md#score
+  //
+  // Every axis goes through this ONE loop, including the four canvas axes. An
+  // axis the notebook has not chosen scores 0, which is why they are optional
+  // on `ProductionSpec` rather than defaulted.
   const specValues = {} as Record<Exclude<ConfigAxis, 'type'>, number>;
   for (const axis of Object.keys(SPEC_FIELD_KEYS) as Exclude<ConfigAxis, 'type'>[]) {
     specValues[axis] = optionScore(axis, spec[axis]);
@@ -62,7 +69,6 @@ export function lineDecisionValues(line: StoreLine, projectedMarketShare: number
 
   return {
     sellingPrice:         round2(line.price),
-    stickers:             stickersSpend,
     projectedMarketShare: clamp01(round4(projectedMarketShare)),
     ...specValues,
   };

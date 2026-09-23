@@ -32,14 +32,17 @@
  */
 import { A } from '@/assets';
 import {
-  ADDON_OPTIONS,
   applyConstantOverrides,
+  CHARM_OPTIONS,
   COVER_OPTIONS,
+  FUNCTIONAL_OPTIONS,
   GENRES,
   PAGE_DESIGN_OPTIONS,
   PAPER_OPTIONS,
+  RIBBON_OPTIONS,
   SCENARIO_DAYS,
   SCENARIOS,
+  STICKER_OPTIONS,
   SCENARIOS_PER_PHASE,
   SIZE_OPTIONS,
   TYPE_OPTIONS,
@@ -242,8 +245,11 @@ const AXES: Record<string, Array<{ id: string }>> = {
   paper: PAPER_OPTIONS,
   size: SIZE_OPTIONS,
   pageDesign: PAGE_DESIGN_OPTIONS,
-  addon: ADDON_OPTIONS,
   cover: COVER_OPTIONS,
+  charms: CHARM_OPTIONS,
+  ribbons: RIBBON_OPTIONS,
+  stickers: STICKER_OPTIONS,
+  functional: FUNCTIONAL_OPTIONS,
 };
 
 // ── Section appliers ────────────────────────────────────────────────────

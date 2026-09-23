@@ -13,8 +13,9 @@ export interface FinlitLine {
   price: number;
   /** Channels the line is stocked in (offline/online/retail). */
   channels: ChannelId[];
-  /** Stickers spend derived from placed canvas add-on instances × unitCost (0.15). */
-  stickersSpend: number;
+  // `stickersSpend` was here — canvas instances × 0.15, which double-applied
+  // the server's own unitCost. Stickers are a spec axis now; nothing reads a
+  // separate spend.
   /** Shipping vendor engaged for this line (adds sell/prod bonus if it covers the genre). */
   // No `vendor`: vendors are company-wide globalInputs, applied server-side.
 

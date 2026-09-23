@@ -9,6 +9,7 @@ import {
 } from '@/engine/mockEngine';
 import { PixelChip, PixelBadge } from '@/components/primitives';
 import { ADDONS, addOnById } from '@/data/addOns';
+import { axisForAddOnCategory } from '@/data/finlit';
 import { notebookCatalogue } from '@/data/notebookArchetypes';
 import type { AddOnDef, Archetype, Binding, Cover, PaperQuality, Size } from '@/types';
 import clsx from 'clsx';
@@ -195,16 +196,22 @@ export function AddOnGallery() {
         removeAddOn(s, existing.id);
         return;
       }
-      // Click on a DIFFERENT add-on in the same category (e.g. cat charm
-      // placed, penguin charm clicked) — swap directly instead of forcing
-      // the player to unselect first. placeAddOn keeps its strict
-      // same-category rejection, so the eviction happens here.
+      // Click on a DIFFERENT add-on in the same AXIS (e.g. cat charm placed,
+      // penguin charm clicked) — swap directly instead of forcing the player to
+      // unselect first. placeAddOn keeps its strict same-axis rejection, so the
+      // eviction happens here.
+      //
+      // BY AXIS, not category: a Name Sticker and a Sticker Pack are different
+      // categories but one axis, and only one can be on the notebook — picking
+      // either replaces the other.
       const newCat = addOnById(defId)?.category;
+      const newAxis = axisForAddOnCategory(newCat);
       if (newCat) {
-        const sameCat = list.find(
-          (p: { defId: string; id: string }) => addOnById(p.defId)?.category === newCat,
-        );
-        if (sameCat) removeAddOn(s, sameCat.id);
+        const occupant = list.find((p: { defId: string; id: string }) => {
+          const cat = addOnById(p.defId)?.category;
+          return newAxis ? axisForAddOnCategory(cat) === newAxis : cat === newCat;
+        });
+        if (occupant) removeAddOn(s, occupant.id);
       }
       const ok = placeAddOn(s, defId);
       if (!ok) {

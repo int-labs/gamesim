@@ -17,7 +17,7 @@ import type { ProductLine } from '@/types';
 
 // No `type`: it is always overridden by the line's own notebook id below.
 const GALLERY_DEFAULT_SPEC: Omit<ProductionSpec, 'type'> = {
-  paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
+  paper: 'cream', size: 'a5', pageDesign: 'lined', cover: 'plastic',
 };
 
 /**
@@ -143,7 +143,10 @@ function BookCard({
   // longer exists in the catalogue.
   const genre: GenreId = line.productId as GenreId;
   const spec: ProductionSpec = { ...GALLERY_DEFAULT_SPEC, type: genre, ...(line.finlitSpec ?? {}) };
-  const stickersSpend = Math.min((line.addOnsByProduct?.[line.productId] ?? []).length * 0.15, 100);
+  // A COUNT of placed canvas pieces, for the chip below. It used to reuse the
+  // submission's `length * 0.15` spend, so three stickers rendered as
+  // "0 stickers" — a count label showing a dollar figure rounded to zero.
+  const placedCount = (line.addOnsByProduct?.[line.productId] ?? []).length;
   const specSummary = `${configOption('paper', spec.paper).name.split(' ')[0]} · ${spec.size.toUpperCase()} · ${configOption('pageDesign', spec.pageDesign).name}`;
 
   return (
@@ -239,7 +242,7 @@ function BookCard({
           {genreById(genre).name} · {specSummary}
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <Chip tone="info">{stickersSpend > 0 ? `${stickersSpend.toFixed(0)} stickers` : 'no stickers'}</Chip>
+          <Chip tone="info">{placedCount > 0 ? `${placedCount} add-ons` : 'no add-ons'}</Chip>
           <Chip tone={stock === 0 ? 'warn' : 'neutral'}>{stock} stock</Chip>
         </div>
       </div>

@@ -11,8 +11,12 @@ import {
 import { fieldCfg } from './config/fieldConfig';
 import { normalCDF, directionOffset, bellCurveScore, diminishingReturnsFactor } from './mathUtils';
 
+// The server's money fields, verified against the live product documents.
+// `addons` was removed there and here in the same update; `charms`, `ribbons`
+// and `functional` are the real axes that replaced it.
 const MONEY_FIELDS = [
-  'stickers', 'addons', 'page_size', 'paper_material', 'page_design', 'cover_page',
+  'stickers', 'page_size', 'paper_material', 'page_design', 'cover_page',
+  'charms', 'ribbons', 'functional',
 ] as const;
 type MoneyFieldKey = typeof MONEY_FIELDS[number];
 
@@ -29,14 +33,16 @@ function fieldScore(value: number, genre: string, key: string): number {
 // the local fit preview and the server's dynamicPrice see identical inputs.
 // This read `.cost` while the submission read `.cost` too; both are now `.score`
 // and the two stay in step because they read the same column.
-function specValues(spec: ProductionSpec, stickersSpend: number): Record<MoneyFieldKey, number> {
+function specValues(spec: ProductionSpec): Record<MoneyFieldKey, number> {
   return {
-    stickers:       stickersSpend,
-    addons:         optionScore('addon',      spec.addon),
+    stickers:       optionScore('stickers',   spec.stickers),
     page_size:      optionScore('size',       spec.size),
     paper_material: optionScore('paper',      spec.paper),
     page_design:    optionScore('pageDesign', spec.pageDesign),
     cover_page:     optionScore('cover',      spec.cover),
+    charms:         optionScore('charms',     spec.charms),
+    ribbons:        optionScore('ribbons',    spec.ribbons),
+    functional:     optionScore('functional', spec.functional),
   };
 }
 
@@ -53,10 +59,9 @@ function localDynamicPrice(vals: Record<MoneyFieldKey, number>, genre: string): 
 export function attributeScores(
   spec: ProductionSpec,
   price: number,
-  stickersSpend: number,
   genre: GenreId,
 ) {
-  const vals     = specValues(spec, stickersSpend);
+  const vals     = specValues(spec);
   const dynPrice = localDynamicPrice(vals, genre);
   const { minValue: priceMin, maxValue: priceMax } = fieldCfg(genre, 'selling_price');
 
@@ -74,10 +79,9 @@ export function attributeScores(
 export function vocFit(
   spec: ProductionSpec,
   price: number,
-  stickersSpend: number,
   genre: GenreId,
 ): number {
-  const s    = attributeScores(spec, price, stickersSpend, genre);
+  const s    = attributeScores(spec, price, genre);
   const wSum = MONEY_FIELDS.reduce((sum, k) => sum + fieldCfg(genre, k).direction, 0);
   if (wSum === 0) return 1;
   const aligned = MONEY_FIELDS.reduce(

@@ -36,7 +36,7 @@ const AXES: { axis: ConfigAxis; label: string }[] = [
 // No `type`: this only supplies the five design axes below, and a hardcoded
 // type slug named a notebook the catalogue no longer has.
 const DEFAULT_SPEC: Omit<ProductionSpec, 'type'> = {
-  paper: 'cream', size: 'a5', pageDesign: 'lined', addon: 'bookmark', cover: 'plastic',
+  paper: 'cream', size: 'a5', pageDesign: 'lined', cover: 'plastic',
 };
 
 export function FinlitDesignControls({
@@ -69,8 +69,12 @@ export function FinlitDesignControls({
     paper: line.finlitSpec?.paper ?? DEFAULT_SPEC.paper,
     size: line.finlitSpec?.size ?? DEFAULT_SPEC.size,
     pageDesign: line.finlitSpec?.pageDesign ?? DEFAULT_SPEC.pageDesign,
-    addon: line.finlitSpec?.addon ?? DEFAULT_SPEC.addon,
     cover: line.finlitSpec?.cover ?? DEFAULT_SPEC.cover,
+    // The canvas axes carry no default — unchosen means 0, not a free charm.
+    charms: line.finlitSpec?.charms,
+    ribbons: line.finlitSpec?.ribbons,
+    stickers: line.finlitSpec?.stickers,
+    functional: line.finlitSpec?.functional,
   };
   const channelLabel = activeChannels.map((c) => CHANNEL_META[c].name).join(' + ');
 
@@ -111,7 +115,11 @@ export function FinlitDesignControls({
               <span className="field-label w-28 shrink-0">{label}</span>
               <PixelSelect
                 ariaLabel={label}
-                value={spec[axis]}
+                // The canvas axes (charms/ribbons/stickers/functional) are
+                // OPTIONAL, so `spec[axis]` is `string | undefined` for the
+                // union. '' reads as "nothing chosen"; the four axes listed in
+                // AXES are required and never reach it.
+                value={spec[axis] ?? ''}
                 // COMPUTED, not stored: `score × unitCost`, the same arithmetic
                 // the server's `dynamicCost` runs. No `unitCost` ⇒ no hint,
                 // rather than a confident "+$0.00".
