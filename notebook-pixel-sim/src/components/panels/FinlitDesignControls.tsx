@@ -4,7 +4,7 @@ import {
   CONFIG_TABLES, CHANNEL_META,
   type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
 } from '@/data/finlit';
-import { fieldCfg } from '@/engine/finlit/core/config/fieldConfig';
+import { optionUnitCost } from '@/engine/finlit/core/config/fieldConfig';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
 import { fmt$, fmtInt } from '@/utils/format';
 import type { ServerProjectionResult } from '@/gamesim/sync';
@@ -124,11 +124,11 @@ export function FinlitDesignControls({
                 // the server's `dynamicCost` runs. No `unitCost` ⇒ no hint,
                 // rather than a confident "+$0.00".
                 options={CONFIG_TABLES[axis].options.map((o) => {
-                  const perPoint = fieldCfg(genre, CONFIG_TABLES[axis].fieldKey ?? '').unitCost;
+                  const added = optionUnitCost(genre, axis, o.id);
                   return {
                     id: o.id,
                     label: o.name,
-                    hint: perPoint > 0 ? `+${fmt$(o.score * perPoint)}` : undefined,
+                    hint: added != null ? `+${fmt$(added)}` : undefined,
                   };
                 })}
                 // A select has no interaction end distinct from its change, so

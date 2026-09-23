@@ -10,6 +10,8 @@ import {
 import { PixelChip, PixelBadge } from '@/components/primitives';
 import { ADDONS, addOnById } from '@/data/addOns';
 import { axisForAddOnCategory } from '@/data/finlit';
+import { optionUnitCost } from '@/engine/finlit/core/config/fieldConfig';
+import { fmt$ } from '@/utils/format';
 import { notebookCatalogue } from '@/data/notebookArchetypes';
 import type { AddOnDef, Archetype, Binding, Cover, PaperQuality, Size } from '@/types';
 import clsx from 'clsx';
@@ -186,6 +188,10 @@ export function AddOnGallery() {
   const archAddOns = useGame((s) => (hasNotebook ? currentAddOns(s) : []));
   if (!hasNotebook || !product) return <EmptyLine />;
 
+  // Unit costs are PER NOTEBOOK — the same charm costs a different amount on a
+  // different market, because `unitCost` is read off that product's own field.
+  const genre = product.productId;
+
   const toggleAddOn = (defId: string) => {
     apply((s) => {
       const list = currentAddOns(s);
@@ -233,7 +239,11 @@ export function AddOnGallery() {
   return (
     <div className="flex flex-col gap-3">
       <div className="body-xs text-text-2">
-        <span className="strong text-text">{archAddOns.length}/3</span> on · tap to toggle. Decorations appear on the notebook automatically - they're cosmetic and don't change your score.
+        {/* The old copy said these were "cosmetic and don't change your score".
+            That stopped being true when charms/ribbons/stickers/functional
+            became real spec axes — each one is submitted and costs money, which
+            is what the figure on every tile now shows. */}
+        <span className="strong text-text">{archAddOns.length}/3</span> on · tap to toggle. Each piece adds to your unit cost and to what buyers value — you can carry three.
       </div>
       <div className="flex flex-col gap-3">
           {ADDON_GROUPS.map((group) => (
@@ -244,8 +254,16 @@ export function AddOnGallery() {
               <div className="grid grid-cols-3 gap-2">
                 {ADDONS.filter((a) => group.cats.includes(a.category)).map((a) => {
                   const placed = !!archAddOns.find((p: { defId: string }) => p.defId === a.id);
+                  // BY AXIS, matching the swap rule: a Name Sticker and a
+                  // Sticker Pack are different categories but one axis, so
+                  // holding either marks the other as a swap, not a free slot.
+                  const axis = axisForAddOnCategory(a.category);
                   const catLocked =
-                    !placed && !!archAddOns.find((p: { defId: string }) => addOnById(p.defId)?.category === a.category);
+                    !placed &&
+                    !!archAddOns.find((p: { defId: string }) => {
+                      const other = addOnById(p.defId)?.category;
+                      return axis ? axisForAddOnCategory(other) === axis : other === a.category;
+                    });
                   const capReached = !placed && archAddOns.length >= 3;
                   return (
                     <AddOnTile
@@ -254,6 +272,9 @@ export function AddOnGallery() {
                       placed={placed}
                       catLocked={catLocked}
                       capReached={capReached}
+                      // `score × unitCost` for this genre, from the one helper
+                      // the design drawer's hint also uses.
+                      addedCost={axis ? optionUnitCost(genre, axis, a.id) : null}
                       onToggle={() => toggleAddOn(a.id)}
                     />
                   );
@@ -293,12 +314,16 @@ function AddOnTile({
   placed,
   catLocked,
   capReached,
+  addedCost,
   onToggle,
 }: {
   def: AddOnDef;
   placed: boolean;
   catLocked: boolean;
   capReached: boolean;
+  /** What this piece adds to unit cost. `null` = no figure to quote, which
+   *  renders NOTHING rather than "+$0.00". */
+  addedCost: number | null;
   onToggle: () => void;
 }) {
   // Both gestures at once: a plain click still toggles, and a 4px pointer move
@@ -345,6 +370,9 @@ function AddOnTile({
         fallbackSize={30}
       />
       <span className="body-xs text-text text-center leading-tight">{def.name}</span>
+      {addedCost != null && (
+        <span className="num-xs text-text-2 leading-none">+{fmt$(addedCost)}</span>
+      )}
 
       {placed && (
         <span className="absolute -top-1.5 -right-1.5 bg-primary-strong text-white border border-border w-5 h-5 flex items-center justify-center num-xs leading-none">

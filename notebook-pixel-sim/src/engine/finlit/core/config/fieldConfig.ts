@@ -63,6 +63,28 @@ export const fieldCfg = (genre: string, key: string): FieldConfig =>
   ?? { direction: 0, minValue: 0, maxValue: 100, tightening: 3, unitCost: 0, label: key, order: 0 };
 
 /**
+ * What one option on an axis ADDS to the unit cost: `score × unitCost`.
+ *
+ * COMPUTED, never stored — the same arithmetic the server's `dynamicCost` runs,
+ * so the figure under an add-on tile and the figure in the design drawer cannot
+ * quote differently for the same choice.
+ *
+ * `null` when the axis has no server field or the field has no `unitCost`,
+ * which the callers render as NO hint rather than a confident "+$0.00".
+ */
+export const optionUnitCost = (
+  genre: string,
+  axis: ConfigAxis,
+  optionId: string | undefined,
+): number | null => {
+  const fieldKey = CONFIG_TABLES[axis].fieldKey;
+  if (!fieldKey) return null;
+  const perPoint = fieldCfg(genre, fieldKey).unitCost;
+  if (!perPoint) return null;
+  return optionScore(axis, optionId) * perPoint;
+};
+
+/**
  * Fields that are NOT customer drivers, excluded by key rather than by any
  * property of the data.
  *
