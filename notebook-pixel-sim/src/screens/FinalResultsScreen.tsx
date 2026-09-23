@@ -395,7 +395,7 @@ export function FinalResultsScreen() {
                         market where a facilitator might repeat it to a room. */}
                     <ServerStat
                       label="Strength"
-                      value={latestResults ? `${(latestResults.averageMarketShare * 100).toFixed(1)}%` : 'Pending'}
+                      value={latestResults ? `${(latestResults.averageMarketFit * 100).toFixed(1)}%` : 'Pending'}
                       tone={latestResults ? 'info' : 'muted'}
                     />
                     <ServerStat
@@ -426,7 +426,7 @@ export function FinalResultsScreen() {
                               {t.teamId === teamId ? 'Your team' : `Team ${t.teamId.slice(-6)}`}
                             </div>
                             <div className="num-xs text-text">
-                              {(t.averageMarketShare * 100).toFixed(1)}%
+                              {(t.averageMarketFit * 100).toFixed(1)}%
                             </div>
                           </div>
                         ))}

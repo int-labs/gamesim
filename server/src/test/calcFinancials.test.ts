@@ -94,7 +94,8 @@ interface ScenarioOpts {
   materialValue?: number;
   /** `unitCost` on the cost-bearing field. */
   materialUnitCost?: number;
-  marketShare?: number;
+  /** The team's market FIT — the allocation basis, not a share of sales. */
+  marketFit?: number;
   globalInputs?: DecisionGlobalInputEntry[];
   baseVariables?: Partial<BaseVariables>;
   /** Units the team commits to producing. Omitted ⇒ null ⇒ ZERO: production is
@@ -114,7 +115,7 @@ function scenario(opts: ScenarioOpts = {}): CalcFinancialsInput {
     sellingPrice = 12,
     materialValue = 1,
     materialUnitCost = 0.5,
-    marketShare = 0.2,
+    marketFit = 0.2,
     globalInputs = [],
     baseVariables = {},
     produced,
@@ -129,7 +130,7 @@ function scenario(opts: ScenarioOpts = {}): CalcFinancialsInput {
 
   return {
     productId: PRODUCT_ID,
-    marketShares: [{ teamId: TEAM_ID, value: marketShare }],
+    marketFits: [{ teamId: TEAM_ID, value: marketFit }],
     productFields,
     decisions: [
       {
@@ -311,9 +312,9 @@ describe("calcFinancials · Layer B1 — every lever moves the promised directio
     expect(with_.customersObtained).toBeGreaterThan(without.customersObtained);
   });
 
-  it("higher market share ⇒ proportionally more customers", () => {
-    const small = run({ marketShare: 0.1 });
-    const big = run({ marketShare: 0.4 });
+  it("higher market fit ⇒ proportionally more customers", () => {
+    const small = run({ marketFit: 0.1 });
+    const big = run({ marketFit: 0.4 });
 
     expect(big.customersObtained).toBeGreaterThan(small.customersObtained);
   });
@@ -570,14 +571,14 @@ describe("calcFinancials · Layer B2 — the game is playable", () => {
   });
 
   it("never obtains more customers than the market holds", () => {
-    const r = run({ marketShare: 1, sellingPrice: 1 });
+    const r = run({ marketFit: 1, sellingPrice: 1 });
     expect(r.customersObtained).toBeLessThanOrEqual(AVAILABLE_MARKET);
   });
 
   it("produces finite numbers for every figure, on empty inputs", () => {
     const r = calcFinancials({
       productId: PRODUCT_ID,
-      marketShares: [{ teamId: TEAM_ID, value: 0 }],
+      marketFits: [{ teamId: TEAM_ID, value: 0 }],
       productFields: [],
       decisions: [],
       globalInputs: [],
@@ -648,13 +649,32 @@ describe("toProjectionMetrics", () => {
       "customersObtained", "sellingPrice", "dynamicPrice", "productScore",
       "dynamicCost", "inventoryQty", "produced", "closingStock", "unitsSold", "revenue", "COGS",
       "grossProfit", "operatingExpenses", "operatingProfit",
-      "productCostBreakdown", "incurredCosts", "globalInputCosts",
+      "productCostBreakdown", "productScoreBreakdown", "incurredCosts", "globalInputCosts",
     ];
 
     expect(Object.keys(metrics).sort()).toEqual(required.sort());
   });
 
-  it("omits marketShare so a what-if cannot overwrite a competed share", () => {
+  it("keeps productScoreBreakdown summing to dynamicPrice", () => {
+    // The breakdown CAPTURES terms calcFinancials already computed; it must not
+    // have become a second calculation. If these ever diverge, the per-field
+    // rows on the analysis report are describing a score the model did not use.
+    const r = run();
+    const total = r.productScoreBreakdown.reduce((a, b) => a + b.value, 0);
+    expect(total).toBeCloseTo(r.dynamicPrice);
+  });
+
+  it("breaks the score down over the scoring fields only", () => {
+    // `priceFields` is `type === "money" && direction > 0 && key !== selling_price`.
+    // A field with no direction contributes nothing and must not appear as a
+    // zero row, which would read as a decision that scored badly.
+    const r = run();
+    expect(r.productScoreBreakdown.length).toBeGreaterThan(0);
+    expect(r.productScoreBreakdown.map((b) => b.key)).not.toContain(SELLING_PRICE_KEY);
+  });
+
+  it("omits the competed figures so a what-if cannot overwrite a scored result", () => {
+    expect(toProjectionMetrics(run())).not.toHaveProperty("marketFit");
     expect(toProjectionMetrics(run())).not.toHaveProperty("marketShare");
   });
 });

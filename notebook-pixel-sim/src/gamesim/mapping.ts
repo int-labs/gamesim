@@ -11,6 +11,7 @@ import {
   CONFIG_TABLES,
   optionScore,
   type ConfigAxis,
+  type ProductionSpec,
 } from '@/engine/finlit/core/config/production';
 import type {
   DecisionFieldEntry,
@@ -74,13 +75,29 @@ export function lineDecisionValues(line: StoreLine, projectedMarketShare: number
   };
 }
 
-/** Field entries for one product — FIELD_KEYS drives the loop. */
-export function toDecisionFields(product: ProductDto, values: LineDecisionValues): DecisionFieldEntry[] {
+/**
+ * Field entries for one product — FIELD_KEYS drives the loop.
+ *
+ * `name` rides along for the SPEC AXES only: it is the chosen option's display
+ * name, which is what the reports print instead of the score. A price or a
+ * share claim has no option table and carries none — the reports format those
+ * from `value`.
+ */
+export function toDecisionFields(
+  product: ProductDto,
+  values: LineDecisionValues,
+  spec: Partial<ProductionSpec> = {},
+): DecisionFieldEntry[] {
   return (Object.entries(FIELD_KEYS) as [keyof LineDecisionValues, string][])
     .flatMap(([valueKey, fieldKey]) => {
       const field = findField(product, fieldKey);
       if (!field) return [];
-      return [{ fieldId: field._id, value: values[valueKey] }];
+      // `valueKey` is the AXIS name for every spec field, which is exactly the
+      // key `CONFIG_TABLES` and the spec are both keyed by.
+      const axis = valueKey as ConfigAxis;
+      const chosen = axis in CONFIG_TABLES ? spec[axis] : undefined;
+      const name = chosen ? CONFIG_TABLES[axis].options.find((o) => o.id === chosen)?.name : undefined;
+      return [{ fieldId: field._id, value: values[valueKey], ...(name ? { name } : {}) }];
     });
 }
 
@@ -155,7 +172,9 @@ export function toDecisionInputs({
       // null when the player never set one — the server then applies half the
       // ceiling, which is exactly what the planner shows for an untouched line.
       produced:    line.targetPerPhase ?? null,
-      fields:      toDecisionFields(product, lineDecisionValues(line, share)),
+      // `finlitSpec` carries the chosen option IDS; `toDecisionFields` resolves
+      // each to its display name so the reports can print it.
+      fields:      toDecisionFields(product, lineDecisionValues(line, share), line.finlitSpec ?? {}),
     });
   }
 

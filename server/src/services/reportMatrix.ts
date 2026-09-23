@@ -10,17 +10,27 @@
  * ── IF A FIGURE IS STORED, READ IT ──────────────────────────────────────────
  * This is the rule the file exists to enforce, and it has been broken twice.
  * An earlier export attributed revenue across channels with a hardcoded genre ×
- * channel matrix the server never computed; a later one derived a market share
- * by normalising customers, which contradicted the stored
- * `scored[].marketShare` it sat three rows above (66.9%/33.1% against
- * 59.1%/40.9% for the same round) because `customersObtained` is
- * `marketShare × availableMarket × productScore × customersObtainedAugment`,
- * so `productScore` enters twice.
+ * channel matrix the server never computed; a later one derived a figure by
+ * normalising customers, which contradicted the stored one it sat three rows
+ * above (66.9%/33.1% against 59.1%/40.9% for the same round) because
+ * `customersObtained` is `marketFit × availableMarket × productScore ×
+ * customersObtainedAugment`, so `productScore` enters twice.
+ *
+ * ── FIT AND SHARE ARE DIFFERENT FIGURES ─────────────────────────────────────
+ * `scored[].marketFit`   normalised productScore — what a team's decisions
+ *                        EARNED it of the market. The allocation.
+ * `scored[].marketShare` customersObtained / Σ customersObtained — the share of
+ *                        CUSTOMERS WON. What the decisions achieved after
+ *                        `productScore` and the globalInput augmentation.
+ * They were one name until 2026-09-24. Whether a team could DELIVER what it won
+ * is a third thing — the Demand block shows it, demand against Customers
+ * Fulfilled.
  *
  * Exactly ONE figure here is derived — the channel apportionment — and it is
  * marked. Everything else is read.
  */
 
+import { PROJECTED_MARKET_SHARE_KEY, SELLING_PRICE_KEY } from "../constants/impacts";
 import { stepMultiplier } from "../sim/calcFinancials";
 import type { LeaderboardMetric } from "../models/leaderboardConfig";
 import type { RoundScore, Standings } from "./leaderboard";
@@ -87,7 +97,9 @@ export interface ReportDecision {
   inputs?: Array<{
     productId: unknown;
     produced?: number | null;
-    fields?: Array<{ fieldId: unknown; value?: unknown }>;
+    /** `name` is the chosen option's display name, snapshotted at submission.
+     *  The reports print it instead of `value`, which is a bare score. */
+    fields?: Array<{ fieldId: unknown; value?: unknown; name?: string | null }>;
   }>;
   globalInputs?: Array<{
     globalInputItemId: unknown;
@@ -146,7 +158,8 @@ export const pct = (n: number | null | undefined, dp = 1): string =>
   n == null ? BLANK : `${(Number(n) * 100).toFixed(dp)}%`;
 
 /**
- * A field's `direction`, for the Weight column.
+ * A field's `direction`, for the Weight column — ANALYSIS REPORT ONLY. It was
+ * on the competitor report too until 2026-09-24; there it was noise.
  *
  * EMPTY rather than `BLANK`: most rows in that column are not product fields at
  * all, and "-" here means "the team submitted nothing", which is a claim about a
@@ -177,10 +190,12 @@ const FORMATTERS: Record<LeaderboardMetric["format"], (n: number | null) => stri
   percent: (n) => pct(n),
 };
 
-/** The product field that is NOT a decision — every team submits `1`. The real
- *  figure is the competed `scored[].marketShare`. Mirrors
- *  PROJECTED_MARKET_SHARE_KEY in constants/impacts.ts. */
-const PROJECTED_MARKET_SHARE_KEY = "projected_market_share";
+// `PROJECTED_MARKET_SHARE_KEY` was mirrored here as a local string. It and
+// `SELLING_PRICE_KEY` are imported from constants/impacts.ts now — one
+// definition, so a rename cannot leave this file matching a key nobody sends.
+//
+// `projected_market_share` is the product field that is NOT a decision: every
+// team submits 1, and the real figure is the competed `scored[].marketShare`.
 
 // ── Shared readers ───────────────────────────────────────────────────────────
 
@@ -198,6 +213,34 @@ export function sumScored(
 /** One product's scored metrics, or null before the round is calculated. */
 export const scoredFor = (dec: ReportDecision | null, productId: unknown) =>
   dec?.scored?.[id(productId)] ?? null;
+
+/**
+ * The per-field weighted scores calcFinancials captured — `resolved ×
+ * bellFactor × direction`, summing to `dynamicPrice`.
+ *
+ * READ, never derived. calcFinancials computes these and now keeps them
+ * precisely so this file does not re-run a market-model line.
+ */
+function scoreTerms(
+  dec: ReportDecision | null,
+  productId: unknown,
+): Array<{ key: string; value: number }> {
+  const sc = scoredFor(dec, productId) as
+    { productScoreBreakdown?: Array<{ key?: unknown; value?: unknown }> } | null;
+  return (sc?.productScoreBreakdown ?? [])
+    .map((r) => ({ key: String(r.key ?? ""), value: Number(r.value) }))
+    .filter((r) => r.key !== "" && Number.isFinite(r.value));
+}
+
+const scoreTermFor = (dec: ReportDecision | null, productId: unknown, fieldKey: string) =>
+  scoreTerms(dec, productId).find((r) => r.key === fieldKey)?.value ?? null;
+
+/** Σ of the terms — equals `dynamicPrice`. `null` when nothing is scored, so a
+ *  share is blank rather than dividing by zero. */
+const scoreTotalFor = (dec: ReportDecision | null, productId: unknown) => {
+  const rows = scoreTerms(dec, productId);
+  return rows.length === 0 ? null : rows.reduce((a, r) => a + r.value, 0);
+};
 
 /**
  * CASH, walked forward from the configured opening.
@@ -331,8 +374,8 @@ interface Ctx {
   cols:   Array<{ id: string; name: string }>;
   byTeam: Map<string, ReportDecision>;
   rows:   string[][];
-  /** `weight` is only rendered when the context was built with `weights: true`;
-   *  passing one otherwise is silently ignored rather than shifting a column. */
+  /** `weight` renders only when the context was built with `weights: true`;
+   *  passing one otherwise is ignored rather than shifting a column. */
   emit:   (
     section: string,
     label: string,
@@ -343,9 +386,15 @@ interface Ctx {
 }
 
 /**
- * `weights` adds the Weight column — COMPETITOR REPORT ONLY. The cascade below
- * is shared by both reports, so the flag lives here rather than in the cascade:
- * one place decides the row width, and the header cannot disagree with it.
+ * `weights` adds the Weight column — ANALYSIS REPORT ONLY.
+ *
+ * It belongs there and not on the competitor report: the analysis report is
+ * where a reader is asking WHY a score came out as it did, and `direction` is
+ * half that answer. The competitor report answers "who won", where a column of
+ * coefficients is noise.
+ *
+ * The flag lives here rather than in the cascade because the cascade is shared:
+ * one place decides the row width, so the header cannot disagree with it.
  */
 function context(
   decisions: ReportDecision[],
@@ -369,6 +418,54 @@ function context(
 /** The fixed columns, so a header can never disagree with what `emit` pushes. */
 const leadHeader = (ctx: Ctx, labelCol: string): string[] =>
   ["Section", labelCol, ...(ctx.weights ? ["Weight"] : [])];
+
+/**
+ * THE WORKING BEHIND EVERY LEADERBOARD FIGURE — analysis report only.
+ *
+ * The competitor report prints Actual / Rank / Point. This prints every term
+ * that produced them, so a team can reconstruct its own score:
+ *
+ *     points = weight x (N - rank + 1)
+ *
+ * `N` is the number of teams that HAVE a figure, which is why it is printed
+ * rather than assumed to be the roster size: a team that never submitted is not
+ * ranked at all, and that changes what everyone else scored.
+ *
+ * Read from the same `scoreRound` output the competitor report renders — not
+ * recomputed, so the two cannot disagree about a team's points.
+ */
+function emitLeaderboardWorking(ctx: Ctx, board: ScoredLeaderboard | null): void {
+  if (!board) return;
+
+  for (const b of board.round.blocks) {
+    const fmt = FORMATTERS[b.format] ?? plain;
+    // Ranked teams only — `scoreMetric` omits a team with no figure.
+    const n = b.scores.size;
+
+    ctx.emit(b.label, "Actual", (_d, c) => fmt(b.scores.get(c.id)?.value ?? null));
+    ctx.emit(b.label, "  rank", (_d, c) => {
+      const r = b.scores.get(c.id)?.rank;
+      return r == null ? BLANK : String(r);
+    });
+    ctx.emit(b.label, "  teams ranked (N)", () => String(n));
+    ctx.emit(b.label, "  weight", () => round2(b.weight));
+    ctx.emit(b.label, "  points = weight x (N - rank + 1)", (_d, c) => {
+      const s = b.scores.get(c.id);
+      // Both must be present: a team with a rank but no points has not been
+      // scored, and printing the left-hand side alone would imply it had.
+      if (!s || s.rank == null || s.points == null) return BLANK;
+      // The arithmetic spelled out beside its result, so the row is checkable
+      // by eye rather than taken on trust.
+      return `${round2(b.weight)} x ${n - s.rank + 1} = ${round2(s.points)}`;
+    });
+    ctx.rows.push([]);
+  }
+
+  ctx.emit("Leaderboard", "Total points (all rounds)", (_d, c) =>
+    round2(board.totals.get(c.id) ?? 0));
+  ctx.emit("Leaderboard", "Rank", (_d, c) => `#${board.standing.get(c.id) ?? "-"}`);
+  ctx.rows.push([]);
+}
 
 /** Cash rows, shared by both reports so they cannot drift on how it is shown.
  *  `null` when no opening was configured — see the seed read in roundReport. */
@@ -421,6 +518,10 @@ function emitDecisionCascade(
   ctx: Ctx,
   products: ReportProduct[],
   containers: ReportContainer[],
+  /** ANALYSIS REPORT ONLY: adds the working under each field — its weighted
+   *  score and that score's share. The competitor report answers "who won" and
+   *  does not want three rows per spec. */
+  detail = false,
 ): void {
   const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
@@ -430,41 +531,59 @@ function emitDecisionCascade(
       (dec?.inputs ?? []).find((i) => id(i.productId) === id(p._id)) ?? null;
 
     ctx.emit(section, "Made this notebook", (dec) => (inputFor(dec) ? "Yes" : "No"));
-    ctx.emit(section, "Produce / phase", (dec) => {
+    ctx.emit(section, "Books Produced", (dec) => {
       const inp = inputFor(dec);
       // `null` is "not stated", which the server builds NOTHING for — distinct
       // from an explicit 0 the team typed.
       return inp && inp.produced != null ? String(inp.produced) : BLANK;
     });
 
-    // `direction` is read PER PRODUCT, not per field key: the weights are
-    // genre-specific, so the same field carries a different one on each
-    // notebook (Minimalist page_size 0.145 against Anime's 0.057).
     const fields = [...(p.fields ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     for (const f of fields) {
       // The one field that is an OUTCOME, not a decision: every team submits 1
       // for `projected_market_share`, so the row read "1 1 1" and said nothing.
-      //
-      // NO WEIGHT on this row, deliberately. The field does carry a `direction`,
-      // but the cell beside it is the COMPETED market share, not the submission
-      // the weight applies to — printing one here would attribute a decision
-      // weight to an outcome.
       if (String(f.key) === PROJECTED_MARKET_SHARE_KEY) {
         ctx.emit(section, f.label ?? f.key ?? "", (dec) =>
           pct(scoredFor(dec, p._id)?.marketShare));
         continue;
       }
+      const isPrice = String(f.key) === SELLING_PRICE_KEY;
+      const fieldKey = String(f.key ?? "");
       ctx.emit(section, f.label ?? f.key ?? "", (dec) => {
         const inp = inputFor(dec);
         if (!inp) return BLANK;
         const hit = (inp.fields ?? []).find((x) => id(x.fieldId) === id(f._id));
-        // The RAW submitted value: for an enum field that is the option key the
-        // server resolves through `options`, and re-deriving a label here would
-        // be a second interpretation of the decision.
-        return hit == null || hit.value == null || hit.value === ""
-          ? BLANK
-          : String(hit.value);
+        if (hit == null || hit.value == null || hit.value === "") return BLANK;
+        // MONEY, to 2dp — a price is the one field a reader compares in dollars.
+        if (isPrice) return money(Number(hit.value));
+        // THE OPTION'S NAME, snapshotted on the decision at submission. `value`
+        // is a score, and "8" tells a reader nothing where "Hard Cover" tells
+        // them everything. Falls back to the raw value for a field with no
+        // option table. NOT looked up from the live config: renaming an option
+        // must not rewrite what a finished round says the team chose.
+        return hit.name ? String(hit.name) : String(hit.value);
       }, f.direction);
+
+      // ── The working, on the analysis report only ────────────────────────
+      //
+      // ASCII indent: base-14 fonts are WinAnsi, so no arrows or bullets. See
+      // the glyph note in reportPdf.ts.
+      if (!detail) continue;
+
+      ctx.emit(section, `  weighted score`, (dec) => {
+        const v = scoreTermFor(dec, p._id, fieldKey);
+        return v == null ? BLANK : plain(v);
+      });
+      // A SHARE OF THE SCORE, not a share of demand. A field reaches demand
+      // through dynamicPrice -> productScore -> customersObtained, which is not
+      // linear, so "this decision won N customers" is an attribution the model
+      // does not contain. This says only how much of the product's score the
+      // field accounts for, which it does contain.
+      ctx.emit(section, `  share of score`, (dec) => {
+        const v = scoreTermFor(dec, p._id, fieldKey);
+        const total = scoreTotalFor(dec, p._id);
+        return v == null || total == null || total === 0 ? BLANK : pct(v / total);
+      });
     }
     ctx.rows.push([]);
   }
@@ -493,9 +612,7 @@ export function buildCompetitorMatrix(
   board: ScoredLeaderboard | null,
   cash: CashWalk | null,
 ): ReportMatrix {
-  // `true` — the Weight column. Competitor report only: the decision comparison
-  // keeps its existing header.
-  const ctx = context(decisions, teams, true);
+  const ctx = context(decisions, teams);
   const { emit, rows, cols } = ctx;
 
   if (board) {
@@ -504,7 +621,9 @@ export function buildCompetitorMatrix(
     // round's figures, ranked against this round's competitors.
     emit("Leaderboard", "Total points", (_d, c) =>
       String(round2(board.totals.get(c.id) ?? 0)));
-    emit("Leaderboard", "Standing", (_d, c) => `#${board.standing.get(c.id) ?? "-"}`);
+    // "Rank", not "Standing" — every winning metric below prints a "Rank" row,
+    // and two words for one idea made them read as different things.
+    emit("Leaderboard", "Rank", (_d, c) => `#${board.standing.get(c.id) ?? "-"}`);
     rows.push([]);
 
     // Actual / Rank / Point per metric, matching the operator's reference sheet.
@@ -533,7 +652,8 @@ export function buildCompetitorMatrix(
     ["Gross Profit",       "grossProfit",       money],
     ["Operating Expenses", "operatingExpenses", money],
     ["Net Profit",         "operatingProfit",   money],
-    ["Customers Obtained", "customersObtained", plain],
+    // `customersObtained` was here. It is not a financial figure — it moved to
+    // the Demand block below and is called DEMAND there.
   ];
   for (const [label, field, fmt] of FINANCIALS) {
     emit("Financial", label, (dec) => fmt(sumScored(dec, field)));
@@ -545,6 +665,22 @@ export function buildCompetitorMatrix(
     const net = sumScored(dec, "operatingProfit");
     return rev == null || net == null || rev === 0 ? BLANK : pct(net / rev);
   });
+  rows.push([]);
+
+  // ── Demand, and how much of it the team actually served ───────────────────
+  //
+  // `customersObtained` is DEMAND: the customers this team won in the market.
+  // It used to sit in the Financial block, where it was the only row that was
+  // not money.
+  //
+  // "Customers Fulfilled" is `unitsSold`, which the server already stores as
+  // `min(customersObtained, openingStock + produced)` — the customers actually
+  // served. NOT `produced / demand`: that ratio ignores carried stock and
+  // exceeds 100% on overproduction, and the gap between these two rows is the
+  // teaching point (demand won, but stock could not cover it).
+  emit("Demand", "Demand", (dec) => plain(sumScored(dec, "customersObtained")));
+  emit("Demand", "Total Books Produced", (dec) => plain(sumScored(dec, "produced")));
+  emit("Demand", "Customers Fulfilled", (dec) => plain(sumScored(dec, "unitsSold")));
   rows.push([]);
 
   // Cash follows profit: it is the balance that profit moved.
@@ -559,6 +695,13 @@ export function buildCompetitorMatrix(
   for (const p of ordered) {
     emit("Customers by notebook", p.productName ?? id(p._id), (dec) =>
       plain(scoredFor(dec, p._id)?.customersObtained));
+  }
+  rows.push([]);
+  // BOTH figures: the fit is what the decisions EARNED before productScore and
+  // the lever augmentation; the share is what they WON after.
+  for (const p of ordered) {
+    emit("Market fit", p.productName ?? id(p._id), (dec) =>
+      pct(scoredFor(dec, p._id)?.marketFit));
   }
   rows.push([]);
   for (const p of ordered) {
@@ -591,43 +734,20 @@ export function buildDecisionMatrix(
   products: ReportProduct[],
   containers: ReportContainer[],
   cash: CashWalk | null,
+  board: ScoredLeaderboard | null,
 ): ReportMatrix {
-  const ctx = context(decisions, teams);
+  // `true` — the Weight column. THIS report is where `direction` earns its
+  // place: the reader is asking why a score came out as it did.
+  const ctx = context(decisions, teams, true);
   const { emit, rows, cols } = ctx;
-
-  const FINANCIALS: Array<[string, string]> = [
-    ["Revenue", "revenue"],
-    ["COGS", "COGS"],
-    ["Gross Profit", "grossProfit"],
-    ["Operating Expenses", "operatingExpenses"],
-    ["Net Profit", "operatingProfit"],
-    ["Customers Obtained", "customersObtained"],
-  ];
-  for (const [label, field] of FINANCIALS) {
-    emit("Financial", label, (dec) => plain(sumScored(dec, field)));
-  }
-  rows.push([]);
-
-  emitCashRows(ctx, cash);
 
   const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  // Per-product revenue is READ — calcFinancials already computes it; only the
-  // summed `Financial` rows were ever shown.
-  for (const p of ordered) {
-    emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
-      plain(scoredFor(dec, p._id)?.revenue));
-  }
-  rows.push([]);
-  for (const p of ordered) {
-    emit("Customers by notebook", p.productName ?? id(p._id), (dec) =>
-      plain(scoredFor(dec, p._id)?.customersObtained));
-  }
-  rows.push([]);
-
-  // Channels: the POSITION first, then the notebooks split across it. A revenue
-  // line against a channel the team never switched on is a category error, not
-  // a small number, so the reader must know which are live first.
+  // ── CHANNELS FIRST ────────────────────────────────────────────────────────
+  // The revenue-by-channel breakdown opens the report. The POSITION rows come
+  // immediately before it: a revenue line against a channel the team never
+  // switched on is a category error, not a small number, so the reader must
+  // know which are live before reading any split.
   const channelContainers = containers.filter((gi) =>
     (gi.inputs ?? []).some((item) => item.impacts?.["sales_channel"]),
   );
@@ -645,7 +765,7 @@ export function buildDecisionMatrix(
           const share = channelSharesFor(dec, p._id).get(ch.id);
           // `undefined` = the team did not select the channel at all, which is
           // a different statement from "it sold nothing".
-          return share == null ? BLANK : plain(Number(sc.revenue ?? 0) * share);
+          return share == null ? BLANK : money(Number(sc.revenue ?? 0) * share);
         });
       }
     }
@@ -663,7 +783,42 @@ export function buildDecisionMatrix(
     rows.push([]);
   }
 
-  emitDecisionCascade(ctx, products, containers.filter((gi) => !channelIds.has(id(gi._id))));
+  // ── The figures, then the working behind them ─────────────────────────────
+  const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
+    ["Revenue",            "revenue",           money],
+    ["COGS",               "COGS",              money],
+    ["Gross Profit",       "grossProfit",       money],
+    ["Operating Expenses", "operatingExpenses", money],
+    ["Net Profit",         "operatingProfit",   money],
+  ];
+  for (const [label, field, fmt] of FINANCIALS) {
+    emit("Financial", label, (dec) => fmt(sumScored(dec, field)));
+  }
+  rows.push([]);
+
+  emit("Demand", "Demand", (dec) => plain(sumScored(dec, "customersObtained")));
+  emit("Demand", "Total Books Produced", (dec) => plain(sumScored(dec, "produced")));
+  emit("Demand", "Customers Fulfilled", (dec) => plain(sumScored(dec, "unitsSold")));
+  rows.push([]);
+
+  emitCashRows(ctx, cash);
+
+  for (const p of ordered) {
+    emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
+      money(scoredFor(dec, p._id)?.revenue));
+  }
+  rows.push([]);
+  for (const p of ordered) {
+    emit("Customers by notebook", p.productName ?? id(p._id), (dec) =>
+      plain(scoredFor(dec, p._id)?.customersObtained));
+  }
+  rows.push([]);
+
+  emitLeaderboardWorking(ctx, board);
+
+  emitDecisionCascade(
+    ctx, products, containers.filter((gi) => !channelIds.has(id(gi._id))), true,
+  );
 
   collapseSectionRuns(rows);
   return {

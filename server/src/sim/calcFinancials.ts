@@ -45,6 +45,16 @@ export interface ProductCostBreakdown {
   value: number;
 }
 
+/**
+ * One field's contribution to `dynamicPrice`: `resolved × bellFactor ×
+ * direction`. Same shape as the cost breakdown, a different quantity — this is
+ * a weighted SCORE, not money.
+ *
+ * Exists so the analysis report can show what each decision contributed without
+ * re-deriving a market-model line.
+ */
+export type ProductScoreBreakdown = ProductCostBreakdown;
+
 export interface BaseVariables {
   availableMarket: number;
   [key: string]:   number | undefined;
@@ -97,7 +107,18 @@ export interface DecisionDocument {
 }
 
 
-export interface TeamShare {
+/**
+ * A team's MARKET FIT for one product: the normalised `productScore` across the
+ * teams competing for it, summing to 1.
+ *
+ * It was called a market share until 2026-09-24 and it is not one. It is the
+ * ALLOCATION basis — how much of the available market a team's decisions earn
+ * it — and it is an INPUT to this function. The real market share is each
+ * team's share of the CUSTOMERS WON, which is an OUTPUT and cannot be known
+ * here: `customersObtained` is computed from this, so a share defined on it
+ * would be circular. `roundCalculation` computes it once every pass is done.
+ */
+export interface TeamFit {
   teamId: mongoose.Types.ObjectId;
   value:  number;
 }
@@ -184,6 +205,8 @@ export interface TeamFinancials {
   operatingExpenses:   number;
   operatingProfit:     number;
   productCostBreakdown: ProductCostBreakdown[];
+  /** Per-field contributions to `dynamicPrice`. Sums to it by construction. */
+  productScoreBreakdown: ProductScoreBreakdown[];
   incurredCosts:       IncurredCostBreakdown[];
   globalInputCosts:    GlobalInputCostBreakdown[];
 }
@@ -195,9 +218,9 @@ export interface TeamFinancials {
  *  close together, or not at all. They hand-maintained near-identical literals
  *  before, and the sets had already fallen out of order.
  *
- *  `marketShare` is deliberately NOT here: recalc has no competed share to
- *  write, and inventing one would let a what-if overwrite a scored result. The
- *  round close spreads it in on top. */
+ *  `marketFit` and `marketShare` are deliberately NOT here: recalc has no
+ *  competed figures to write, and inventing them would let a what-if overwrite
+ *  a scored result. The round close spreads them in on top. */
 export const toProjectionMetrics = (f: TeamFinancials) => ({
   customersObtained: f.customersObtained,
   sellingPrice:      f.sellingPrice,
@@ -216,6 +239,9 @@ export const toProjectionMetrics = (f: TeamFinancials) => ({
   operatingExpenses: f.operatingExpenses,
   operatingProfit:   f.operatingProfit,
   productCostBreakdown: f.productCostBreakdown,
+  // The analysis report's weighted-score rows. Persisted with the rest so the
+  // report reads it like every other figure.
+  productScoreBreakdown: f.productScoreBreakdown,
   incurredCosts:     f.incurredCosts,
   // Both readers must take BOTH arrays: COGS and opex totals are only whole
   // when the globalInput rows are added to the unit rows.
@@ -226,9 +252,28 @@ export const toProjectionMetrics = (f: TeamFinancials) => ({
  *  are ARRAYS, not numbers. */
 export type ProjectionMetrics = ReturnType<typeof toProjectionMetrics>;
 
-/** The OFFICIAL block: metrics + the competed share only the round close has.
- *  Stored on `Decision.scored[productId]`. */
-export type ScoredMetrics = ProjectionMetrics & { marketShare: number };
+/**
+ * The OFFICIAL block: metrics plus the two competed figures only the round
+ * close has. Stored on `Decision.scored[productId]`.
+ *
+ * TWO DIFFERENT THINGS, and they were one name until 2026-09-24:
+ *
+ *   marketFit    normalised productScore — the ALLOCATION. How much of the
+ *                available market this team's decisions earned it. An INPUT to
+ *                calcFinancials.
+ *   marketShare  customersObtained_i / Σ customersObtained across the teams
+ *                competing for this product — the share of CUSTOMERS WON. An
+ *                OUTCOME, computed by roundCalculation after every pass.
+ *
+ * Fit is what the decisions earned before `productScore` and the globalInput
+ * augmentation are applied; share is what they won after. Whether a team could
+ * DELIVER what it won is a third thing, and the Demand block on the reports
+ * shows it: demand against Customers Fulfilled (`unitsSold`).
+ */
+export type ScoredMetrics = ProjectionMetrics & {
+  marketFit:   number;
+  marketShare: number;
+};
 
 export interface CostBreakdownEntry {
   category:     string;
@@ -240,7 +285,8 @@ export interface CostBreakdownEntry {
 
 export interface CalcFinancialsInput {
   productId:     mongoose.Types.ObjectId;
-  marketShares:  TeamShare[];
+  /** One per competing team — the ALLOCATION basis, not a share of sales. */
+  marketFits:    TeamFit[];
   productFields: ProductField[];
   decisions:     DecisionDocument[];
   globalInputs:  DecisionGlobalInputEntry[]; // flat — category already embedded
@@ -394,7 +440,7 @@ export const calcPricingScore = (
 
 
 export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput {
-  const { productId, marketShares, productFields, decisions, globalInputs, baseVariables, openingStock } = input;
+  const { productId, marketFits, productFields, decisions, globalInputs, baseVariables, openingStock } = input;
 
   const availableMarket = baseVariables.availableMarket ?? 0;
 
@@ -402,7 +448,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
   const priceFields       = productFields.filter((f) => f.type === "money" && f.direction > 0 && f.key !== SELLING_PRICE_KEY);
   const costFields        = productFields.filter((f) => f.type === "money" && f.unitCost != null);
 
-  const results: TeamFinancials[] = marketShares.map(({ teamId, value: marketShare }) => {
+  const results: TeamFinancials[] = marketFits.map(({ teamId, value: marketFit }) => {
     const decision = decisions.find((d) => d.teamId.equals(teamId));
 
     const sellingPriceEntry = sellingPriceField
@@ -412,6 +458,15 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       : null;
     const sellingPrice = Number(sellingPriceEntry?.value ?? 0);
 
+    // PER-FIELD CONTRIBUTIONS, captured not recomputed.
+    //
+    // The arithmetic below is unchanged — each term is simply kept instead of
+    // being summed away, so the analysis report can show what each decision
+    // contributed to the score. Deriving these in the report would be a second
+    // implementation of a market-model line; this is the same one.
+    //
+    // `Σ productScoreBreakdown === dynamicPrice` by construction.
+    const productScoreBreakdown: ProductScoreBreakdown[] = [];
     const dynamicPrice = priceFields.reduce((sum, field) => {
       const resolved    = resolveFieldValue(
         decision?.inputs.find(inp => inp.productId.equals(productId))
@@ -419,7 +474,13 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
         field
       );
       const bellFactor  = calcDiminishingReturnsCostFactor(resolved, field.minValue, field.maxValue);
-      return sum + (resolved * bellFactor * field.direction);
+      const contribution = resolved * bellFactor * field.direction;
+      productScoreBreakdown.push({
+        key:   field.key,
+        label: field.label ?? field.key,
+        value: contribution,
+      });
+      return sum + contribution;
     }, 0);
 
     // ── Cost contribution (raw value * unitCost, no bell curve) ───────────────
@@ -625,7 +686,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     )
     : 0;
     
-    let potentialObtained = marketShare * availableMarket * productScore;
+    let potentialObtained = marketFit * availableMarket * productScore;
     let customersObtained = potentialObtained > availableMarket ? availableMarket : potentialObtained;
     
     customersObtained = customersObtained * customersObtainedAugment;
@@ -800,6 +861,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       operatingExpenses,
       operatingProfit,
       productCostBreakdown,
+      productScoreBreakdown,
       incurredCosts,
       globalInputCosts,
     };

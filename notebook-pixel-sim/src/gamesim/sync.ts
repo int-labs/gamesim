@@ -204,8 +204,10 @@ export async function fetchSubmittedDecision(ctx: {
 export interface OfficialProductResult {
   productId: Id;
   segmentId: Id;
-  /** This team's market share for the product (fraction), from calcMarketModel. */
-  marketShare: number;
+  /** This team's market FIT for the product (fraction): normalised
+   *  `productScore`, the ALLOCATION. Not a share of notebooks sold — that is
+   *  `scored[].marketShare`, an outcome only the round close can compute. */
+  marketFit: number;
   /** This team's weighted score for the product. */
   weightedScore: number;
   /** 1-based rank among the teams scored on this product. */
@@ -216,10 +218,10 @@ export interface OfficialProductResult {
 export interface OfficialRoundResults {
   roundNumber: number;
   byProduct: OfficialProductResult[];
-  /** Mean share across products, for a single headline number. */
-  averageMarketShare: number;
+  /** Mean FIT across products, for a single headline number. */
+  averageMarketFit: number;
   /** Every team's total weighted score, for a leaderboard. */
-  leaderboard: Array<{ teamId: Id; totalWeightedScore: number; averageMarketShare: number }>;
+  leaderboard: Array<{ teamId: Id; totalWeightedScore: number; averageMarketFit: number }>;
   /** Raw documents, in case a screen needs more than the summary. */
   raw: ResultDto[];
 }
@@ -237,7 +239,7 @@ export function summarizeResults(raw: ResultDto[], teamId: Id, roundNumber: numb
     return {
       productId: doc.productId,
       segmentId: doc.segmentId,
-      marketShare: doc.marketShares?.[teamId] ?? 0,
+      marketFit: doc.marketFit?.[teamId] ?? 0,
       weightedScore: doc.weightedScores?.[teamId] ?? 0,
       rank: rank >= 0 ? rank + 1 : ranked.length,
       teamsScored: ranked.length,
@@ -249,7 +251,7 @@ export function summarizeResults(raw: ResultDto[], teamId: Id, roundNumber: numb
     for (const [id, score] of Object.entries(doc.weightedScores ?? {})) {
       const t = totals.get(id) ?? { score: 0, share: 0, n: 0 };
       t.score += score;
-      t.share += doc.marketShares?.[id] ?? 0;
+      t.share += doc.marketFit?.[id] ?? 0;
       t.n += 1;
       totals.set(id, t);
     }
@@ -259,15 +261,15 @@ export function summarizeResults(raw: ResultDto[], teamId: Id, roundNumber: numb
     .map(([id, t]) => ({
       teamId: id,
       totalWeightedScore: t.score,
-      averageMarketShare: t.n ? t.share / t.n : 0,
+      averageMarketFit: t.n ? t.share / t.n : 0,
     }))
     .sort((a, b) => b.totalWeightedScore - a.totalWeightedScore);
 
-  const averageMarketShare = byProduct.length
-    ? byProduct.reduce((a, p) => a + p.marketShare, 0) / byProduct.length
+  const averageMarketFit = byProduct.length
+    ? byProduct.reduce((a, p) => a + p.marketFit, 0) / byProduct.length
     : 0;
 
-  return { roundNumber, byProduct, averageMarketShare, leaderboard, raw };
+  return { roundNumber, byProduct, averageMarketFit, leaderboard, raw };
 }
 
 // ── Official financials (own team) ──────────────────────────────────────

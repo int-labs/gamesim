@@ -29,6 +29,7 @@ import {
   BaseVariables,
   DecisionGlobalInputEntry,
   ProductField,
+  TeamFinancials,
   calcFinancials,
   readCostTreatment,
   toProjectionMetrics,
@@ -50,10 +51,20 @@ export interface RoundCalcFailure {
 export type RoundCalcOutcome = RoundCalcSuccess | RoundCalcFailure;
 
 /**
- * MARKET SHARE — the normalised `productScore` across the teams competing for
+ * MARKET FIT — the normalised `productScore` across the teams competing for
  * one product. Pure, and exported so it is tested without a database.
  *
- *     share_i = score_i / Σ score        ← sums to 1 across the competitors
+ *     fit_i = score_i / Σ score          ← sums to 1 across the competitors
+ *
+ * CALLED A MARKET SHARE UNTIL 2026-09-24, and it never was one. It is the
+ * ALLOCATION: how much of the available market a team's decisions earn it,
+ * before stock, price or anything else decides what it can actually sell. The
+ * real market share is `customersObtained / Σ customersObtained` and is
+ * computed below, once every team's figures exist.
+ *
+ * The function keeps the name `normaliseShares` because it describes the
+ * OPERATION — normalising numbers into shares of one — which is still exactly
+ * what it does. Its output is a fit.
  *
  * Shares SUM TO 1 regardless of how many teams skipped the product: a team that
  * is the only one making something takes the whole market for it. The teams
@@ -282,7 +293,7 @@ export async function runRoundCalculation(
        * implementation of it is exactly the divergence this codebase keeps
        * removing.
        */
-      const runFinancials = (teamId: mongoose.Types.ObjectId, teamDecision: any, marketShare: number) => {
+      const runFinancials = (teamId: mongoose.Types.ObjectId, teamDecision: any, marketFit: number) => {
         // Normalised through the SAME reader the live-projection path uses, so
         // a stored decision cannot be interpreted one way here and another way
         // by /projections/recalc.
@@ -299,7 +310,7 @@ export async function runRoundCalculation(
 
         const { results } = calcFinancials({
           productId: new mongoose.Types.ObjectId(productId.toString()),
-          marketShares: [{ teamId, value: marketShare }],
+          marketFits: [{ teamId, value: marketFit }],
           productFields,
           decisions: [
             {
@@ -343,19 +354,18 @@ export async function runRoundCalculation(
         scoreByTeam.set(String(teamId), probe?.productScore ?? 0);
       }
 
-      // ── Market share = normalised productScore ───────────────────────────
-      // Shares SUM TO 1 across the competing teams: equal scores give each
-      // team 1/n, and a higher score takes a proportionally larger slice.
-      // A sole competitor takes all of it.
+      // ── Market FIT = normalised productScore ─────────────────────────────
+      // Fits SUM TO 1 across the competing teams: equal scores give each team
+      // 1/n, and a higher score takes a proportionally larger slice. A sole
+      // competitor takes all of it.
       //
-      // `productScore` IS the weighted value of a team's decisions, so this is
-      // the whole model — see `normaliseShares` above.
-      const shareByTeam = normaliseShares(scoreByTeam, totalTeams);
+      // This is the ALLOCATION, not a share of sales — see `normaliseShares`.
+      const fitByTeam = normaliseShares(scoreByTeam, totalTeams);
 
       const weightedScoresMap: Record<string, number> = {};
-      const marketSharesMap: Record<string, number> = {};
+      const marketFitMap: Record<string, number> = {};
       for (const [tid, score] of scoreByTeam) weightedScoresMap[tid] = score;
-      for (const [tid, share] of shareByTeam) marketSharesMap[tid] = share;
+      for (const [tid, fit] of fitByTeam) marketFitMap[tid] = fit;
 
       resultsToWrite.push({
         simulationId,
@@ -363,25 +373,49 @@ export async function runRoundCalculation(
         productId,
         segmentId,
         weightedScores: weightedScoresMap,
-        marketShares: marketSharesMap,
+        marketFit: marketFitMap,
       });
 
-      // ── PASS 2 — the real figures, with the competed share ───────────────
+      // ── PASS 2 — the real figures, with the competed fit ──────────────────
+      // COLLECTED, not written straight through: the market share below needs
+      // every competitor's `unitsSold` before any of them can be written.
+      const productKey = productId.toString();
+      const financialsByTeam = new Map<string, TeamFinancials>();
+
       for (const teamDecision of competing) {
         const teamId = teamDecision.teamId as mongoose.Types.ObjectId;
         const tidStr = String(teamId);
-        const marketShare = shareByTeam.get(tidStr) ?? 0;
-
-        const financials = runFinancials(teamId, teamDecision, marketShare);
+        const financials = runFinancials(teamId, teamDecision, fitByTeam.get(tidStr) ?? 0);
         if (!financials) continue;
-        const productKey = productId.toString();
+        financialsByTeam.set(tidStr, financials);
+      }
 
+      // ── MARKET SHARE — the share of CUSTOMERS WON for this notebook ──────
+      //
+      //     share_i = customersObtained_i / Σ customersObtained
+      //
+      // An OUTCOME, and the reason it cannot be an input: `customersObtained`
+      // is computed FROM the fit, so a share defined on it would be circular.
+      // Computed here, once pass 2 is done for every competitor.
+      //
+      // `customersObtained`, NOT `unitsSold` — owner's call 2026-09-24. Demand
+      // WON, before stock limits what can be delivered. The two diverge exactly
+      // by the stocking constraint, and the gap is visible anyway: the Demand
+      // block prints demand against Customers Fulfilled.
+      //
+      // Nobody won anyone ⇒ 0 for everyone, NOT 1/n. An empty market was not
+      // split between them; no one took any of it.
+      const obtainedTotal = [...financialsByTeam.values()]
+        .reduce((a, f) => a + (Number(f.customersObtained) || 0), 0);
+
+      for (const [tidStr, financials] of financialsByTeam) {
         if (!scoredByTeam[tidStr]) scoredByTeam[tidStr] = {};
-
-        // Shared shape, plus the competed share that only the round close has.
         scoredByTeam[tidStr][productKey] = {
           ...toProjectionMetrics(financials),
-          marketShare,
+          marketFit:   fitByTeam.get(tidStr) ?? 0,
+          marketShare: obtainedTotal > 0
+            ? (Number(financials.customersObtained) || 0) / obtainedTotal
+            : 0,
         };
       }
   }

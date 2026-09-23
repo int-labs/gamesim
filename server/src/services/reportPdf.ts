@@ -80,13 +80,17 @@ export function writeReportPdf(
       );
     }
 
-    const line = (cols: string[], rightAlign = true) =>
+    /** `from` is the index in `widths` that `cols[0]` corresponds to — body
+     *  rows draw their section cell separately (in bold) and pass the rest at
+     *  offset 1, so the column widths must not shift with them. */
+    const line = (cols: string[], rightAlign = true, from = 0) =>
       cols
         .map((v, c) => {
+          const i = c + from;
           const s = String(v ?? "");
           // Labels left, figures right, so a decimal point lines up down a
           // team's column.
-          return c < 2 || !rightAlign ? pad(s, widths[c]) : padLeft(s, widths[c]);
+          return i < 2 || !rightAlign ? pad(s, widths[i]) : padLeft(s, widths[i]);
         })
         .join("  ");
 
@@ -116,12 +120,34 @@ export function writeReportPdf(
     startPage(true);
     const bottom = doc.page.height - PAGE.margin;
 
+    // Where the section column ends, so a bold name and the regular remainder
+    // butt up exactly as one padded line would have.
+    const sectionW = (widths[0] + 2) * CHAR_W;
+
     for (const r of rows) {
       if (y + LINE_H > bottom) startPage(false);
-      // A `[]` row is a section separator — kept as vertical space rather than
-      // dropped, because it is what groups the sections.
-      if (r.length === 0) { y += LINE_H * 0.6; continue; }
-      doc.text(line(r), PAGE.margin, y, { lineBreak: false });
+
+      // A `[]` row is a section separator, drawn as a RULE. It used to be bare
+      // vertical space, which left the eye to infer the grouping on a page of
+      // uniform monospace.
+      if (r.length === 0) {
+        y += LINE_H * 0.35;
+        doc.moveTo(PAGE.margin, y).lineTo(PAGE.margin + usable, y)
+          .strokeColor("#CCC").lineWidth(0.5).stroke();
+        y += LINE_H * 0.35;
+        continue;
+      }
+
+      // The SECTION NAME in bold, the rest regular. Two draws rather than one,
+      // because pdfkit sets the font per call — and `collapseSectionRuns` has
+      // already blanked the name on every row but the first of its run, so this
+      // bolds exactly the heading rows.
+      const [section, ...rest] = r;
+      if (section) {
+        doc.font("Courier-Bold").text(pad(section, widths[0]), PAGE.margin, y, { lineBreak: false });
+        doc.font("Courier");
+      }
+      doc.text(line(rest, true, 1), PAGE.margin + sectionW, y, { lineBreak: false });
       y += LINE_H;
     }
 

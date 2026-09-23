@@ -192,7 +192,10 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
       );
 
       const pmsRaw          = Number(pmsEntry?.value ?? 20); // default 20%
-      const marketShareFraction = Math.min(Math.max(pmsRaw, 0), 1); 
+      // The team's OWN claim standing in for a competed market FIT: a what-if
+      // has no competitors to normalise against. Never a market share — that is
+      // the share of notebooks sold, an outcome no projection can know.
+      const claimedFitFraction = Math.min(Math.max(pmsRaw, 0), 1);
 
       const draftDecision = {
         teamId:       teamObjectId,
@@ -257,7 +260,7 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
 
       const { results } = calcFinancials({
         productId:     product._id,
-        marketShares:  [{ teamId: teamObjectId, value: marketShareFraction }],
+        marketFits:    [{ teamId: teamObjectId, value: claimedFitFraction }],
         productFields: productFieldConfigs,
         decisions:     [draftDecision],
         globalInputs:  relevantGlobalInputs,

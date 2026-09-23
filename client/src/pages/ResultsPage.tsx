@@ -93,7 +93,7 @@ export default function ResultsPage() {
         <thead>
           <tr>
             <th>_id</th><th>SimId</th><th>TeamId</th><th>Round</th>
-            <th>ProductId</th><th>SegmentId</th><th>Weighted Scores</th><th>Market Shares</th>
+            <th>ProductId</th><th>SegmentId</th><th>Weighted Scores</th><th>Market Fit</th>
           </tr>
         </thead>
         <tbody>
@@ -106,7 +106,7 @@ export default function ResultsPage() {
               <td>{r.productId}</td>
               <td>{r.segmentId}</td>
               <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(r.weightedScores, null, 2)}</pre></td>
-              <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(r.marketShares, null, 2)}</pre></td>
+              <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(r.marketFit, null, 2)}</pre></td>
             </tr>
           ))}
         </tbody>

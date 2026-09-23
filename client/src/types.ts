@@ -173,7 +173,9 @@ export interface Result extends MongoDoc {
   productId: string;
   segmentId: string;
   weightedScores?: Record<string, unknown>;
-  marketShares?: Record<string, unknown>;
+  /** teamId → market FIT: normalised productScore, the ALLOCATION. Renamed
+   *  from `marketShares` 2026-09-24; it was never a share of sales. */
+  marketFit?: Record<string, unknown>;
 }
 
 // ── Base Data ─────────────────────────────────────────────────
@@ -218,6 +220,9 @@ export interface DebriefTeamProductDto {
   produced: number | null;
   inventoryQty: number | null;
   closingStock: number | null;
+  /** Normalised productScore — what the decisions EARNED of the market. */
+  marketFit: number | null;
+  /** `customersObtained / Σ customersObtained` — share of customers WON. */
   marketShare: number | null;
   productScore: number | null;
   sellingPrice: number | null;

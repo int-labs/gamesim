@@ -145,49 +145,54 @@ export async function buildRoundReport(
       ? null
       : buildCashWalk(seed, roundNumber, byRoundDecisions as never, teamIds);
 
-  if (kind === "competitor") {
-    // ── Score every round 0..N, carry only the POINTS forward ───────────────
-    //
-    // Each round is ranked among the teams that played THAT round, then the
-    // points are summed. Nothing else accumulates: this round's Actual and Rank
-    // are this round's, and summing revenue across rounds would double-count
-    // against the Financial block below.
-    let board: ScoredLeaderboard | null = null;
+  // ── Score every round 0..N, carry only the POINTS forward ─────────────────
+  //
+  // Each round is ranked among the teams that played THAT round, then the
+  // points are summed. Nothing else accumulates: this round's Actual and Rank
+  // are this round's, and summing revenue across rounds would double-count
+  // against the Financial block.
+  //
+  // Computed for BOTH report kinds: the competitor report renders the figures
+  // and the analysis report renders the working behind them, from this one
+  // scoring run. Scoring twice is how the two would come to disagree about a
+  // team's points.
+  let board: ScoredLeaderboard | null = null;
 
-    if (metrics.length > 0) {
-      // `teamIds` and `byRoundDecisions` are the ones built for the cash walk —
-      // both halves rank the same roster over the same rounds, and building a
-      // second copy here is how the two would drift.
-      const byRoundRunMetrics = groupByRound(allRunReports);
+  if (metrics.length > 0) {
+    // `teamIds` and `byRoundDecisions` are the ones built for the cash walk —
+    // both halves rank the same roster over the same rounds, and building a
+    // second copy here is how the two would drift.
+    const byRoundRunMetrics = groupByRound(allRunReports);
 
-      const perRound: Array<Map<string, number>> = [];
-      let thisRound: RoundScore | null = null;
+    const perRound: Array<Map<string, number>> = [];
+    let thisRound: RoundScore | null = null;
 
-      // Ascending, so `thisRound` ends on the round being reported.
-      for (const r of [...byRoundDecisions.keys()].sort((a, b) => a - b)) {
-        const decs = new Map(
-          (byRoundDecisions.get(r) ?? []).map((d) => [String((d as never as { teamId: unknown }).teamId), d]),
-        );
-        const runs = new Map(
-          (byRoundRunMetrics.get(r) ?? []).map((x) => [
-            String((x as never as { teamId: unknown }).teamId),
-            ((x as never as { metrics?: ReportRunMetrics }).metrics ?? {}),
-          ]),
-        );
-        const scored = scoreRound(metrics, {
-          teamIds,
-          decisionFor: (t) => (decs.get(t) as never) ?? null,
-          runMetricsFor: (t) => runs.get(t) ?? null,
-        });
-        perRound.push(scored.points);
-        if (r === roundNumber) thisRound = scored;
-      }
-
-      if (thisRound) {
-        board = { round: thisRound, ...accumulate(teamIds, perRound) };
-      }
+    // Ascending, so `thisRound` ends on the round being reported.
+    for (const r of [...byRoundDecisions.keys()].sort((a, b) => a - b)) {
+      const decs = new Map(
+        (byRoundDecisions.get(r) ?? []).map((d) => [String((d as never as { teamId: unknown }).teamId), d]),
+      );
+      const runs = new Map(
+        (byRoundRunMetrics.get(r) ?? []).map((x) => [
+          String((x as never as { teamId: unknown }).teamId),
+          ((x as never as { metrics?: ReportRunMetrics }).metrics ?? {}),
+        ]),
+      );
+      const scored = scoreRound(metrics, {
+        teamIds,
+        decisionFor: (t) => (decs.get(t) as never) ?? null,
+        runMetricsFor: (t) => runs.get(t) ?? null,
+      });
+      perRound.push(scored.points);
+      if (r === roundNumber) thisRound = scored;
     }
 
+    if (thisRound) {
+      board = { round: thisRound, ...accumulate(teamIds, perRound) };
+    }
+  }
+
+  if (kind === "competitor") {
     const matrix = buildCompetitorMatrix(
       roundNumber,
       decisions as never,
@@ -222,6 +227,10 @@ export async function buildRoundReport(
     products as never,
     containers as never,
     cash,
+    // The analysis report shows the WORKING behind every leaderboard figure, so
+    // it needs the same scored board the competitor report renders — not a
+    // second scoring run, which could disagree about a team's points.
+    board,
   );
   return {
     matrix,

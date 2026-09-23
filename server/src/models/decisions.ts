@@ -6,6 +6,19 @@ const DecisionFieldSchema = new Schema(
   {
     fieldId:     { type: Schema.Types.ObjectId, required: true },
     value:       { type: Schema.Types.Mixed, default: null },
+    /**
+     * The chosen option's DISPLAY NAME, snapshotted at submission.
+     *
+     * `value` is a SCORE, which is what the money path needs and what a reader
+     * cannot interpret — "8" says nothing, "Hard Cover" says everything. The
+     * reports print this instead.
+     *
+     * Snapshotted, not looked up: renaming an option later must not rewrite
+     * what a finished round says the team chose. Absent on fields with no
+     * option table (`selling_price`, `projected_market_share`), which the
+     * reports render from `value` instead.
+     */
+    name:        { type: String, default: null },
     imageAssets: { type: [Schema.Types.ObjectId], ref: "ImageAsset", default: [] },
   },
   { _id: false }
@@ -138,7 +151,14 @@ export interface IDecision extends Document {
     productName: string;
     /** Units to produce this round. null = not stated ⇒ nothing is built. */
     produced: number | null;
-    fields: { fieldId: Types.ObjectId; value: number | string | null; imageAssets: Types.ObjectId[]; }[];
+    fields: {
+      fieldId: Types.ObjectId;
+      value: number | string | null;
+      /** The chosen option's display name, snapshotted. Null on fields with no
+       *  option table. See DecisionFieldSchema. */
+      name: string | null;
+      imageAssets: Types.ObjectId[];
+    }[];
   }[];
   initiativeInputs: { 
     name: string; 

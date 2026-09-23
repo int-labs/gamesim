@@ -10,7 +10,18 @@ export interface ResultsInterface extends Document {
   productId:      Types.ObjectId;
   segmentId:      Types.ObjectId;
   weightedScores: Record<string, number>;
-  marketShares:   Record<string, number>;
+  /**
+   * teamId → MARKET FIT: normalised `productScore`, summing to 1 across the
+   * teams competing for this product.
+   *
+   * Called `marketShares` until 2026-09-24 and it never was one. It is the
+   * ALLOCATION — what a team's decisions earn it of the available market —
+   * not a share of the customers won. The real market share is
+   * `customersObtained / Σ customersObtained` and lives on
+   * `Decision.scored[productId]`, because only the round close has every
+   * competitor's figures.
+   */
+  marketFit:      Record<string, number>;
   createdAt:      Date;
   updatedAt:      Date;
 }
@@ -45,8 +56,8 @@ const resultsSchema = new Schema<ResultsInterface>(
       type:    Schema.Types.Mixed,  // { [teamId]: score }
       default: {},
     },
-    marketShares: {
-      type:    Schema.Types.Mixed,  // { [teamId]: marketShare }
+    marketFit: {
+      type:    Schema.Types.Mixed,  // { [teamId]: marketFit }
       default: {},
     },
   },

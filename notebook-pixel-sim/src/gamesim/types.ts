@@ -182,7 +182,13 @@ export interface BaseDataDto {
 // ── Decisions ───────────────────────────────────────────────────────────
 export interface DecisionFieldEntry {
   fieldId: Id;
+  /** The SCORE. What the money path consumes, and what no reader can
+   *  interpret — "8" says nothing on a report. */
   value: number | string | null;
+  /** The chosen option's display name, snapshotted so a later rename cannot
+   *  rewrite a finished round. Omitted for fields with no option table
+   *  (`selling_price`, `projected_market_share`). */
+  name?: string | null;
 }
 
 /** One product's worth of decision input. segmentId + productName are
@@ -346,8 +352,15 @@ export interface ResultDto {
   segmentId: Id;
   /** teamId → weighted score from calcMarketModel. */
   weightedScores: Record<string, number>;
-  /** teamId → market share (fraction) from calcMarketModel. */
-  marketShares: Record<string, number>;
+  /**
+   * teamId → market FIT (fraction): normalised `productScore`, summing to 1
+   * across the teams competing for this product.
+   *
+   * Renamed from `marketShares` 2026-09-24 — it is the ALLOCATION, what a
+   * team's decisions earned it of the market, never a share of notebooks sold.
+   * The real share is `Decision.scored[productId].marketShare`.
+   */
+  marketFit: Record<string, number>;
   createdAt: string;
   updatedAt: string;
 }

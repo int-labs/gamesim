@@ -91,6 +91,10 @@ export interface DebriefTeamProduct {
   produced:          number | null;
   inventoryQty:      number | null;
   closingStock:      number | null;
+  /** Normalised productScore — what the team's decisions EARNED it of the
+   *  market. The allocation, not a share of sales. */
+  marketFit:         number | null;
+  /** `customersObtained / Σ customersObtained` — the share of customers WON. */
   marketShare:       number | null;
   /** The server's 0..1 pricing score. Already normalised, so it is READ, not
    *  recomputed — it is what drives `customersObtained`. */
@@ -225,6 +229,7 @@ function productBlock(
     produced:          sc ? num(sc.produced) : null,
     inventoryQty:      sc ? num(sc.inventoryQty) : null,
     closingStock:      sc ? num(sc.closingStock) : null,
+    marketFit:         sc ? num(sc.marketFit) : null,
     marketShare:       sc ? num(sc.marketShare) : null,
     productScore:      sc ? num(sc.productScore) : null,
     sellingPrice:      sc ? num(sc.sellingPrice) : null,
