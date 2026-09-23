@@ -12,6 +12,7 @@ import DecisionsPage from "./pages/DecisionsPage";
 import ParamListPage from "./pages/ParamListPage";
 import ProjectionsPage from "./pages/ProjectionsPage";
 import ResultsPage from "./pages/ResultsPage";
+import RoundDebriefPage from "./pages/RoundDebriefPage";
 import BaseDataPage from "./pages/BaseDataPage";
 import ImageAssetsPage from "./pages/ImageAssetsPage";
 import ProductFieldsPage from "./pages/ProductFieldsPage";
@@ -40,7 +41,8 @@ type View =
   | "sim-page"
   | "image-assets"
   | "player-config"
-  | "leaderboard-config";
+  | "leaderboard-config"
+  | "round-debrief";
 
 const NAV: { label: string; view: View }[] = [
   { label: "Simulations", view: "simulations" },
@@ -58,6 +60,7 @@ const NAV: { label: string; view: View }[] = [
   { label: "Param List", view: "param-list" },
   { label: "Projections", view: "projections" },
   { label: "Results", view: "results" },
+  { label: "Round Debrief", view: "round-debrief" },
   { label: "Base Data", view: "base-data" },
   { label: "Image Assets", view: "image-assets" },
   { label: "Player Config", view: "player-config" },
@@ -83,6 +86,7 @@ export default function App() {
       case "param-list": return <ParamListPage />;
       case "projections": return <ProjectionsPage />;
       case "results": return <ResultsPage />;
+      case "round-debrief": return <RoundDebriefPage />;
       case "base-data": return <BaseDataPage />;
       case "image-assets": return <ImageAssetsPage />;
       case "product-fields": return <ProductFieldsPage />;

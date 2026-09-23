@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { RoundDebrief } from "./types";
 
 const api = axios.create({
   baseURL: (import.meta as any).env?.VITE_GAMESIM_API_URL ?? "http://localhost:5000/api",
@@ -287,3 +288,21 @@ export const recalcProjections = (data: {
   fields?:           { fieldId: string; value: any }[];
   globalInputs:      any[];
 }) => api.post("/projections/recalc", data);
+// ── Round debrief ──────────────────────────────────────────────
+/**
+ * GET /round-debrief — the chart data behind the player's limbo slide.
+ *
+ * The operator reads ANY round; a team token is gated to rounds whose status is
+ * "Completed". `you` comes back null here, so nothing is highlighted as "your"
+ * team — the operator is not one of the columns.
+ *
+ * Distinct from `/reports/:kind`, which streams a PDF. This is JSON the page
+ * charts directly.
+ */
+export const getRoundDebrief = async (
+  simulationId: string,
+  roundNumber: number,
+): Promise<RoundDebrief> => {
+  const res = await api.get("/round-debrief", { params: { simulationId, roundNumber } });
+  return res.data as RoundDebrief;
+};

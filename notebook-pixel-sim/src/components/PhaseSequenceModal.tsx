@@ -338,11 +338,25 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
 
   // ─── Evaluation ─────────────────────────────────────────────────────────
 
+  /**
+   * The insight question for the round BEING PLAYED.
+   *
+   * Keyed on `phaseAtOpen`, NOT `pendingEvalPhase`. This used to read the
+   * latter, which is set by `advanceFinlitPhase` during `simulating` — i.e.
+   * AFTER the insight step now runs — and `PhaseActionBar` refuses to open this
+   * modal at all while it is non-null (`pendingEval !== null` blocks Confirm).
+   * So it was always null here, `insight` was always null, and the guarded
+   * `{step === 'insight' && insight && …}` rendered an EMPTY MODAL.
+   *
+   * Fallout from moving the check ahead of submission: the question is asked
+   * before the round runs, so it must key off the round being played.
+   * `phaseAtOpen` is frozen at open, which also survives `meta.phase` bumping
+   * mid-sequence.
+   */
   const insight = useMemo(() => {
-    if (pendingEvalPhase === null) return null;
-    return generateInsightQuestion(useGame.getState() as any, pendingEvalPhase);
+    return generateInsightQuestion(useGame.getState() as any, phaseAtOpen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingEvalPhase, step]);
+  }, [phaseAtOpen, step]);
 
   const [insightAnswer, setInsightAnswer] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
   const [insightRevealed, setInsightRevealed] = useState(false);

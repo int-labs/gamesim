@@ -36,10 +36,18 @@ import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
 type Load =
   | { state: 'loading' }
   /** 404 is the NORMAL state while the round is still open — the server refuses
-   *  an uncalculated round rather than leaking a live one. Not an error. */
-  | { state: 'waiting' }
+   *  an uncalculated round rather than leaking a live one. Not an error.
+   *  Carries the server's own reason: the endpoint 404s for three different
+   *  causes and only one of them is "not calculated yet". */
+  | { state: 'waiting'; message: string }
   | { state: 'error'; message: string }
   | { state: 'ready'; data: RoundDebriefDto };
+
+// NO POLLING. The first version fetched once and never again, which left a
+// screen promising "the debrief appears here as soon as they do" that could not
+// deliver — limbo is entered BEFORE the operator closes the round. A timer was
+// the other fix and was rejected: this codebase removed polling everywhere on
+// purpose, and a player sitting on a waiting screen can press a button.
 
 export function LimboScreen({
   roundNumber,
@@ -60,15 +68,21 @@ export function LimboScreen({
       : { state: 'error', message: 'No session — sign in again to see the debrief.' },
   );
 
+  // Bumped by the refresh button to re-run the effect. A counter rather than a
+  // callback so there is ONE fetch path, used by both the first load and every
+  // retry — two paths would drift on error handling.
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
+
     getRoundDebrief({ simulationId: session.simulationId, roundNumber })
       .then((data) => { if (!cancelled) setLoad({ state: 'ready', data }); })
       .catch((err: unknown) => {
         if (cancelled) return;
         if (err instanceof GamesimApiError && err.status === 404) {
-          setLoad({ state: 'waiting' });
+          setLoad({ state: 'waiting', message: err.message });
           return;
         }
         setLoad({
@@ -76,19 +90,32 @@ export function LimboScreen({
           message: err instanceof Error ? err.message : 'Could not load the debrief.',
         });
       });
+
     return () => { cancelled = true; };
-  }, [roundNumber, session]);
+  }, [roundNumber, session, attempt]);
+
+  const refresh = () => {
+    setLoad({ state: 'loading' });
+    setAttempt((n) => n + 1);
+  };
 
   if (load.state === 'loading') return <Notice title="Loading the debrief…" body="Fetching this round's results." />;
   if (load.state === 'waiting') {
     return (
       <Notice
         title="Waiting for the results"
-        body="Your decisions are in. The facilitator hasn't calculated this round yet — the debrief appears here as soon as they do."
+        body="Your decisions are in. The facilitator hasn't closed this round yet — check back once they have."
+        // The server's own reason. Three different causes 404 here and only one
+        // is "not calculated yet"; showing it means a misconfigured simulation
+        // cannot masquerade as a slow facilitator.
+        detail={load.message}
+        onRefresh={refresh}
       />
     );
   }
-  if (load.state === 'error') return <Notice title="Debrief unavailable" body={load.message} />;
+  if (load.state === 'error') {
+    return <Notice title="Debrief unavailable" body={load.message} onRefresh={refresh} />;
+  }
 
   return <DebriefBody data={load.data} onContinue={onContinue} />;
 }
@@ -143,7 +170,12 @@ function DebriefBody({
   };
 
   return (
-    <div className="flex flex-col gap-4 p-3 sm:p-4 max-w-5xl mx-auto">
+    // A FULL SCREEN, like PhaseIntroScreen and StartScreen: `absolute inset-0`
+    // with its own opaque surface. Without it the page rendered transparent
+    // over `AppBackground` and, because App's container is
+    // `h-screen overflow-hidden`, a long debrief could not scroll either.
+    <div className="absolute inset-0 z-10 overflow-y-auto bg-cream-100">
+      <div className="flex flex-col gap-4 p-3 sm:p-4 max-w-5xl mx-auto">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="eyebrow eyebrow-sm text-ink-700">Round debrief</div>
@@ -282,12 +314,13 @@ function DebriefBody({
       ))}
 
       {onContinue && (
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end pt-2 pb-4">
           <button onClick={onContinue} className="game-btn min-h-[44px]">
             <span className="btn-label uppercase">Continue to next phase</span>
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -490,11 +523,28 @@ function Section({ title, note, children }: { title: string; note?: string; chil
   );
 }
 
-function Notice({ title, body }: { title: string; body: string }) {
+function Notice({
+  title, body, detail, onRefresh,
+}: {
+  title: string;
+  body: string;
+  detail?: string;
+  onRefresh?: () => void;
+}) {
   return (
-    <div className="flex items-center justify-center min-h-[60vh] p-4">
+    // Same full-screen treatment as the loaded page — the waiting state was the
+    // one most often seen, and it was the least visible.
+    <div className="absolute inset-0 z-10 flex items-center justify-center p-4 bg-cream-100">
       <PixelPanel title={title}>
         <div className="body-xs text-ink-800 leading-relaxed max-w-prose">{body}</div>
+        {detail && (
+          <div className="chart-label text-ink-700 mt-2 max-w-prose">{detail}</div>
+        )}
+        {onRefresh && (
+          <button onClick={onRefresh} className="game-btn min-h-[44px] mt-3">
+            <span className="btn-label uppercase">Check again</span>
+          </button>
+        )}
       </PixelPanel>
     </div>
   );

@@ -17,7 +17,6 @@
 
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import Round from "../models/rounds";
 import Team from "../models/teams";
 import Product from "../models/products";
 import Decision from "../models/decisions";
@@ -65,8 +64,25 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
         res.status(403).json({ message: "That team is not on this simulation." });
         return;
       }
-      const closed = await Round.exists({ simulationId, roundNumber: round, status: "Completed" });
-      if (!closed) {
+      // THE GATE IS `scored`, NOT `Round.status`.
+      //
+      // Status and "has been calculated" are independent: `POST /rounds/:id/
+      // calculate` runs the calculation WITHOUT touching status, `/end` does
+      // both, and `PATCH /:id/status` sets status with no calculation at all.
+      // Gating on status was wrong in both directions — it refused a round that
+      // had been calculated but not ended, and admitted one marked Completed
+      // with nothing scored, which renders an empty debrief.
+      //
+      // `scored` is the stronger signal AND the safer one: `roundCalculation`
+      // is its only writer, so it cannot be set out of band, an open round's
+      // decisions never carry it, and its presence is precisely the condition
+      // "there is something to show".
+      const calculated = await Decision.exists({
+        simulationId,
+        roundNumber: round,
+        scored: { $ne: null },
+      });
+      if (!calculated) {
         // 404, not 403: a team asking early should learn that there is no
         // debrief yet, not that one exists and is being withheld.
         res.status(404).json({ message: `Round ${round} has not been calculated yet.` });

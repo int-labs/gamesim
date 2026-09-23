@@ -185,3 +185,73 @@ export interface BaseData extends MongoDoc {
   esatMarketModel?: Record<string, unknown>;
   csatMarketModel?: Record<string, unknown>;
 }
+
+// ── Round debrief (the player's limbo slide, read-only for the operator) ──
+// Mirrors `server/src/services/debriefSeries.ts` by hand, like every shape in
+// this file. Numbers and RAW BOUNDS only — the server does no 0..1
+// normalisation, because the player client owns those formulas.
+
+export interface DebriefTeamRef {
+  teamId: string;
+  teamName: string;
+}
+
+export interface DebriefFieldDto {
+  fieldId: string;
+  key: string;
+  label: string;
+  direction: number;
+  minValue: number | null;
+  maxValue: number | null;
+}
+
+export interface DebriefProductDto {
+  productId: string;
+  productName: string;
+  fields: DebriefFieldDto[];
+}
+
+export interface DebriefTeamProductDto {
+  revenue: number | null;
+  customersObtained: number | null;
+  unitsSold: number | null;
+  produced: number | null;
+  inventoryQty: number | null;
+  closingStock: number | null;
+  marketShare: number | null;
+  productScore: number | null;
+  sellingPrice: number | null;
+  fieldValues: Record<string, number>;
+}
+
+export interface DebriefTeamRoundDto {
+  energy: number;
+  cashOpening: number | null;
+  cashClosing: number | null;
+  revenue: number | null;
+  cogs: number | null;
+  grossProfit: number | null;
+  operatingExpenses: number | null;
+  netProfit: number | null;
+  unitsSold: number | null;
+  customersObtained: number | null;
+  /** Operator-owned FREE TEXT keys — read them from the data, never hardcode. */
+  costByCategory: Record<string, number>;
+  energyByLever: Record<string, number>;
+  byProduct: Record<string, DebriefTeamProductDto>;
+}
+
+export interface DebriefRoundDto {
+  roundNumber: number;
+  teams: Record<string, DebriefTeamRoundDto>;
+}
+
+export interface RoundDebrief {
+  simulationId: string;
+  roundNumber: number;
+  /** `null` for an operator — they are not one of the columns. */
+  you: string | null;
+  teams: DebriefTeamRef[];
+  products: DebriefProductDto[];
+  rounds: DebriefRoundDto[];
+}

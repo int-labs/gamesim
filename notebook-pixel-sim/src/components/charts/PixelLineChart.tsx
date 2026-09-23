@@ -37,8 +37,8 @@ const PAD = { top: 18, right: 14, bottom: 26, left: 40 };
 export function PixelLineChart({
   points,
   series,
-  width = 320,
-  height = 180,
+  width = 544,
+  height = 306,
   format = (n) => String(Math.round(n)),
   yLabel,
   showValues = true,

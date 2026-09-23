@@ -38,8 +38,8 @@ const PAD = { top: 18, right: 16, bottom: 28, left: 42 };
 
 export function PixelBubbleChart({
   bubbles,
-  width = 320,
-  height = 220,
+  width = 544,
+  height = 374,
   xLabel,
   yLabel,
   formatX = (n) => String(Math.round(n)),

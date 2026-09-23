@@ -41,8 +41,8 @@ const PAD = { top: 18, right: 10, bottom: 26, left: 40 };
 export function PixelColumnStack({
   columns,
   slices,
-  width = 320,
-  height = 200,
+  width = 544,
+  height = 340,
   format = (n) => String(Math.round(n)),
   yLabel,
   minLabelPx = 12,

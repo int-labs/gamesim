@@ -44,8 +44,12 @@ const PAD = { top: 18, right: 10, bottom: 26, left: 40 };
 export function PixelBarChart({
   groups,
   series,
-  width = 320,
-  height = 180,
+  // Sized for the full-screen debrief, not the game's side panels. The SVG
+  // maps 1 user unit to 1 CSS px, so a bigger viewBox grows the PLOT while
+  // `PAD` and the label text keep their absolute size — more data room, same
+  // legibility. See the note on PAD below.
+  width = 544,
+  height = 306,
   format = (n) => String(Math.round(n)),
   delta = false,
   yLabel,

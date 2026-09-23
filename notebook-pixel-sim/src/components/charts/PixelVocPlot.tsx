@@ -45,7 +45,7 @@ interface Props {
 
 const PAD = { top: 16, right: 16, bottom: 22, left: 92 };
 
-export function PixelVocPlot({ rows, width = 340, rowH = 26, youId = null }: Props) {
+export function PixelVocPlot({ rows, width = 578, rowH = 44, youId = null }: Props) {
   if (rows.length === 0) return <EmptyPlot width={width} height={120} />;
 
   const height = PAD.top + rows.length * rowH + PAD.bottom;
