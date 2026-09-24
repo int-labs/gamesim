@@ -636,14 +636,6 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
      * `sales_channel.selections[]` already sum to 1 across all three, but a team
      * that picked only one sends 100% of its sales through it, not that
      * channel's share of a full line-up.
-     *
-     * ZERO TOTAL WEIGHT CHARGES NOTHING. It used to fall back to a share of 1,
-     * which summed the rates instead — the pessimistic reading, so a misconfigured
-     * rate showed in the P&L rather than hiding. Owner's ruling 2026-09-24: a
-     * per-product `sales_channel` override of 0 means the notebook is NOT SOLD
-     * through that channel, and a channel that sold nothing takes no cut. Where
-     * that leaves a notebook holding revenue with no channel to have sold it —
-     * newbie's Indie Notebook, round 2 — the defect is the REVENUE, not this.
      */
     const totalChannelWeight = channelTerms.reduce((sum, t) => sum + t.weight, 0);
 
@@ -653,6 +645,9 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     let consignmentCogsPerUnit = 0;
     let consignmentOpexPerUnit = 0;
     for (const t of channelTerms) {
+      // `: 0` — a DELETED fallback, not a default. This arm was `: 1`, summing
+      // the rates where there was nothing to apportion by. An override of 0
+      // means the notebook is not sold there, so it takes no cut (2026-09-24).
       const share = totalChannelWeight > 0 ? t.weight / totalChannelWeight : 0;
       // A RATE on the selling price — retail 0.2 takes a fifth of every sale.
       const perUnit = sellingPrice * t.rate * share;
@@ -693,7 +688,22 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     let customersObtained = potentialObtained > availableMarket ? availableMarket : potentialObtained;
     
     customersObtained = customersObtained * customersObtainedAugment;
-    
+
+    // NO CHANNEL, NO SALE. `customersObtainedAugment` starts at a non-zero base
+    // (0.3) and `sales_channel` only ever MULTIPLIES it, so a per-product
+    // override of 0 left the floor intact and the notebook still pulled demand
+    // it had nowhere to sell — newbie's Indie Notebook, round 2: $4,002.92 of
+    // revenue through no storefront. The channel weight cannot express that on
+    // its own, so it is gated here instead.
+    //
+    // Covers BOTH ways of having no storefront, which both land on a zero total:
+    // every channel's override is 0, and no channel selected at all. Owner's
+    // ruling 2026-09-24 — "no place to sell and no revenue to be made".
+    //
+    // Demand only. COGS still lands on the full build: the team paid to make
+    // notebooks it had no way to sell, and that is the lesson.
+    if (totalChannelWeight === 0) customersObtained = 0;
+
     // ── Production, stock, and what actually sells ───────────────────────────
     // `inventoryQty` is the CEILING on production, never the amount produced.
     // Conflating the two made the produce planner inert: the model assumed
