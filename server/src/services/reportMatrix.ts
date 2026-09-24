@@ -4,7 +4,7 @@
  * TEAMS ACROSS THE TOP, everything else cascading down the side. Two reports
  * share this shape because they answer two halves of one question:
  *
- *   decision comparison — what did each team CHOOSE
+ *   analysis report    — what did each team CHOOSE, and what did it score
  *   competitor report   — how did they DO, and who won
  *
  * ── IF A FIGURE IS STORED, READ IT ──────────────────────────────────────────
@@ -548,7 +548,6 @@ function emitDecisionCascade(
         continue;
       }
       const isPrice = String(f.key) === SELLING_PRICE_KEY;
-      const fieldKey = String(f.key ?? "");
       ctx.emit(section, f.label ?? f.key ?? "", (dec) => {
         const inp = inputFor(dec);
         if (!inp) return BLANK;
@@ -563,27 +562,50 @@ function emitDecisionCascade(
         // must not rewrite what a finished round says the team chose.
         return hit.name ? String(hit.name) : String(hit.value);
       }, f.direction);
+    }
+    ctx.rows.push([]);
 
-      // ── The working, on the analysis report only ────────────────────────
-      //
-      // ASCII indent: base-14 fonts are WinAnsi, so no arrows or bullets. See
-      // the glyph note in reportPdf.ts.
-      if (!detail) continue;
+    // ── The working, as its OWN SECTIONS ──────────────────────────────────
+    //
+    // THREE SECTIONS, each a full pass over the same drivers — not three rows
+    // per driver. Owner, 2026-09-24: *"make weighted score and share of score
+    // as its own section ... so that it does not become confusing to read"*.
+    // Matches the reference sheet's Decision Drivers / Weighted Scores / VOC.
+    if (!detail) continue;
 
-      ctx.emit(section, `  weighted score`, (dec) => {
-        const v = scoreTermFor(dec, p._id, fieldKey);
+    // Only the fields that CARRY a weighted score. Mirrors calcFinancials'
+    // `priceFields` (money, direction > 0, not the selling price), which is
+    // exactly the set `productScoreBreakdown` contains — so no row here can be
+    // permanently blank.
+    const scoring = fields.filter(
+      (f) =>
+        f.type === "money" &&
+        (Number(f.direction) || 0) > 0 &&
+        String(f.key) !== SELLING_PRICE_KEY,
+    );
+    if (scoring.length === 0) continue;
+
+    const productName = p.productName ?? id(p._id);
+
+    for (const f of scoring) {
+      ctx.emit(`Weighted Score: ${productName}`, f.label ?? f.key ?? "", (dec) => {
+        const v = scoreTermFor(dec, p._id, String(f.key ?? ""));
         return v == null ? BLANK : plain(v);
-      });
-      // A SHARE OF THE SCORE, not a share of demand. A field reaches demand
-      // through dynamicPrice -> productScore -> customersObtained, which is not
-      // linear, so "this decision won N customers" is an attribution the model
-      // does not contain. This says only how much of the product's score the
-      // field accounts for, which it does contain.
-      ctx.emit(section, `  share of score`, (dec) => {
-        const v = scoreTermFor(dec, p._id, fieldKey);
+      }, f.direction);
+    }
+    ctx.rows.push([]);
+
+    // A SHARE OF THE SCORE, not a share of demand. A field reaches demand
+    // through dynamicPrice -> productScore -> customersObtained, which is NOT
+    // linear, so "this decision won N customers" is an attribution the model
+    // does not contain. This says only how much of the product's score the
+    // field accounts for, which it does.
+    for (const f of scoring) {
+      ctx.emit(`Share of Score: ${productName}`, f.label ?? f.key ?? "", (dec) => {
+        const v = scoreTermFor(dec, p._id, String(f.key ?? ""));
         const total = scoreTotalFor(dec, p._id);
         return v == null || total == null || total === 0 ? BLANK : pct(v / total);
-      });
+      }, f.direction);
     }
     ctx.rows.push([]);
   }
@@ -595,7 +617,7 @@ function emitDecisionCascade(
  * THE COMPETITOR REPORT — standings first, then the figures behind them, then
  * the decisions that produced them.
  *
- * A separate report from the decision comparison on purpose: that one answers
+ * A separate report from the analysis report on purpose: that one answers
  * "what did each team CHOOSE", this one "how did they DO". Same machinery,
  * different question.
  *

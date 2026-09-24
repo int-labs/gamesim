@@ -8,7 +8,9 @@ const router = Router();
 
 router.use(authenticate);
 
-// GET /reports/decisions?simulationId=&roundNumber=   → decision comparison PDF
+// GET /reports/decisions?simulationId=&roundNumber=   → analysis report PDF
+//   The kind is still spelled `decisions` in the URL; the report was renamed
+//   2026-09-24 and the route was left alone.
 // GET /reports/competitor?simulationId=&roundNumber=  → competitor report PDF
 //
 // ADMIN/OPERATOR only. These show every team's figures side by side — a team

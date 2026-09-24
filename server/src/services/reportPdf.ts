@@ -22,7 +22,10 @@ const CHAR_W = FONT_SIZE * 0.6;
 
 /** Column caps, sized to real content: a 26-cap truncated
  *  "Notebook: Minimalist Notebook" to a heading nobody could identify. */
-const CAP_SECTION = 34;
+// 40, not 34: the analysis report's derived sections are
+// "Weighted Score: <notebook>" and "Share of Score: <notebook>", which reach 35
+// characters on the longest product name. A 34-cap cut them mid-word.
+const CAP_SECTION = 40;
 const CAP_LABEL   = 48;
 const CAP_TEAM    = 18;
 

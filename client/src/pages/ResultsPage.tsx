@@ -77,7 +77,7 @@ export default function ResultsPage() {
             {downloading === "competitor" ? "Building…" : "↓ Competitor report (PDF)"}
           </button>{" "}
           <button onClick={() => exportReport("decisions")} disabled={!canExport || downloading !== null}>
-            {downloading === "decisions" ? "Building…" : "↓ Decision comparison (PDF)"}
+            {downloading === "decisions" ? "Building…" : "↓ Analysis report (PDF)"}
           </button>
         </div>
         <p style={{ margin: "6px 0 0", fontSize: 12, color: "#555" }}>

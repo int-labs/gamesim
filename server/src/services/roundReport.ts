@@ -234,10 +234,10 @@ export async function buildRoundReport(
   );
   return {
     matrix,
-    title: `Round ${roundNumber} - decision comparison`,
+    title: `Round ${roundNumber} - analysis report`,
     subtitle:
       `${simName}  ·  ${teamCount} teams  ·  generated ${stamp}  ·  ` +
       `channel rows are apportioned, not stored`,
-    filename: `decisions_${simulationId}_round${roundNumber}.pdf`,
+    filename: `analysis_${simulationId}_round${roundNumber}.pdf`,
   };
 }
