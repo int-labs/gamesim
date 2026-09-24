@@ -243,6 +243,26 @@ const scoreTotalFor = (dec: ReportDecision | null, productId: unknown) => {
 };
 
 /**
+ * Σ of the terms for a NAMED SET of fields — the Sum row under each working
+ * section.
+ *
+ * Restricted to the keys passed rather than reusing `scoreTotalFor`: the rows
+ * above it are the `scoring` set, and a total that quietly included a term with
+ * no row would not add up on the page.
+ *
+ * `null` when the team has no term for ANY of them, so the Sum row is blank
+ * exactly where the rows above it are.
+ */
+const scoreSumFor = (
+  dec: ReportDecision | null,
+  productId: unknown,
+  keys: Set<string>,
+): number | null => {
+  const rows = scoreTerms(dec, productId).filter((r) => keys.has(r.key));
+  return rows.length === 0 ? null : rows.reduce((a, r) => a + r.value, 0);
+};
+
+/**
  * CASH, walked forward from the configured opening.
  *
  *   cashStart(0) = seed
@@ -538,7 +558,16 @@ function emitDecisionCascade(
       return inp && inp.produced != null ? String(inp.produced) : BLANK;
     });
 
+    // The backend's `order` is the authored reading order, and the competitor
+    // report keeps it. The ANALYSIS report overrides it with `direction`
+    // DESCENDING: that report exists to answer why a score came out as it did,
+    // and the heaviest driver is most of the answer, so it belongs at the top.
+    // `sort` is stable, so ties — and the unweighted rows, which fall to the
+    // bottom — hold their authored order.
     const fields = [...(p.fields ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (ctx.weights) {
+      fields.sort((a, b) => (Number(b.direction) || 0) - (Number(a.direction) || 0));
+    }
     for (const f of fields) {
       // The one field that is an OUTCOME, not a decision: every team submits 1
       // for `projected_market_share`, so the row read "1 1 1" and said nothing.
@@ -586,6 +615,9 @@ function emitDecisionCascade(
     if (scoring.length === 0) continue;
 
     const productName = p.productName ?? id(p._id);
+    // The keys the Sum rows add up — exactly the rows printed above them.
+    const scoringKeys = new Set(scoring.map((f) => String(f.key ?? "")));
+    const weightSum = scoring.reduce((a, f) => a + (Number(f.direction) || 0), 0);
 
     for (const f of scoring) {
       ctx.emit(`Weighted Score: ${productName}`, f.label ?? f.key ?? "", (dec) => {
@@ -593,6 +625,13 @@ function emitDecisionCascade(
         return v == null ? BLANK : plain(v);
       }, f.direction);
     }
+    // Σ of the rows above. NOT `dynamicPrice` read back: it is the same figure
+    // today, and printing the sum of what is on the page keeps it that way if
+    // the `scoring` filter ever narrows.
+    ctx.emit(`Weighted Score: ${productName}`, "Sum", (dec) => {
+      const v = scoreSumFor(dec, p._id, scoringKeys);
+      return v == null ? BLANK : plain(v);
+    }, weightSum);
     ctx.rows.push([]);
 
     // A SHARE OF THE SCORE, not a share of demand. A field reaches demand
@@ -607,6 +646,14 @@ function emitDecisionCascade(
         return v == null || total == null || total === 0 ? BLANK : pct(v / total);
       }, f.direction);
     }
+    // Reads 100.0% wherever `scoring` covers the whole breakdown, which it does
+    // today — and that is the point: it tells the reader the shares above are a
+    // complete account of the score, not a selection from it.
+    ctx.emit(`Share of Score: ${productName}`, "Sum", (dec) => {
+      const v = scoreSumFor(dec, p._id, scoringKeys);
+      const total = scoreTotalFor(dec, p._id);
+      return v == null || total == null || total === 0 ? BLANK : pct(v / total);
+    }, weightSum);
     ctx.rows.push([]);
   }
 
@@ -714,8 +761,11 @@ export function buildCompetitorMatrix(
       money(scoredFor(dec, p._id)?.revenue));
   }
   rows.push([]);
+  // DEMAND, not "Customers": this is `customersObtained` — the customers the
+  // team WON, before stock could or could not cover them. The Demand block above
+  // uses the same word for the same field.
   for (const p of ordered) {
-    emit("Customers by notebook", p.productName ?? id(p._id), (dec) =>
+    emit("Demand by Notebook", p.productName ?? id(p._id), (dec) =>
       plain(scoredFor(dec, p._id)?.customersObtained));
   }
   rows.push([]);
@@ -794,11 +844,30 @@ export function buildDecisionMatrix(
     rows.push([]);
     for (const p of ordered) {
       for (const ch of channels) {
-        emit("Customers by channel", `${p.productName ?? id(p._id)} · ${ch.label}`, (dec) => {
+        emit("Demand by Channel", `${p.productName ?? id(p._id)} · ${ch.label}`, (dec) => {
           const sc = scoredFor(dec, p._id);
           if (!sc) return BLANK;
           const share = channelSharesFor(dec, p._id).get(ch.id);
           return share == null ? BLANK : plain(Number(sc.customersObtained ?? 0) * share);
+        });
+      }
+    }
+    rows.push([]);
+    // The block above is demand WON; this is demand SERVED. `unitsSold` is the
+    // server's own `min(customersObtained, openingStock + produced)`, read not
+    // recomputed — the gap between the two blocks is stock that did not cover
+    // the demand, and it is the teaching point.
+    //
+    // Apportioned by the SAME share the two blocks above use, which assumes the
+    // shortfall fell evenly across channels. The model does not allocate stock
+    // per channel, so no split it could contradict exists.
+    for (const p of ordered) {
+      for (const ch of channels) {
+        emit("Customers Fulfilled by Channel", `${p.productName ?? id(p._id)} · ${ch.label}`, (dec) => {
+          const sc = scoredFor(dec, p._id);
+          if (!sc) return BLANK;
+          const share = channelSharesFor(dec, p._id).get(ch.id);
+          return share == null ? BLANK : plain(Number(sc.unitsSold ?? 0) * share);
         });
       }
     }
@@ -831,7 +900,7 @@ export function buildDecisionMatrix(
   }
   rows.push([]);
   for (const p of ordered) {
-    emit("Customers by notebook", p.productName ?? id(p._id), (dec) =>
+    emit("Demand by Notebook", p.productName ?? id(p._id), (dec) =>
       plain(scoredFor(dec, p._id)?.customersObtained));
   }
   rows.push([]);
