@@ -19,6 +19,7 @@ import {
   buildCompetitorMatrix,
   buildDecisionMatrix,
   type CashWalk,
+  type OpeningStock,
   type ReportMatrix,
   type ReportRunMetrics,
   type ScoredLeaderboard,
@@ -56,6 +57,35 @@ export function openingCashFrom(playerConfig: unknown): number | null {
     ?.config?.constants as { STARTING_CASH?: { self?: unknown } } | undefined;
   const seed = Number(constants?.STARTING_CASH?.self);
   return Number.isFinite(seed) ? seed : null;
+}
+
+/**
+ * What each team carried into `roundNumber`: the PREVIOUS round's stored
+ * `closingStock`, per product.
+ *
+ * The same source the scoring path uses — `roundCalculation` reads round N-1's
+ * `closingStock` as round N's `openingStock` — so the report cannot disagree
+ * with what was actually scored. Empty at round 0, and empty for any round whose
+ * predecessor was never calculated, which prints 0 rather than inventing a carry.
+ */
+export function openingStockFor(
+  byRound: Map<number, unknown[]>,
+  roundNumber: number,
+): OpeningStock {
+  const out: OpeningStock = new Map();
+  for (const d of byRound.get(roundNumber - 1) ?? []) {
+    const dec = d as {
+      teamId?: unknown;
+      scored?: Record<string, { closingStock?: unknown }> | null;
+    };
+    const perProduct = new Map<string, number>();
+    for (const [productId, m] of Object.entries(dec.scored ?? {})) {
+      const units = Number(m?.closingStock);
+      if (Number.isFinite(units) && units !== 0) perProduct.set(productId, units);
+    }
+    if (perProduct.size > 0) out.set(String(dec.teamId), perProduct);
+  }
+  return out;
 }
 
 export type ReportKind = "decisions" | "competitor";
@@ -145,6 +175,10 @@ export async function buildRoundReport(
       ? null
       : buildCashWalk(seed, roundNumber, byRoundDecisions as never, teamIds);
 
+  // Reuses the same grouping the cash walk needs — both read a PRIOR round, and
+  // building a second copy is how the two would come to disagree about one.
+  const opening = openingStockFor(byRoundDecisions, roundNumber);
+
   // ── Score every round 0..N, carry only the POINTS forward ─────────────────
   //
   // Each round is ranked among the teams that played THAT round, then the
@@ -201,6 +235,7 @@ export async function buildRoundReport(
       containers as never,
       board,
       cash,
+      opening,
     );
     return {
       matrix,
@@ -231,6 +266,7 @@ export async function buildRoundReport(
     // it needs the same scored board the competitor report renders — not a
     // second scoring run, which could disagree about a team's points.
     board,
+    opening,
   );
   return {
     matrix,

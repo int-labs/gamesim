@@ -278,6 +278,21 @@ const scoreSumFor = (
  * An uncalculated round contributes 0, not a gap: `sumScored` returns null
  * before a round is scored, and cash does not move on a round nobody ran.
  */
+/**
+ * Units each team carried INTO the reported round, `teamId → productId → units`.
+ *
+ * READ from the previous round's stored `closingStock`, never derived from this
+ * round's figures: `closingStock` is rounded to whole units on write, so
+ * `closing + sold - produced` would reconstruct the opening with the rounding
+ * error baked in. Empty for round 0, where nothing has been carried yet.
+ *
+ * It matters on the report because `Notebooks Produced` alone does not explain
+ * what a team could sell — the ceiling is `Total Notebooks`, storage plus
+ * production, and a reader who sees only production reads a fulfilled figure
+ * above it as a defect.
+ */
+export type OpeningStock = Map<string, Map<string, number>>;
+
 export interface CashWalk {
   /** teamId → cash at the START of the reported round. */
   opening: Map<string, number>;
@@ -538,6 +553,7 @@ function emitDecisionCascade(
   ctx: Ctx,
   products: ReportProduct[],
   containers: ReportContainer[],
+  opening: OpeningStock | null,
   /** ANALYSIS REPORT ONLY: adds the working under each field — its weighted
    *  score and that score's share. The competitor report answers "who won" and
    *  does not want three rows per spec. */
@@ -550,13 +566,37 @@ function emitDecisionCascade(
     const inputFor = (dec: ReportDecision | null) =>
       (dec?.inputs ?? []).find((i) => id(i.productId) === id(p._id)) ?? null;
 
-    ctx.emit(section, "Made this notebook", (dec) => (inputFor(dec) ? "Yes" : "No"));
-    ctx.emit(section, "Books Produced", (dec) => {
+    ctx.emit(section, "Notebook in Market", (dec) => (inputFor(dec) ? "Yes" : "No"));
+
+    const storedFor = (col: { id: string }) =>
+      opening?.get(col.id)?.get(id(p._id)) ?? 0;
+    /** `null` is "not stated", which the server builds NOTHING for — distinct
+     *  from an explicit 0 the team typed. */
+    const producedFor = (dec: ReportDecision | null) => {
       const inp = inputFor(dec);
-      // `null` is "not stated", which the server builds NOTHING for — distinct
-      // from an explicit 0 the team typed.
-      return inp && inp.produced != null ? String(inp.produced) : BLANK;
+      return inp && inp.produced != null ? Number(inp.produced) : null;
+    };
+
+    // STOCK, not a decision — what the last round left behind, so it prints
+    // whether or not the team put the notebook back in the market. A team can
+    // carry units it has no production line for this round, and that is exactly
+    // the case that reads as a defect without this row.
+    if (opening) {
+      ctx.emit(section, "Notebooks in Storage", (_dec, c) => String(storedFor(c)));
+    }
+    ctx.emit(section, "Notebooks Produced", (dec) => {
+      const n = producedFor(dec);
+      return n == null ? BLANK : String(n);
     });
+    // The two above, added. This is the CEILING on what the round could sell —
+    // `calcFinancials` clamps `unitsSold` to it — so a fulfilled figure larger
+    // than production is explained by the page rather than looking like a defect.
+    // Unstated production counts as 0 here: the carried stock is sellable on its
+    // own, so the total is a real figure even where the row above is blank.
+    if (opening) {
+      ctx.emit(section, "Total Notebooks", (dec, c) =>
+        String(storedFor(c) + (producedFor(dec) ?? 0)));
+    }
 
     // The backend's `order` is the authored reading order, and the competitor
     // report keeps it. The ANALYSIS report overrides it with `direction`
@@ -680,6 +720,7 @@ export function buildCompetitorMatrix(
   containers: ReportContainer[],
   board: ScoredLeaderboard | null,
   cash: CashWalk | null,
+  opening: OpeningStock | null,
 ): ReportMatrix {
   const ctx = context(decisions, teams);
   const { emit, rows, cols } = ctx;
@@ -794,7 +835,7 @@ export function buildCompetitorMatrix(
 
   // The decisions that produced all of the above — `Notebook: X` down to the
   // last lever, the same cascade the comparison report carries.
-  emitDecisionCascade(ctx, products, containers);
+  emitDecisionCascade(ctx, products, containers, opening);
 
   collapseSectionRuns(rows);
   return {
@@ -817,6 +858,7 @@ export function buildDecisionMatrix(
   containers: ReportContainer[],
   cash: CashWalk | null,
   board: ScoredLeaderboard | null,
+  opening: OpeningStock | null,
 ): ReportMatrix {
   // `true` — the Weight column. THIS report is where `direction` earns its
   // place: the reader is asking why a score came out as it did.
@@ -925,7 +967,8 @@ export function buildDecisionMatrix(
   emitLeaderboardWorking(ctx, board);
 
   emitDecisionCascade(
-    ctx, products, containers.filter((gi) => !channelIds.has(id(gi._id))), true,
+    ctx, products, containers.filter((gi) => !channelIds.has(id(gi._id))),
+    opening, true,
   );
 
   collapseSectionRuns(rows);
