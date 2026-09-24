@@ -769,6 +769,16 @@ export function buildCompetitorMatrix(
       plain(scoredFor(dec, p._id)?.customersObtained));
   }
   rows.push([]);
+  // Demand SERVED, per notebook — `unitsSold`, the same field the Demand
+  // block's "Customers Fulfilled" row totals. Read, not recomputed. The gap
+  // against the block above is per-notebook stock that did not cover demand,
+  // which the summed row cannot show: a team can overbuild one notebook and run
+  // short on another and still total out even.
+  for (const p of ordered) {
+    emit("Customers Fulfilled by Notebook", p.productName ?? id(p._id), (dec) =>
+      plain(scoredFor(dec, p._id)?.unitsSold));
+  }
+  rows.push([]);
   // BOTH figures: the fit is what the decisions EARNED before productScore and
   // the lever augmentation; the share is what they WON after.
   for (const p of ordered) {
@@ -902,6 +912,13 @@ export function buildDecisionMatrix(
   for (const p of ordered) {
     emit("Demand by Notebook", p.productName ?? id(p._id), (dec) =>
       plain(scoredFor(dec, p._id)?.customersObtained));
+  }
+  rows.push([]);
+  // Same block the competitor report carries, so the two reports do not
+  // disagree about what a notebook served.
+  for (const p of ordered) {
+    emit("Customers Fulfilled by Notebook", p.productName ?? id(p._id), (dec) =>
+      plain(scoredFor(dec, p._id)?.unitsSold));
   }
   rows.push([]);
 
