@@ -637,10 +637,13 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
      * that picked only one sends 100% of its sales through it, not that
      * channel's share of a full line-up.
      *
-     * With no weights recorded — a rate configured with no `sales_channel`
-     * impact beside it — there is nothing to apportion by, so the rates sum
-     * rather than silently vanishing. That is the pessimistic reading, and it
-     * shows up in the P&L instead of hiding.
+     * ZERO TOTAL WEIGHT CHARGES NOTHING. It used to fall back to a share of 1,
+     * which summed the rates instead — the pessimistic reading, so a misconfigured
+     * rate showed in the P&L rather than hiding. Owner's ruling 2026-09-24: a
+     * per-product `sales_channel` override of 0 means the notebook is NOT SOLD
+     * through that channel, and a channel that sold nothing takes no cut. Where
+     * that leaves a notebook holding revenue with no channel to have sold it —
+     * newbie's Indie Notebook, round 2 — the defect is the REVENUE, not this.
      */
     const totalChannelWeight = channelTerms.reduce((sum, t) => sum + t.weight, 0);
 
@@ -650,7 +653,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     let consignmentCogsPerUnit = 0;
     let consignmentOpexPerUnit = 0;
     for (const t of channelTerms) {
-      const share = totalChannelWeight > 0 ? t.weight / totalChannelWeight : 1;
+      const share = totalChannelWeight > 0 ? t.weight / totalChannelWeight : 0;
       // A RATE on the selling price — retail 0.2 takes a fifth of every sale.
       const perUnit = sellingPrice * t.rate * share;
       if (t.side === "cogs") consignmentCogsPerUnit += perUnit;
