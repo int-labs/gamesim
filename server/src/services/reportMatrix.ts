@@ -1105,26 +1105,9 @@ export function buildDecisionMatrix(
   // They opened the report until this change, which put the answer before the
   // working.
   //
-  // "Net Profit" is the server's `operatingProfit` — RENAMED, not recomputed.
-  const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
-    ["Revenue",            "revenue",           money],
-    ["COGS",               "COGS",              money],
-    ["Gross Profit",       "grossProfit",       money],
-    ["Operating Expenses", "operatingExpenses", money],
-    ["Net Profit",         "operatingProfit",   money],
-  ];
-  for (const [label, field, fmt] of FINANCIALS) {
-    emit("PnL", label, (dec) => fmt(sumScored(dec, field)));
-  }
-  emit("PnL", "Profit Margin", (dec) => {
-    const rev = sumScored(dec, "revenue");
-    const net = sumScored(dec, "operatingProfit");
-    return rev == null || net == null || rev === 0 ? BLANK : pct(net / rev);
-  });
-  rows.push([]);
-
   // Revenue broken down twice over the SAME total: by where it was sold, then
-  // by what was sold. Both reconcile to the PnL Revenue row above.
+  // by what was sold. Both reconcile to the PnL Revenue row BELOW them — the
+  // splits come first and the statement they roll into closes the report.
   const channels = channelItemsOf(containers);
   if (channels.length > 0) {
     for (const p of ordered) {
@@ -1146,6 +1129,27 @@ export function buildDecisionMatrix(
     emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
       money(scoredFor(dec, p._id)?.revenue));
   }
+  rows.push([]);
+
+  // THE CLOSING SECTION. Last on the page, owner 2026-09-28: the two revenue
+  // splits above roll into its Revenue row, and every block before them explains
+  // how the team got there. "Net Profit" is the server's `operatingProfit` —
+  // RENAMED, not recomputed.
+  const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
+    ["Revenue",            "revenue",           money],
+    ["COGS",               "COGS",              money],
+    ["Gross Profit",       "grossProfit",       money],
+    ["Operating Expenses", "operatingExpenses", money],
+    ["Net Profit",         "operatingProfit",   money],
+  ];
+  for (const [label, field, fmt] of FINANCIALS) {
+    emit("PnL", label, (dec) => fmt(sumScored(dec, field)));
+  }
+  emit("PnL", "Profit Margin", (dec) => {
+    const rev = sumScored(dec, "revenue");
+    const net = sumScored(dec, "operatingProfit");
+    return rev == null || net == null || rev === 0 ? BLANK : pct(net / rev);
+  });
   rows.push([]);
 
   collapseSectionRuns(rows);
