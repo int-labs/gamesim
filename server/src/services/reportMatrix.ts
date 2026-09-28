@@ -409,36 +409,17 @@ function leverTerms(
 }
 
 /**
- * DEMAND, split across the levers that earned it.
+ * The two impacts declared `affects: "customersObtained"` in IMPACT_CONFIG —
+ * used to decide which lever containers the notebook blocks already account
+ * for, NOT to split demand.
  *
- * `sales_channel` and `marketing` are the two impacts declared
- * `affects: "customersObtained"` in IMPACT_CONFIG, so they are the whole of what
- * moved demand. Apportioned by the same weights that produced it:
- *
- *   demand_i = customersObtained x weight_i / Σ weight
- *
- * The rows therefore SUM to the stored `customersObtained`. Read from the
- * decision snapshot, so no figure has to be persisted and no round has to be
- * recalculated for this to render.
- *
- * SECOND IMPLEMENTATION, like `channelSharesFor` above and carrying the same
- * warning: calcFinancials compounds these as `Π(1 + w)` onto a base, and this
- * apportions the RESULT rather than replaying that product. The two answer
- * different questions — "what did the lever contribute" against "what is the
- * total" — and only the total is stored.
+ * `demandSharesFor` was here and apportioned demand across BOTH of them,
+ * `customersObtained x weight_i / Σ weight`. Deleted 2026-09-28: marketing
+ * raises demand but routes no units, so including it in the denominator shrank
+ * every channel figure against the report's existing split. Demand per channel
+ * is `channelSharesFor`, which renormalises over channels alone.
  */
 export const DEMAND_METRICS = ["sales_channel", "marketing"];
-
-export function demandSharesFor(
-  dec: ReportDecision | null,
-  productId: unknown,
-): Map<string, number> {
-  const terms = leverTerms(dec, productId, DEMAND_METRICS);
-  const total = terms.reduce((a, t) => a + t.weight, 0);
-  const out = new Map<string, number>();
-  for (const t of terms) out.set(t.key, total > 0 ? t.weight / total : 0);
-  return out;
-}
 
 /**
  * CAPACITY, split across the levers that raised it.
@@ -748,10 +729,17 @@ function emitNotebookAnalysis(
 
   // ── DEMAND ───────────────────────────────────────────────────────────────
   const dem = `Demand: ${name}`;
+  // `channelSharesFor`, NOT a wider split. Demand per channel renormalises over
+  // the CHANNELS the team picked — the formula this report already used and the
+  // one calcFinancials weights the consignment blend with. Widening the
+  // denominator to include marketing (tried 2026-09-28) changed every channel
+  // figure and was wrong: marketing is not a storefront, it does not route
+  // units, and putting it in the denominator silently shrank each channel's
+  // demand.
   const demandFor = (dec: ReportDecision | null, itemId: string) => {
     const sc = scoredFor(dec, p._id);
     if (!sc) return BLANK;
-    const share = demandSharesFor(dec, p._id).get(itemId);
+    const share = channelSharesFor(dec, p._id).get(itemId);
     return share == null ? BLANK : plain(Number(sc.customersObtained ?? 0) * share);
   };
 
@@ -773,7 +761,13 @@ function emitNotebookAnalysis(
           ? String(sel.selectedStepKey)
           : "Yes";
       });
-      ctx.emit(dem, `  demand from ${item.label}`, (dec) => demandFor(dec, item.id));
+      // The demand row is CHANNELS ONLY. A marketing lever raises demand but
+      // routes no units, so it has no share of the split to print — the same
+      // reason calcFinancials excludes it from the consignment weighting. Its
+      // selection still shows above, which is the decision QA asked for.
+      if (metric === "sales_channel") {
+        ctx.emit(dem, `  demand from ${item.label}`, (dec) => demandFor(dec, item.id));
+      }
     }
   }
   ctx.rows.push([]);
