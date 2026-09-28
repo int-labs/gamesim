@@ -262,10 +262,8 @@ export async function buildRoundReport(
     products as never,
     containers as never,
     cash,
-    // The analysis report shows the WORKING behind every leaderboard figure, so
-    // it needs the same scored board the competitor report renders — not a
-    // second scoring run, which could disagree about a team's points.
-    board,
+    // NO `board`: the leaderboard is the competitor report's alone (QA,
+    // 2026-09-28). The scoring run above still happens — that report needs it.
     opening,
   );
   return {
