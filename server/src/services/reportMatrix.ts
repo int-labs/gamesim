@@ -702,8 +702,20 @@ function emitNotebookAnalysis(
   const qtyFor = (dec: ReportDecision | null) =>
     Number(scoredFor(dec, p._id)?.inventoryQty) || 0;
 
+  // THE NOTEBOOK IS THE HEADER, and the blocks under it keep their plain
+  // section names — `Inventory`, `Sales Channel`, `Decision`, `Weighted Score`.
+  // Naming each section `Weighted Score: <notebook>` instead (tried 2026-09-28)
+  // repeated the notebook on every row of a 40-character column and left nothing
+  // to scan down.
+  ctx.rows.push([
+    name,
+    "",
+    ...(ctx.weights ? [""] : []),
+    ...ctx.cols.map(() => ""),
+  ]);
+
   // ── INVENTORY ────────────────────────────────────────────────────────────
-  const inv = `Inventory: ${name}`;
+  const inv = "Inventory";
   ctx.emit(inv, "Inventory leftover", (_dec, c) => String(storedFor(c)));
 
   // One row per capacity lever, whether or not the team holds it. The live
@@ -719,7 +731,7 @@ function emitNotebookAnalysis(
     });
   }
 
-  ctx.emit(inv, "Inventory", (dec) =>
+  ctx.emit(inv, "Inventory capacity", (dec) =>
     dec == null ? BLANK : plain(capacityTermsFor(dec, p._id, qtyFor(dec)).base));
   // Carried stock PLUS this round's capacity — owner's ruling 2026-09-28. This
   // is the ceiling on what the round could put in front of a customer.
@@ -728,7 +740,6 @@ function emitNotebookAnalysis(
   ctx.rows.push([]);
 
   // ── DEMAND ───────────────────────────────────────────────────────────────
-  const dem = `Demand: ${name}`;
   // `channelSharesFor`, NOT a wider split. Demand per channel renormalises over
   // the CHANNELS the team picked — the formula this report already used and the
   // one calcFinancials weights the consignment blend with. Widening the
@@ -746,12 +757,12 @@ function emitNotebookAnalysis(
   // The SELECTION beside the demand it earned, for each of the two lever groups
   // QA named. Split by metric so a reader sees channels and marketing as the
   // separate decisions they are.
-  for (const [heading, metric] of [
+  for (const [section, metric] of [
     ["Sales Channel", "sales_channel"],
     ["Marketing",     "marketing"],
   ] as const) {
     for (const item of leverItemsOf(containers, [metric])) {
-      ctx.emit(dem, `${heading}: ${item.label}`, (dec) => {
+      ctx.emit(section, item.label, (dec) => {
         if (!dec) return BLANK;
         const sel = (dec.globalInputs ?? []).find(
           (g) => id(g.globalInputItemId) === item.id,
@@ -766,11 +777,11 @@ function emitNotebookAnalysis(
       // reason calcFinancials excludes it from the consignment weighting. Its
       // selection still shows above, which is the decision QA asked for.
       if (metric === "sales_channel") {
-        ctx.emit(dem, `  demand from ${item.label}`, (dec) => demandFor(dec, item.id));
+        ctx.emit(section, `  demand from ${item.label}`, (dec) => demandFor(dec, item.id));
       }
     }
+    ctx.rows.push([]);
   }
-  ctx.rows.push([]);
 
   // ── The notebook's OWN decisions, and what they scored ───────────────────
   // Weight DESCENDING: this report answers why a score came out as it did, and
@@ -780,11 +791,11 @@ function emitNotebookAnalysis(
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .sort((a, b) => (Number(b.direction) || 0) - (Number(a.direction) || 0));
 
-  ctx.emit(dem, "Notebook in Market", (dec) => (inputFor(dec) ? "Yes" : "No"));
+  ctx.emit("Decision", "Notebook in Market", (dec) => (inputFor(dec) ? "Yes" : "No"));
   for (const f of fields) {
     if (String(f.key) === PROJECTED_MARKET_SHARE_KEY) continue;  // an OUTCOME; the share row below carries it
     const isPrice = String(f.key) === SELLING_PRICE_KEY;
-    ctx.emit(dem, `Decision: ${f.label ?? f.key ?? ""}`, (dec) => {
+    ctx.emit("Decision", f.label ?? f.key ?? "", (dec) => {
       const inp = inputFor(dec);
       if (!inp) return BLANK;
       const hit = (inp.fields ?? []).find((x) => id(x.fieldId) === id(f._id));
@@ -809,13 +820,14 @@ function emitNotebookAnalysis(
   const weightSum = scoring.reduce((a, f) => a + (Number(f.direction) || 0), 0);
 
   for (const f of scoring) {
-    ctx.emit(dem, `Weighted Score: ${f.label ?? f.key ?? ""}`, (dec) => {
+    ctx.emit("Weighted Score", f.label ?? f.key ?? "", (dec) => {
       const v = scoreTermFor(dec, p._id, String(f.key ?? ""));
       return v == null ? BLANK : plain(v);
     }, f.direction);
   }
-  // QA's "Total Weighted Score of the notebook decisions".
-  ctx.emit(dem, "Total Weighted Score", (dec) => {
+  // QA's "Total Weighted Score of the notebook decisions" — its own section, so
+  // it reads as the total of the block above rather than one more driver in it.
+  ctx.emit("Total Weighted Score", "Sum", (dec) => {
     const v = scoreSumFor(dec, p._id, scoringKeys);
     return v == null ? BLANK : plain(v);
   }, weightSum);
@@ -825,33 +837,33 @@ function emitNotebookAnalysis(
   // dynamicPrice -> productScore -> customersObtained, which is not linear, so
   // "this decision won N customers" is an attribution the model does not hold.
   for (const f of scoring) {
-    ctx.emit(dem, `Market Effect: ${f.label ?? f.key ?? ""}`, (dec) => {
+    ctx.emit("Market Effect", f.label ?? f.key ?? "", (dec) => {
       const v = scoreTermFor(dec, p._id, String(f.key ?? ""));
       const total = scoreTotalFor(dec, p._id);
       return v == null || total == null || total === 0 ? BLANK : pct(v / total);
     }, f.direction);
   }
-  ctx.emit(dem, "Market Effect: total", (dec) => {
+  ctx.emit("Market Effect", "Sum", (dec) => {
     const v = scoreSumFor(dec, p._id, scoringKeys);
     const total = scoreTotalFor(dec, p._id);
     return v == null || total == null || total === 0 ? BLANK : pct(v / total);
   }, weightSum);
   ctx.rows.push([]);
 
-  // ── MARKET SHARE, then what was actually served ──────────────────────────
-  ctx.emit(`Market Share: ${name}`, "Market share", (dec) =>
-    pct(scoredFor(dec, p._id)?.marketShare));
-  ctx.emit(`Market Share: ${name}`, "Market fit", (dec) =>
+  // ── MARKET FIT, then what was actually served ────────────────────────────
+  ctx.emit("Market Fit", "Market fit", (dec) =>
     pct(scoredFor(dec, p._id)?.marketFit));
+  ctx.emit("Market Fit", "Market share", (dec) =>
+    pct(scoredFor(dec, p._id)?.marketShare));
   ctx.rows.push([]);
 
-  ctx.emit(`Customers Fulfilled: ${name}`, "Demand", (dec) =>
+  ctx.emit("Customers Fulfilled", "Demand", (dec) =>
     plain(scoredFor(dec, p._id)?.customersObtained));
-  ctx.emit(`Customers Fulfilled: ${name}`, "Notebooks Produced", (dec) => {
+  ctx.emit("Customers Fulfilled", "Notebooks Produced", (dec) => {
     const inp = inputFor(dec);
     return inp && inp.produced != null ? String(inp.produced) : BLANK;
   });
-  ctx.emit(`Customers Fulfilled: ${name}`, "Customers Fulfilled", (dec) =>
+  ctx.emit("Customers Fulfilled", "Customers Fulfilled", (dec) =>
     plain(scoredFor(dec, p._id)?.unitsSold));
   ctx.rows.push([]);
 }
