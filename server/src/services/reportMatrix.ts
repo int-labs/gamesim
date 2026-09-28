@@ -714,29 +714,69 @@ function emitNotebookAnalysis(
     ...ctx.cols.map(() => ""),
   ]);
 
-  // ── INVENTORY ────────────────────────────────────────────────────────────
-  const inv = "Inventory";
-  ctx.emit(inv, "Inventory leftover", (_dec, c) => String(storedFor(c)));
+  // ── CAPACITY ─────────────────────────────────────────────────────────────
+  // CAPACITY, NOT INVENTORY. A vendor does not put units in the warehouse; it
+  // raises how many the team COULD build. `inventoryQty` is that ceiling, and
+  // calling the block Inventory (2026-09-28) conflated it with stock on hand.
+  const cap = "Capacity";
+  ctx.emit(cap, "Base", (dec) =>
+    dec == null ? BLANK : plain(capacityTermsFor(dec, p._id, qtyFor(dec)).base));
 
-  // One row per capacity lever, whether or not the team holds it. The live
-  // config makes these the Vendors and Hiring's Production Team; nothing here
-  // names either, so an operator adding a third gets a row for free.
-  for (const item of leverItemsOf(containers, ["inventory"])) {
-    ctx.emit(inv, `  ${item.category}: ${item.label}`, (dec) => {
+  // Grouped by CONTAINER — "Vendors", "Hiring Options" — not by item. A team
+  // holds at most one of each, so a row per item would be mostly blank; this
+  // shows each team's own contribution in one line. Detected, so an operator
+  // adding a third capacity group gets a row without a code change.
+  const capContainers = containers.filter((gi) =>
+    (gi.inputs ?? []).some((item) => item.impacts?.["inventory"]),
+  );
+  for (const gi of capContainers) {
+    const itemIds = new Set(
+      (gi.inputs ?? [])
+        .filter((item) => item.impacts?.["inventory"])
+        .map((item) => id(item._id)),
+    );
+    ctx.emit(cap, `  ${gi.label ?? gi.category ?? gi.key ?? ""}`, (dec) => {
       if (!dec) return BLANK;
-      const extra = capacityTermsFor(dec, p._id, qtyFor(dec)).extras.get(item.id);
-      // Absent = not selected. 0 = selected but carrying no capacity, which the
-      // Direct Channel's `inventory: 0` does — two different statements.
-      return extra == null ? BLANK : plain(extra);
+      const { extras } = capacityTermsFor(dec, p._id, qtyFor(dec));
+      let total = 0;
+      let held = false;
+      for (const [itemId, extra] of extras) {
+        if (!itemIds.has(itemId)) continue;
+        total += extra;
+        held = true;
+      }
+      // Absent = the team holds nothing from this group, which is a different
+      // statement from holding something that adds no capacity.
+      return held ? plain(total) : BLANK;
     });
   }
 
-  ctx.emit(inv, "Inventory capacity", (dec) =>
-    dec == null ? BLANK : plain(capacityTermsFor(dec, p._id, qtyFor(dec)).base));
-  // Carried stock PLUS this round's capacity — owner's ruling 2026-09-28. This
-  // is the ceiling on what the round could put in front of a customer.
-  ctx.emit(inv, "Total Inventory", (dec, c) =>
-    dec == null ? BLANK : plain(storedFor(c) + qtyFor(dec)));
+  // Base plus every contribution above — `inventoryQty`, the build ceiling.
+  ctx.emit(cap, "Total Capacity", (dec) => (dec == null ? BLANK : plain(qtyFor(dec))));
+  ctx.rows.push([]);
+
+  // ── PRODUCTION ───────────────────────────────────────────────────────────
+  const producedFor = (dec: ReportDecision | null) => {
+    const inp = inputFor(dec);
+    return inp && inp.produced != null ? Number(inp.produced) : null;
+  };
+  ctx.emit("Production", "Amount Produced", (dec) => {
+    const n = producedFor(dec);
+    return n == null ? BLANK : String(n);
+  });
+  // How much of the ceiling the team actually used. Blank rather than 0% with no
+  // capacity: a team with nowhere to build has not under-used anything.
+  ctx.emit("Production", "Capacity % Used", (dec) => {
+    const n = producedFor(dec);
+    const q = qtyFor(dec);
+    return n == null || q === 0 ? BLANK : pct(n / q);
+  });
+  ctx.rows.push([]);
+
+  // ── INVENTORY: what is actually on hand ──────────────────────────────────
+  ctx.emit("Inventory", "Inventory leftover", (_dec, c) => String(storedFor(c)));
+  ctx.emit("Inventory", "Total Inventory", (dec, c) =>
+    dec == null ? BLANK : plain(storedFor(c) + (producedFor(dec) ?? 0)));
   ctx.rows.push([]);
 
   // ── DEMAND ───────────────────────────────────────────────────────────────
