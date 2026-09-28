@@ -1077,11 +1077,33 @@ export function buildDecisionMatrix(
 
   const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  // ── TOP LEVEL: what belongs to a TEAM, not a notebook ─────────────────────
+  emitCashRows(ctx, cash);
+
+  // ── PER NOTEBOOK: capacity, production, demand, share, fulfilment ─────────
+  for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, opening);
+
+  // Any lever group the notebook blocks did NOT already account for. Channels,
+  // marketing and the capacity levers are shown there; a container carrying
+  // none of those impacts would otherwise vanish from the report entirely.
+  const accounted = new Set(
+    containers
+      .filter((gi) =>
+        (gi.inputs ?? []).some((item) =>
+          [...DEMAND_METRICS, "inventory"].some((m) => item.impacts?.[m]),
+        ),
+      )
+      .map((gi) => id(gi._id)),
+  );
+  for (const gi of containers) {
+    if (!accounted.has(id(gi._id))) emitLeverRows(ctx, gi);
+  }
+
+  // ── THE CLOSE: money, last ────────────────────────────────────────────────
   //
-  // QA's restructure, 2026-09-28: Financials and Cash are one figure per team,
-  // so they open the report and are NOT repeated under each notebook. Only
-  // demand is nested (owner). Everything below them cascades per notebook.
+  // BOTTOM-MOST, owner 2026-09-28: every block above explains how a team got
+  // here — capacity, demand, share, fulfilment — and these three close it out.
+  // They opened the report until this change, which put the answer before the
+  // working.
   //
   // "Net Profit" is the server's `operatingProfit` — RENAMED, not recomputed.
   const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
@@ -1101,11 +1123,8 @@ export function buildDecisionMatrix(
   });
   rows.push([]);
 
-  emitCashRows(ctx, cash);
-
-  // The money split across channels stays at the top with the rest of the
-  // financials — it is revenue, not demand, and the demand split now lives
-  // inside each notebook's own block.
+  // Revenue broken down twice over the SAME total: by where it was sold, then
+  // by what was sold. Both reconcile to the PnL Revenue row above.
   const channels = channelItemsOf(containers);
   if (channels.length > 0) {
     for (const p of ordered) {
@@ -1123,24 +1142,11 @@ export function buildDecisionMatrix(
     rows.push([]);
   }
 
-  // ── PER NOTEBOOK: inventory, demand, share, fulfilment ───────────────────
-  for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, opening);
-
-  // Any lever group the notebook blocks did NOT already account for. Channels,
-  // marketing and the capacity levers are shown there; a container carrying
-  // none of those impacts would otherwise vanish from the report entirely.
-  const accounted = new Set(
-    containers
-      .filter((gi) =>
-        (gi.inputs ?? []).some((item) =>
-          [...DEMAND_METRICS, "inventory"].some((m) => item.impacts?.[m]),
-        ),
-      )
-      .map((gi) => id(gi._id)),
-  );
-  for (const gi of containers) {
-    if (!accounted.has(id(gi._id))) emitLeverRows(ctx, gi);
+  for (const p of ordered) {
+    emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
+      money(scoredFor(dec, p._id)?.revenue));
   }
+  rows.push([]);
 
   collapseSectionRuns(rows);
   return {
