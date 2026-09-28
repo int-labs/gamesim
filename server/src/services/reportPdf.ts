@@ -102,11 +102,37 @@ export function writeReportPdf(
         })
         .join("  ");
 
+    /**
+     * Where the ANALYSIS columns end and the TEAM columns begin.
+     *
+     * The lead columns are `Section | Label` plus `Weight` when the matrix
+     * carries one, so this is derived from the header's own length rather than
+     * a constant — the analysis report has three lead columns and the
+     * competitor report two, and a hardcoded index would put the rule through
+     * the middle of a team on one of them.
+     *
+     * Sits in the CENTRE of the two-space gutter, so it separates without
+     * crowding either side.
+     */
+    const leadCols  = header.length - matrix.teamCount;
+    const leadChars = widths.slice(0, leadCols).reduce((a, w) => a + w + 2, 0);
+    const dividerX  = PAGE.margin + (leadChars - 1) * CHAR_W;
+
     let y = 0;
+    /** Top of the current page's body, so the divider can be drawn as ONE
+     *  stroke per page once its extent is known. */
+    let bodyTop = 0;
+
+    const drawDivider = () => {
+      if (y <= bodyTop) return;
+      doc.moveTo(dividerX, bodyTop).lineTo(dividerX, y)
+        .strokeColor("#999").lineWidth(0.5).stroke();
+    };
+
     // The header REPEATS on every page: a column of bare numbers with the team
     // names left behind on page one is not a report anyone can read.
     const startPage = (first: boolean) => {
-      if (!first) doc.addPage(PAGE);
+      if (!first) { drawDivider(); doc.addPage(PAGE); }
       y = PAGE.margin;
       doc.font("Helvetica-Bold").fontSize(12).fillColor("#000")
         .text(meta.title, PAGE.margin, y, { width: usable });
@@ -122,6 +148,7 @@ export function writeReportPdf(
       y += LINE_H;
       doc.moveTo(PAGE.margin, y).lineTo(PAGE.margin + usable, y).strokeColor("#999").stroke();
       y += 4;
+      bodyTop = y;
       doc.font("Courier").fontSize(FONT_SIZE).fillColor("#000");
     };
 
@@ -176,6 +203,7 @@ export function writeReportPdf(
       y += LINE_H;
     }
 
+    drawDivider();
     doc.end();
   });
 }

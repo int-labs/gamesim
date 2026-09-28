@@ -30,7 +30,7 @@
  * marked. Everything else is read.
  */
 
-import { PROJECTED_MARKET_SHARE_KEY, SELLING_PRICE_KEY } from "../constants/impacts";
+import { SELLING_PRICE_KEY } from "../constants/impacts";
 import { stepMultiplier } from "../sim/calcFinancials";
 import type { LeaderboardMetric } from "../models/leaderboardConfig";
 import type { RoundScore, Standings } from "./leaderboard";
@@ -190,12 +190,14 @@ const FORMATTERS: Record<LeaderboardMetric["format"], (n: number | null) => stri
   percent: (n) => pct(n),
 };
 
-// `PROJECTED_MARKET_SHARE_KEY` was mirrored here as a local string. It and
-// `SELLING_PRICE_KEY` are imported from constants/impacts.ts now — one
-// definition, so a rename cannot leave this file matching a key nobody sends.
+// `SELLING_PRICE_KEY` is imported from constants/impacts.ts — one definition, so
+// a rename cannot leave this file matching a key nobody sends.
 //
-// `projected_market_share` is the product field that is NOT a decision: every
-// team submits 1, and the real figure is the competed `scored[].marketShare`.
+// `PROJECTED_MARKET_SHARE_KEY` was imported too, to swap that field's row for
+// the competed `scored[].marketShare` (every team submits 1, so the raw row said
+// nothing). No longer needed: the driver cascade admits only `direction > 0`
+// money fields, which excludes it, and the Market Result block prints the
+// competed share directly.
 
 // ── Shared readers ───────────────────────────────────────────────────────────
 
@@ -235,32 +237,12 @@ function scoreTerms(
 const scoreTermFor = (dec: ReportDecision | null, productId: unknown, fieldKey: string) =>
   scoreTerms(dec, productId).find((r) => r.key === fieldKey)?.value ?? null;
 
-/** Σ of the terms — equals `dynamicPrice`. `null` when nothing is scored, so a
- *  share is blank rather than dividing by zero. */
-const scoreTotalFor = (dec: ReportDecision | null, productId: unknown) => {
-  const rows = scoreTerms(dec, productId);
-  return rows.length === 0 ? null : rows.reduce((a, r) => a + r.value, 0);
-};
-
-/**
- * Σ of the terms for a NAMED SET of fields — the Sum row under each working
- * section.
- *
- * Restricted to the keys passed rather than reusing `scoreTotalFor`: the rows
- * above it are the `scoring` set, and a total that quietly included a term with
- * no row would not add up on the page.
- *
- * `null` when the team has no term for ANY of them, so the Sum row is blank
- * exactly where the rows above it are.
- */
-const scoreSumFor = (
-  dec: ReportDecision | null,
-  productId: unknown,
-  keys: Set<string>,
-): number | null => {
-  const rows = scoreTerms(dec, productId).filter((r) => keys.has(r.key));
-  return rows.length === 0 ? null : rows.reduce((a, r) => a + r.value, 0);
-};
+// `scoreTotalFor` and `scoreSumFor` were here — Σ of the breakdown terms, whole
+// or restricted to a key set. Deleted 2026-09-28 with QA's cascade: the totals
+// are now summed from the DRIVER ROWS themselves (`grandScore`), which spans the
+// marketing and sales-channel groups too. Those levers have no
+// `productScoreBreakdown` entry, so a total read off the breakdown alone would
+// no longer match the rows printed above it.
 
 /**
  * CASH, walked forward from the configured opening.
@@ -480,12 +462,66 @@ function leverItemsOf(containers: ReportContainer[], metricKeys: string[]) {
         id:       id(item._id),
         label:    item.label ?? item.key ?? "",
         category: gi.label ?? gi.category ?? gi.key ?? "",
+        // The item itself, so a caller can read its configured impact without a
+        // second lookup through the containers.
+        item,
       })),
   );
 }
 
 const channelItemsOf = (containers: ReportContainer[]) =>
   leverItemsOf(containers, ["sales_channel"]);
+
+/**
+ * A lever's CONFIGURED weight on one product — its impact value with the
+ * per-product override applied, and NOTHING team-specific.
+ *
+ * The Weight column is configuration, the same as a product field's
+ * `direction`: one number per row, identical down every team's column. The step
+ * multiplier is deliberately absent — that is the team's own selection, and it
+ * belongs in the team cells, not the weight.
+ *
+ * Owner, 2026-09-28: *"marketing and sales channel rows only need to show the
+ * direction values"* — these levers move `customersObtained`, so their impact
+ * value IS their direction, in the same sense a product field's is.
+ */
+function configWeightOf(
+  item: ReportGlobalInputItem,
+  metricKey: string,
+  productId: unknown,
+): number {
+  const impact = item.impacts?.[metricKey] as
+    | { type?: string; value?: number; selections?: Array<{ productId: unknown; value: number }> }
+    | undefined;
+  if (!impact) return 0;
+
+  const override = (impact.selections ?? []).find(
+    (s) => id(s.productId) === id(productId),
+  )?.value;
+  const base = Number(impact.value) || 0;
+  return override == null ? base
+    : impact.type === "relative" ? base * Number(override)
+    : base + Number(override);
+}
+
+/** One row of the driver cascade: a decision, its weight, and what it scored. */
+interface DriverRow {
+  label:  string;
+  weight: number;
+  /** The Decisions cell — what the team chose. */
+  choice: (dec: ReportDecision | null) => string;
+  /** The Weighted Score cell, and the numerator of the Market Fit cell. */
+  score:  (dec: ReportDecision | null) => number | null;
+}
+
+/** A named group of drivers. Its weight is the SUM of its rows' — owner,
+ *  2026-09-28: *"just the weight totals from each section"*. */
+interface DriverGroup {
+  label: string;
+  rows:  DriverRow[];
+}
+
+const groupWeight = (g: DriverGroup) => g.rows.reduce((a, r) => a + r.weight, 0);
 
 // ── Builders ─────────────────────────────────────────────────────────────────
 
@@ -695,123 +731,190 @@ function emitNotebookAnalysis(
     dec == null ? BLANK : plain(storedFor(c) + (producedFor(dec) ?? 0)));
   ctx.rows.push([]);
 
-  // ── DEMAND ───────────────────────────────────────────────────────────────
-  // `channelSharesFor`, NOT a wider split. Demand per channel renormalises over
-  // the CHANNELS the team picked — the formula this report already used and the
-  // one calcFinancials weights the consignment blend with. Widening the
-  // denominator to include marketing (tried 2026-09-28) changed every channel
-  // figure and was wrong: marketing is not a storefront, it does not route
-  // units, and putting it in the denominator silently shrank each channel's
-  // demand.
-  const demandFor = (dec: ReportDecision | null, itemId: string) => {
-    const sc = scoredFor(dec, p._id);
-    if (!sc) return BLANK;
-    const share = channelSharesFor(dec, p._id).get(itemId);
-    return share == null ? BLANK : plain(Number(sc.customersObtained ?? 0) * share);
-  };
-
-  // The SELECTION beside the demand it earned, for each of the two lever groups
-  // QA named. Split by metric so a reader sees channels and marketing as the
-  // separate decisions they are.
-  for (const [section, metric] of [
-    ["Sales Channel", "sales_channel"],
-    ["Marketing",     "marketing"],
-  ] as const) {
-    for (const item of leverItemsOf(containers, [metric])) {
-      ctx.emit(section, item.label, (dec) => {
-        if (!dec) return BLANK;
-        const sel = (dec.globalInputs ?? []).find(
-          (g) => id(g.globalInputItemId) === item.id,
-        );
-        if (!sel) return "No";
-        return sel.selectedStepKey != null && sel.selectedStepKey !== ""
-          ? String(sel.selectedStepKey)
-          : "Yes";
-      });
-      // The demand row is CHANNELS ONLY. A marketing lever raises demand but
-      // routes no units, so it has no share of the split to print — the same
-      // reason calcFinancials excludes it from the consignment weighting. Its
-      // selection still shows above, which is the decision QA asked for.
-      if (metric === "sales_channel") {
-        ctx.emit(section, `  demand from ${item.label}`, (dec) => demandFor(dec, item.id));
-      }
-    }
-    ctx.rows.push([]);
-  }
-
-  // ── The notebook's OWN decisions, and what they scored ───────────────────
-  // Weight DESCENDING: this report answers why a score came out as it did, and
-  // the heaviest driver is most of the answer. `sort` is stable, so ties and the
-  // unweighted rows hold their authored order.
+  // ── THE DRIVER CASCADE ───────────────────────────────────────────────────
+  //
+  // ONE tree, rendered THREE times. QA 2026-09-28: the sections are no longer
+  // Decisions / Sales Channel / Marketing — those are the GROUPS now, and the
+  // sections are what you want to know about them:
+  //
+  //   Decisions       what the team chose
+  //   Weighted Score  what that choice scored
+  //   Market Fit      that score as a share of the notebook's total
+  //
+  // Owner: *"all formats from decisions all the way to sales channel, for the
+  // section of WEIGHTED SCORE has the same format and input"* — so the label
+  // column is identical down all three, and only the cells differ.
+  //
+  // Weight DESCENDING within a group: the heaviest driver is most of the answer.
+  // `sort` is stable, so ties hold their authored order.
   const fields = [...(p.fields ?? [])]
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .sort((a, b) => (Number(b.direction) || 0) - (Number(a.direction) || 0));
 
-  ctx.emit("Decision", "Notebook in Market", (dec) => (inputFor(dec) ? "Yes" : "No"));
-  for (const f of fields) {
-    if (String(f.key) === PROJECTED_MARKET_SHARE_KEY) continue;  // an OUTCOME; the share row below carries it
-    const isPrice = String(f.key) === SELLING_PRICE_KEY;
-    ctx.emit("Decision", f.label ?? f.key ?? "", (dec) => {
-      const inp = inputFor(dec);
-      if (!inp) return BLANK;
-      const hit = (inp.fields ?? []).find((x) => id(x.fieldId) === id(f._id));
-      if (hit == null || hit.value == null || hit.value === "") return BLANK;
-      if (isPrice) return money(Number(hit.value));
-      // THE OPTION'S NAME, snapshotted at submission — "8" tells a reader
-      // nothing where "Hard Cover" tells them everything.
-      return hit.name ? String(hit.name) : String(hit.value);
-    }, f.direction);
-  }
-  ctx.rows.push([]);
+  /** A lever's realised weight for one team — the configured weight with that
+   *  team's step multiplier applied. Absent selection ⇒ null, not 0: the team
+   *  did not play it, which is not the same as playing it for nothing. */
+  const leverScoreFor = (
+    dec: ReportDecision | null, itemId: string, metric: string,
+  ): number | null => {
+    const sel = (dec?.globalInputs ?? []).find(
+      (g) => id(g.globalInputItemId) === itemId,
+    );
+    return sel ? leverWeight(sel, metric, p._id) : null;
+  };
 
-  // Mirrors calcFinancials' `priceFields` — exactly the set
-  // `productScoreBreakdown` contains, so no row here can be permanently blank.
-  const scoring = fields.filter(
-    (f) =>
-      f.type === "money" &&
-      (Number(f.direction) || 0) > 0 &&
-      String(f.key) !== SELLING_PRICE_KEY,
-  );
-  const scoringKeys = new Set(scoring.map((f) => String(f.key ?? "")));
-  const weightSum = scoring.reduce((a, f) => a + (Number(f.direction) || 0), 0);
+  const leverChoiceFor = (dec: ReportDecision | null, itemId: string): string => {
+    if (!dec) return BLANK;
+    const sel = (dec.globalInputs ?? []).find(
+      (g) => id(g.globalInputItemId) === itemId,
+    );
+    if (!sel) return "No";
+    return sel.selectedStepKey != null && sel.selectedStepKey !== ""
+      ? String(sel.selectedStepKey)
+      : "Yes";
+  };
+
+  const leverGroup = (label: string, metric: string): DriverGroup => ({
+    label,
+    rows: leverItemsOf(containers, [metric]).map((item) => ({
+      label:  item.label,
+      weight: configWeightOf(item.item, metric, p._id),
+      choice: (dec) => leverChoiceFor(dec, item.id),
+      score:  (dec) => leverScoreFor(dec, item.id, metric),
+    })),
+  });
+
+  const groups: DriverGroup[] = [
+    {
+      // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
+      // direction > 0, not the selling price) — exactly the set
+      // `productScoreBreakdown` holds, so no row here can be permanently blank.
+      label: "Design Notebook",
+      rows: fields
+        .filter(
+          (f) =>
+            f.type === "money" &&
+            (Number(f.direction) || 0) > 0 &&
+            String(f.key) !== SELLING_PRICE_KEY,
+        )
+        .map((f) => ({
+          label:  f.label ?? f.key ?? "",
+          weight: Number(f.direction) || 0,
+          choice: (dec: ReportDecision | null) => {
+            const inp = inputFor(dec);
+            if (!inp) return BLANK;
+            const hit = (inp.fields ?? []).find((x) => id(x.fieldId) === id(f._id));
+            if (hit == null || hit.value == null || hit.value === "") return BLANK;
+            // THE OPTION'S NAME, snapshotted at submission — "8" tells a reader
+            // nothing where "Hard Cover" tells them everything.
+            return hit.name ? String(hit.name) : String(hit.value);
+          },
+          score: (dec: ReportDecision | null) =>
+            scoreTermFor(dec, p._id, String(f.key ?? "")),
+        })),
+    },
+    leverGroup("Marketing",     "marketing"),
+    leverGroup("Sales Channel", "sales_channel"),
+  ].filter((g) => g.rows.length > 0);
+
+  /** Σ of every row in every group, for one team. The Market Fit denominator
+   *  and the total row's value. */
+  const grandScore = (dec: ReportDecision | null): number | null => {
+    let sum = 0;
+    let any = false;
+    for (const g of groups)
+      for (const r of g.rows) {
+        const v = r.score(dec);
+        if (v == null) continue;
+        sum += v;
+        any = true;
+      }
+    return any ? sum : null;
+  };
+  const grandWeight = groups.reduce((a, g) => a + groupWeight(g), 0);
+
+  // Selling price sits OUTSIDE the cascade: `direction` is 0 on it, so it
+  // carries no weight and scores nothing, but it is still the decision a reader
+  // most wants to see.
+  const priceField = fields.find((f) => String(f.key) === SELLING_PRICE_KEY);
+
+  // ── Decisions ────────────────────────────────────────────────────────────
+  ctx.emit("Decisions", "Notebook in Market", (dec) => (inputFor(dec) ? "Yes" : "No"));
+  if (priceField) {
+    ctx.emit("Decisions", priceField.label ?? "Selling Price", (dec) => {
+      const inp = inputFor(dec);
+      const hit = (inp?.fields ?? []).find((x) => id(x.fieldId) === id(priceField._id));
+      return hit?.value == null || hit.value === "" ? BLANK : money(Number(hit.value));
+    });
+  }
+  for (const g of groups) {
+    ctx.emit("Decisions", g.label, () => "", groupWeight(g));
+    for (const r of g.rows) ctx.emit("Decisions", `  ${r.label}`, r.choice, r.weight);
+  }
+  ctx.emit("Decisions", "Total", () => "", grandWeight);
+  ctx.rows.push([]);
 
   if (withScoring) {
-  for (const f of scoring) {
-    ctx.emit("Weighted Score", f.label ?? f.key ?? "", (dec) => {
-      const v = scoreTermFor(dec, p._id, String(f.key ?? ""));
+    // ── Weighted Score ─────────────────────────────────────────────────────
+    for (const g of groups) {
+      ctx.emit("Weighted Score", g.label, (dec) => {
+        let sum = 0;
+        let any = false;
+        for (const r of g.rows) {
+          const v = r.score(dec);
+          if (v == null) continue;
+          sum += v;
+          any = true;
+        }
+        return any ? plain(sum) : BLANK;
+      }, groupWeight(g));
+      for (const r of g.rows) {
+        ctx.emit("Weighted Score", `  ${r.label}`, (dec) => {
+          const v = r.score(dec);
+          return v == null ? BLANK : plain(v);
+        }, r.weight);
+      }
+    }
+    ctx.emit("Weighted Score", "Total", (dec) => {
+      const v = grandScore(dec);
       return v == null ? BLANK : plain(v);
-    }, f.direction);
-  }
-  // QA's "Total Weighted Score of the notebook decisions" — its own section, so
-  // it reads as the total of the block above rather than one more driver in it.
-  ctx.emit("Total Weighted Score", "Sum", (dec) => {
-    const v = scoreSumFor(dec, p._id, scoringKeys);
-    return v == null ? BLANK : plain(v);
-  }, weightSum);
-  ctx.rows.push([]);
+    }, grandWeight);
+    ctx.rows.push([]);
 
-  // A share of the SCORE, not of demand. A field reaches demand through
-  // dynamicPrice -> productScore -> customersObtained, which is not linear, so
-  // "this decision won N customers" is an attribution the model does not hold.
-  for (const f of scoring) {
-    ctx.emit("Market Effect", f.label ?? f.key ?? "", (dec) => {
-      const v = scoreTermFor(dec, p._id, String(f.key ?? ""));
-      const total = scoreTotalFor(dec, p._id);
-      return v == null || total == null || total === 0 ? BLANK : pct(v / total);
-    }, f.direction);
-  }
-  ctx.emit("Market Effect", "Sum", (dec) => {
-    const v = scoreSumFor(dec, p._id, scoringKeys);
-    const total = scoreTotalFor(dec, p._id);
-    return v == null || total == null || total === 0 ? BLANK : pct(v / total);
-  }, weightSum);
-  ctx.rows.push([]);
+    // ── Market Fit ─────────────────────────────────────────────────────────
+    //
+    // Each driver's share of the notebook's TOTAL weighted score, so the section
+    // closes at 100%. A share of the SCORE, not of demand: a driver reaches
+    // demand through a non-linear path, so "this decision won N customers" is an
+    // attribution the model does not contain.
+    const fitOf = (dec: ReportDecision | null, value: number | null) => {
+      const total = grandScore(dec);
+      return value == null || total == null || total === 0 ? BLANK : pct(value / total);
+    };
+    for (const g of groups) {
+      ctx.emit("Market Fit", g.label, (dec) => {
+        let sum = 0;
+        let any = false;
+        for (const r of g.rows) {
+          const v = r.score(dec);
+          if (v == null) continue;
+          sum += v;
+          any = true;
+        }
+        return fitOf(dec, any ? sum : null);
+      }, groupWeight(g));
+      for (const r of g.rows) {
+        ctx.emit("Market Fit", `  ${r.label}`, (dec) => fitOf(dec, r.score(dec)), r.weight);
+      }
+    }
+    ctx.emit("Market Fit", "Total", (dec) => fitOf(dec, grandScore(dec)), grandWeight);
+    ctx.rows.push([]);
   }
 
-  // ── MARKET FIT, then what was actually served ────────────────────────────
-  ctx.emit("Market Fit", "Market fit", (dec) =>
+  // The COMPETED figures, which are outcomes rather than drivers.
+  ctx.emit("Market Result", "Market fit", (dec) =>
     pct(scoredFor(dec, p._id)?.marketFit));
-  ctx.emit("Market Fit", "Market share", (dec) =>
+  ctx.emit("Market Result", "Market share", (dec) =>
     pct(scoredFor(dec, p._id)?.marketShare));
   ctx.rows.push([]);
 
