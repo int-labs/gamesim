@@ -690,7 +690,7 @@ function emitNotebookAnalysis(
   // raises how many the team COULD build. `inventoryQty` is that ceiling, and
   // calling the block Inventory (2026-09-28) conflated it with stock on hand.
   const cap = "Capacity";
-  ctx.emit(cap, "Base", (dec) =>
+  ctx.emit(cap, "Raw Capacity", (dec) =>
     dec == null ? BLANK : plain(capacityTermsFor(dec, p._id, qtyFor(dec)).base));
 
   // Grouped by CONTAINER — "Vendors", "Hiring Options" — not by item. A team
@@ -949,16 +949,18 @@ function emitNotebookAnalysis(
 
   // ── THIS NOTEBOOK'S MONEY ────────────────────────────────────────────────
   //
-  // Revenue and COGS only, both READ from `scored[productId]` — the same fields
-  // the closing PnL sums across notebooks, so the per-notebook rows and the
-  // statement at the foot cannot disagree.
+  // All three READ from `scored[productId]` — the same fields the closing PnL
+  // sums across notebooks, so the per-notebook rows and the statement at the
+  // foot cannot disagree.
   //
-  // NO net profit here, owner 2026-09-28: *"save the final net profit for the
-  // summarized PnL sheet"*. Operating expenses are a TEAM cost and are not
-  // apportioned per notebook, so a per-notebook profit would be a different
+  // GROSS profit, and it stops there. Owner 2026-09-28: *"save the final net
+  // profit for the summarized PnL sheet"*. Gross profit is the deepest line that
+  // MEANS anything per notebook — `operatingExpenses` is a team cost and is
+  // never apportioned per product, so a net profit here would be a different
   // figure wearing the same name.
-  ctx.emit("Financials", "Revenue", (dec) => money(scoredFor(dec, p._id)?.revenue));
-  ctx.emit("Financials", "COGS",    (dec) => money(scoredFor(dec, p._id)?.COGS));
+  ctx.emit("Financials", "Revenue",      (dec) => money(scoredFor(dec, p._id)?.revenue));
+  ctx.emit("Financials", "COGS",         (dec) => money(scoredFor(dec, p._id)?.COGS));
+  ctx.emit("Financials", "Gross Profit", (dec) => money(scoredFor(dec, p._id)?.grossProfit));
   ctx.rows.push([]);
 }
 

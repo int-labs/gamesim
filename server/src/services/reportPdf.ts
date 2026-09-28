@@ -159,7 +159,27 @@ export function writeReportPdf(
     // butt up exactly as one padded line would have.
     const sectionW = (widths[0] + 2) * CHAR_W;
 
-    for (const r of rows) {
+    const labelW = (widths[1] + 2) * CHAR_W;
+
+    /**
+     * A GROUP HEADER in the label column — `Design Notebook`, `Marketing`,
+     * `Sales Channel`.
+     *
+     * Detected STRUCTURALLY: a row whose own label is not indented and whose
+     * NEXT row's is. The cascade emits children as `"  " + label`, so a parent
+     * is exactly a row that has some. No marker is threaded through the matrix
+     * for this, and no list of group names is duplicated here — a new group gets
+     * bolded because of its shape, not because it was named twice.
+     */
+    const isGroupHeader = (i: number): boolean => {
+      const here = rows[i];
+      if (!here || here.length < 2 || here[1] === "" || here[1].startsWith(" ")) return false;
+      const next = rows[i + 1];
+      return !!next && next.length > 1 && next[1].startsWith("  ");
+    };
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
       // A NOTEBOOK HEADER: a section name with every other cell empty. The
       // analysis report pushes one of these above each notebook's blocks, and it
       // is the only row that carries no figures at all — so detecting the shape
@@ -194,12 +214,23 @@ export function writeReportPdf(
       // because pdfkit sets the font per call — and `collapseSectionRuns` has
       // already blanked the name on every row but the first of its run, so this
       // bolds exactly the heading rows.
-      const [section, ...rest] = r;
+      const [section, label, ...figures] = r;
       if (section) {
         doc.font("Courier-Bold").text(pad(section, widths[0]), PAGE.margin, y, { lineBreak: false });
         doc.font("Courier");
       }
-      doc.text(line(rest, true, 1), PAGE.margin + sectionW, y, { lineBreak: false });
+
+      // A group header takes a THIRD draw: its label is bold while the figures
+      // beside it stay regular, so the hierarchy reads without indentation alone
+      // having to carry it.
+      if (isGroupHeader(i)) {
+        doc.font("Courier-Bold")
+          .text(pad(String(label ?? ""), widths[1]), PAGE.margin + sectionW, y, { lineBreak: false });
+        doc.font("Courier");
+        doc.text(line(figures, true, 2), PAGE.margin + sectionW + labelW, y, { lineBreak: false });
+      } else {
+        doc.text(line([label, ...figures], true, 1), PAGE.margin + sectionW, y, { lineBreak: false });
+      }
       y += LINE_H;
     }
 
