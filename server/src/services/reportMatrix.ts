@@ -583,98 +583,10 @@ function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
   ctx.rows.push([]);
 }
 
-/**
- * The per-notebook and per-lever cascade, shared by both reports.
- *
- * `Notebook: X` down to the last lever container — the decisions half. The
- * competitor report carries it too so a standing can be traced to the choices
- * that produced it.
- */
-function emitDecisionCascade(
-  ctx: Ctx,
-  products: ReportProduct[],
-  containers: ReportContainer[],
-  opening: OpeningStock | null,
-): void {
-  const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-  for (const p of ordered) {
-    const section = `Notebook: ${p.productName ?? id(p._id)}`;
-    const inputFor = (dec: ReportDecision | null) =>
-      (dec?.inputs ?? []).find((i) => id(i.productId) === id(p._id)) ?? null;
-
-    ctx.emit(section, "Notebook in Market", (dec) => (inputFor(dec) ? "Yes" : "No"));
-
-    const storedFor = (col: { id: string }) =>
-      opening?.get(col.id)?.get(id(p._id)) ?? 0;
-    /** `null` is "not stated", which the server builds NOTHING for — distinct
-     *  from an explicit 0 the team typed. */
-    const producedFor = (dec: ReportDecision | null) => {
-      const inp = inputFor(dec);
-      return inp && inp.produced != null ? Number(inp.produced) : null;
-    };
-
-    // STOCK, not a decision — what the last round left behind, so it prints
-    // whether or not the team put the notebook back in the market. A team can
-    // carry units it has no production line for this round, and that is exactly
-    // the case that reads as a defect without this row.
-    if (opening) {
-      ctx.emit(section, "Notebooks in Storage", (_dec, c) => String(storedFor(c)));
-    }
-    ctx.emit(section, "Notebooks Produced", (dec) => {
-      const n = producedFor(dec);
-      return n == null ? BLANK : String(n);
-    });
-    // The two above, added. This is the CEILING on what the round could sell —
-    // `calcFinancials` clamps `unitsSold` to it — so a fulfilled figure larger
-    // than production is explained by the page rather than looking like a defect.
-    // Unstated production counts as 0 here: the carried stock is sellable on its
-    // own, so the total is a real figure even where the row above is blank.
-    if (opening) {
-      ctx.emit(section, "Total Notebooks", (dec, c) =>
-        String(storedFor(c) + (producedFor(dec) ?? 0)));
-    }
-
-    // The backend's `order` is the authored reading order, and the competitor
-    // report keeps it. The ANALYSIS report overrides it with `direction`
-    // DESCENDING: that report exists to answer why a score came out as it did,
-    // and the heaviest driver is most of the answer, so it belongs at the top.
-    // `sort` is stable, so ties — and the unweighted rows, which fall to the
-    // bottom — hold their authored order.
-    const fields = [...(p.fields ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    if (ctx.weights) {
-      fields.sort((a, b) => (Number(b.direction) || 0) - (Number(a.direction) || 0));
-    }
-    for (const f of fields) {
-      // The one field that is an OUTCOME, not a decision: every team submits 1
-      // for `projected_market_share`, so the row read "1 1 1" and said nothing.
-      if (String(f.key) === PROJECTED_MARKET_SHARE_KEY) {
-        ctx.emit(section, f.label ?? f.key ?? "", (dec) =>
-          pct(scoredFor(dec, p._id)?.marketShare));
-        continue;
-      }
-      const isPrice = String(f.key) === SELLING_PRICE_KEY;
-      ctx.emit(section, f.label ?? f.key ?? "", (dec) => {
-        const inp = inputFor(dec);
-        if (!inp) return BLANK;
-        const hit = (inp.fields ?? []).find((x) => id(x.fieldId) === id(f._id));
-        if (hit == null || hit.value == null || hit.value === "") return BLANK;
-        // MONEY, to 2dp — a price is the one field a reader compares in dollars.
-        if (isPrice) return money(Number(hit.value));
-        // THE OPTION'S NAME, snapshotted on the decision at submission. `value`
-        // is a score, and "8" tells a reader nothing where "Hard Cover" tells
-        // them everything. Falls back to the raw value for a field with no
-        // option table. NOT looked up from the live config: renaming an option
-        // must not rewrite what a finished round says the team chose.
-        return hit.name ? String(hit.name) : String(hit.value);
-      }, f.direction);
-    }
-    ctx.rows.push([]);
-
-  }
-
-  for (const gi of containers) emitLeverRows(ctx, gi);
-}
+// `emitDecisionCascade` was here — `Notebook: X` plus the lever containers,
+// shared by both reports. Deleted 2026-09-28: `emitNotebookAnalysis` below now
+// builds the notebook block for BOTH reports, differing only by `withScoring`,
+// so a cascade that produced a second, older row set had nothing left to serve.
 
 /**
  * ONE NOTEBOOK, as the analysis report tells it — QA's ordering, 2026-09-28.
@@ -694,6 +606,10 @@ function emitNotebookAnalysis(
   p: ReportProduct,
   containers: ReportContainer[],
   opening: OpeningStock | null,
+  /** ANALYSIS ONLY: the Weighted Score / Total Weighted Score / Market Effect
+   *  sections. The competitor report takes the same block in the same order
+   *  without them — it answers "how did they do", not "why". */
+  withScoring = true,
 ): void {
   const name    = p.productName ?? id(p._id);
   const inputFor = (dec: ReportDecision | null) =>
@@ -859,6 +775,7 @@ function emitNotebookAnalysis(
   const scoringKeys = new Set(scoring.map((f) => String(f.key ?? "")));
   const weightSum = scoring.reduce((a, f) => a + (Number(f.direction) || 0), 0);
 
+  if (withScoring) {
   for (const f of scoring) {
     ctx.emit("Weighted Score", f.label ?? f.key ?? "", (dec) => {
       const v = scoreTermFor(dec, p._id, String(f.key ?? ""));
@@ -889,6 +806,7 @@ function emitNotebookAnalysis(
     return v == null || total == null || total === 0 ? BLANK : pct(v / total);
   }, weightSum);
   ctx.rows.push([]);
+  }
 
   // ── MARKET FIT, then what was actually served ────────────────────────────
   ctx.emit("Market Fit", "Market fit", (dec) =>
@@ -960,90 +878,77 @@ export function buildCompetitorMatrix(
     }
   }
 
-  // ── The figures behind the standings ──────────────────────────────────────
-  // "Net Profit" is the server's `operatingProfit` — RENAMED, not recomputed.
-  // The player's P&L sheet calls the same field "Net Income"; one number, and
-  // worth knowing before reconciling the two.
+  // Cash follows the standings: it is the balance the round's profit moved.
+  emitCashRows(ctx, cash);
+
+  // ── PER NOTEBOOK, in the analysis report's order ──────────────────────────
+  //
+  // SAME BLOCK, SAME ORDER, owner 2026-09-28 — Capacity, Production, Inventory,
+  // Sales Channel, Marketing, Decision, Market Fit, Customers Fulfilled — with
+  // `withScoring: false`, so the Weighted Score / Total Weighted Score / Market
+  // Effect sections stay on the analysis report. One function builds both, so
+  // the two reports cannot drift on what a notebook block contains.
+  //
+  // This replaced five per-notebook loops that each ran the full product list
+  // for one figure (Revenue / Demand / Customers Fulfilled / Market fit /
+  // Market share by notebook). The same figures are all here, grouped under the
+  // notebook they belong to instead of scattered across five blocks.
+  const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, opening, false);
+
+  // Any lever group the notebook blocks did not already account for.
+  const accounted = new Set(
+    containers
+      .filter((gi) =>
+        (gi.inputs ?? []).some((item) =>
+          [...DEMAND_METRICS, "inventory"].some((m) => item.impacts?.[m]),
+        ),
+      )
+      .map((gi) => id(gi._id)),
+  );
+  for (const gi of containers) {
+    if (!accounted.has(id(gi._id))) emitLeverRows(ctx, gi);
+  }
+
+  // ── Team totals, then the close ───────────────────────────────────────────
+  //
+  // `customersObtained` is DEMAND: the customers this team won in the market.
+  // "Customers Fulfilled" is `unitsSold`, the server's own
+  // `min(customersObtained, openingStock + produced)` — NOT `produced / demand`,
+  // which ignores carried stock and exceeds 100% on overproduction. The gap
+  // between the two rows is the teaching point.
+  emit("Demand", "Demand", (dec) => plain(sumScored(dec, "customersObtained")));
+  emit("Demand", "Total Books Produced", (dec) => plain(sumScored(dec, "produced")));
+  emit("Demand", "Customers Fulfilled", (dec) => plain(sumScored(dec, "unitsSold")));
+  rows.push([]);
+
+  for (const p of ordered) {
+    emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
+      money(scoredFor(dec, p._id)?.revenue));
+  }
+  rows.push([]);
+
+  // THE CLOSING SECTION, last on the page — the same place the analysis report
+  // puts it. "Net Profit" is the server's `operatingProfit`, RENAMED not
+  // recomputed; the player's P&L sheet calls the same field "Net Income".
   const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
     ["Revenue",            "revenue",           money],
     ["COGS",               "COGS",              money],
     ["Gross Profit",       "grossProfit",       money],
     ["Operating Expenses", "operatingExpenses", money],
     ["Net Profit",         "operatingProfit",   money],
-    // `customersObtained` was here. It is not a financial figure — it moved to
-    // the Demand block below and is called DEMAND there.
   ];
   for (const [label, field, fmt] of FINANCIALS) {
-    emit("Financial", label, (dec) => fmt(sumScored(dec, field)));
+    emit("PnL", label, (dec) => fmt(sumScored(dec, field)));
   }
   // Net profit ÷ revenue. Blank rather than 0% with no revenue: a team that
   // sold nothing has no margin, and 0% reads as one that broke even.
-  emit("Financial", "Profit Margin", (dec) => {
+  emit("PnL", "Profit Margin", (dec) => {
     const rev = sumScored(dec, "revenue");
     const net = sumScored(dec, "operatingProfit");
     return rev == null || net == null || rev === 0 ? BLANK : pct(net / rev);
   });
   rows.push([]);
-
-  // ── Demand, and how much of it the team actually served ───────────────────
-  //
-  // `customersObtained` is DEMAND: the customers this team won in the market.
-  // It used to sit in the Financial block, where it was the only row that was
-  // not money.
-  //
-  // "Customers Fulfilled" is `unitsSold`, which the server already stores as
-  // `min(customersObtained, openingStock + produced)` — the customers actually
-  // served. NOT `produced / demand`: that ratio ignores carried stock and
-  // exceeds 100% on overproduction, and the gap between these two rows is the
-  // teaching point (demand won, but stock could not cover it).
-  emit("Demand", "Demand", (dec) => plain(sumScored(dec, "customersObtained")));
-  emit("Demand", "Total Books Produced", (dec) => plain(sumScored(dec, "produced")));
-  emit("Demand", "Customers Fulfilled", (dec) => plain(sumScored(dec, "unitsSold")));
-  rows.push([]);
-
-  // Cash follows profit: it is the balance that profit moved.
-  emitCashRows(ctx, cash);
-
-  const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  for (const p of ordered) {
-    emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
-      money(scoredFor(dec, p._id)?.revenue));
-  }
-  rows.push([]);
-  // DEMAND, not "Customers": this is `customersObtained` — the customers the
-  // team WON, before stock could or could not cover them. The Demand block above
-  // uses the same word for the same field.
-  for (const p of ordered) {
-    emit("Demand by Notebook", p.productName ?? id(p._id), (dec) =>
-      plain(scoredFor(dec, p._id)?.customersObtained));
-  }
-  rows.push([]);
-  // Demand SERVED, per notebook — `unitsSold`, the same field the Demand
-  // block's "Customers Fulfilled" row totals. Read, not recomputed. The gap
-  // against the block above is per-notebook stock that did not cover demand,
-  // which the summed row cannot show: a team can overbuild one notebook and run
-  // short on another and still total out even.
-  for (const p of ordered) {
-    emit("Customers Fulfilled by Notebook", p.productName ?? id(p._id), (dec) =>
-      plain(scoredFor(dec, p._id)?.unitsSold));
-  }
-  rows.push([]);
-  // BOTH figures: the fit is what the decisions EARNED before productScore and
-  // the lever augmentation; the share is what they WON after.
-  for (const p of ordered) {
-    emit("Market fit", p.productName ?? id(p._id), (dec) =>
-      pct(scoredFor(dec, p._id)?.marketFit));
-  }
-  rows.push([]);
-  for (const p of ordered) {
-    emit("Market share", p.productName ?? id(p._id), (dec) =>
-      pct(scoredFor(dec, p._id)?.marketShare));
-  }
-  rows.push([]);
-
-  // The decisions that produced all of the above — `Notebook: X` down to the
-  // last lever, the same cascade the comparison report carries.
-  emitDecisionCascade(ctx, products, containers, opening);
 
   collapseSectionRuns(rows);
   return {
