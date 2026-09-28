@@ -523,6 +523,30 @@ interface DriverGroup {
 
 const groupWeight = (g: DriverGroup) => g.rows.reduce((a, r) => a + r.weight, 0);
 
+/**
+ * The banner that separates the per-notebook blocks from the team-wide ones.
+ *
+ * ASCII only: the base-14 fonts the PDF uses are WinAnsi, and an em dash or a
+ * minus would render as a substituted glyph. See the note in `reportPdf.ts`.
+ */
+const SUMMARY_HEADING = "SUMMARY - all notebooks";
+
+/**
+ * A BANNER row: a section name with every other cell empty.
+ *
+ * `reportPdf` detects exactly that shape and draws it large, so this is the one
+ * way to break the page into parts. Used for each notebook and for the summary
+ * banner that separates the per-notebook blocks from the team-wide ones.
+ */
+function emitHeading(ctx: Ctx, text: string): void {
+  ctx.rows.push([
+    text,
+    "",
+    ...(ctx.weights ? [""] : []),
+    ...ctx.cols.map(() => ""),
+  ]);
+}
+
 // ── Builders ─────────────────────────────────────────────────────────────────
 
 interface Ctx {
@@ -659,12 +683,7 @@ function emitNotebookAnalysis(
   // Naming each section `Weighted Score: <notebook>` instead (tried 2026-09-28)
   // repeated the notebook on every row of a 40-character column and left nothing
   // to scan down.
-  ctx.rows.push([
-    name,
-    "",
-    ...(ctx.weights ? [""] : []),
-    ...ctx.cols.map(() => ""),
-  ]);
+  emitHeading(ctx, name);
 
   // ── CAPACITY ─────────────────────────────────────────────────────────────
   // CAPACITY, NOT INVENTORY. A vendor does not put units in the warehouse; it
@@ -927,6 +946,20 @@ function emitNotebookAnalysis(
   ctx.emit("Customers Fulfilled", "Customers Fulfilled", (dec) =>
     plain(scoredFor(dec, p._id)?.unitsSold));
   ctx.rows.push([]);
+
+  // ── THIS NOTEBOOK'S MONEY ────────────────────────────────────────────────
+  //
+  // Revenue and COGS only, both READ from `scored[productId]` — the same fields
+  // the closing PnL sums across notebooks, so the per-notebook rows and the
+  // statement at the foot cannot disagree.
+  //
+  // NO net profit here, owner 2026-09-28: *"save the final net profit for the
+  // summarized PnL sheet"*. Operating expenses are a TEAM cost and are not
+  // apportioned per notebook, so a per-notebook profit would be a different
+  // figure wearing the same name.
+  ctx.emit("Financials", "Revenue", (dec) => money(scoredFor(dec, p._id)?.revenue));
+  ctx.emit("Financials", "COGS",    (dec) => money(scoredFor(dec, p._id)?.COGS));
+  ctx.rows.push([]);
 }
 
 /**
@@ -1014,6 +1047,11 @@ export function buildCompetitorMatrix(
   }
 
   // ── Team totals, then the close ───────────────────────────────────────────
+  //
+  // BANNERED, owner 2026-09-28: every block above belongs to ONE notebook, and
+  // these sum across all of them. Without a break the first team-wide row reads
+  // as though it still belonged to the last notebook on the page.
+  emitHeading(ctx, SUMMARY_HEADING);
   //
   // `customersObtained` is DEMAND: the customers this team won in the market.
   // "Customers Fulfilled" is `unitsSold`, the server's own
@@ -1112,6 +1150,10 @@ export function buildDecisionMatrix(
   // here — capacity, demand, share, fulfilment — and these three close it out.
   // They opened the report until this change, which put the answer before the
   // working.
+  //
+  // Bannered for the same reason the competitor report is: these sum ACROSS
+  // notebooks, and the blocks above each belong to one.
+  emitHeading(ctx, SUMMARY_HEADING);
   //
   // Revenue broken down twice over the SAME total: by where it was sold, then
   // by what was sold. Both reconcile to the PnL Revenue row BELOW them — the
