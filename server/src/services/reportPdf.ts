@@ -220,10 +220,15 @@ export function writeReportPdf(
         doc.font("Courier");
       }
 
-      // A group header takes a THIRD draw: its label is bold while the figures
-      // beside it stay regular, so the hierarchy reads without indentation alone
-      // having to carry it.
-      if (isGroupHeader(i)) {
+      // TOTALS bold too — `Total`, `Total Capacity`, `Total Inventory`. Matched
+      // on the label's opening word rather than a list, so a new total row is
+      // bolded by what it says rather than by being remembered here.
+      const isTotal = String(label ?? "").trim().startsWith("Total");
+
+      // A group header or a total takes a THIRD draw: its label is bold while
+      // the figures beside it stay regular, so the hierarchy reads without
+      // indentation alone having to carry it.
+      if (isGroupHeader(i) || isTotal) {
         doc.font("Courier-Bold")
           .text(pad(String(label ?? ""), widths[1]), PAGE.margin + sectionW, y, { lineBreak: false });
         doc.font("Courier");
