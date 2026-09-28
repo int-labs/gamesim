@@ -17,6 +17,11 @@ import type { ReportMatrix } from "./reportMatrix";
 const PAGE = { size: "A4" as const, layout: "landscape" as const, margin: 36 };
 const FONT_SIZE = 8;
 const LINE_H = 10.5;
+/** The notebook headers on the analysis report, which name the archetype the
+ *  blocks beneath belong to. 17.5 on an 8pt body is deliberate — it has to break
+ *  a page of uniform monospace at a glance. */
+const HEADING_SIZE   = 17.5;
+const HEADING_LINE_H = 23;
 /** Courier's advance width is exactly 0.6 em at any size. */
 const CHAR_W = FONT_SIZE * 0.6;
 
@@ -128,7 +133,24 @@ export function writeReportPdf(
     const sectionW = (widths[0] + 2) * CHAR_W;
 
     for (const r of rows) {
-      if (y + LINE_H > bottom) startPage(false);
+      // A NOTEBOOK HEADER: a section name with every other cell empty. The
+      // analysis report pushes one of these above each notebook's blocks, and it
+      // is the only row that carries no figures at all — so detecting the shape
+      // needs no flag threaded through the matrix.
+      const isHeading = r.length > 0 && r[0] !== "" && r.slice(1).every((v) => !v);
+
+      if (y + (isHeading ? HEADING_LINE_H : LINE_H) > bottom) startPage(false);
+
+      if (isHeading) {
+        // Drawn UNPADDED and at full width: it sits alone on the line, so the
+        // section column's 40-char cap does not apply and a long notebook name
+        // is not truncated.
+        doc.font("Courier-Bold").fontSize(HEADING_SIZE)
+          .text(String(r[0]), PAGE.margin, y, { lineBreak: false });
+        doc.font("Courier").fontSize(FONT_SIZE);
+        y += HEADING_LINE_H;
+        continue;
+      }
 
       // A `[]` row is a section separator, drawn as a RULE. It used to be bare
       // vertical space, which left the eye to infer the grouping on a page of
