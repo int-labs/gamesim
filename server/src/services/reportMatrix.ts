@@ -529,7 +529,7 @@ const groupWeight = (g: DriverGroup) => g.rows.reduce((a, r) => a + r.weight, 0)
  * ASCII only: the base-14 fonts the PDF uses are WinAnsi, and an em dash or a
  * minus would render as a substituted glyph. See the note in `reportPdf.ts`.
  */
-const SUMMARY_HEADING = "SUMMARY - all notebooks";
+const SUMMARY_HEADING = "All Notebooks";
 
 /**
  * A BANNER row: a section name with every other cell empty.
@@ -965,6 +965,114 @@ function emitNotebookAnalysis(
 }
 
 /**
+ * EVERY NOTEBOOK AT ONCE — the team-wide close, shared by both reports.
+ *
+ * QA 2026-09-29: one banner, then the headline figures with NO per-notebook
+ * breakdown (each notebook's own block carries that), then the statement.
+ *
+ *   Market Fit / Demand / Customers Fulfilled / Revenue / Profit
+ *   Revenue by channel   (analysis only — the competitor report has no
+ *                         channel breakdown of its own)
+ *   Revenue by notebook
+ *   PnL
+ *
+ * Every figure is `sumScored`, the same per-product fields each notebook block
+ * printed — so a reader can add a column up the page and land on these.
+ */
+function emitAllNotebooks(
+  ctx: Ctx,
+  ordered: ReportProduct[],
+  containers: ReportContainer[],
+  withChannelSplit: boolean,
+): void {
+  const { emit, rows } = ctx;
+
+  emitHeading(ctx, SUMMARY_HEADING);
+
+  // MEAN across the notebooks the team actually made, not a sum: `marketFit` is
+  // a share of one market per notebook, so adding two of them produces a number
+  // with no meaning. Matches the player client's own `averageMarketFit`.
+  emit("Market Fit", "Market fit (average)", (dec) => {
+    const vals = Object.values(dec?.scored ?? {})
+      .map((m) => Number((m as { marketFit?: unknown })?.marketFit))
+      .filter((v) => Number.isFinite(v));
+    return vals.length === 0 ? BLANK : pct(vals.reduce((a, b) => a + b, 0) / vals.length);
+  });
+  rows.push([]);
+
+  // `customersObtained` is DEMAND: won in the market. "Customers Fulfilled" is
+  // `unitsSold`, the server's own `min(customersObtained, openingStock +
+  // produced)`. The gap between them is stock that could not cover demand.
+  emit("Demand", "Demand", (dec) => plain(sumScored(dec, "customersObtained")));
+  emit("Demand", "Total Books Produced", (dec) => plain(sumScored(dec, "produced")));
+  rows.push([]);
+
+  emit("Customers Fulfilled", "Customers Fulfilled", (dec) =>
+    plain(sumScored(dec, "unitsSold")));
+  rows.push([]);
+
+  // DELIBERATELY REPEATED. These are the same figures as the PnL block's
+  // Revenue / Gross Profit / Net Profit lines, and on the competitor report the
+  // leaderboard above may rank on them a third time. Owner 2026-09-29: all of it
+  // is intentional — the headline reads at a glance, the statement shows the
+  // working, and the leaderboard says what it was worth. Removed briefly on the
+  // 29th as a duplicate; do not remove again.
+  emit("Revenue", "Revenue", (dec) => money(sumScored(dec, "revenue")));
+  rows.push([]);
+
+  emit("Profit", "Gross Profit", (dec) => money(sumScored(dec, "grossProfit")));
+  emit("Profit", "Net Profit",   (dec) => money(sumScored(dec, "operatingProfit")));
+  rows.push([]);
+
+  if (withChannelSplit) {
+    const channels = channelItemsOf(containers);
+    if (channels.length > 0) {
+      for (const p of ordered) {
+        for (const ch of channels) {
+          emit("Revenue by channel", `${p.productName ?? id(p._id)} · ${ch.label}`, (dec) => {
+            const sc = scoredFor(dec, p._id);
+            if (!sc) return BLANK;
+            const share = channelSharesFor(dec, p._id).get(ch.id);
+            // `undefined` = the team did not select the channel at all, which is
+            // a different statement from "it sold nothing".
+            return share == null ? BLANK : money(Number(sc.revenue ?? 0) * share);
+          });
+        }
+      }
+      rows.push([]);
+    }
+  }
+
+  for (const p of ordered) {
+    emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
+      money(scoredFor(dec, p._id)?.revenue));
+  }
+  rows.push([]);
+
+  // THE CLOSING STATEMENT. The two revenue breakdowns above roll into its
+  // Revenue row. "Net Profit" is the server's `operatingProfit` — RENAMED, not
+  // recomputed; the player's P&L sheet calls the same field "Net Income".
+  const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
+    ["Revenue",            "revenue",           money],
+    ["COGS",               "COGS",              money],
+    ["Gross Profit",       "grossProfit",       money],
+    ["Operating Expenses", "operatingExpenses", money],
+    ["Net Profit",         "operatingProfit",   money],
+  ];
+  for (const [label, field, fmt] of FINANCIALS) {
+    emit("PnL", label, (dec) => fmt(sumScored(dec, field)));
+  }
+  // Net profit ÷ revenue. Blank rather than 0% with no revenue: a team that sold
+  // nothing has no margin, and 0% reads as one that broke even.
+  emit("PnL", "Profit Margin", (dec) => {
+    const rev = sumScored(dec, "revenue");
+    const net = sumScored(dec, "operatingProfit");
+    return rev == null || net == null || rev === 0 ? BLANK : pct(net / rev);
+  });
+  rows.push([]);
+}
+
+/**
  * THE COMPETITOR REPORT — standings first, then the figures behind them, then
  * the decisions that produced them.
  *
@@ -1019,6 +1127,18 @@ export function buildCompetitorMatrix(
   // Cash follows the standings: it is the balance the round's profit moved.
   emitCashRows(ctx, cash);
 
+  const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  // ── THE SUMMARY, DIRECTLY BELOW THE LEADERBOARD ──────────────────────────
+  //
+  // QA 2026-09-29. This report answers "who won", so the team-wide figures
+  // belong beside the standings they explain — the per-notebook blocks below
+  // are the detail behind them. The ANALYSIS report keeps the same summary at
+  // the FOOT, because there the working has to come first.
+  //
+  // `withChannelSplit: false` — the channel breakdown is the analysis report's.
+  emitAllNotebooks(ctx, ordered, containers, false);
+
   // ── PER NOTEBOOK, in the analysis report's order ──────────────────────────
   //
   // SAME BLOCK, SAME ORDER, owner 2026-09-28 — Capacity, Production, Inventory,
@@ -1031,7 +1151,6 @@ export function buildCompetitorMatrix(
   // for one figure (Revenue / Demand / Customers Fulfilled / Market fit /
   // Market share by notebook). The same figures are all here, grouped under the
   // notebook they belong to instead of scattered across five blocks.
-  const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, opening, false);
 
   // Any lever group the notebook blocks did not already account for.
@@ -1048,50 +1167,6 @@ export function buildCompetitorMatrix(
     if (!accounted.has(id(gi._id))) emitLeverRows(ctx, gi);
   }
 
-  // ── Team totals, then the close ───────────────────────────────────────────
-  //
-  // BANNERED, owner 2026-09-28: every block above belongs to ONE notebook, and
-  // these sum across all of them. Without a break the first team-wide row reads
-  // as though it still belonged to the last notebook on the page.
-  emitHeading(ctx, SUMMARY_HEADING);
-  //
-  // `customersObtained` is DEMAND: the customers this team won in the market.
-  // "Customers Fulfilled" is `unitsSold`, the server's own
-  // `min(customersObtained, openingStock + produced)` — NOT `produced / demand`,
-  // which ignores carried stock and exceeds 100% on overproduction. The gap
-  // between the two rows is the teaching point.
-  emit("Demand", "Demand", (dec) => plain(sumScored(dec, "customersObtained")));
-  emit("Demand", "Total Books Produced", (dec) => plain(sumScored(dec, "produced")));
-  emit("Demand", "Customers Fulfilled", (dec) => plain(sumScored(dec, "unitsSold")));
-  rows.push([]);
-
-  for (const p of ordered) {
-    emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
-      money(scoredFor(dec, p._id)?.revenue));
-  }
-  rows.push([]);
-
-  // THE CLOSING SECTION, last on the page — the same place the analysis report
-  // puts it. "Net Profit" is the server's `operatingProfit`, RENAMED not
-  // recomputed; the player's P&L sheet calls the same field "Net Income".
-  const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
-    ["Revenue",            "revenue",           money],
-    ["COGS",               "COGS",              money],
-    ["Gross Profit",       "grossProfit",       money],
-    ["Operating Expenses", "operatingExpenses", money],
-    ["Net Profit",         "operatingProfit",   money],
-  ];
-  for (const [label, field, fmt] of FINANCIALS) {
-    emit("PnL", label, (dec) => fmt(sumScored(dec, field)));
-  }
-  // Net profit ÷ revenue. Blank rather than 0% with no revenue: a team that
-  // sold nothing has no margin, and 0% reads as one that broke even.
-  emit("PnL", "Profit Margin", (dec) => {
-    const rev = sumScored(dec, "revenue");
-    const net = sumScored(dec, "operatingProfit");
-    return rev == null || net == null || rev === 0 ? BLANK : pct(net / rev);
-  });
-  rows.push([]);
 
   collapseSectionRuns(rows);
   return {
@@ -1121,7 +1196,7 @@ export function buildDecisionMatrix(
   // `true` — the Weight column. THIS report is where `direction` earns its
   // place: the reader is asking why a score came out as it did.
   const ctx = context(decisions, teams, true);
-  const { emit, rows, cols } = ctx;
+  const { rows, cols } = ctx;
 
   const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
@@ -1148,61 +1223,13 @@ export function buildDecisionMatrix(
 
   // ── THE CLOSE: money, last ────────────────────────────────────────────────
   //
-  // BOTTOM-MOST, owner 2026-09-28: every block above explains how a team got
-  // here — capacity, demand, share, fulfilment — and these three close it out.
-  // They opened the report until this change, which put the answer before the
-  // working.
+  // BOTTOM-MOST on THIS report, owner 2026-09-28: every block above explains how
+  // a team got here, and the summary closes it out. The competitor report puts
+  // the identical block directly under the leaderboard instead — it answers "who
+  // won", so the figures belong beside the standings.
   //
-  // Bannered for the same reason the competitor report is: these sum ACROSS
-  // notebooks, and the blocks above each belong to one.
-  emitHeading(ctx, SUMMARY_HEADING);
-  //
-  // Revenue broken down twice over the SAME total: by where it was sold, then
-  // by what was sold. Both reconcile to the PnL Revenue row BELOW them — the
-  // splits come first and the statement they roll into closes the report.
-  const channels = channelItemsOf(containers);
-  if (channels.length > 0) {
-    for (const p of ordered) {
-      for (const ch of channels) {
-        emit("Revenue by channel", `${p.productName ?? id(p._id)} · ${ch.label}`, (dec) => {
-          const sc = scoredFor(dec, p._id);
-          if (!sc) return BLANK;
-          const share = channelSharesFor(dec, p._id).get(ch.id);
-          // `undefined` = the team did not select the channel at all, which is
-          // a different statement from "it sold nothing".
-          return share == null ? BLANK : money(Number(sc.revenue ?? 0) * share);
-        });
-      }
-    }
-    rows.push([]);
-  }
-
-  for (const p of ordered) {
-    emit("Revenue by notebook", p.productName ?? id(p._id), (dec) =>
-      money(scoredFor(dec, p._id)?.revenue));
-  }
-  rows.push([]);
-
-  // THE CLOSING SECTION. Last on the page, owner 2026-09-28: the two revenue
-  // splits above roll into its Revenue row, and every block before them explains
-  // how the team got there. "Net Profit" is the server's `operatingProfit` —
-  // RENAMED, not recomputed.
-  const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
-    ["Revenue",            "revenue",           money],
-    ["COGS",               "COGS",              money],
-    ["Gross Profit",       "grossProfit",       money],
-    ["Operating Expenses", "operatingExpenses", money],
-    ["Net Profit",         "operatingProfit",   money],
-  ];
-  for (const [label, field, fmt] of FINANCIALS) {
-    emit("PnL", label, (dec) => fmt(sumScored(dec, field)));
-  }
-  emit("PnL", "Profit Margin", (dec) => {
-    const rev = sumScored(dec, "revenue");
-    const net = sumScored(dec, "operatingProfit");
-    return rev == null || net == null || rev === 0 ? BLANK : pct(net / rev);
-  });
-  rows.push([]);
+  // `withChannelSplit: true` — the channel breakdown is this report's alone.
+  emitAllNotebooks(ctx, ordered, containers, true);
 
   collapseSectionRuns(rows);
   return {
