@@ -428,7 +428,7 @@ function SegmentsTab({ arch }: { arch: Archetype }) {
           not a share, and nothing a player can do arithmetic with. */}
       {drivers.length > 0 && (
         <div className="flex flex-col gap-2">
-          <div className="stat-label">What buyers weigh</div>
+          <div className="stat-label">What buyers prefer</div>
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b-2 border-ink-900">

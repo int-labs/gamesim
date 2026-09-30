@@ -226,7 +226,7 @@ function MarketCard({
             Rows with NO hint are SKIPPED, never given a placeholder — the copy
             is the operator's and an invented line would keep describing a field
             they have since repurposed. See the note at the top of `drivers.ts`. */}
-        {described.length > 0 && (
+        {/* described.length > 0 && (
           <div className="flex flex-col gap-2 pt-1 border-t border-border-soft">
             <div className="stat-label">What these mean</div>
             <dl className="flex flex-col gap-2">
@@ -238,7 +238,7 @@ function MarketCard({
               ))}
             </dl>
           </div>
-        )}
+        ) */}
       </div>
     </motion.div>
   );
