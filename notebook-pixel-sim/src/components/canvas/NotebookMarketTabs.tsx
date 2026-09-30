@@ -155,13 +155,6 @@ function MarketCard({
   // an empty table. See the container-hydration rule in CLAUDE.md.
   const axes = driverAxes(genre.id);
 
-  // The drivers the operator has written copy FOR, in the chart's own order so
-  // the list reads against the shape above it. Derived per render for the same
-  // reason `axes` is — `DRIVER_COPY` is filled at boot by `hydrateDriverCopy`.
-  const described = axes
-    .map((axis) => ({ axis, copy: driverCopy(genre.id, axis.key) }))
-    .filter((row) => !!row.copy.hint);
-
   // No fit border or badge: this is the only card on screen, so "this notebook"
   // has nothing to contrast against. The tab strip already says which is open.
   return (

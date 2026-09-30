@@ -36,8 +36,9 @@ export interface SectionDetail {
 /**
  * ONE CONSOLIDATOR, TWO SOURCES — the shape every detail sheet follows.
  *
- *   numbers → the backend `channel` GlobalInput's own impacts, resolved through
- *             `impact.selections` the way `calcFinancials` resolves them
+ *   numbers → the backend `channel` GlobalInput's own impacts. The reach matrix
+ *             shows each channel's per-product `impact.selections` — the SPLIT
+ *             the operator authored, not the figure the engine scores
  *   copy    → `PlayerConfig.caseStudy`, through `studyFor`, falling back to the
  *             item's own `description`
  *
@@ -55,26 +56,31 @@ export function channelDetail(gi?: GlobalInputDto): SectionDetail {
   const rowFor = (ch: ChannelId) => CHANNEL_ROWS.find((r) => r.channel === ch) ?? null;
 
   /**
-   * Reach for (genre × channel), straight off `impacts['sales_channel']` — the
-   * impact the SERVER consumes as `customersObtained`.
+   * Reach for (genre × channel) — the channel's SPLIT ACROSS NOTEBOOKS, read
+   * from `impacts['sales_channel'].selections[]`.
    *
-   * RESOLVED THROUGH THE OVERRIDE, the same way `calcFinancials` resolves it:
+   * THE OVERRIDE ITSELF, not the resolved impact. This cell answers "how much
+   * of this channel goes to this notebook", and that is what the operator
+   * authored per product; the channel's own `value` is a single figure for the
+   * whole channel and says nothing about the split. Owner, 2026-09-30.
    *
-   *     relative → base × override      absolute → base + override
+   * NOT what `calcFinancials` computes, deliberately. The engine resolves
+   * `base × override` for a relative impact and scores on that; this is the
+   * decision behind the number, not the number. The maths is unchanged — do not
+   * "reconcile" this cell to it.
    *
-   * Two defects lived here, and they hid each other. The override was matched
-   * by name — `productName.toLowerCase().includes(genreId)` — a heuristic left
-   * over from before genre ids BECAME Product `_id`s (2026-09-14), so the list
-   * came back empty and every cell silently fell through to the base value.
-   * And when it did match it printed `match.value` RAW, as though an override
-   * replaced the impact rather than scaling it. Either one alone shows the
-   * wrong number; together they showed the raw relative value everywhere.
+   * Falls back to the impact's own value where a product has no override: the
+   * channel then reaches that notebook at its default, which is a real state.
    *
-   * Matched by ID now. `genreId` IS the Product `_id`, so there is nothing to
-   * map — see the note at the top of `genres.ts`.
+   * MATCHED BY ID. It used to match by name —
+   * `productName.toLowerCase().includes(genreId)` — a heuristic left from
+   * before genre ids BECAME Product `_id`s (2026-09-14). The id does not appear
+   * inside the name, so the lookup always missed and every cell fell through to
+   * the channel's base value, which is the raw relative figure that was showing
+   * in every row.
    *
    * Read from `gi.inputs` rather than a local table so it cannot drift from
-   * what the round actually scores.
+   * what the operator actually configured.
    */
   const reachFor = (item: GlobalInputDto['inputs'][number], genreId: string): string => {
     const impact = item.impacts?.['sales_channel'];
@@ -83,13 +89,12 @@ export function channelDetail(gi?: GlobalInputDto): SectionDetail {
     const override = impact.selections?.find(
       (s) => String(s.productId) === genreId,
     )?.value;
-    const base = Number(impact.value) || 0;
-    const resolved =
-      override == null ? base
-      : impact.type === 'relative' ? base * Number(override)
-      : base + Number(override);
 
-    return pct(resolved);
+    // `Number()` yields NaN, not null, so the fallback is tested for finiteness
+    // rather than chained onto `??` — which would let a NaN through and print
+    // "NaN%" in the matrix.
+    const base = Number(impact.value);
+    return pct(override ?? (Number.isFinite(base) ? base : 0));
   };
 
   return {
