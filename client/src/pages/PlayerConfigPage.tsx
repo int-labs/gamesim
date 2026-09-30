@@ -35,6 +35,9 @@ interface ConfigEntry {
   hint: string;
   /** `products` only — the longer prose the Details tab shows. */
   description: string;
+  /** `products` only — the Segments tab's copy, RAW HTML. Stored and rendered
+   *  verbatim: nothing on this path escapes it. */
+  segments: string;
   /** `products` only — the Details tab's STRENGTHS list, one bullet per line. */
   bestFor: string[];
   /** `products` only — the Details tab's WEAKNESS list, one bullet per line. */
@@ -60,7 +63,7 @@ const BLANK_CASE_STUDY: CaseStudy = { title: "", brief: "", bestWhen: "", watchO
 
 const BLANK_FORM: EntryForm = {
   id: "", productId: "", imageAssetId: "", caseStudy: { ...BLANK_CASE_STUDY },
-  label: "", hint: "", description: "", bestFor: "", watchOut: "",
+  label: "", hint: "", description: "", segments: "", bestFor: "", watchOut: "",
 };
 
 /** Table-cell helpers. The entry table shows what a section actually stores, so
@@ -76,9 +79,85 @@ const cellClamp: CSSProperties = {
  *  separator keeps it readable without hiding that there are several. */
 const bullets = (v: string[] | undefined) => (v?.length ? v.join(" · ") : dash);
 
-/** The form as it is STORED — the two bullet lists split back into arrays. */
+// ── Segments HTML: sanitised HERE, on the way IN ─────────────────────────────
+//
+// Owner's ruling 2026-09-30: sanitisation is held explicitly on the ADMIN side,
+// not at render. What reaches the database is already safe, so the player client
+// injects what it is given and no second, differently-minded pass can disagree
+// with this one about what "safe" means.
+//
+// Two consequences, both accepted and worth knowing:
+//   • the API is not the boundary — a row written straight to the endpoint
+//     never passes through here;
+//   • rows saved before this existed keep whatever they hold until re-saved.
+
+/** Elements dropped whole, with their subtree. */
+const BLOCKED_TAGS = new Set(["object", "embed", "link"]);
+
+/**
+ * Attributes naming a URL. ALL are stripped — this field carries flavour text
+ * and no link it could hold is worth the surface. Removing the attribute covers
+ * `http`, `https` and `mailto` by covering every scheme, rather than naming
+ * three and leaving `javascript:` and `data:` through.
+ */
+const URL_ATTRS = ["href", "src", "srcset", "action", "formaction", "poster", "background", "xlink:href"];
+
+/**
+ * Operator HTML, made safe to store.
+ *
+ * A document containing `<script>` is ESCAPED WHOLE rather than edited: it is
+ * stored as its own source text, so the player's Segments tab displays the
+ * markup instead of rendering it and whoever wrote it sees exactly what they
+ * typed. Owner's rule — a document that tries to run code is not quietly
+ * repaired.
+ *
+ * Everything else is edited in place: `<object>` / `<embed>` / `<link>` removed
+ * with their subtrees, every `on*` handler removed, every URL-bearing attribute
+ * removed, and `style` dropped when it carries `url(` or `expression(`.
+ *
+ * DOMParser, not a regex: markup nests, and a regex that looks like it strips
+ * `<script>` loses to `<scr<script>ipt>`. The parsed document is detached —
+ * nothing in it fetches or fires.
+ */
+export function sanitizeSegmentsHtml(source: string): string {
+  if (!source.trim()) return "";
+
+  const doc = new DOMParser().parseFromString(source, "text/html");
+
+  // ESCAPE WHOLE, do not strip. Checked before any editing, so the decision is
+  // made on the document as written.
+  if (doc.querySelector("script")) {
+    const escaper = doc.createElement("textarea");
+    escaper.textContent = source;
+    return escaper.innerHTML;
+  }
+
+  for (const el of Array.from(doc.body.querySelectorAll("*"))) {
+    if (BLOCKED_TAGS.has(el.tagName.toLowerCase())) {
+      el.remove();
+      continue;
+    }
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith("on") || URL_ATTRS.includes(name)) {
+        el.removeAttribute(attr.name);
+        continue;
+      }
+      if (name === "style" && /url\s*\(|expression\s*\(/i.test(attr.value)) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  }
+
+  return doc.body.innerHTML;
+}
+
+/** The form as it is STORED — bullet lists split into arrays, segments HTML
+ *  sanitised. Both happen at the same seam on purpose: this function is what
+ *  "stored" means, so nothing can reach the payload without passing it. */
 const toEntry = (f: EntryForm): ConfigEntry => ({
   ...f,
+  segments: sanitizeSegmentsHtml(f.segments),
   bestFor:  textToLines(f.bestFor),
   watchOut: textToLines(f.watchOut),
 });
@@ -285,6 +364,7 @@ export default function PlayerConfigPage() {
     label:        raw.label ?? "",
     hint:         raw.hint ?? "",
     description:  raw.description ?? "",
+    segments:     raw.segments ?? "",
     bestFor:      Array.isArray(raw.bestFor)  ? raw.bestFor  : [],
     watchOut:     Array.isArray(raw.watchOut) ? raw.watchOut : [],
     caseStudy: {
@@ -329,6 +409,7 @@ export default function PlayerConfigPage() {
       label:        entry.label ?? "",
       hint:         entry.hint ?? "",
       description:  entry.description ?? "",
+      segments:     entry.segments ?? "",
       bestFor:      linesToText(entry.bestFor),
       watchOut:     linesToText(entry.watchOut),
       caseStudy:    { ...entry.caseStudy },
@@ -621,6 +702,29 @@ export default function PlayerConfigPage() {
                             rows={4}
                             style={{ width: 320 }}
                           />
+                        </td>
+                      </tr>
+                      {/* SEGMENTS — the notebook's buyers, as flavour and lore.
+                          HTML, SANITISED ON SAVE by `sanitizeSegmentsHtml`:
+                          object/embed/link, every on* handler and every URL
+                          attribute are stripped, and a document containing a
+                          script tag is escaped whole so the player sees its
+                          source instead of it running. What the table shows
+                          after saving is what is stored. */}
+                      <tr>
+                        <td>Segments (HTML)</td>
+                        <td>
+                          <textarea
+                            placeholder="<p>Who buys this notebook, and what they care about.</p>"
+                            value={entryForm.segments}
+                            onChange={e => setEntryForm(f => ({ ...f, segments: e.target.value }))}
+                            rows={8}
+                            style={{ width: 320, fontFamily: "monospace" }}
+                          />
+                          <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
+                            Rendered as HTML on the player&apos;s Segments tab. Cleaned on save:
+                            scripts, embeds, event handlers and links are removed.
+                          </div>
                         </td>
                       </tr>
                       {/* Both render as BULLET LISTS on the Details tab, so the

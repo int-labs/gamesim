@@ -51,6 +51,25 @@ export interface PlayerConfigEntry {
   bestFor?:      string[] | null;
   /** `products` only — the Details tab's WEAKNESS bullets. */
   watchOut?:     string[] | null;
+  /**
+   * `products` only — the Segments tab: who buys this notebook and what they
+   * care about, as operator-authored flavour and lore. Added 2026-09-30.
+   *
+   * HTML, stored and served VERBATIM — and ALREADY SANITISED when it arrives.
+   *
+   * The admin console sanitises on the way in (`sanitizeSegmentsHtml` in
+   * `PlayerConfigPage`): `<object>`, `<embed>` and `<link>` removed, every `on*`
+   * handler and every URL-bearing attribute stripped, and a document containing
+   * `<script>` escaped whole so it displays as its own source. Owner's ruling
+   * 2026-09-30 — the boundary is held explicitly on the admin side, and the
+   * player client injects what it is given.
+   *
+   * THIS ENDPOINT DOES NOT ENFORCE THAT. A row written straight to the API
+   * never passes the console, so the guarantee is only as strong as who can
+   * reach it. If that stops being acceptable, sanitise in the controller — not
+   * in the player client, which would be a second opinion about what is safe.
+   */
+  segments?:     string | null;
 }
 
 export interface PlayerConfigInterface extends Document {

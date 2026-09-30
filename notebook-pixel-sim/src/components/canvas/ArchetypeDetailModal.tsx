@@ -8,6 +8,7 @@ import { PixelButton } from '@/components/primitives';
 import { setProductField } from '@/engine/mockEngine';
 import { playSfx } from '@/audio/audioManager';
 import { BuyerInterestTab, MarketDataTab } from './NotebookMarketTabs';
+import { productCopy } from '@/engine/finlit/core/config/productCopy';
 import clsx from 'clsx';
 
 const VIEWS = ['angle', 'front', 'spine', 'open', 'shelf'] as const;
@@ -24,6 +25,7 @@ const notebookIds = (): Archetype[] => notebookCatalogue().map((n) => n.id);
  */
 const TABS = [
   { id: 'product', label: 'Product', hint: 'What this notebook is' },
+  { id: 'segments', label: 'Segments', hint: 'Who buys it, and what they care about' },
   { id: 'buyers', label: 'Buyer Interest', hint: 'Who wants it, and what they weigh' },
   { id: 'market', label: 'Market Data', hint: 'How big each market is, and its growth' },
 ] as const;
@@ -185,6 +187,7 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
                   </div>
                 </div>
               )}
+              {tab === 'segments' && <SegmentsTab arch={arch} />}
               {tab === 'buyers' && <BuyerInterestTab arch={arch} />}
               {tab === 'market' && <MarketDataTab arch={arch} />}
           </motion.div>
@@ -361,6 +364,44 @@ function ProductCopy({ arch }: { arch: Archetype }) {
       </div>
       <p className="body-xs text-ink-900 measure">{info.description}</p>
     </div>
+  );
+}
+
+/**
+ * SEGMENTS — who buys this notebook, in the operator's own words.
+ *
+ * HTML, because the copy is lore an operator writes with their own headings and
+ * lists; every other surface in this file takes plain text and decides the
+ * layout itself.
+ *
+ * INJECTED AS RECEIVED. Sanitisation is held on the ADMIN side, in
+ * `PlayerConfigPage`'s `sanitizeSegmentsHtml`, which runs on the way into the
+ * database — owner's ruling 2026-09-30. A second pass here would be a second
+ * opinion about what "safe" means, and the two would eventually disagree.
+ *
+ * A document that tried to run code was ESCAPED at save, so it arrives as its
+ * own source text and displays as markup rather than running — which is why
+ * there is no special case for it here.
+ *
+ * Absent copy renders the empty state rather than a blank panel: an operator who
+ * has not written it yet should see that, not a hole.
+ */
+function SegmentsTab({ arch }: { arch: Archetype }) {
+  const html = productCopy(arch).segments;
+
+  if (!html) {
+    return (
+      <div className="body-xs text-text-3 italic">
+        No segment notes written for this notebook yet.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="body-xs text-ink-900 measure segment-copy"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }
 

@@ -24,6 +24,19 @@ export interface ProductCopy {
   bestFor?: string[];
   /** Details tab, WEAKNESS panel — one bullet per entry. */
   watchOut?: string[];
+  /**
+   * SEGMENTS tab — who buys this notebook, as operator flavour and lore.
+   *
+   * HTML as stored, and ALREADY SANITISED — the admin console cleans it on the
+   * way into the database (owner's ruling 2026-09-30). Everything else in this
+   * table is plain text a component decides how to present; this one arrives as
+   * markup because an operator needs headings and lists that no fixed layout
+   * can anticipate.
+   *
+   * Do NOT add a pass here or in `SegmentsTab`. One boundary, on the admin side:
+   * a second opinion about what is safe is how the two come to disagree.
+   */
+  segments?: string;
 }
 
 export const PRODUCT_COPY: Record<string, ProductCopy> = {};
@@ -45,6 +58,7 @@ export function hydrateProductCopy(
     blurb?: string | null;
     description?: string | null;
     art?: string | null;
+    segments?: string | null;
     bestFor?: string[] | null;
     watchOut?: string[] | null;
   }>,
@@ -57,6 +71,7 @@ export function hydrateProductCopy(
     if (row.blurb) entry.blurb = row.blurb;
     if (row.description) entry.description = row.description;
     if (row.art) entry.art = row.art;
+    if (row.segments) entry.segments = row.segments;
     // Empty arrays are dropped, not stored: an absent list renders an empty
     // panel, which is the same outcome and one less shape to reason about.
     if (row.bestFor?.length) entry.bestFor = row.bestFor.filter(Boolean);

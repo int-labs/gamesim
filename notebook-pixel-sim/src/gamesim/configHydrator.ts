@@ -388,6 +388,11 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
           blurb:       typeof src.hint        === 'string' ? src.hint        : null,
           description: typeof src.description === 'string' ? src.description : null,
           art:         imageFor(src) ?? null,
+          // HTML, passed through untouched. Type-checked only: the admin console
+          // sanitises on the way into the database, so this string is already
+          // clean and a second pass here would be a second opinion about what
+          // "safe" means. See `productCopy.ts`.
+          segments:    typeof src.segments === 'string' ? src.segments : null,
           bestFor:     strList(src.bestFor),
           watchOut:    strList(src.watchOut),
         })),

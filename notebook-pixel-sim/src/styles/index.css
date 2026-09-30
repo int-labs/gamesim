@@ -1565,3 +1565,42 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .img-skeleton { animation: none; }
 }
+
+
+/* Operator-authored HTML — the notebook Details modal's Segments tab.
+   
+   Tailwind's preflight zeroes heading sizes, list bullets and paragraph
+   margins, so markup an operator types in the console would otherwise render
+   as one flat run of text. These rules apply ONLY inside `.segment-copy`, so
+   nothing else on the page inherits browser defaults back.
+   
+   Deliberately small: headings, paragraphs, lists, emphasis and links. An
+   operator writing beyond that is designing a layout, which is not what this
+   field is for. */
+.segment-copy > :first-child { margin-top: 0; }
+.segment-copy > :last-child  { margin-bottom: 0; }
+.segment-copy h1,
+.segment-copy h2,
+.segment-copy h3,
+.segment-copy h4 {
+  font-family: var(--font-pixel, inherit);
+  text-transform: uppercase;
+  color: var(--c-ink-900);
+  margin: 1em 0 0.4em;
+  line-height: 1.2;
+}
+.segment-copy h1 { font-size: 1.25rem; }
+.segment-copy h2 { font-size: 1.1rem; }
+.segment-copy h3,
+.segment-copy h4 { font-size: 1rem; }
+.segment-copy p { margin: 0 0 0.75em; }
+.segment-copy ul,
+.segment-copy ol { margin: 0 0 0.75em; padding-left: 1.25rem; }
+.segment-copy ul { list-style: disc; }
+.segment-copy ol { list-style: decimal; }
+.segment-copy li { margin-bottom: 0.3em; }
+.segment-copy strong, .segment-copy b { font-weight: 700; color: var(--c-ink-900); }
+.segment-copy em, .segment-copy i { font-style: italic; }
+.segment-copy a { color: var(--c-primary-strong); text-decoration: underline; }
+.segment-copy hr { border: 0; border-top: 1px solid var(--c-border-soft); margin: 1em 0; }
+.segment-copy img { max-width: 100%; height: auto; }
