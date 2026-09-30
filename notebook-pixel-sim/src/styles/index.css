@@ -1604,3 +1604,54 @@ button {
 .segment-copy a { color: var(--c-primary-strong); text-decoration: underline; }
 .segment-copy hr { border: 0; border-top: 1px solid var(--c-border-soft); margin: 1em 0; }
 .segment-copy img { max-width: 100%; height: auto; }
+
+/* Tables inside operator HTML. Preflight strips border-collapse and cell
+   padding, so an authored <table> renders as run-together text without these.
+
+   SIZED IN vh, not px: the sheet is a viewport-height panel, so the table
+   should breathe with it rather than hold one size while the panel around it
+   grows. `clamp()` bounds it at both ends — pure vh goes unreadable on a short
+   laptop window and comically large on a tall monitor.
+
+   BORDERS STAY IN px, deliberately. A border in vh is sub-pixel on a short
+   viewport and the browser drops it, so the grid this exists to draw would
+   vanish exactly where it is most needed. */
+.segment-copy table {
+  /* Content-sized, but never narrower than most of the column. */
+  min-width: 80%;
+  max-width: 100%;
+  border-collapse: collapse;
+  /* The outer frame, heavier than the internal rules so the table reads as one
+     object before the eye starts on its cells. */
+  border: 2px solid var(--c-ink-900);
+  margin: 0 0 1.4vh;
+  font-size: clamp(11px, 1.55vh, 15px);
+  line-height: 1.35;
+}
+/* Every cell carries all four borders, so COLUMNS are separated as clearly as
+   rows — a table read across a row needs the vertical rules as much as the
+   horizontal ones. */
+.segment-copy th,
+.segment-copy td {
+  border: 1px solid var(--c-border-soft);
+  padding: 0.7vh 1vh;
+  text-align: left;
+  vertical-align: top;
+}
+.segment-copy th {
+  background: var(--c-surface-2, #EFE6CC);
+  color: var(--c-ink-900);
+  font-weight: 700;
+  /* The header band sits ON the body, so its underline is the heavy one. */
+  border-bottom: 2px solid var(--c-ink-900);
+}
+/* Zebra striping: these are read ACROSS a row, and the eye loses the line at
+   three-plus columns without it. */
+.segment-copy tbody tr:nth-child(even) { background: rgba(0, 0, 0, 0.03); }
+.segment-copy caption {
+  caption-side: bottom;
+  padding-top: 0.6vh;
+  color: var(--c-text-2);
+  text-align: left;
+  font-size: clamp(10px, 1.3vh, 13px);
+}

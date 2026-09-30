@@ -220,8 +220,31 @@ const DEFAULT_PRICE_ANCHOR: Omit<ProductionSpec, 'type'> = {
 };
 
 export const PRICE_ANCHOR: Record<string, Omit<ProductionSpec, 'type'>> = {
-  // One entry per notebook, e.g.
-  //   '6a4b…': { paper: 'premium', size: 'a5', pageDesign: 'dotted', cover: 'hardcover' },
+  // ── Financial Literacy ──────────────────────────────────────────────
+  // The `Notebook` simulation type's four products are deliberately absent:
+  // owner's call 2026-09-30, only Financial Literacy matters. They take
+  // `DEFAULT_PRICE_ANCHOR`.
+  //
+  // Values are OPTION IDS, not display names — `configOption` throws on an
+  // unknown id rather than scoring 0, so a name here crashes the market card.
+  '6a43956f9833d0924dd7e991': { // Anime book
+    paper: 'fountain', size: 'b5', pageDesign: 'storyboarding', cover: 'holographic',
+    charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
+  },
+  '6a66f4e596e2931bcd3a0cb1': { // Minimalist Notebook
+    paper: 'cream', size: 'b5', pageDesign: 'grid', cover: 'hard',
+    // No charm, ribbon or sticker: an OMITTED axis scores 0 through
+    // `optionScore`, which is what a minimalist anchor should be.
+    functional: 'closure',
+  },
+  '6a66f4f796e2931bcd3a0cbd': { // Indie Notebook
+    paper: 'fountain', size: 'b4', pageDesign: 'numbered', cover: 'hard',
+    functional: 'band',
+  },
+  '6a66f56596e2931bcd3a0cf2': { // Cutesy Notebook
+    paper: 'fountain', size: 'b5', pageDesign: 'storyboarding', cover: 'holographic',
+    charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
+  },
 };
 
 /**

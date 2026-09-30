@@ -66,22 +66,17 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
   const [view, setView] = useState<View>('angle');
   const [tab, setTab] = useState<TabId>('product');
 
-  if (!product) {
-    const empty = (
-      <div className="flex flex-col items-center justify-center text-center px-4 py-12 gap-2">
-        <div className="item-name text-text">No notebook to inspect</div>
-        <p className="hint text-text-2 max-w-[28ch]">
-          Add one in <span className="strong text-text">Notebook Items</span> first - details show up here.
-        </p>
-      </div>
-    );
-    if (inline || fill) return <div className="p-4">{empty}</div>;
-    return (
-      <PixelModal open={!!open} onClose={onClose} title="Notebook Details">
-        {empty}
-      </PixelModal>
-    );
-  }
+  // NO EMPTY-PORTFOLIO BAIL. This used to return "No notebook to inspect" when
+  // `productLines` was empty, which meant the market data — the reach matrix,
+  // the buyer weights, the segment copy — only appeared AFTER the player had
+  // already chosen. That is backwards: this sheet is what the choice is made
+  // FROM. Owner, 2026-10-01.
+  //
+  // Nothing here needs a line. The sheet reads the CATALOGUE, and `arch`
+  // defaults to `defaultArchetype()` when there is no active product, so every
+  // tab renders against a real notebook either way. The three places that did
+  // need `product` are the rail's "owned" mark and the footer, both guarded
+  // below with `?.` rather than by refusing the whole sheet.
 
   const info = ARCHETYPE_INFO[arch];
 
@@ -119,7 +114,7 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
            three stay visible while the panel beside them changes. ── */}
       <div role="group" aria-label="Notebook to inspect" className="w-[92px] sm:w-[108px] shrink-0 border-r border-border-soft bg-cream-200 p-2 flex flex-col gap-2 overflow-y-auto">
         {notebookIds().map((id) => (
-          <RailTile key={id} id={id} active={id === arch} owned={id === product.productId} onPick={() => pick(id)} />
+          <RailTile key={id} id={id} active={id === arch} owned={id === product?.productId} onPick={() => pick(id)} />
         ))}
       </div>
 
@@ -197,7 +192,11 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
 
         {/* ── Footer — the only action this modal offers. Always visible so
              it never hides below a long scroll. ── */}
-        {arch !== product.productId && (
+        {/* `product &&` — with an EMPTY portfolio there is nothing to switch
+             FROM, and "Switch to X" would be an action this sheet cannot
+             perform: the notebook is added from Notebook Items, not here. The
+             sheet still reads in full; it just offers no action. */}
+        {product && arch !== product.productId && (
           <div className="shrink-0 flex items-center justify-between gap-3 px-3.5 py-2.5 border-t border-border-soft bg-cream-200">
             <div className="hint text-text-2 leading-snug min-w-0 truncate">
               Currently making <span className="strong text-text">{ARCHETYPE_INFO[product.productId].title}</span>
