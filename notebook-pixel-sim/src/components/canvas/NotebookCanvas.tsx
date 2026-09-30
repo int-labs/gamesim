@@ -145,25 +145,12 @@ export function NotebookCanvas() {
             <p className="hint text-text-2 max-w-[28ch]">
               Open <span className="strong text-text">Notebook Items</span> in the left dock to add your first notebook.
             </p>
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={() => openDrawer('left', 'items')}
-                className="pbtn px-3 h-[30px] eyebrow eyebrow-sm text-text border-2 border-primary bg-primary-soft"
-              >
-                Open Notebook Items
-              </button>
-              {/* THE DETAILS TRIGGER BELONGS HERE TOO. This branch returns
-                  early, so the Details button further down never rendered and
-                  the market data was unreachable until a notebook already
-                  existed — i.e. the reference you choose FROM only appeared
-                  after you had chosen. Owner, 2026-10-01. */}
-              <button
-                onClick={() => { playSfx('click-soft'); openDrawer('right', 'details'); }}
-                className="pbtn px-3 h-[30px] eyebrow eyebrow-sm text-text-2 hover:text-text"
-              >
-                Notebook Details
-              </button>
-            </div>
+            <button
+              onClick={() => openDrawer('left', 'items')}
+              className="pbtn mt-1 px-3 h-[30px] eyebrow eyebrow-sm text-text border-2 border-primary bg-primary-soft"
+            >
+              Open Notebook Items
+            </button>
           </div>
         </div>
       </div>

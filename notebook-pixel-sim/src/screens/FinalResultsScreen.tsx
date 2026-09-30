@@ -335,27 +335,11 @@ export function FinalResultsScreen() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {/* Decision timeline - slides in from the right */}
-            <motion.div
-              {...(reduced
-                ? {}
-                : {
-                    initial: { opacity: 0, x: 22 },
-                    animate: { opacity: 1, x: 0 },
-                    transition: { delay: DATA_AT + 0.3, duration: 0.4, ease: [0.2, 1, 0.4, 1] as const },
-                  })}
-            >
-              <PixelPanel title="Decision Timeline">
-                <div className="max-h-[420px] overflow-y-auto pr-2 body-xs">
-                  {[...state.history].reverse().map((h, i) => (
-                    <div key={i} className="flex items-start gap-2 py-0.5 border-b border-ink-700/15">
-                      <PixelBadge tone="neutral">D{h.day}</PixelBadge>
-                      <div className="flex-1">{h.text}</div>
-                    </div>
-                  ))}
-                </div>
-              </PixelPanel>
-            </motion.div>
+            {/* The Decision Timeline panel was here — removed 2026-10-01. It
+                reversed and re-rendered the whole `state.history` array on
+                every render of this screen, to show a list of raw mutation
+                strings ("Changed Line 1 price → 12") that answered nothing the
+                panels around it do not. */}
 
             {/* Official numbers from the simulation server — market share and
                 score from calcMarketModel (GET /results), financials from

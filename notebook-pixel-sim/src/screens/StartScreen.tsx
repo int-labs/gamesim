@@ -86,7 +86,7 @@ export function StartScreen() {
               {HOME.tagline}
             </p>
 
-            {/* "What you'll learn" — labelled divider over the LP grid. */}
+            {/* "What you'll learn" — labelled divider over the grid. */}
             <div className="mt-5 flex items-center gap-2">
               <span className="eyebrow eyebrow-sm eyebrow-muted whitespace-nowrap">
                 What you'll learn
@@ -95,18 +95,12 @@ export function StartScreen() {
             </div>
             <div className="grid grid-cols-2 gap-2 mt-2.5">
               {HOME.learningPoints.map((lp, i) => (
-                <Lp key={lp.tag} t={lp.tag} body={lp.body} index={i} />
+                <Lp key={lp.tag} body={lp.body} index={i} />
               ))}
             </div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6, duration: 0.4 }}
-              className="mt-3 flex items-center justify-center gap-1.5 text-ink-600"
-            >
-              <span aria-hidden className="body-xs leading-none">🏆</span>
-              <span className="font-body hint">Graded out of 100 on Day 90</span>
-            </motion.div>
+            {/* The "Graded out of 100 on Day 90" line was here — removed
+                2026-10-01. It promised a day count the round-based sim no
+                longer runs on. */}
           </div>
           <div className="border-t border-border-soft bg-cream-200 p-4 flex flex-col gap-3 items-center">
             <div className="flex w-full max-w-[470px] items-center gap-3">
@@ -171,7 +165,17 @@ export function StartScreen() {
   );
 }
 
-function Lp({ t, body, index }: { t: string; body: string; index: number }) {
+/**
+ * One learning-point chip.
+ *
+ * NO `LP1`..`LP4` TAG. The badge was removed 2026-10-01: it numbered four
+ * points nothing else in the game refers to, so it read as a cross-reference to
+ * a list that does not exist. The point itself is the content.
+ *
+ * `lp.tag` is still the React key — it is the only stable id on the row, and a
+ * key is not rendered.
+ */
+function Lp({ body, index }: { body: string; index: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -180,9 +184,6 @@ function Lp({ t, body, index }: { t: string; body: string; index: number }) {
       transition={{ duration: 0.35, delay: 0.3 + index * 0.07, ease: 'easeOut' }}
       className="flex items-center gap-2 border border-border-soft bg-cream-100 px-2.5 py-2 text-left cursor-default"
     >
-      <span className="shrink-0 bg-brand-500 px-1.5 py-0.5 eyebrow eyebrow-sm leading-none text-cream-50">
-        {t}
-      </span>
       <span className="font-body hint leading-tight text-ink-900">{body}</span>
     </motion.div>
   );

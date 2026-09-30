@@ -232,13 +232,15 @@ export const PRICE_ANCHOR: Record<string, Omit<ProductionSpec, 'type'>> = {
     charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
   },
   '6a66f4e596e2931bcd3a0cb1': { // Minimalist Notebook
-    paper: 'cream', size: 'b5', pageDesign: 'grid', cover: 'hard',
+    paper: 'fountain', size: 'b4', pageDesign: 'numbered', cover: 'hard',
     // No charm, ribbon or sticker: an OMITTED axis scores 0 through
     // `optionScore`, which is what a minimalist anchor should be.
     functional: 'closure',
   },
   '6a66f4f796e2931bcd3a0cbd': { // Indie Notebook
-    paper: 'fountain', size: 'b4', pageDesign: 'numbered', cover: 'hard',
+    // `a4` was specified and does not exist — SIZE_OPTIONS is a5 / b4 / b5, and
+    // `configOption` THROWS on an unknown id. `a5` is the only A size.
+    paper: 'cream', size: 'a5', pageDesign: 'numbered', cover: 'hard',
     functional: 'band',
   },
   '6a66f56596e2931bcd3a0cf2': { // Cutesy Notebook

@@ -46,7 +46,6 @@ export function advanceFinlitPhase(s: GameState, totalRounds: number): void {
       const owed = s.player.debt;
       s.player.cash -= owed;
       s.player.debt = 0;
-      s.history.push({ day: endDay, text: `Repaid outstanding obligation of $${owed}.`, cause: 'debt_settle' });
     }
     s.meta.ended = true;
   }

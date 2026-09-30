@@ -179,7 +179,7 @@ function MarketCard({
           <Stat
             label="Price anchor"
             value={fmt$(priceAnchorCost(genre.id))}
-            note="costs, at a lean build"
+            note="market avg price"
             delay={0.05}
           />
           {/* No figure here on purpose — whether a market tolerates a price

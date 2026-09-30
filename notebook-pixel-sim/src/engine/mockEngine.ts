@@ -208,7 +208,6 @@ export const addProductLine = (
   s.portfolio.productLines.push(line);
   // If portfolio was empty, this is now the active item.
   if (!s.portfolio.activeLineId) s.portfolio.activeLineId = id;
-  s.history.push({ day: s.meta.day, text: `Added notebook: ${line.name}`, cause: 'line_add' });
   return id;
 };
 
@@ -224,12 +223,10 @@ export const addProductLine = (
 export const removeProductLine = (s: GameState, lineId: string): boolean => {
   const idx = s.portfolio.productLines.findIndex((l) => l.id === lineId);
   if (idx < 0) return false;
-  const removed = s.portfolio.productLines[idx];
   s.portfolio.productLines.splice(idx, 1);
   if (s.portfolio.activeLineId === lineId) {
     s.portfolio.activeLineId = s.portfolio.productLines[0]?.id ?? '';
   }
-  s.history.push({ day: s.meta.day, text: `Removed notebook: ${removed.name}`, cause: 'line_remove' });
   return true;
 };
 
@@ -252,7 +249,6 @@ export const setLineQuantityTarget = (s: GameState, lineId: string, qty: number)
   const line = s.portfolio.productLines.find((l) => l.id === lineId);
   if (!line) return false;
   line.quantityTarget = clamp(Math.round(finite(qty, line.quantityTarget)), 0, 999);
-  s.history.push({ day: s.meta.day, text: `Line "${line.name}" quantity → ${line.quantityTarget}`, cause: 'line_qty' });
   return true;
 };
 
@@ -320,7 +316,6 @@ export const placeAddOn = (
   // notebook a player sees and the score it submits cannot disagree. The
   // catalogue id and the option id are deliberately the same string.
   if (axis) line.finlitSpec = { ...(line.finlitSpec ?? {}), [axis]: defId };
-  s.history.push({ day: s.meta.day, text: `Added add-on (${line.name}/${line.productId}): ${defId}`, cause: 'addon_' + defId });
   return true;
 };
 
@@ -377,7 +372,6 @@ export const removeAddOn = (s: GameState, instId: string, lineId?: string) => {
   if (axis && line.finlitSpec?.[axis] === going?.defId) {
     line.finlitSpec = { ...line.finlitSpec, [axis]: undefined };
   }
-  s.history.push({ day: s.meta.day, text: `Removed add-on (${line.name})`, cause: 'addon_remove' });
 };
 
 /**
@@ -408,7 +402,6 @@ export const setProductField = <K extends keyof ProductLine>(
     while (taken.has(name)) { name = `${base}-${n}`; n++; }
     line.name = name;
   }
-  s.history.push({ day: s.meta.day, text: `Changed ${line.name} ${String(k)} → ${String(v)}`, cause: 'product_' + String(k) });
 };
 
 // `setSegment` is GONE with the V2 segment axis (2026-09-14). The four-value
@@ -419,7 +412,6 @@ export const setPrice = (s: GameState, n: number, lineId?: string) => {
   console.log('[decision] setPrice', n);
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   line.price = clamp(finite(n, line.price), 1, 30);
-  s.history.push({ day: s.meta.day, text: `${line.name} price $${line.price}`, cause: 'price' });
 };
 
 // ── V3 (FinLit) decision mutators ─────────────────────────────────────────
@@ -434,7 +426,6 @@ export const setLineGenre = (s: GameState, genre: FinlitGenreId, lineId?: string
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   line.productId = genre;
   line.productId = genre;
-  s.history.push({ day: s.meta.day, text: `${line.name} → ${genre} market`, cause: 'finlit_genre' });
 };
 
 /** Set one axis of a line's production spec (type/paper/size/pageDesign/addon/cover). */
@@ -447,7 +438,6 @@ export const setFinlitAxis = (
   console.log('[decision] setFinlitAxis', axis, '→', optionId);
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   line.finlitSpec = { ...(line.finlitSpec ?? {}), [axis]: optionId };
-  s.history.push({ day: s.meta.day, text: `${line.name} ${axis} → ${optionId}`, cause: 'finlit_spec' });
 };
 
 /** Activate or update a GlobalInput selection. energyDelta > 0 = spend, < 0 = refund.
@@ -466,7 +456,6 @@ export const setGlobalInputSelection = (
   } else {
     s.globalInputSelections.push({ key, selectedStepKey });
   }
-  s.history.push({ day: s.meta.day, text: `${key} → ${selectedStepKey ?? 'on'}`, cause: 'global_input' });
   return true;
 };
 
@@ -478,7 +467,6 @@ export const clearGlobalInputSelection = (s: GameState, key: string, energyRefun
   if (energyRefund > 0) {
     s.player.energy = clamp(s.player.energy + energyRefund, 0, s.player.maxEnergy);
   }
-  s.history.push({ day: s.meta.day, text: `${key} cleared`, cause: 'global_input' });
 };
 
 /**
@@ -490,9 +478,7 @@ export const clearGlobalInputSelection = (s: GameState, key: string, energyRefun
 export const setShopName = (s: GameState, name: string) => {
   const next = (name ?? '').trim().slice(0, MAX_SHOP_NAME) || DEFAULT_SHOP_NAME;
   if (next === s.meta.shopName) return;
-  const prev = s.meta.shopName;
   s.meta.shopName = next;
-  s.history.push({ day: s.meta.day, text: `Shop renamed: ${prev} → ${next}`, cause: 'shop_name' });
 };
 
 /** Set the line's per-PHASE production target (LP2 lever). Undefined = full
@@ -500,7 +486,6 @@ export const setShopName = (s: GameState, name: string) => {
 export const setLineTargetPerPhase = (s: GameState, units: number | undefined, lineId?: string) => {
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
   line.targetPerPhase = units === undefined ? undefined : clamp(finite(units, 0), 0, 100000);
-  s.history.push({ day: s.meta.day, text: `${line.name} production target ${units ?? 'max'}`, cause: 'finlit_target' });
 };
 
 // `setLineVendor` is gone with `ProductLine.vendor`: a vendor is a company-wide
@@ -537,7 +522,6 @@ export const resolveFinlitScenario = (s: GameState, scenarioId: string, optId: '
   s.finlit.sellMult *= opt.sellMult ?? 1;
   if (opt.cashNow) s.player.cash += opt.cashNow;
   if (!s.finlit.resolvedScenarios.includes(scenarioId)) s.finlit.resolvedScenarios.push(scenarioId);
-  s.history.push({ day: s.meta.day, text: `Scenario "${sc.title}" - ${optId}: ${opt.label}`, cause: 'finlit_scenario' });
   return true;
 };
 
@@ -589,7 +573,6 @@ export const engageFinlitVendor = (
       inputId: itemId,
     });
   }
-  s.history.push({ day: s.meta.day, text: `Vendor → ${item.label}`, cause: 'finlit_vendor' });
   return true;
 };
 
@@ -605,7 +588,6 @@ export const clearFinlitVendor = (s: GameState, item?: GlobalInputItemDto): void
     }
   }
   s.globalInputSelections = s.globalInputSelections.filter((sel) => !matches(sel));
-  s.history.push({ day: s.meta.day, text: `Vendor cleared: ${item?.label ?? 'all'}`, cause: 'finlit_vendor' });
 };
 
 /**
@@ -660,7 +642,6 @@ export const acquireUpgrade = (s: GameState, upgradeId: string, costs: { time: n
   // `marketing_loyalty` bumped `market.retention`, a per-segment map deleted
   // with the V2 segment axis. Its only reader (demand.ts) was already gone.
   pushLedger(s, { kind: 'opex-tool', amount: -Math.max(0, costs.cash), cause: 'upgrade_' + upgradeId });
-  s.history.push({ day: s.meta.day, text: `Acquired upgrade: ${upgradeId}`, cause: 'upgrade_' + upgradeId });
   return true;
 };
 
@@ -680,7 +661,6 @@ export const toggleChannel = (s: GameState, channelId: string) => {
     s.channels.active.push(channelId as any);
     s.channels.marketingPerDay += def.dailyCost;
   }
-  s.history.push({ day: s.meta.day, text: `Toggled channel: ${def.name}`, cause: 'channel_' + channelId });
   return true;
 };
 
@@ -739,7 +719,6 @@ export const applyEventChoice = (s: GameState, eventId: string, opt: 'A' | 'B' |
 
   s.events.resolved.push({ id: eventId, option: opt, day: s.meta.day });
   s.meta.pendingEventId = null;
-  s.history.push({ day: s.meta.day, text: `Event "${ev.title}" - ${opt}: ${res.feedback}`, cause: 'event_' + eventId });
 };
 
 function distributeRawAcrossLines(s: GameState, total: number) {
@@ -840,7 +819,6 @@ export const engageFinlitHire = (
   } else {
     s.globalInputSelections.push({ key: 'hiring', selectedStepKey: stepKey, inputId: itemId });
   }
-  s.history.push({ day: s.meta.day, text: `Hired ${item.label} (${stepKey})`, cause: 'finlit_hire' });
   return true;
 };
 
@@ -861,7 +839,6 @@ export const clearFinlitHire = (s: GameState, item?: GlobalInputItemDto): void =
     }
   }
   s.globalInputSelections = s.globalInputSelections.filter((sel) => !matches(sel));
-  s.history.push({ day: s.meta.day, text: `Released hire: ${item?.label ?? 'all'}`, cause: 'finlit_hire_clear' });
 };
 
 /** Set one marketing item's step (e.g. "1", "-2", "0"). Keyed by `inputId`:
@@ -896,7 +873,6 @@ export const setFinlitMarketingBudget = (
   const entry = { key: 'marketing', selectedStepKey: stepKey, inputId: itemId };
   if (idx >= 0) Object.assign(s.globalInputSelections[idx], entry);
   else s.globalInputSelections.push(entry);
-  s.history.push({ day: s.meta.day, text: `Marketing → step ${stepKey}`, cause: 'finlit_marketing' });
   return true;
 };
 
@@ -938,12 +914,10 @@ export const toggleFinlitChannelAll = (
   if (idx >= 0) {
     s.globalInputSelections.splice(idx, 1);
     s.player.energy = clamp(s.player.energy + energy, 0, s.player.maxEnergy);
-    s.history.push({ day: s.meta.day, text: `Channel ${item.label} removed`, cause: 'finlit_channel' });
   } else {
     if (active.length >= maxSelections) return false;
     if (!applyEnergyDelta(s, energy, `channel ${item.key}`)) return false;
     s.globalInputSelections.push({ key: 'channel', selectedStepKey: null, inputId: itemId });
-    s.history.push({ day: s.meta.day, text: `Channel ${item.label} added`, cause: 'finlit_channel' });
   }
   return true;
 };

@@ -187,7 +187,11 @@ export interface GameState {
    * begins.
    */
   cashOpeningByRound: Record<number, number>;
-  history: { day: number; text: string; cause: string }[];
+  // `history` — the run's raw mutation log — was here. It fed ONE surface, the
+  // Decision Timeline, which was removed 2026-10-01; nothing read it after
+  // that, so the ~18 `push` sites were writing to a list nobody opened. Deleted
+  // with it. NOT to be confused with `mascot.history`, which is the Prev
+  // navigation stack and stays.
   // Daily snapshot lists for charts
   series: {
     cash: number[];
@@ -353,7 +357,6 @@ const startingState = (): GameState => ({
   // it is the base of `selectCashBalance`, so an empty map would silently fall
   // back to `player.cash` and drift as profit was banked into it.
   cashOpeningByRound: { 1: STARTING_CASH.self },
-  history: [{ day: 1, text: 'Started a notebook business out of the dorm.', cause: 'start' }],
   series: { cash: [], revenue: [], profit: [], sold: [], finished: [], raw: [], demand: [], stockout: [], overstock: [] },
   mascot: { queue: [], current: null, history: [], seenScripts: [], seenMessages: [], mood: 'idle', minimized: false, position: null },
   audio: { sfxEnabled: true, musicEnabled: false },
@@ -566,7 +569,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 24,
+      version: 25,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -1055,6 +1058,23 @@ export const useGame = create<Store>()(
             }
           }
         }
+        // ── v25: the run `history` log is DROPPED ──────────────────────────
+        //
+        // It fed one surface, the Decision Timeline, removed 2026-10-01.
+        // `partialize` spreads the whole state, so every existing save carries
+        // the array; without this it would survive as an untyped key on the
+        // store, growing nothing but confusion for whoever next reads a save.
+        //
+        // Safe AFTER v24 despite that step's "last in the chain" note — the
+        // ordering there is about v24 needing v22's `productId`, and this
+        // touches an unrelated key.
+        //
+        // `mascot.history` is a DIFFERENT field (the Prev navigation stack) and
+        // is deliberately untouched.
+        if (fromVersion < 25 && persisted && 'history' in persisted) {
+          delete persisted.history;
+        }
+
         return persisted as Store;
       },
     },

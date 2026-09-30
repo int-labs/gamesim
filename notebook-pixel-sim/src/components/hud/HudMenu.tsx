@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MoreHorizontal,
-  History as HistoryIcon,
   Volume2,
   VolumeX,
   Music,
@@ -18,8 +17,6 @@ import { audio, playSfx } from '@/audio/audioManager';
 import { lockAccess } from '@/access/passkey';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { MusicOffIcon } from '@/components/icons/MusicOffIcon';
-import { HistoryDropdown } from '@/components/hud/HistoryDropdown';
-import { Tooltip } from '@/components/primitives/Tooltip';
 
 interface Props {
   /** Fires Amelia's quick-refresher help script (owned by TopHUD). */
@@ -52,7 +49,8 @@ export function HudMenu({ onHelp }: Props) {
   const toggleMusic = useGame((s) => s.toggleMusic);
 
   const [open, setOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  // `historyOpen` and its HistoryDropdown were here. The Decision Timeline was
+  // removed whole on 2026-10-01 — see `HistoryDropdown`'s deletion note.
   const [confirmLogout, setConfirmLogout] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -62,7 +60,6 @@ export function HudMenu({ onHelp }: Props) {
   const close = () => setOpen(false);
 
   // Shared action handlers — used by BOTH the inline toolbar and the dropdown.
-  const openHistory = () => { close(); setHistoryOpen(true); };
   const doHelp = () => { close(); onHelp(); };
   const askLogout = () => { close(); setConfirmLogout(true); };
   const doToggleSfx = () => {
@@ -129,10 +126,6 @@ export function HudMenu({ onHelp }: Props) {
         <span className="hidden sm:inline-flex items-center gap-1">
           <span aria-hidden className="game-hud-divider" />
         </span>
-        {/* Decision history — bar icon on sm+; in the ⋯ menu on phones. */}
-        <span className="hidden sm:inline-flex">
-          <ToolbarIcon icon={HistoryIcon} tip="Decision history" onClick={openHistory} />
-        </span>
         <button
           ref={btnRef}
           type="button"
@@ -181,7 +174,6 @@ export function HudMenu({ onHelp }: Props) {
             <div className="sm:hidden py-1 border-b border-border-soft">
               {/* Undo / Redo belong to a V2.1 store slice this tree does not
                   carry, so those rows are deliberately absent. */}
-              <MenuRow icon={HistoryIcon} label="Decision history" onClick={openHistory} chevron />
             </div>
 
             <div className="py-1 border-b border-border-soft">
@@ -209,7 +201,6 @@ export function HudMenu({ onHelp }: Props) {
         )}
 
       {/* Decision history — centered modal, shared by both layouts. */}
-      {historyOpen && <HistoryDropdown onClose={() => setHistoryOpen(false)} />}
 
       {/* Log-out confirm — centered modal, shared by both layouts. */}
       {confirmLogout &&
@@ -260,23 +251,8 @@ export function HudMenu({ onHelp }: Props) {
   );
 }
 
-/** One inline toolbar icon button (wide layout). Shares the raised HUD keycap. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ToolbarIcon({ icon, iconNode, tip, disabled, onClick }: { icon?: any; iconNode?: React.ReactNode; tip: string; disabled?: boolean; onClick: () => void }) {
-  return (
-    <Tooltip content={tip} placement="bottom">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={tip}
-        className={clsx('game-hud-iconbtn', disabled && 'opacity-40 cursor-not-allowed')}
-      >
-        {iconNode ?? <NavIcon icon={icon} size={16} color="currentColor" />}
-      </button>
-    </Tooltip>
-  );
-}
+// `ToolbarIcon` was here — the inline toolbar icon button. Its ONLY caller was
+// the Decision history trigger, so it went with the timeline (2026-10-01).
 
 /** A full-width menu row: icon + label + optional trailing state / chevron. */
 function MenuRow({
