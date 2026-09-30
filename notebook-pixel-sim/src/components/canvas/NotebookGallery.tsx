@@ -6,10 +6,8 @@ import { setActiveLine } from '@/engine/mockEngine';
 import { archetypeLabel } from '@/engine/mockEngine';
 import { fmt$ } from '@/utils/format';
 import { playSfx } from '@/audio/audioManager';
-import { ViewToggle } from './ViewToggle';
 import { Notebook, sizeScale } from './Notebook';
 import { PixelIcon } from '@/components/icons/PixelIcon';
-import { A } from '@/assets';
 import { addOnById } from '@/data/addOns';
 import { genreById, configOption, type GenreId, type ProductionSpec } from '@/data/finlit';
 import { lineSize } from '@/engine/selectors';
@@ -79,19 +77,11 @@ export function NotebookGallery() {
           </span>
         </div>
       </div>
-      <div className="absolute right-3 top-3 z-[45] h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
-        <ViewToggle />
-        {/* Same Details affordance as the focus view, in the same slot, so
-            the toggle itself never shifts when switching views. */}
-        {/* h matches the ViewToggle's OUTER height so the strip aligns. */}
-        <button
-          onClick={() => { playSfx('click-soft'); openDrawer('right', 'details'); }}
-          className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
-        >
-          <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
-          <span className="hidden md:inline">Details</span>
-        </button>
-      </div>
+      {/* The Focus / Shelf / Details strip MOVED to `ProductPage` (2026-10-01).
+          It was rendered here AND in NotebookCanvas — two copies of one control
+          that had already drifted apart (this one played a sound and carried no
+          `data-drawer-trigger`, so a press here both opened Details and let the
+          outside-pointer handler dismiss it). One copy, owned by the page. */}
 
       {/* Shelf area — padding clears the floating header (top), the left
           dock column (sm+), the phone bottom dock bar, and the bottom-right

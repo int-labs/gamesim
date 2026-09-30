@@ -18,8 +18,6 @@ import { PixelIcon } from '@/components/icons/PixelIcon';
 import { NotebookCycler } from '@/components/canvas/NotebookCycler';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { NavIcon } from '@/components/icons/NavIcon';
-import { A } from '@/assets';
-import { ViewToggle } from './ViewToggle';
 import { DustMotes } from '@/components/fx/DustMotes';
 import { PixelBurstLayer } from '@/components/fx/PixelBurst';
 import { playSfx } from '@/audio/audioManager';
@@ -56,7 +54,6 @@ export function NotebookCanvas() {
   const apply = useGame((s) => s.apply);
   const addOns = useGame((s) => (hasNotebook ? currentAddOns(s) : []));
   const openDrawer = useGame((s) => s.openDrawer);
-  const detailsOpen = useGame((s) => s.ui.rightDrawer === 'details');
   const pushMascot = useGame((s) => s.pushMascot);
   const patCount = useRef(0);
 
@@ -353,24 +350,11 @@ export function NotebookCanvas() {
         </div>
       </div>
 
-      {/* ── Floating view controls (top-right, same 48px band) ─────────── */}
-      <div className="absolute right-3 top-3 z-[45] h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
-        <ViewToggle />
-        {/* h matches the ViewToggle's OUTER height (26px buttons + p-0.5 +
-            border = 32px) so the row reads as one aligned control strip. */}
-        <button
-          // Marks the trigger so the drawer's outside-pointer close ignores it
-          // - otherwise the same press that opens Details also dismisses it -
-          // and reports state to assistive tech.
-          data-drawer-trigger
-          aria-expanded={detailsOpen}
-          onClick={() => openDrawer('right', 'details')}
-          className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
-        >
-          <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
-          <span className="hidden md:inline">Details</span>
-        </button>
-      </div>
+      {/* The Focus / Shelf / Details strip MOVED to `ProductPage` (2026-10-01).
+          It lived here and in NotebookGallery, so it disappeared whenever this
+          component took its empty-portfolio early return — taking the market
+          data a player is meant to choose FROM with it. It belongs to the page,
+          not to a canvas state. */}
 
       {/* Focus navigation — a bottom-center carousel cluster ‹ 1/3 › so it
           never overlaps the hero, docks or placed add-ons. Sits above the

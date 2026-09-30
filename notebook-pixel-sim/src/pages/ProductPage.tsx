@@ -14,6 +14,7 @@ import { FinlitDesignControls } from '@/components/panels/FinlitDesignControls';
 import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
 import { ProductLineList } from '@/components/panels/ProductLineList';
 import { EdgeDock, type DockItem } from '@/components/hud/EdgeDock';
+import { ViewToggle } from '@/components/canvas/ViewToggle';
 import { Drawer } from '@/components/hud/Drawer';
 
 /** Horizontal space the open left drawer needs: the edge dock's rail, the
@@ -57,6 +58,9 @@ export function ProductPage({ liveProjectionState }: { liveProjectionState?: Liv
   const viewMode = useGame((s) => s.ui.viewMode);
   const toggleDrawer = useGame((s) => s.toggleDrawer);
   const closeDrawer = useGame((s) => s.closeDrawer);
+  // The page owns the Details trigger now, so it needs the opener the two
+  // canvas components used to hold.
+  const openDrawer = useGame((s) => s.openDrawer);
   const lineCount = useGame((s) => s.portfolio.productLines.length);
   const addOnCount = useGame((s) => (s.portfolio.productLines.length ? currentAddOns(s).length : 0));
   const apply = useGame((s) => s.apply);
@@ -135,6 +139,43 @@ export function ProductPage({ liveProjectionState }: { liveProjectionState?: Liv
       <div className="relative flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 flex flex-col">
         {viewMode === 'gallery' ? <NotebookGallery /> : <NotebookCanvas />}
+      </div>
+
+      {/* ── Focus / Shelf / Details — THE PAGE'S, not a canvas state's ──────
+
+          It lived inside NotebookCanvas and NotebookGallery, one copy each. The
+          canvas copy sat after that component's empty-portfolio early return,
+          so with no notebook chosen the entire strip vanished — the view toggle
+          AND Details — and the market data a player is meant to decide FROM was
+          only reachable once they had already decided.
+
+          Rendered here it is unconditional: on the Product page, in every view,
+          with or without a portfolio. Owner, 2026-10-01: *"that button simply
+          needs to exist at all states at any given time"*.
+
+          Same slot and classes as before, so nothing moves on screen. z-45
+          keeps it above the left drawer and below the Details drawer itself —
+          see the z-index note further down. */}
+      <div className="absolute right-3 top-3 z-[45] h-[48px] flex items-center gap-1.5 panel-frame panel-frame--lifted bg-surface px-1.5">
+        <ViewToggle />
+        {/* h matches the ViewToggle's OUTER height (26px buttons + p-0.5 +
+            border = 32px) so the row reads as one aligned control strip. */}
+        <button
+          // Marks the trigger so the drawer's outside-pointer close ignores it
+          // — otherwise the same press that opens Details also dismisses it —
+          // and reports state to assistive tech. The gallery's copy of this
+          // button had neither, which is one reason two copies was wrong.
+          data-drawer-trigger
+          aria-expanded={rightDrawer === DETAILS_ID}
+          onClick={() => {
+            playSfx('click-soft');
+            openDrawer('right', DETAILS_ID);
+          }}
+          className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
+        >
+          <img src={A.ui.pixel.info} alt="" className="w-[14px] h-[14px] object-contain" style={{ imageRendering: 'pixelated' }} draggable={false} />
+          <span className="hidden md:inline">Details</span>
+        </button>
       </div>
 
       {/* Floating dock — inputs, left edge (bottom bar on phones). */}
