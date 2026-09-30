@@ -195,11 +195,41 @@ export const priceAnchorCost = (genre: string): number =>
 export interface PriceSensitivity {
   /** `min / (min + max)` on the market's `selling_price` field, [0, 0.5). */
   weight: number;
-  label: 'Tolerant' | 'Moderate' | 'Very picky';
+  label: 'Tolerant' | 'Moderate' | 'Picky' | 'Very picky';
 }
 
-/** Equal thirds of the [0, 0.5) the formula can reach. Owner-confirmed. */
-const PICKY_BANDS = { tolerant: 0.167, moderate: 0.333 } as const;
+/**
+ * FOUR bands, cut on the weight. Owner-confirmed 2026-09-30.
+ *
+ * They were equal THIRDS of the [0, 0.5) the formula can reach — which assumed
+ * the whole range was reachable. It is not: `max` on `selling_price` is
+ * generally 30, so the floor is `5/35 = 0.143` and the bottom third admitted
+ * only `min` 5 and 6. Everything else piled into Moderate and above:
+ *
+ *     thirds @ max 30 → Tolerant 5-6 · Moderate 7-14 · Very picky 15-30
+ *
+ * Nor is equal thirds of the AUTHORED `min` right, which was the other
+ * candidate. That assumes `max` is the real ceiling for a product, and it is
+ * not — past some price a notebook loses every prospect it had, so the top of
+ * the range is not a band an operator meaningfully splits.
+ *
+ * Fourths across the ~25 authorable values, 6 / 7 / 6 / 6:
+ *
+ *     min  5-10  → Tolerant     weight < 0.268
+ *     min 11-17  → Moderate     weight < 0.375
+ *     min 18-23  → Picky        weight < 0.444
+ *     min 24-30  → Very picky
+ *
+ * THE CUTS ARE ON THE WEIGHT, not on `min`. The `min` ranges above describe
+ * them only while `max` is 30; a product authored with a different max still
+ * scores correctly but no longer maps to those numbers. The constants are the
+ * exact weights at `min` 11, 18 and 24 against a max of 30 — 11/41, 3/8, 4/9.
+ */
+const PICKY_BANDS = {
+  tolerant: 11 / 41,
+  moderate: 3 / 8,
+  picky:    4 / 9,
+} as const;
 
 /**
  * THE formula, from bounds alone.
@@ -226,6 +256,7 @@ export const priceSensitivityFromBounds = (
     label:
       weight < PICKY_BANDS.tolerant ? 'Tolerant'
       : weight < PICKY_BANDS.moderate ? 'Moderate'
+      : weight < PICKY_BANDS.picky ? 'Picky'
       : 'Very picky',
   };
 };

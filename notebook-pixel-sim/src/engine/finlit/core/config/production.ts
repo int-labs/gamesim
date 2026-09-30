@@ -187,26 +187,51 @@ export interface ProductionSpec {
 }
 
 /**
- * The REFERENCE spec: a lean, plausible build of any notebook.
+ * The REFERENCE spec PER NOTEBOOK, keyed by `Product._id`.
  *
- * Two jobs, deliberately one object so they cannot disagree:
- *   1. what a newly added notebook starts on (`defaultLine`), and
- *   2. the basis of the PRICE ANCHOR shown on the market cards — what a
- *      sensible build of this notebook costs, so a player has something to
- *      price against instead of guessing.
+ * Two jobs, deliberately one table so they cannot disagree:
+ *   1. what a newly added notebook of that type starts on (`defaultLine`), and
+ *   2. the basis of the PRICE ANCHOR on the market cards — what a sensible
+ *      build of THIS notebook costs, so a player has something to price
+ *      against instead of guessing.
+ *
+ * KEYED, not shared. One spec for every market priced them all off the same
+ * build, so the anchor differed between notebooks only by their unit costs and
+ * never by what a lean version of each actually is — a lean anime notebook and
+ * a lean minimalist one are not the same object.
+ *
+ * `DEFAULT_PRICE_ANCHOR` answers for an id with no entry. It is a real state,
+ * not a guard: the catalogue is the operator's, so a notebook can exist here
+ * before anyone has written its anchor, and pricing it off a plain build beats
+ * rendering nothing.
+ *
+ * ⚠ These ids belong to ONE simulation's data. Frontend-only is the owner's
+ * call, but it means a different deployment's ids simply miss and take the
+ * default — silently. If that becomes a problem the anchor belongs on the
+ * Product document, not in a longer table here.
  *
  * Lives here with the tables it indexes into.
  */
-export const PRICE_ANCHOR: Omit<ProductionSpec, 'type'> = {
+const DEFAULT_PRICE_ANCHOR: Omit<ProductionSpec, 'type'> = {
   paper: 'recycled',
   size: 'b5',
   pageDesign: 'blank',
   cover: 'plastic',
 };
 
-/** `type` mirrors the genre — it is the notebook's identity, not a choice. */
-export const priceAnchorSpec = (genre: string): ProductionSpec => ({
-  type: genre,
-  ...PRICE_ANCHOR,
+export const PRICE_ANCHOR: Record<string, Omit<ProductionSpec, 'type'>> = {
+  // One entry per notebook, e.g.
+  //   '6a4b…': { paper: 'premium', size: 'a5', pageDesign: 'dotted', cover: 'hardcover' },
+};
+
+/**
+ * `type` mirrors the product — it is the notebook's identity, not a choice.
+ *
+ * Read at CALL TIME, never merged at module scope: `PRICE_ANCHOR` is edited in
+ * place, and a snapshot taken on import would freeze whatever it held then.
+ */
+export const priceAnchorSpec = (productId: string): ProductionSpec => ({
+  type: productId,
+  ...(PRICE_ANCHOR[productId] ?? DEFAULT_PRICE_ANCHOR),
 });
 
