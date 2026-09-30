@@ -9,6 +9,8 @@ import { setProductField } from '@/engine/mockEngine';
 import { playSfx } from '@/audio/audioManager';
 import { BuyerInterestTab, MarketDataTab } from './NotebookMarketTabs';
 import { productCopy } from '@/engine/finlit/core/config/productCopy';
+import { driverCopy } from '@/engine/finlit/core/config/drivers';
+import { driverAxes } from '@/engine/finlit/core/config/fieldConfig';
 import clsx from 'clsx';
 
 const VIEWS = ['angle', 'front', 'spine', 'open', 'shelf'] as const;
@@ -389,7 +391,14 @@ function ProductCopy({ arch }: { arch: Archetype }) {
 function SegmentsTab({ arch }: { arch: Archetype }) {
   const html = productCopy(arch).segments;
 
-  if (!html) {
+  // Derived per render, never memoised at module scope: both tables are filled
+  // at boot by the hydrator, so a snapshot taken on import would freeze empty.
+  const drivers = driverAxes(arch).map((axis) => ({
+    axis,
+    copy: driverCopy(arch, axis.key),
+  }));
+
+  if (!html && drivers.length === 0) {
     return (
       <div className="body-xs text-text-3 italic">
         No segment notes written for this notebook yet.
@@ -398,10 +407,54 @@ function SegmentsTab({ arch }: { arch: Archetype }) {
   }
 
   return (
-    <div
-      className="body-xs text-ink-900 measure segment-copy"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <div className="flex flex-col gap-5">
+      {html && (
+        <div
+          className="body-xs text-ink-900 measure segment-copy"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      )}
+
+      {/* WHAT EACH DRIVER ASKS — the operator's own driver copy, as a table.
+
+          Same source as the market card's list: `PlayerConfig.drivers`, scoped
+          to this product. It repeats on purpose — a reader on this tab is
+          asking who buys the notebook, and the drivers are the answer's second
+          half, so sending them to another tab for it would break the page in
+          two.
+
+          ORDERED BY WEIGHT, heaviest first, so the table says what the buyers
+          care about MOST without printing `direction` — which is a coefficient,
+          not a share, and nothing a player can do arithmetic with. */}
+      {drivers.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="stat-label">What buyers weigh</div>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b-2 border-ink-900">
+                <th className="text-left stat-label py-1.5 pr-3 align-bottom w-[34%]">Decision</th>
+                <th className="text-left stat-label py-1.5 align-bottom">What it means</th>
+              </tr>
+            </thead>
+            <tbody>
+              {drivers.map(({ axis, copy }) => (
+                <tr key={axis.key} className="border-b border-border-soft align-top">
+                  <td className="item-name text-ink-900 py-1.5 pr-3">
+                    {copy.label ?? axis.label}
+                  </td>
+                  <td className="body-xs text-text-2 py-1.5">
+                    {/* No placeholder prose. Absent copy is a real state — an
+                        invented line would keep describing a field the operator
+                        has since repurposed. See the note in `drivers.ts`. */}
+                    {copy.hint ?? <span className="text-text-3 italic">Not described yet.</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
