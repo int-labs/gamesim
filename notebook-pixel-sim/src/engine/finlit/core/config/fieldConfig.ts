@@ -199,36 +199,38 @@ export interface PriceSensitivity {
 }
 
 /**
- * FOUR bands, cut on the weight. Owner-confirmed 2026-09-30.
+ * FOUR bands, each `1/40` (0.025) wide from 0.250. Owner-set 2026-09-30.
  *
- * They were equal THIRDS of the [0, 0.5) the formula can reach — which assumed
- * the whole range was reachable. It is not: `max` on `selling_price` is
- * generally 30, so the floor is `5/35 = 0.143` and the bottom third admitted
- * only `min` 5 and 6. Everything else piled into Moderate and above:
+ * TUNED TO THE LIVE SPREAD, which is narrow. The four authored notebooks weigh
+ * 0.219 / 0.250 / 0.259 / 0.278 — a span of 0.06 — so bands sized against the
+ * formula's theoretical [0, 0.5) put three of them in one bucket:
  *
- *     thirds @ max 30 → Tolerant 5-6 · Moderate 7-14 · Very picky 15-30
+ *     Anime 7/25 = 0.219   Cutesy 6/18 = 0.250
+ *     Indie 7/20 = 0.259   Minimalist 5/13 = 0.278
  *
- * Nor is equal thirds of the AUTHORED `min` right, which was the other
- * candidate. That assumes `max` is the real ceiling for a product, and it is
- * not — past some price a notebook loses every prospect it had, so the top of
- * the range is not a band an operator meaningfully splits.
+ * Two earlier attempts, both wrong and worth not repeating:
+ *   • equal THIRDS of [0, 0.5) — assumed the whole range is reachable. With a
+ *     max of 30 the floor is `5/35 = 0.143`, so the bottom third admitted only
+ *     `min` 5 and 6 and everything else piled into Moderate and above.
+ *   • equal FOURTHS of the authored `min` — assumes `max` is a product's real
+ *     ceiling. It is not: past some price a notebook loses every prospect, so
+ *     the top of the range is not a band an operator meaningfully splits.
  *
- * Fourths across the ~25 authorable values, 6 / 7 / 6 / 6:
+ * The run STARTS at 0.250 because that is the only 0.025 spacing that puts
+ * Indie in Moderate and Minimalist in Picky, which is where the owner placed
+ * them by eye.
  *
- *     min  5-10  → Tolerant     weight < 0.268
- *     min 11-17  → Moderate     weight < 0.375
- *     min 18-23  → Picky        weight < 0.444
- *     min 24-30  → Very picky
+ * Exact fractions, not rounded decimals: Cutesy sits ON the first cut at
+ * exactly 1/4, and `weight < 0.25` against a decimal literal is a coin flip at
+ * the last bit. `1/4` makes it land in Moderate deterministically.
  *
- * THE CUTS ARE ON THE WEIGHT, not on `min`. The `min` ranges above describe
- * them only while `max` is 30; a product authored with a different max still
- * scores correctly but no longer maps to those numbers. The constants are the
- * exact weights at `min` 11, 18 and 24 against a max of 30 — 11/41, 3/8, 4/9.
+ * VERY PICKY IS CURRENTLY UNREACHED — nothing authored gets to 0.300. That is
+ * the band for a market someone deliberately narrows later, not a gap.
  */
 const PICKY_BANDS = {
-  tolerant: 11 / 41,
-  moderate: 3 / 8,
-  picky:    4 / 9,
+  tolerant: 1 / 4,    // 0.250
+  moderate: 11 / 40,  // 0.275
+  picky:    3 / 10,   // 0.300
 } as const;
 
 /**
