@@ -157,7 +157,10 @@ export function StudioPanel({
   const cashByProduct = liveProjection?.byProduct ?? null;
   // …and the same base the chip shows, or the gate refuses spending the player
   // can see they can afford.
-  const { financialsByRound, bootstrap } = useGamesimSession();
+  // `bootstrap` was destructured here only to hand `channelDetail` the product
+  // list for its name-matched override lookup. That lookup is gone — selections
+  // are keyed by Product `_id`, which is what a genre id already is.
+  const { financialsByRound } = useGamesimSession();
   const cashBase = useGame((s) =>
     selectCashBalance(
       s,
@@ -226,9 +229,32 @@ export function StudioPanel({
   // Raw text per candidate so the field can be empty mid-typing; it is parsed
   // and clamped before anything reaches the engine.
   const [levelDraft, setLevelDraft] = useState<Record<string, string>>({});
-  // ONE sheet for all four sections. The value is which TAB is showing; `null`
-  // means closed, so open-state and selected-tab cannot disagree.
-  const [detailTab, setDetailTab] = useState<string | null>(null);
+  // ONE sheet for all four sections.
+  //
+  // TWO FLAGS, not one. `detailTab` was doing both jobs — which tab is showing,
+  // AND whether the sheet is open — so closing it had to write `null` over the
+  // tab, which also emptied `detailSections` (gated on the same value) in the
+  // very render the exit animation starts. The sheet then animated out with no
+  // tabs and no panel, and whatever had focus inside it was unmounted mid-flight
+  // with nothing to hand focus back to.
+  //
+  // Split, `detailTab` keeps its value through the close, so the sheet leaves
+  // with its content intact and reopens where the reader left it.
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<string>('channels');
+
+  /**
+   * Closes EVERY popup this panel owns, not just the sheet.
+   *
+   * `pending` is the case-study gate and is its own modal. Both could be open at
+   * once — the sheet is reachable while the gate is up — and closing one left
+   * the other's backdrop over the page, which is indistinguishable from a hang.
+   * One function, so a new popup added here is closed by the same call.
+   */
+  const closeAllPopups = () => {
+    setDetailOpen(false);
+    setPending(null);
+  };
 
   // Days remaining in the current phase — see the Hiring hint for why the
   // per-phase figures need this qualifier. Derived from a PRIMITIVE read on
@@ -298,8 +324,8 @@ export function StudioPanel({
   //
   // `channelDetail` takes `products` to resolve the reach impact's per-product
   // overrides onto genres for the reach matrix.
-  const detailSections: DetailSection[] = detailTab === null ? [] : [
-    { id: 'channels', label: 'Sales Channels',   icon: SECTION_ICON.channels, ...channelDetail(channelGI, bootstrap?.products) },
+  const detailSections: DetailSection[] = !detailOpen ? [] : [
+    { id: 'channels', label: 'Sales Channels',   icon: SECTION_ICON.channels, ...channelDetail(channelGI) },
     { id: 'budget',   label: 'Marketing Budget', icon: SECTION_ICON.budget,   ...budgetDetail(marketingGI) },
     { id: 'hiring',   label: 'Hiring',           icon: SECTION_ICON.hiring,   ...hiringDetail(hiringGI) },
     { id: 'vendor',   label: 'Vendor',           icon: SECTION_ICON.vendor,   ...vendorDetail(vendorGI) },
@@ -314,13 +340,15 @@ export function StudioPanel({
            designs. ── */}
       <div className="flex items-center justify-end">
         <button
-          aria-expanded={detailTab !== null}
+          aria-expanded={detailOpen}
           onClick={() => {
             playSfx('click-soft');
             // Opens on the FIRST tab every time rather than remembering the
             // last one: a sheet that reopens somewhere else is the moving
-            // target this replaced.
+            // target this replaced. Set BEFORE the open flag so the sheet never
+            // renders a frame against the previous tab.
             setDetailTab('channels');
+            setDetailOpen(true);
           }}
           className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
         >
@@ -891,10 +919,10 @@ export function StudioPanel({
       {/* The reference sheet: one tab per section, cost/energy/impact on the
           left of each, the market numbers behind it on the right. */}
       <OperationsDetailSheet
-        open={detailTab !== null}
-        onClose={() => setDetailTab(null)}
+        open={detailOpen}
+        onClose={closeAllPopups}
         sections={detailSections}
-        activeId={detailTab ?? ''}
+        activeId={detailTab}
         onSelect={setDetailTab}
       />
 

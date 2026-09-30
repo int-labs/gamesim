@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import type { Transition, Variants } from 'framer-motion';
 import clsx from 'clsx';
@@ -48,6 +48,43 @@ export function PixelModal({ open, onClose, title, width, size = 'md', playful, 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  const panelRef   = useRef<HTMLDivElement | null>(null);
+  /** Whatever had focus when this opened, so it can have it back. */
+  const restoreRef = useRef<HTMLElement | null>(null);
+
+  /**
+   * FOCUS IN, THEN FOCUS BACK.
+   *
+   * This component claimed `role="dialog"` and `aria-modal="true"` while doing
+   * nothing about focus: opening left it on the button behind the backdrop, and
+   * CLOSING left it on an element React had just unmounted. The browser then
+   * falls back to `<body>`, which takes no keys — so the page reads as hung
+   * even though the modal is gone, and Escape and Tab both go nowhere.
+   *
+   * `preventScroll`: the panel is already in view, and focusing it without this
+   * yanks the scroll position of whatever is behind it.
+   *
+   * The restore is guarded on the element still being in the document — a modal
+   * opened from a control that has since been unmounted (a tab that changed
+   * under it) has nothing to give focus back to, and focusing a detached node
+   * silently does nothing.
+   */
+  useEffect(() => {
+    if (!open) return;
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    const frame = requestAnimationFrame(() => {
+      panelRef.current?.focus({ preventScroll: true });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      const previous = restoreRef.current;
+      restoreRef.current = null;
+      if (previous && document.contains(previous)) {
+        previous.focus?.({ preventScroll: true });
+      }
+    };
+  }, [open]);
 
   const panelWidth = width ?? SIZE_WIDTH[size];
   const panelStyle =
@@ -111,7 +148,12 @@ export function PixelModal({ open, onClose, title, width, size = 'md', playful, 
             className={clsx('relative z-[110] w-full flex justify-center p-4', align === 'top' ? 'items-start pt-10' : 'items-center')}
           >
             <motion.div
-              className={clsx('pixel-frame bg-cream-50 flex flex-col', className)}
+              ref={panelRef}
+              // Focusable but not a tab stop: the effect above moves focus here
+              // on open so the dialog owns the keyboard, and Tab then walks the
+              // controls inside it rather than the page behind.
+              tabIndex={-1}
+              className={clsx('pixel-frame bg-cream-50 flex flex-col outline-none', className)}
               style={panelStyle}
               variants={panelVariants}
               initial="hidden"

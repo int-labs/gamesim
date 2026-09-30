@@ -36,40 +36,42 @@ export interface SectionDetail {
 /**
  * ONE CONSOLIDATOR, TWO SOURCES — the shape every detail sheet follows.
  *
- *   numbers → the backend `channel` GlobalInput, via the rows `hydrateChannels`
- *             resolved (it is the single place per-product `impact.selections`
- *             are turned into per-genre values; re-resolving them here would be
- *             a second implementation of it)
+ *   numbers → the backend `channel` GlobalInput's own impacts, resolved through
+ *             `impact.selections` the way `calcFinancials` resolves them
  *   copy    → `PlayerConfig.caseStudy`, through `studyFor`, falling back to the
  *             item's own `description`
  *
  * The channel list is `gi.inputs`, so a channel the operator adds appears here
  * without a code change. It used to be a hardcoded `['offline','online','retail']`.
  */
-export function channelDetail(
-  gi?: GlobalInputDto,
-  /** For mapping an impact's per-product `selections` onto genres. Without it
-   *  the reach matrix shows each channel's DEFAULT reach in every row. */
-  products?: { _id: string; productName: string }[],
-): SectionDetail {
+// The `products` parameter is GONE. It existed to map `impact.selections` onto
+// genres by NAME; genre ids are Product `_id`s, so the selections are keyed by
+// the id already and there is nothing to map. See `reachFor`.
+export function channelDetail(gi?: GlobalInputDto): SectionDetail {
   const items = gi?.inputs ?? [];
 
   // `null` for a channel with no row yet, rather than a `.find(...)!` that
   // throws inside a render.
   const rowFor = (ch: ChannelId) => CHANNEL_ROWS.find((r) => r.channel === ch) ?? null;
 
-  // genreId → its productIds, by the same name-matching heuristic
-  // `hydrateChannels` used. Lazy: GENRES is refilled in place at boot.
-  const productIdsByGenre = (genreId: string): string[] =>
-    (products ?? [])
-      .filter((p) => p.productName.toLowerCase().includes(genreId.toLowerCase()))
-      .map((p) => String(p._id));
-
   /**
    * Reach for (genre × channel), straight off `impacts['sales_channel']` — the
-   * impact the SERVER consumes as `customersObtained`. The per-product
-   * `selections[]` override wins for that genre's products; otherwise the
-   * impact's own value stands.
+   * impact the SERVER consumes as `customersObtained`.
+   *
+   * RESOLVED THROUGH THE OVERRIDE, the same way `calcFinancials` resolves it:
+   *
+   *     relative → base × override      absolute → base + override
+   *
+   * Two defects lived here, and they hid each other. The override was matched
+   * by name — `productName.toLowerCase().includes(genreId)` — a heuristic left
+   * over from before genre ids BECAME Product `_id`s (2026-09-14), so the list
+   * came back empty and every cell silently fell through to the base value.
+   * And when it did match it printed `match.value` RAW, as though an override
+   * replaced the impact rather than scaling it. Either one alone shows the
+   * wrong number; together they showed the raw relative value everywhere.
+   *
+   * Matched by ID now. `genreId` IS the Product `_id`, so there is nothing to
+   * map — see the note at the top of `genres.ts`.
    *
    * Read from `gi.inputs` rather than a local table so it cannot drift from
    * what the round actually scores.
@@ -77,9 +79,17 @@ export function channelDetail(
   const reachFor = (item: GlobalInputDto['inputs'][number], genreId: string): string => {
     const impact = item.impacts?.['sales_channel'];
     if (!impact) return '-';
-    const ids = productIdsByGenre(genreId);
-    const match = impact.selections?.find((s) => ids.includes(String(s.productId)));
-    return pct(match ? match.value : impact.value);
+
+    const override = impact.selections?.find(
+      (s) => String(s.productId) === genreId,
+    )?.value;
+    const base = Number(impact.value) || 0;
+    const resolved =
+      override == null ? base
+      : impact.type === 'relative' ? base * Number(override)
+      : base + Number(override);
+
+    return pct(resolved);
   };
 
   return {
