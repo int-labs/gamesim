@@ -26,6 +26,17 @@ export interface PlayerConfigEntry {
    *  GlobalInput item's `key` for vendors/candidates/marketingTeams/channels,
    *  a Product FIELD key for `drivers`, a Product `_id` for `products`. */
   id: string;
+  /**
+   * `drivers` ONLY — the PARENT this row's field key belongs to, a Product
+   * `_id`. Added 2026-09-30.
+   *
+   * A field key alone is not unique enough to describe: one key means different
+   * things on different notebooks, and `ProductField.direction` is already
+   * per product, so the copy has to be too. A row with no `productId` is kept
+   * as an unscoped FALLBACK for any product lacking its own — which is what
+   * every row written before this date is.
+   */
+  productId?:    string | null;
   /** Full asset URL, or an ImageAsset id the read path resolves to one. */
   imageAssetId?: string | null;
   caseStudy?:    PlayerConfigCaseStudy | null;

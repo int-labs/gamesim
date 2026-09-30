@@ -91,7 +91,8 @@ export function InventoryPanel({
   // pairing, which is NOT portfolio order.
   const byProduct = liveProjection?.byProduct ?? null;
   // The same base the chip and the P&L show — see selectCashBalance.
-  const { financialsByRound } = useGamesimSession();
+  const { financialsByRound, bootstrap } = useGamesimSession();
+  const phase = useGame((s) => s.meta.phase);
   const cashBase = useGame((s) =>
     selectCashBalance(
       s,
@@ -99,10 +100,44 @@ export function InventoryPanel({
       (r) => financialsByRound[roundNumberFromPhase(r)]?.operatingProfit,
     ),
   );
+  /**
+   * CARRIED STOCK — the PREVIOUS round's scored `closingStock`, per product.
+   *
+   * NOT the live projection's `closingStock`, which is what this read before:
+   * that is THIS round's projected leftover, so a round that sells through
+   * closes at zero and the row read 0 almost always. The server's own rule is
+   * `openingStock(r) = closingStock(r - 1)`.
+   *
+   * Round 0 has no predecessor, so the lookup misses and every notebook opens
+   * at 0 — correct, nothing has been carried yet. Parked notebooks use the same
+   * source, and have no other: nothing was submitted for them, so they have no
+   * projection.
+   */
+  const carriedIn = financialsByRound[roundNumberFromPhase(phase) - 1]?.byProduct ?? null;
+  const carriedFor = (productId: string) =>
+    Math.round(carriedIn?.find((bp) => bp.productId === productId)?.closingStock ?? 0);
+
   const stats = lines.map((l) => {
     const p = byProduct?.find((bp) => bp.productId === l.productId);
-    return statsFor(l, p?.inventoryQty ?? null, Math.round(p?.closingStock ?? 0), p?.dynamicCost ?? null);
+    return statsFor(l, p?.inventoryQty ?? null, carriedFor(l.productId), p?.dynamicCost ?? null);
   });
+  /**
+   * EVERY notebook in the catalogue gets a row — active or PARKED.
+   *
+   * `removeProductLine` SPLICES the line out of `portfolio.productLines`, so a
+   * parked notebook had no entry here and vanished from this panel entirely,
+   * taking any carried stock with it. The row is rendered either way now and
+   * `isActive` decides how it reads.
+   *
+   * RENDERING ONLY — parked stays parked. Nothing here adds a line, and
+   * `buildDecisionInputs` still reads `productLines`, so a parked notebook
+   * submits nothing, produces nothing and sells nothing until the player
+   * activates it in Notebook Items.
+   */
+  const parked = (bootstrap?.products ?? []).filter(
+    (prod) => !lines.some((l) => l.productId === prod._id),
+  );
+
   const totalTarget = stats.reduce((a, s) => a + s.target, 0);
   // Null when ANY line is missing its capacity: a partial sum would read as a
   // whole-portfolio ceiling while silently omitting lines.
@@ -110,7 +145,9 @@ export function InventoryPanel({
     ? null
     : stats.reduce((a, s) => a + (s.capacity ?? 0), 0);
 
-  if (lines.length === 0) {
+  // Only when there is NOTHING to show. A player whose notebooks are all parked
+  // still gets rows — that is the point of rendering them.
+  if (lines.length === 0 && parked.length === 0) {
     return (
       <div className="border border-border-soft bg-surface p-6 text-center body-sm text-text-2">
         No notebooks yet - add one in Notebook Items to plan its production.
@@ -180,6 +217,17 @@ export function InventoryPanel({
               onCommit={() => recalc?.(`produce slider released · ${line.name}`)}
             />
           ))}
+
+          {/* Parked notebooks, after the active ones so the running lines keep
+              their established order. Same row, `isActive={false}`. */}
+          {parked.map((prod) => (
+            <ProductionRow
+              key={prod._id}
+              name={prod.productName}
+              isActive={false}
+              carried={carriedFor(prod._id)}
+            />
+          ))}
         </div>
       </PixelPanel>
     </div>
@@ -193,23 +241,36 @@ function ProductionRow({
   stats,
   onChange,
   onCommit,
+  isActive = true,
+  carried = 0,
 }: {
   name: string;
-  stats: LineStats;
-  onChange: (v: number) => void;
+  stats?: LineStats;
+  onChange?: (v: number) => void;
   /** Interaction END — pointer released, or a keyboard drag finished. */
   onCommit?: () => void;
+  /** PARKED when false: the notebook has no product line this phase. The row
+   *  still renders — it used to be omitted entirely, which hid any stock the
+   *  notebook was holding. Read-only, and it changes nothing: parked units stay
+   *  parked until the player activates the notebook themselves. */
+  isActive?: boolean;
+  /** Units this parked notebook is holding, from last round's `closingStock`. */
+  carried?: number;
 }) {
   // The ceiling is literally `inventoryQty`. With no capacity yet there is
   // nothing to plan against, so the slider is disabled rather than bounded by a
-  // guess.
-  const known = stats.capacity != null;
+  // guess. A PARKED notebook has no projection at all, so it is never known.
+  const known = isActive && stats?.capacity != null;
   // FLOOR, matching the server's clamp: `produced = min(target, inventoryQty)`
   // against the raw value. `Math.round` could hand back a ceiling ABOVE
   // inventoryQty (round(10.6) = 11), letting the slider offer a build the
   // server would silently trim.
-  const capMax = known ? Math.max(1, Math.floor(stats.capacity!)) : 1;
-  const value = Math.min(stats.target, capMax);
+  const capMax = known ? Math.max(1, Math.floor(stats!.capacity!)) : 1;
+  const value = Math.min(stats?.target ?? 0, capMax);
+  // ONE figure, one source: last round's scored `closingStock`. An active row
+  // gets it through `stats.openingStock`, a parked row has no `stats` and takes
+  // it directly — but both are the same number for the same notebook.
+  const inStock = isActive ? (stats?.openingStock ?? 0) : carried;
 
   // No tone / hint. It graded the produce target against a separate demand
   // estimate, and the target IS that estimate now — so every reading was the
@@ -222,20 +283,29 @@ function ProductionRow({
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
           {/* TITLE = line name; genre is a quiet tag before it */}
-          <span className="eyebrow eyebrow-sm text-info shrink-0">{genreById(stats.genre).name}</span>
+          {stats && (
+            <span className="eyebrow eyebrow-sm text-info shrink-0">{genreById(stats.genre).name}</span>
+          )}
           <span className="item-name text-text truncate">{name}</span>
+          {!isActive && (
+            <span className="eyebrow eyebrow-sm text-text-3 shrink-0">Parked</span>
+          )}
         </div>
         <span className="flex items-center gap-3 shrink-0">
           {/* Price is read-only here - it's set on the Product page next to unit
               cost/margin. Echoed so the commercial picture reads in one place. */}
-          <span className="flex items-baseline gap-1.5">
-            <span className="stat-label">Price</span>
-            <span className="num-xs text-text">{fmt$(stats.price)}</span>
-          </span>
-          <span className="flex items-baseline gap-1.5">
-            <span className="stat-label">Stock</span>
-            <span className="num-xs text-text">{fmtInt(stats.finished)}</span>
-          </span>
+          {stats && (
+            <>
+              <span className="flex items-baseline gap-1.5">
+                <span className="stat-label">Price</span>
+                <span className="num-xs text-text">{fmt$(stats.price)}</span>
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="stat-label">Stock</span>
+                <span className="num-xs text-text">{fmtInt(stats.finished)}</span>
+              </span>
+            </>
+          )}
         </span>
       </div>
       {/* Caption and value on one line, slider on its own beneath. The caption
@@ -259,7 +329,7 @@ function ProductionRow({
           step={1}
           value={value}
           disabled={!known}
-          onChange={(e) => onChange(parseInt(e.target.value, 10))}
+          onChange={(e) => onChange?.(parseInt(e.target.value, 10))}
           // Pointer up covers mouse and touch; key up covers arrow-key dragging.
           onPointerUp={onCommit}
           onKeyUp={onCommit}
@@ -272,17 +342,19 @@ function ProductionRow({
           <span className="flex items-baseline gap-1.5">
             <span className="stat-label">Capacity</span>
             <span className="num-xs text-text-2">
-              {stats.capacity != null ? fmtInt(Math.round(stats.capacity)) : '—'}
+              {known ? fmtInt(Math.round(stats!.capacity!)) : '—'}
             </span>
           </span>
           {/* Carried stock is sellable without producing it again, and was
               already expensed — so without showing it the player cannot explain
-              why sales exceeded what they made this round. */}
-          {stats.openingStock > 0 && (
+              why sales exceeded what they made this round. On a PARKED notebook
+              it is the whole point of the row: those units exist and are not
+              being offered. */}
+          {inStock > 0 && (
             <span className="flex items-baseline gap-1.5">
               <span className="stat-label">In stock</span>
               <span className="num-xs text-text-2">
-                {fmtInt(stats.openingStock)} carried
+                {fmtInt(inStock)} carried
               </span>
             </span>
           )}

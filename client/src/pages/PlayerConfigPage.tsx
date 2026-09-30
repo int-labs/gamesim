@@ -20,6 +20,11 @@ interface CaseStudy {
 
 interface ConfigEntry {
   id: string;
+  /** `drivers` only — the PARENT product this field key belongs to, a Product
+   *  `_id`. One field key means different things on different notebooks, and
+   *  `direction` is already per product, so the copy is scoped the same way.
+   *  Blank = unscoped, a fallback for any product with no row of its own. */
+  productId: string;
   imageAssetId: string;
   caseStudy: CaseStudy;
   /** Display name. `drivers`: overrides the ProductField's own label.
@@ -54,7 +59,7 @@ const textToLines = (v: string) => v.split("\n").map(s => s.trim()).filter(Boole
 const BLANK_CASE_STUDY: CaseStudy = { title: "", brief: "", bestWhen: "", watchOut: "" };
 
 const BLANK_FORM: EntryForm = {
-  id: "", imageAssetId: "", caseStudy: { ...BLANK_CASE_STUDY },
+  id: "", productId: "", imageAssetId: "", caseStudy: { ...BLANK_CASE_STUDY },
   label: "", hint: "", description: "", bestFor: "", watchOut: "",
 };
 
@@ -140,6 +145,10 @@ export default function PlayerConfigPage() {
   const [availableIds, setAvailableIds]       = useState<Record<Section, AvailableId[]>>(
     emptyBySection<AvailableId>(),
   );
+
+  // Field keys per Product `_id` — the drivers section scopes its id list to the
+  // parent product chosen on the entry form.
+  const [fieldsByProduct, setFieldsByProduct] = useState<Record<string, AvailableId[]>>({});
 
   // Uploaded image assets for the image picker
   const [imageAssets, setImageAssets]         = useState<any[]>([]);
@@ -227,8 +236,11 @@ export default function PlayerConfigPage() {
         continue;
       }
       if (idsFrom === "productFields") {
-        // Deduped across products: the same field key appears on every product,
-        // and one hint describes the axis, not one product's copy of it.
+        // Deduped across products — the id list for a row with NO parent
+        // chosen. It used to be the only list, on the reasoning that one hint
+        // describes the axis rather than one product's copy of it; that was
+        // wrong (see `productId` on ConfigEntry), so the per-product lists are
+        // built below and this is now the unscoped fallback's list.
         const keys = new Set<string>();
         for (const p of productAll) {
           for (const f of p?.fields ?? []) if (f?.key) keys.add(String(f.key));
@@ -245,12 +257,30 @@ export default function PlayerConfigPage() {
     }
 
     setAvailableIds(ids);
+
+    // Field keys PER PRODUCT, for the drivers section's parent select. Keyed by
+    // the Product `_id`, the same key the player client's `DRIVER_COPY` nests
+    // under — never a name match.
+    const byProduct: Record<string, AvailableId[]> = {};
+    for (const p of productAll) {
+      if (p?.active === false) continue;
+      byProduct[String(p._id)] = (p?.fields ?? [])
+        .filter((f: any) => f?.key)
+        .map((f: any) => ({
+          id: String(f.key),
+          label: f.label ? `${f.key} · ${f.label}` : String(f.key),
+        }));
+    }
+    setFieldsByProduct(byProduct);
   };
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   const normaliseEntry = (raw: any): ConfigEntry => ({
     id:           raw.id ?? "",
+    // Absent on every row written before 2026-09-30 — those stay unscoped and
+    // act as the fallback for products with no row of their own.
+    productId:    raw.productId ?? "",
     imageAssetId: raw.imageAssetId ?? "",
     label:        raw.label ?? "",
     hint:         raw.hint ?? "",
@@ -294,6 +324,7 @@ export default function PlayerConfigPage() {
     const entry = config[activeSection][idx];
     setEntryForm({
       id:           entry.id,
+      productId:    entry.productId ?? "",
       imageAssetId: entry.imageAssetId,
       label:        entry.label ?? "",
       hint:         entry.hint ?? "",
@@ -341,6 +372,14 @@ export default function PlayerConfigPage() {
 
   const sectionRows = config[activeSection];
   const sectionMeta = SECTIONS.find(s => s.key === activeSection)!;
+
+  /** The id list the picker offers. For `drivers` with a parent chosen it is
+   *  THAT product's field keys; otherwise the section's own list — which for
+   *  drivers is every key across every product, the unscoped fallback's set. */
+  const idOptions: AvailableId[] =
+    activeSection === "drivers" && entryForm.productId
+      ? fieldsByProduct[entryForm.productId] ?? []
+      : availableIds[activeSection];
 
   return (
     <div>
@@ -397,6 +436,7 @@ export default function PlayerConfigPage() {
             <thead>
               <tr>
                 <th>ID</th>
+                {activeSection === "drivers" && <th>Notebook</th>}
                 {sectionFields(activeSection).includes("image") && <th>Image Asset ID</th>}
                 {/* Columns follow the section, or a copy-only section like
                     products/drivers showed three case-study columns that are
@@ -431,6 +471,15 @@ export default function PlayerConfigPage() {
               {sectionRows.map((row, i) => (
                 <tr key={i} style={{ background: editingIndex === i ? "#fffbe6" : "transparent" }}>
                   <td><code>{row.id}</code></td>
+                  {/* Without this two drivers on the same field key — one per
+                      notebook — are indistinguishable in the list. */}
+                  {activeSection === "drivers" && (
+                    <td style={cellClamp}>
+                      {row.productId
+                        ? (availableIds.products.find(p => p.id === row.productId)?.label ?? row.productId)
+                        : <em style={{ color: "#888" }}>all notebooks</em>}
+                    </td>
+                  )}
                   {sectionFields(activeSection).includes("image") && (
                     <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {row.imageAssetId || dash}
@@ -469,6 +518,38 @@ export default function PlayerConfigPage() {
           <h4 style={{ marginBottom: 4 }}>{editingIndex !== null ? "Edit Entry" : "Add Entry"} — {sectionMeta.label}</h4>
           <table>
             <tbody>
+              {/* PARENT — drivers only. A field key alone does not identify a
+                  driver: the same key sits on every notebook and means something
+                  different on each, so the copy is scoped to a Product and the
+                  key list below narrows to that product's own fields.
+
+                  Left blank the row is UNSCOPED, which is what every row written
+                  before 2026-09-30 is: the player client falls back to it for any
+                  product without a row of its own. */}
+              {activeSection === "drivers" && (
+                <tr>
+                  <td>Notebook (parent)</td>
+                  <td>
+                    <select
+                      value={entryForm.productId}
+                      disabled={editingIndex !== null}
+                      onChange={e => setEntryForm(f => ({
+                        ...f,
+                        productId: e.target.value,
+                        // The key list changes with the parent, so a key picked
+                        // against the previous one would silently not exist.
+                        id: "",
+                      }))}
+                      style={{ width: 300 }}
+                    >
+                      <option value="">(all notebooks - fallback)</option>
+                      {availableIds.products.map(p => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              )}
               <tr>
                 <td>ID (input key)</td>
                 <td>
@@ -478,14 +559,14 @@ export default function PlayerConfigPage() {
                     disabled={editingIndex !== null}
                     style={{ width: 200 }}
                   />
-                  {availableIds[activeSection].length > 0 && editingIndex === null && (
+                  {idOptions.length > 0 && editingIndex === null && (
                     <select
                       style={{ marginLeft: 6 }}
                       value=""
                       onChange={e => setEntryForm(f => ({ ...f, id: e.target.value }))}
                     >
                       <option value="">pick from list…</option>
-                      {availableIds[activeSection].map(a => (
+                      {idOptions.map(a => (
                         <option key={a.id} value={a.id}>{a.label}</option>
                       ))}
                     </select>

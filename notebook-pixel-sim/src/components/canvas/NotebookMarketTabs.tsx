@@ -155,6 +155,13 @@ function MarketCard({
   // an empty table. See the container-hydration rule in CLAUDE.md.
   const axes = driverAxes(genre.id);
 
+  // The drivers the operator has written copy FOR, in the chart's own order so
+  // the list reads against the shape above it. Derived per render for the same
+  // reason `axes` is — `DRIVER_COPY` is filled at boot by `hydrateDriverCopy`.
+  const described = axes
+    .map((axis) => ({ axis, copy: driverCopy(genre.id, axis.key) }))
+    .filter((row) => !!row.copy.hint);
+
   // No fit border or badge: this is the only card on screen, so "this notebook"
   // has nothing to contrast against. The tab strip already says which is open.
   return (
@@ -201,13 +208,37 @@ function MarketCard({
             // reads as "buyers weigh nothing".
             <div className="body-xs text-text-3 italic">No decision axes configured for this market.</div>
           ) : (
-            <VocInterestChart axes={axes} scaleMax={scaleMax} delay={0.15} />
+            <VocInterestChart axes={axes} productId={genre.id} scaleMax={scaleMax} delay={0.15} />
           )}
         </div>
 
-        {/* The buyer description that sat here came from the deleted
-            `data/segments.ts`. `genre.blurb` above says who wants this
-            notebook, from the operator's own copy. */}
+        {/* WHAT EACH DECISION MEANS — permanent, not a hover.
+
+            The same operator copy the chart above carries as an SVG `<title>`
+            on each point. A tooltip is the wrong surface for it: this is the
+            information the player needs in order to MAKE the decision, and it
+            was reachable only by hovering a 3.5px dot.
+
+            This replaced the buyer description that came from the deleted
+            `data/segments.ts`. `genre.blurb` above still says who wants the
+            notebook; this says what each driver is asking them about.
+
+            Rows with NO hint are SKIPPED, never given a placeholder — the copy
+            is the operator's and an invented line would keep describing a field
+            they have since repurposed. See the note at the top of `drivers.ts`. */}
+        {described.length > 0 && (
+          <div className="flex flex-col gap-2 pt-1 border-t border-border-soft">
+            <div className="stat-label">What these mean</div>
+            <dl className="flex flex-col gap-2">
+              {described.map(({ axis, copy }) => (
+                <div key={axis.key}>
+                  <dt className="item-name text-text">{copy.label ?? axis.label}</dt>
+                  <dd className="body-xs text-text-2 mt-0.5">{copy.hint}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -270,10 +301,13 @@ function Stat({ label, value, note, delay = 0 }: { label: string; value: string;
  */
 function VocInterestChart({
   axes,
+  productId,
   scaleMax,
   delay,
 }: {
   axes: DriverAxis[];
+  /** The Product these axes belong to — driver copy is scoped to it. */
+  productId: string;
   scaleMax: number;
   delay: number;
 }) {
@@ -319,11 +353,14 @@ function VocInterestChart({
         transition={{ delay, duration: 0.5, ease: 'easeOut' }}
       />
       {ranked.map((a, i) => {
-        const copy = driverCopy(a.key);
+        const copy = driverCopy(productId, a.key);
         const top = i === 0;
         return (
           <g key={a.key}>
-            <title>{copy.hint ?? copy.label ?? a.label}</title>
+            {/* The NAME only. The hint moved out of here and onto the card as
+                prose — owner 2026-09-30: it is what the player needs in order to
+                decide, and it was reachable only by hovering a 3.5px dot. */}
+            <title>{copy.label ?? a.label}</title>
             <circle
               cx={x(i)} cy={y(a.direction)} r={top ? 5 : 3.5}
               fill={top ? 'var(--c-primary-strong)' : 'var(--c-surface)'}

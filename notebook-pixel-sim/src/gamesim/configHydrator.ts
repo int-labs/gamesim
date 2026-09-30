@@ -350,6 +350,10 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
   // above. The axes themselves and their names are derived from the fields, so
   // PlayerConfig owns only the hint and an optional label override.
   //
+  // `productId` is the PARENT, added 2026-09-30: one field key means different
+  // things on different notebooks, so the copy is scoped to a Product. A row
+  // without one is kept as an unscoped fallback — see `config/drivers.ts`.
+  //
   // Replaced wholesale rather than merged: there is no bundled copy to protect
   // (see the note in `config/drivers.ts`), so a section that omits a field means
   // that field has no hint, which is a legitimate state.
@@ -358,9 +362,10 @@ function applyCatalogs(cfg: Dict, applied: string[], skipped: HydrationReport['s
       (cfg.drivers as Dict[])
         .filter((src) => isObj(src) && typeof src.id === 'string' && src.id)
         .map((src) => ({
-          id:    src.id as string,
-          label: typeof src.label === 'string' ? src.label : null,
-          hint:  typeof src.hint  === 'string' ? src.hint  : null,
+          id:        src.id as string,
+          productId: typeof src.productId === 'string' ? src.productId : null,
+          label:     typeof src.label === 'string' ? src.label : null,
+          hint:      typeof src.hint  === 'string' ? src.hint  : null,
         })),
     );
     applied.push('drivers');
