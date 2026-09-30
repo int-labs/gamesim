@@ -764,10 +764,9 @@ export function StudioPanel({
                     six-column grid so the two rows share gutters: costs take
                     halves, outcomes take thirds. */}
                 <div className="grid grid-cols-6 gap-2">
-                  <StatChip className="col-span-3" label="Cost / phase" value={fmt$(lv.cost)} tone="money" />
+                  <StatChip className="col-span-3" label="Cost" value={fmt$(lv.cost)} tone="money" />
                   <StatChip className="col-span-3" label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" />
-                  <StatChip className="col-span-3" label="Inventory rate" value={lv.prodBonus > 0 ? `+${(lv.prodBonus * 100).toFixed(1)}%` : '—'} tone="good" />
-                  <StatChip className="col-span-3" label="Sell-rate" value={`+${(lv.sellBonus * 100).toFixed(1)}%`} tone="good" />
+                  <StatChip className="col-span-3" label="Capacity Increase" value={lv.prodBonus > 0 ? `+${(lv.prodBonus * 100).toFixed(1)}%` : '—'} tone="good" />
                   <StatChip className="col-span-3" label="Cost reduction" value={lv.costReduction > 0 ? `−${(lv.costReduction * 100).toFixed(1)}%` : '—'} tone="good" />
                   {/* Units to sell for cost savings to cover the hire wage:
                       lv.cost / (dynamicCost × costReduction). Uses server dynamicCost

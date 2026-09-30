@@ -458,7 +458,7 @@ function DemandChart({ genre, max }: { genre: GenreDef; max: number }) {
           const pct = Math.max(0.04, v / max);
           return (
             <div key={p.key} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-              <div className="num-xs text-ink-900">{Math.round(v / 1000)}k</div>
+              <div className="num-xs text-ink-900">{v}</div>
               {/* `relative` + an absolutely-positioned bar is load-bearing: a
                   percentage height on a normal-flow child of a flex-1 track
                   resolves against `auto`, and since the bar is an empty div

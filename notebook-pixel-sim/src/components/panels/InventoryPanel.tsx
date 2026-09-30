@@ -161,9 +161,9 @@ export function InventoryPanel({
       <PixelPanel title="Stock & Output">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Box label="Finished goods" value={fmtInt(finished)} tone="success" hint={BUSINESS_PAGE.inventory.finishedHint} />
-          <Box label="Produce / phase" value={fmtInt(totalTarget)} tone="neutral" hint="Total units per phase you've planned across all notebooks." />
+          <Box label="Produce" value={fmtInt(totalTarget)} tone="neutral" hint="Total units per phase you've planned across all notebooks." />
           <Box
-            label="Capacity / phase"
+            label="Capacity"
             value={totalCapacity != null ? fmtInt(totalCapacity) : '—'}
             tone="info"
             hint="Most you can make per phase, from the server's projection for your current specs and business decisions."

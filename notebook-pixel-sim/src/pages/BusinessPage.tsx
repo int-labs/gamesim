@@ -68,11 +68,8 @@ export function BusinessPage({ liveProjectionState }: { liveProjectionState: Liv
             non-duplicated content was the "doesn't advance days" note, which
             belongs with the explainer anyway. */}
         {activeTab && (
-          <div className="px-4 py-2.5 border-b border-border-soft bg-surface flex items-start justify-between gap-4">
-            <p className="body-xs text-text-2 leading-relaxed min-w-0 measure">{activeTab.explainer}</p>
-            <span className="hidden lg:block hint text-text-3 text-right leading-snug shrink-0 max-w-[240px]">
-              Decisions here don't advance days - confirm a phase to simulate.
-            </span>
+          <div className="px-4 py-2.5 border-b border-border-soft bg-surface flex items-start gap-4">
+            <p className="min-w-0">{activeTab.explainer}</p>
           </div>
         )}
         <motion.div
