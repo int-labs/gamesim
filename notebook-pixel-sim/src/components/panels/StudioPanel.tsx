@@ -1025,8 +1025,6 @@ function BudgetLever({
   value: number;
   /** Highest valid index, i.e. `options` key count − 1. */
   max: number;
-  /** The option key at the current index, shown so the operator's own step label reads back. */
-  stepLabel: string;
   /** Money this step costs per phase: `item.cost × options[stepKey]`. */
   spend: number;
   energy: number;
@@ -1070,7 +1068,7 @@ function BudgetLever({
         {/* `spend` is already a per-phase figure — the step's configured cost —
             so it is NOT run through perPhase() the way the old daily-dollar
             slider value was. */}
-        <StatChip label={`Spend / phase (${stepLabel})`} value={fmt$(spend)} tone={active ? 'money' : 'muted'} />
+        <StatChip label={`Spend / phase`} value={fmt$(spend)} tone={active ? 'money' : 'muted'} />
         <StatChip label={effectLabel} value={effect} tone={active ? 'good' : 'muted'} />
         <StatChip
           label={active ? 'Running on' : 'To activate'}
