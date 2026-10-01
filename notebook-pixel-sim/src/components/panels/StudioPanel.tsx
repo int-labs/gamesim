@@ -547,11 +547,11 @@ export function StudioPanel({
                 hint={lv.item.description ?? 'Awareness - lifts DEMAND (more people want it).'}
                 value={lv.idx}
                 max={Math.max(0, lv.stepKeys.length - 1)}
-                stepLabel={lv.stepKey ?? '—'}
+                // stepLabel={lv.stepKey ?? '—'}
                 spend={lv.spend}
                 energy={lv.energy}
-                effectLabel="Demand"
-                effect={`+${(lv.demandLift * 100).toFixed(1)}%`}
+                effectLabel="Level"
+                effect={`${lv.stepKey ?? '—'}`}
                 // The affordability decision belongs to the mutator, which knows
                 // the step it is moving TO and charges only the delta. Gating here
                 // on the CURRENT step's energy would let every move through, since
