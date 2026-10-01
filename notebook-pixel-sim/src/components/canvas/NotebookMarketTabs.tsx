@@ -401,21 +401,6 @@ export function MarketDataTab({ arch }: { arch: Archetype }) {
         grows fastest, and whether this notebook is built for it.
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {/* Counted, not hardcoded: `4` was a frontend baseline that would have
-            kept saying 4 the moment an operator published a fifth notebook. */}
-        <Stat label="Markets" value={String(GENRES.length)} note="all markets" delay={0} />
-        {/* "Pre", matching the column label — this reads the same `p0`. */}
-        <Stat label="Demand pre" value={fmt(totalNow)} note="all markets" delay={0.05} />
-        <Stat label="By Phase 3" value={fmt(totalEnd)} note="all markets" delay={0.1} />
-        <Stat
-          label="Total growth"
-          value={totalEnd > 0 ? `+${Math.round(growthCoefficient(totalNow, totalEnd) * 100)}%` : '—'}
-          note="pre to P3"
-          delay={0.15}
-        />
-      </div>
-
       {/* ONE chart — the selected notebook. Four of them duplicated the table
           below, which carries the same figures for every market in a quarter
           the space. `max` still spans EVERY market so the bars stay comparable
