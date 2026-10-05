@@ -79,14 +79,14 @@ export function SimulationScreen() {
           reactions were scored off the obsolete local `vocFit` model, and the
           trigger is being redesigned with the wider UX pass. */}
 
-      {/* ── TAB ROW — docked, its own band ──────────────────────────────────
-          Was a pill FLOATING over the canvas top-centre. Docked here it owns a
-          row, so the page beneath it is a plain region instead of a stage with
-          chrome hovering on it. */}
-      <PageTabs page={page} onChange={setPage} />
-
-      {/* ── BODY — rail (the active section) + stage (the notebook) ───────── */}
+      {/* ── BODY — tab rail | section rail | stage ───────────────────────── */}
       <div className="flex-1 min-h-0 flex">
+        {/* The section switch. It was a horizontal row of labelled buttons
+            above this body; six labels, two of them two words long, ran most
+            of the way across the screen for a control the player uses a handful
+            of times a round. On the edge it costs one icon's width. */}
+        <PageTabs page={page} onChange={setPage} />
+
         {/* The rail holds every decision. Capped at RAIL_MAX so it stops
             growing on a wide screen and the stage takes the rest. It scrolls
             DOWN only: the sections inside are single-column grids, so content
@@ -178,11 +178,11 @@ function PageRail({
 }
 
 /**
- * PageTabs — the top-level page switch, DOCKED in its own row.
+ * PageTabs — the section switch, a VERTICAL rail of icons on the left edge.
  *
- * It was a pill floating over the canvas top-centre. Docked, it reads as the
- * page's own chrome rather than something hovering on the stage, and the centre
- * column gets its full height back.
+ * The labels are gone from the face of each button and live in `title` +
+ * `aria-label`, so the control is still named for a screen reader and still
+ * explains itself on hover. Same icons as the labelled row it replaces.
  */
 function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) => void }) {
   const TABS = [
@@ -194,33 +194,36 @@ function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) 
     { id: 'sales' as const, label: 'Sales & Marketing', icon: Megaphone },
   ];
   return (
-    <div className="shrink-0 bg-[#221710] border-b border-black/50">
-      <div
-        role="tablist"
-        aria-label="Main pages"
-        className="h-[48px] flex items-center gap-1 px-2"
-      >
-        {TABS.map((t) => {
-          const active = page === t.id;
-          return (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={active}
-              onClick={() => { if (!active) playSfx('click-soft'); onChange(t.id); }}
-              className={clsx(
-                'inline-flex items-center gap-1.5 h-[36px] px-2.5 sm:px-4 border eyebrow eyebrow-sm transition-all duration-150 active:scale-95 cursor-pointer',
-                active
-                  ? 'bg-surface border-primary text-text'
-                  : 'border-transparent text-[#D9B57A] hover:bg-white/5 hover:text-cream-100',
-              )}
-            >
-              <NavIcon icon={t.icon} size={14} color={active ? 'var(--c-primary)' : 'currentColor'} />
-              <span className="hidden sm:inline">{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
+    <div
+      role="tablist"
+      aria-orientation="vertical"
+      aria-label="Sections"
+      className="shrink-0 w-[52px] flex flex-col items-center gap-1 py-2 bg-[#221710] border-r border-black/50"
+    >
+      {TABS.map((t) => {
+        const active = page === t.id;
+        return (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={active}
+            // The label the face no longer carries. `title` for a pointer,
+            // `aria-label` for a screen reader — an icon-only button with
+            // neither is unnamed.
+            title={t.label}
+            aria-label={t.label}
+            onClick={() => { if (!active) playSfx('click-soft'); onChange(t.id); }}
+            className={clsx(
+              'w-[40px] h-[40px] inline-flex items-center justify-center border transition-all duration-150 active:scale-95 cursor-pointer',
+              active
+                ? 'bg-surface border-primary'
+                : 'border-transparent text-[#D9B57A] hover:bg-white/5 hover:text-cream-100',
+            )}
+          >
+            <NavIcon icon={t.icon} size={18} color={active ? 'var(--c-primary)' : 'currentColor'} />
+          </button>
+        );
+      })}
     </div>
   );
 }

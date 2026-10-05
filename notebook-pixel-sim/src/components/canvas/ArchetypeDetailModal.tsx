@@ -8,9 +8,6 @@ import { PixelButton } from '@/components/primitives';
 import { setProductField } from '@/engine/mockEngine';
 import { playSfx } from '@/audio/audioManager';
 import { BuyerInterestTab, MarketDataTab } from './NotebookMarketTabs';
-import { productCopy } from '@/engine/finlit/core/config/productCopy';
-import { driverCopy } from '@/engine/finlit/core/config/drivers';
-import { driverAxes } from '@/engine/finlit/core/config/fieldConfig';
 import clsx from 'clsx';
 
 const VIEWS = ['angle', 'front', 'spine', 'open', 'shelf'] as const;
@@ -21,18 +18,12 @@ type View = (typeof VIEWS)[number];
 const notebookIds = (): Archetype[] => notebookCatalogue().map((n) => n.id);
 
 /**
- * Three lenses on the same notebook: what it IS, who WANTS it, and how big
- * that want is. They're tabs rather than one long scroll because they answer
- * different questions — you arrive asking one of them, not all three.
+ * NO TABS. There were four — Product, Segments, Buyer Interest, Market Data —
+ * so reaching a chart meant picking a notebook AND then picking a lens, and the
+ * market numbers a player decides FROM sat two clicks deep behind the four
+ * notebooks. Owner, 2026-10-05: Product and Segments are out, and the charts
+ * render together on arrival.
  */
-const TABS = [
-  { id: 'product', label: 'Product', hint: 'What this notebook is' },
-  { id: 'segments', label: 'Segments', hint: 'Who buys it, and what they care about' },
-  { id: 'buyers', label: 'Buyer Interest', hint: 'Who wants it, and what they weigh' },
-  { id: 'market', label: 'Market Data', hint: 'How big each market is, and its growth' },
-] as const;
-type TabId = (typeof TABS)[number]['id'];
-
 interface Props {
   open?: boolean;
   onClose?: () => void;
@@ -64,7 +55,6 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
   // Hooks run unconditionally (before the empty-portfolio early return).
   const [arch, setArch] = useState<Archetype>(product?.productId ?? defaultArchetype());
   const [view, setView] = useState<View>('angle');
-  const [tab, setTab] = useState<TabId>('product');
 
   // NO EMPTY-PORTFOLIO BAIL. This used to return "No notebook to inspect" when
   // `productLines` was empty, which meant the market data — the reach matrix,
@@ -85,13 +75,6 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
     playSfx('click-soft');
     setArch(next);
   };
-
-  const switchTab = (next: TabId) => {
-    if (next === tab) return;
-    playSfx('whoosh');
-    setTab(next);
-  };
-
 
   // Inline (drawer) stays a single narrow column — no rail, no tabs, and the
   // two halves stack because there is no room to sit them side by side.
@@ -119,74 +102,21 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* ── Tab bar ── */}
-        <div role="tablist" aria-label="Notebook details sections" className="shrink-0 flex items-end gap-1 px-2 pt-2 border-b border-border-soft bg-cream-200">
-          {TABS.map((t) => {
-            const active = t.id === tab;
-            return (
-              <motion.button
-                key={t.id}
-                onClick={() => switchTab(t.id)}
-                title={t.hint}
-                aria-selected={active}
-                role="tab"
-                whileTap={{ scale: 0.95 }}
-                whileHover={active ? undefined : { y: -2 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-                className={clsx(
-                  'relative tab-label-sm px-3.5 sm:px-4 py-2.5 border-2 border-b-0 transition-colors cursor-pointer whitespace-nowrap',
-                  active
-                    ? 'bg-cream-50 border-ink-900 text-ink-900 -mb-[2px] pb-[12px]'
-                    : 'bg-cream-100 border-ink-700/30 text-text-2 hover:text-text hover:bg-cream-50',
-                )}
-              >
-                {t.label}
-                {active && (
-                  // Shared layout id slides the highlight between tabs
-                  // instead of it blinking out and back in.
-                  <motion.div
-                    layoutId="detail-tab-underline"
-                    className="absolute left-0 right-0 -bottom-[2px] h-[3px] bg-cream-50"
-                  />
-                )}
-              </motion.button>
-            );
-          })}
-        </div>
-
-        {/* ── Panel ── */}
+        {/* ── Panel — every chart, in one scroll ── */}
         <div className="flex-1 min-h-0 overflow-y-auto p-3.5 bg-cream-50">
-          {/* Keyed remount rather than AnimatePresence+mode="wait": waiting
-              for an exit before mounting the next panel costs ~2x the
-              duration and flashes an empty panel mid-swap. Re-keying replays
-              the enter animation instantly with no gap. */}
+          {/* Keyed remount on the NOTEBOOK (there is nothing else to switch
+              now) rather than AnimatePresence+mode="wait": waiting for an exit
+              before mounting the next panel costs ~2x the duration and flashes
+              an empty panel mid-swap. */}
           <motion.div
-              key={`${tab}-${arch}`}
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.18, ease: [0.2, 1, 0.4, 1] }}
-            >
-              {tab === 'product' && (
-                // TWO ROWS, not two columns. Identity reads across the top -
-                // art on the left, name / tagline / story on the right - and
-                // the two lists you weigh against each other sit side by side
-                // beneath it. Stacked in a narrow right-hand column, strengths
-                // and weakness could only be compared vertically, which is the
-                // one direction you cannot scan two lists in.
-                <div className="flex flex-col gap-5">
-                  <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,400px)_1fr] gap-5 items-start">
-                    <ProductIdentity arch={arch} view={view} setView={setView} />
-                    <ProductCopy arch={arch} />
-                  </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-                    <ProductStrengths arch={arch} />
-                    <ProductWeakness arch={arch} />
-                  </div>
-                </div>
-              )}
-              {tab === 'segments' && <SegmentsTab arch={arch} />}
-              {tab === 'buyers' && <BuyerInterestTab arch={arch} />}
-              {tab === 'market' && <MarketDataTab arch={arch} />}
+            key={arch}
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.18, ease: [0.2, 1, 0.4, 1] }}
+            className="grid grid-cols-1 gap-6"
+          >
+            <BuyerInterestTab arch={arch} />
+            <MarketDataTab arch={arch} />
           </motion.div>
         </div>
 
@@ -368,94 +298,11 @@ function ProductCopy({ arch }: { arch: Archetype }) {
   );
 }
 
-/**
- * SEGMENTS — who buys this notebook, in the operator's own words.
- *
- * HTML, because the copy is lore an operator writes with their own headings and
- * lists; every other surface in this file takes plain text and decides the
- * layout itself.
- *
- * INJECTED AS RECEIVED. Sanitisation is held on the ADMIN side, in
- * `PlayerConfigPage`'s `sanitizeSegmentsHtml`, which runs on the way into the
- * database — owner's ruling 2026-09-30. A second pass here would be a second
- * opinion about what "safe" means, and the two would eventually disagree.
- *
- * A document that tried to run code was ESCAPED at save, so it arrives as its
- * own source text and displays as markup rather than running — which is why
- * there is no special case for it here.
- *
- * Absent copy renders the empty state rather than a blank panel: an operator who
- * has not written it yet should see that, not a hole.
- */
-function SegmentsTab({ arch }: { arch: Archetype }) {
-  const html = productCopy(arch).segments;
-
-  // Derived per render, never memoised at module scope: both tables are filled
-  // at boot by the hydrator, so a snapshot taken on import would freeze empty.
-  const drivers = driverAxes(arch).map((axis) => ({
-    axis,
-    copy: driverCopy(arch, axis.key),
-  }));
-
-  if (!html && drivers.length === 0) {
-    return (
-      <div className="body-xs text-text-3 italic">
-        No segment notes written for this notebook yet.
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-5">
-      {html && (
-        <div
-          className="body-xs text-ink-900 measure segment-copy"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      )}
-
-      {/* WHAT EACH DRIVER ASKS — the operator's own driver copy, as a table.
-
-          Same source as the market card's list: `PlayerConfig.drivers`, scoped
-          to this product. It repeats on purpose — a reader on this tab is
-          asking who buys the notebook, and the drivers are the answer's second
-          half, so sending them to another tab for it would break the page in
-          two.
-
-          ORDERED BY WEIGHT, heaviest first, so the table says what the buyers
-          care about MOST without printing `direction` — which is a coefficient,
-          not a share, and nothing a player can do arithmetic with. */}
-      {drivers.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="stat-label">What buyers prefer</div>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b-2 border-ink-900">
-                <th className="text-left stat-label py-1.5 pr-3 align-bottom w-[34%]">Decision</th>
-                <th className="text-left stat-label py-1.5 align-bottom">What it means</th>
-              </tr>
-            </thead>
-            <tbody>
-              {drivers.map(({ axis, copy }) => (
-                <tr key={axis.key} className="border-b border-border-soft align-top">
-                  <td className="item-name text-ink-900 py-1.5 pr-3">
-                    {copy.label ?? axis.label}
-                  </td>
-                  <td className="body-xs text-text-2 py-1.5">
-                    {/* No placeholder prose. Absent copy is a real state — an
-                        invented line would keep describing a field the operator
-                        has since repurposed. See the note in `drivers.ts`. */}
-                    {copy.hint ?? <span className="text-text-3 italic">Not described yet.</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
+/* `SegmentsTab` was DELETED here on 2026-10-05 — the operator's segment HTML
+   plus the driver-copy table. The sanitiser it relied on is untouched and still
+   correct: `PlayerConfigPage`'s `sanitizeSegmentsHtml` runs on the way INTO the
+   database, which is the only pass there has ever been. `products.segments` is
+   still stored and still sanitised; nothing renders it at present. */
 
 /** Right column: how it performs — the two lists you weigh against each other. */
 function ProductStrengths({ arch }: { arch: Archetype }) {
