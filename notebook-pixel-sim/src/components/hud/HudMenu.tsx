@@ -121,11 +121,10 @@ export function HudMenu({ onHelp }: Props) {
            So every desktop width shows the same substantial 5-button cluster
            instead of a hamburger stranded past dead space. ─────────────────── */}
       <div className="inline-flex items-center gap-1 shrink-0" role="toolbar" aria-label="Controls">
-        {/* Undo / Redo — bar icons on sm+; on phones they collapse into the ⋯
-            menu so the compact bar has room for Energy + the Stats icon. */}
-        <span className="hidden sm:inline-flex items-center gap-1">
-          <span aria-hidden className="game-hud-divider" />
-        </span>
+        {/* A `.game-hud-divider` sat here, in a wrapper of its own. The Undo /
+            Redo buttons it separated from the ⋯ menu are gone, so it was a rule
+            with nothing on one side of it — and the bar is `justify-between`
+            now, which does the separating. Removed 2026-10-05. */}
         <button
           ref={btnRef}
           type="button"

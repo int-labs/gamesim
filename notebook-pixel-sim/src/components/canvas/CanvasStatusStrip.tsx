@@ -29,7 +29,9 @@ export function CanvasStatusStrip({ liveProjection }: { liveProjection: ServerPr
   const profitTone: Tone = profit == null ? 'warn' : profit >= 0 ? 'good' : 'bad';
 
   return (
-    <div className="flex items-stretch gap-1.5 min-w-0">
+    // `gap-2`, matching the Energy/Cash group in TopHUD — these are the same
+    // kind of chip now and sit at the same rhythm.
+    <div className="flex items-center gap-2 min-w-0">
       <Kpi
         icon="revenue"
         label="Proj. Revenue"
@@ -86,33 +88,30 @@ function Kpi({
   const reduced = useReducedMotion();
   return (
     <Tooltip content={tip} placement="bottom">
-      {/* READOUT card — recessed (inset shadow), not a button. */}
-      <div className="inline-flex items-center gap-2 border border-border-soft bg-surface px-3 py-1.5 leading-none shadow-[inset_1.5px_1.5px_0_rgba(0,0,0,0.09)] min-w-0">
-        <span className="inline-flex items-center justify-center w-7 h-7 border border-border-soft bg-surface-2 shrink-0">
-          <PixelIcon kind={icon} size={14} color={t.icon} />
-        </span>
-        <span className="flex flex-col gap-0.5 min-w-0">
-          {/* The label DROPS below xl rather than truncating. Three cards with
-              their full labels need ~530px of track; below xl there is closer
-              to 340px, which squeezed "Proj. Revenue" down to "Proj. R…" on
-              every card. A mangled word is worse than no word when the icon
-              already says which metric this is and the tooltip spells it out.
-              The VALUE is never hidden and never truncated — it is the only
-              thing on the card the player is actually reading. */}
-          <span className="hidden xl:block eyebrow eyebrow-sm text-text-2 truncate">{label}</span>
-          {/* keyed pop — the number ticks whenever the projection changes.
-              Clean bold numerals (not the blocky arcade font) so the value
-              stays prominent without overpowering its label. */}
-          <motion.span
-            key={value}
-            initial={reduced ? false : { scale: 1.22 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-            className={clsx('num-xs leading-none inline-block', t.value)}
-          >
-            {value}
-          </motion.span>
-        </span>
+      {/* SAME SHAPE AS THE ENERGY CHIP — `.game-hud-chip`, then icon, label,
+          value as three siblings on one row. It was a taller bespoke card: a
+          7x7 bordered icon TILE beside a vertical label-over-value stack, which
+          made these two readouts a different height and a different anatomy
+          from the chips sitting next to them.
+
+          `.game-hud-chip`'s own background IS `var(--c-surface)` — the same
+          `bg-surface` this card already used — so adopting it changes the shape
+          and nothing about the colour. NO `-warm` / `-success` variant here:
+          those are Energy's caramel and Cash's green, and the tone on these two
+          belongs to the VALUE, not the fill. */}
+      <div className="game-hud-chip shrink-0 min-w-0" role="status" aria-label={`${label}: ${value}`}>
+        <PixelIcon kind={icon} size={14} color={t.icon} />
+        <span className="stat-label text-text-3">{label}</span>
+        {/* keyed pop — the number ticks whenever the projection changes. */}
+        <motion.span
+          key={value}
+          initial={reduced ? false : { scale: 1.22 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+          className={clsx('num-xs inline-block', t.value)}
+        >
+          {value}
+        </motion.span>
       </div>
     </Tooltip>
   );
