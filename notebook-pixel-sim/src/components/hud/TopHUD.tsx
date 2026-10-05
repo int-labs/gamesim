@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Flag,
   Zap,
   Wallet,
   type LucideIcon,
@@ -13,14 +12,11 @@ import { selectCashBalance, selectProjectedCash } from '@/engine/selectors';
 import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 import { fmt$ } from '@/utils/format';
 import { NavIcon } from '@/components/icons/NavIcon';
-import { SafeImage } from '@/components/primitives/SafeImage';
 import { CountUp } from '@/components/primitives/CountUp';
-import { A } from '@/assets';
 import { HudMenu } from '@/components/hud/HudMenu';
 import clsx from 'clsx';
 import { HUD_TOOLTIPS } from '@/content/copy';
 import { Tooltip } from '@/components/primitives/Tooltip';
-import { useTotalRounds } from '@/gamesim/GamesimProvider';
 
 type KpiTone = 'neutral' | 'success' | 'warning' | 'danger';
 
@@ -57,25 +53,19 @@ const successChipInk: Record<KpiTone, string> = {
 };
 
 /**
- * Top HUD — calm pixel status bar.
+ * Top HUD — calm pixel status bar, inside the notebook STAGE since 2026-10-05.
  *
- * Layout (left → right):
- *   [LOGO] · [PHASE chip] · [Energy] [Cash] · [Op Profit] [Revenue] · [Stock] [Demand] [Fit] ← → [P&L↓] [Help] [Mascot]
+ * Layout: `justify-between`, so the readouts sit at equal distances.
+ *   [Energy] [Cash] ←→ [Op Profit · Revenue · Satisfaction] ←→ [More]
  *
- * Visual rules:
- *   - Default chips: 1px soft border, no shadow, calm bg.
- *   - Phase chip is slightly stronger (subtle ink border + tinted bg) — but
- *     no drop shadow.
- *   - Utility buttons (clickable) get hover lift only on hover.
- *   - Subtle vertical separators delineate functional groups; no heavy
- *     bordered tiles around groups.
+ * Gone with the move: the Int Labs LOGO, and the PHASE chip — the footer's
+ * `PhaseActionBar` already states the phase, and two copies of one number can
+ * only ever agree or be a bug.
  *
  * Read-only chips have `cursor-default` and no hover lift; utility buttons
  * have `cursor-pointer` and hover translate.
  */
 export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProjectionState }) {
-  const phase = useGame((s) => s.meta.phase);
-  const totalRounds = useTotalRounds();
   const hasLines = useGame((s) => s.portfolio.productLines.length > 0);
   // The build cost needs the server's ceiling and unit cost, so the projection
   // is passed in — the chip is the round's spending limit, not just a tally of
@@ -132,18 +122,6 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
   const cashTone: KpiTone = projectedCash < 0 ? 'danger' : projectedCash < 200 ? 'warning' : 'success';
   const energyTone: KpiTone = energy / maxEnergy < 0.2 ? 'danger' : 'warning';
 
-  // Phase-change pulse on the phase chip
-  const [phasePulse, setPhasePulse] = useState(false);
-  const lastPhase = useRef(phase);
-  useEffect(() => {
-    if (lastPhase.current !== phase) {
-      setPhasePulse(true);
-      const id = setTimeout(() => setPhasePulse(false), 1000);
-      lastPhase.current = phase;
-      return () => clearTimeout(id);
-    }
-  }, [phase]);
-
   const helpClick = () => {
     if (mascotCurrent && mascotMin) {
       toggleMascot();
@@ -185,44 +163,13 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
   };
 
   return (
-    <header className="game-hud sticky top-0 z-30">
-      <div className="flex items-center gap-2 px-3 sm:px-4 h-[58px]">
-        {/* === BRAND === (hidden on phones — the Product/Business tabs need
-             the room; the brand shows on the start screen) */}
-        <a className="shrink-0 hidden sm:flex items-center mr-1 sm:mr-2" aria-label="Int Labs">
-          <SafeImage
-            src={A.logo}
-            alt="Int Labs"
-            className="h-6 sm:h-7 w-auto"
-            fallbackIcon="sparkle"
-            fallbackSize={22}
-          />
-        </a>
-
-        {/* === PHASE chip — strongest variant: ranks above other chips === */}
-        <Tooltip content={HUD_TOOLTIPS.phase} placement="bottom">
-          <div
-            className={clsx(
-              'game-hud-chip game-hud-chip-strong shrink-0',
-              phasePulse && 'anim-pulse-on-change',
-            )}
-            role="status"
-            // The denominator is the operator's `simulation.config.totalRounds`,
-            // not a fixed 3. When it is unknown the chip shows the phase alone
-            // rather than asserting a total the simulation may not have.
-            aria-label={totalRounds ? `Phase ${phase} of ${totalRounds}` : `Phase ${phase}`}
-          >
-            <NavIcon icon={Flag} size={14} color="var(--c-primary)" />
-            <span className="hidden sm:inline eyebrow eyebrow-sm text-text-2 leading-none">Phase</span>
-            <span className="num-sm text-text leading-none">
-              {phase}
-              {totalRounds && <span className="body-xs text-text-3"> / {totalRounds}</span>}
-            </span>
-          </div>
-        </Tooltip>
-
-        <Sep />
-
+    // `shrink-0`, not `sticky top-0 z-30` — it is a row inside the stage column
+    // now, not a bar floating over the whole screen.
+    <header className="game-hud shrink-0">
+      {/* `justify-between`: equal distance between each readout. There is no
+          `gap` and no `flex-1` spacer — either would override the distribution
+          this is here to produce. */}
+      <div className="flex items-center justify-between px-3 sm:px-4 h-[58px]">
         {/* === Resources — Energy (caramel) + Cash (green). Matches
              Figma 1: ENERGY is the only caramel chip, CASH is the
              only green-filled value chip. === */}
@@ -272,21 +219,17 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
 
         {/* Center — the run's headline OUTCOME dashboard: Projected Revenue ·
             Projected Profit · Customer Satisfaction (see CanvasStatusStrip).
-            Each card is self-framed and high-contrast; the Product/Business
-            tabs float on the canvas top-center (see SimulationScreen).
-            lg+ only — the bottom Stats section covers smaller screens. */}
-        {/* `overflow-hidden` is the guard, not the decoration. Every other
-            child of this bar is `shrink-0` — correct, they are the essentials —
-            so the centre track is the ONLY thing that can absorb a narrow
-            viewport. It used to hold a `shrink-0` strip, which meant the strip
-            kept its full 519px no matter how little room the track had and
-            spilled out BOTH sides of it (justify-center), drawing over the cash
-            chip on the left and the utility menu on the right. A flex child
-            cannot overflow a track that clips. */}
-        <div className="flex-1 min-w-0 overflow-hidden hidden lg:flex justify-center px-2">
+            lg+ only — the FINANCIAL section covers smaller screens.
+
+            `min-w-0 overflow-hidden` is the guard, not the decoration. Every
+            other child of this bar is `shrink-0` — correct, they are the
+            essentials — so this is the ONLY thing that can absorb a narrow
+            stage. Without it the strip keeps its full 519px however little room
+            it has and spills over the chips on either side. A flex child cannot
+            overflow a box that clips. */}
+        <div className="min-w-0 overflow-hidden hidden lg:flex px-2">
           {hasLines && <CanvasStatusStrip liveProjection={liveProjectionState?.liveProjection ?? null} />}
         </div>
-        <div className="flex-1 min-w-0 lg:hidden" />
 
         {/* === Utility — Help + Stats (compact only) + Mascot toggle === */}
         {/* Utility controls. Six separate icons (stats, sfx, music, history,
@@ -303,11 +246,9 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
   );
 }
 
-/* Group separators use the shared `.game-hud-divider` token so the
-   top HUD and (future) bottom HUD stay visually consistent. */
-function Sep() {
-  return <span aria-hidden className="game-hud-divider hidden sm:block" />;
-}
+/* `Sep` — the `.game-hud-divider` rule between chip groups — went with the
+   logo and phase chip on 2026-10-05. `justify-between` is the separation now;
+   a rule inside a justified row is one more thing competing for the gap. */
 
 /**
  * Calm read-only KPI chip.

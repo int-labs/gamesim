@@ -8,6 +8,8 @@ import { NotebookCanvas } from '@/components/canvas/NotebookCanvas';
 import { NotebookGallery } from '@/components/canvas/NotebookGallery';
 import { AddOnGallery } from '@/components/panels/ProductPanel';
 import { ViewToggle } from '@/components/canvas/ViewToggle';
+import { TopHUD } from '@/components/hud/TopHUD';
+import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
 
 /**
  * ProductStage — the notebook itself, pinned beside the rail on EVERY section.
@@ -27,9 +29,12 @@ import { ViewToggle } from '@/components/canvas/ViewToggle';
 export function ProductStage({
   className,
   style,
+  liveProjectionState,
 }: {
   className?: string;
   style?: React.CSSProperties;
+  /** For `TopHUD`, which is this column's header since 2026-10-05. */
+  liveProjectionState?: LiveProjectionState;
 }) {
   const viewMode = useGame((s) => s.ui.viewMode);
   const apply = useGame((s) => s.apply);
@@ -91,6 +96,10 @@ export function ProductStage({
       }}
     >
       <section className={className} style={style}>
+        {/* The KPI bar. It spanned the whole screen above the tab rail and the
+            section rail; here it sits over the notebook whose numbers it
+            reports. */}
+        <TopHUD liveProjectionState={liveProjectionState} />
         <StageHeader />
         <div className="flex-1 min-h-0 flex flex-col">
           {viewMode === 'gallery' ? <NotebookGallery /> : <NotebookCanvas />}

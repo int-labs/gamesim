@@ -8,7 +8,6 @@ import {
   ReceiptText,
   Store,
 } from 'lucide-react';
-import { TopHUD } from '@/components/hud/TopHUD';
 import type { MainPage } from '@/components/hud/MainNav';
 import { PhaseActionBar } from '@/components/hud/PhaseActionBar';
 import { BottomStats } from '@/components/hud/MetricsTable';
@@ -74,8 +73,11 @@ export function SimulationScreen() {
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      <TopHUD liveProjectionState={liveProjectionState} />
-      {/* `AmeliaReactions` was REMOVED here on 2026-09-14. Its three live
+      {/* `TopHUD` MOVED into `ProductStage` on 2026-10-05 — it is the stage's
+          own header now, over the notebook it reports on, rather than a bar
+          spanning the tab rail and the section rail as well.
+
+          `AmeliaReactions` was REMOVED here on 2026-09-14. Its three live
           reactions were scored off the obsolete local `vocFit` model, and the
           trigger is being redesigned with the wider UX pass. */}
 
@@ -101,7 +103,10 @@ export function SimulationScreen() {
 
         {/* The notebook, on every section. Takes whatever the capped rail
             leaves. */}
-        <ProductStage className="flex-1 min-w-0 min-h-0 flex flex-col bg-surface" />
+        <ProductStage
+          className="flex-1 min-w-0 min-h-0 flex flex-col bg-surface"
+          liveProjectionState={liveProjectionState}
+        />
       </div>
 
       {/* ── FOOTER COMPARTMENT ──────────────────────────────────────────────
