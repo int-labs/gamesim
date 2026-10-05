@@ -29,6 +29,12 @@ import {
 
 /** Widest the rail may grow. The stage takes everything it leaves. */
 const RAIL_MAX = '40vw';
+/**
+ * Flat fill behind the rail's panels. The rail had no background of its own, so
+ * it showed `--c-bg` — the deep-walnut SCENE colour, desk art meant for the
+ * canvas, not for a column of forms. Owner, 2026-10-05: a flat colour instead.
+ */
+const RAIL_BG = '#e5e7eb';
 
 /**
  * Top-level layout for the playable run.
@@ -105,7 +111,7 @@ export function SimulationScreen() {
           <main
             id="sim-scroll"
             className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden border-r border-black/40"
-            style={{ maxWidth: RAIL_MAX, scrollPaddingTop: 16 }}
+            style={{ maxWidth: RAIL_MAX, backgroundColor: RAIL_BG, scrollPaddingTop: 16 }}
           >
             <PageRail page={page} liveProjectionState={liveProjectionState} />
           </main>

@@ -96,7 +96,11 @@ export function BottomStats({ liveProjectionState }: { liveProjectionState: Live
       <section
         id="stats-section"
         aria-label="User projection"
-        className="relative shrink-0 px-3 sm:px-8 pt-8 pb-10 overflow-hidden"
+        // Carries its OWN dark fill now. It never set one — it inherited the
+        // walnut `--c-bg` and drew its headings and desk dressing in
+        // `cream-100` against it. The rail turned flat grey on 2026-10-05, so
+        // without this the headings are near-white on light grey.
+        className="relative shrink-0 px-3 sm:px-8 pt-8 pb-10 overflow-hidden bg-[var(--c-bg)]"
       >
         <DeskDressing />
         <DeskHeader
@@ -130,7 +134,8 @@ export function BottomStats({ liveProjectionState }: { liveProjectionState: Live
       <section
         id="pnl-section"
         aria-label="Actual results"
-        className="relative shrink-0 px-3 sm:px-8 pt-8 pb-16 overflow-hidden border-t border-cream-100/15"
+        // Same reason as the section above — see the note there.
+        className="relative shrink-0 px-3 sm:px-8 pt-8 pb-16 overflow-hidden border-t border-cream-100/15 bg-[var(--c-bg)]"
       >
         <DeskDressing />
         <DeskHeader
