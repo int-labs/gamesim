@@ -30,11 +30,13 @@ import {
 /** Widest the rail may grow. The stage takes everything it leaves. */
 const RAIL_MAX = '40vw';
 /**
- * Flat fill behind the rail's panels. The rail had no background of its own, so
- * it showed `--c-bg` — the deep-walnut SCENE colour, desk art meant for the
- * canvas, not for a column of forms. Owner, 2026-10-05: a flat colour instead.
+ * Flat fill behind the rail's sections — `cream-100`, the same paper tone the
+ * HUD and the desk dressing are drawn in.
+ *
+ * The rail had no background of its own, so it showed `--c-bg`: the deep-walnut
+ * SCENE colour, meant for the canvas, not for a column of forms.
  */
-const RAIL_BG = '#e5e7eb';
+const RAIL_BG = '#F5EED8';
 
 /**
  * Top-level layout for the playable run.
@@ -164,11 +166,18 @@ function PageRail({
 
   if (page === 'market') {
     return (
-      <div className="h-full min-h-0">
-        {/* No `onClose`: it is optional and only fires after "Switch to …",
-            which still applies. This is a tab, not an overlay — there is
-            nothing to close it back to. */}
-        <ArchetypeDetailModal fill open />
+      <div className="h-full min-h-0 p-3.5">
+        {/* `overflow-hidden` is safe HERE and nowhere else in this component —
+            this sheet owns its own scroll regions. On the padded branch below
+            it would make the section a scroll container and break
+            ProductLineList's sticky "Add Notebook" footer, which needs the
+            rail's own scroller to be its nearest one. */}
+        <div className="h-full min-h-0 panel-frame panel-frame--lifted overflow-hidden">
+          {/* No `onClose`: it is optional and only fires after "Switch to …",
+              which still applies. This is a tab, not an overlay — there is
+              nothing to close it back to. */}
+          <ArchetypeDetailModal fill open />
+        </div>
       </div>
     );
   }
@@ -179,6 +188,15 @@ function PageRail({
     // siblings sit side by side and share a column the cap already made
     // narrow.
     <div className="grid grid-cols-1 p-3.5">
+      {/* Each section is a LIFTED PANEL so it reads as a sheet laid on the
+          cream rail rather than ink printed straight onto it.
+          `panel-frame--lifted` casts straight DOWN (`0 3px 0`), never
+          diagonally — in this codebase a diagonal cast means "pressable", and
+          a section is a container.
+
+          `p-3.5` on the panel, not the wrapper: ProductLineList's sticky "Add
+          Notebook" footer bleeds over exactly that much with `-mx-3.5 -mb-3.5`. */}
+      <section className="panel-frame panel-frame--lifted p-3.5">
       {page === 'notebook' && (
         <div className="grid grid-cols-1 gap-6">
           <ProductLineList />
@@ -196,6 +214,7 @@ function PageRail({
       {page === 'sales' && (
         <StudioPanel liveProjection={liveProjection} recalc={recalc} sections={['channels', 'budget']} />
       )}
+      </section>
     </div>
   );
 }
