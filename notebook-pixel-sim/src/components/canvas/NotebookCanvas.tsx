@@ -13,7 +13,6 @@ import { Notebook, sizeScale } from './Notebook';
 import { lineSize } from '@/engine/selectors';
 import { AddOnLayer } from './AddOnLayer';
 import { currentAddOns } from '@/engine/mockEngine';
-import { archetypeLabel } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { NotebookCycler } from '@/components/canvas/NotebookCycler';
 import { DustMotes } from '@/components/fx/DustMotes';
@@ -25,8 +24,6 @@ import { useDroppable } from '@dnd-kit/core';
  * NotebookCanvas — the FULL-BLEED stage. The desk artwork fills the entire
  * region edge-to-edge; all chrome floats OVER it as game-HUD cards:
  *
- *   top-left   → title card — READ-ONLY name + config. Renaming belongs to the
- *                Notebook section's list, which is on screen beside this.
  *   mid-edges  → prev/next chevrons (offset inward past the floating docks)
  *   top-center → "n / N" position pill
  *
@@ -277,14 +274,5 @@ export function NotebookCanvas() {
   );
 }
 
-function labelArch(a: string) {
-  // Live catalogue: a published notebook labels itself.
-  return archetypeLabel(a);
-}
-// The caption echoes the player's own choice, so it names the paper the Design
-// dropdown offers (A5/B5/B4). A "Small/Medium/Large" paraphrase would disagree
-// with the control that set it.
-const SIZE_TO_PAPER: Record<'s' | 'm' | 'l', string> = { s: 'A5', m: 'B5', l: 'B4' };
-function sizeLabel(s: 's' | 'm' | 'l') {
-  return SIZE_TO_PAPER[s];
-}
+/* `labelArch`, `SIZE_TO_PAPER` and `sizeLabel` were REMOVED with the title
+   plate on 2026-10-05 — they existed only to write its caption line. */

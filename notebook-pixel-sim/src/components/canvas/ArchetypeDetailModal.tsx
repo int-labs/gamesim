@@ -2,27 +2,20 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '@/state/store';
 import type { Archetype } from '@/types';
-import { ARCHETYPE_INFO, notebookCatalogue, defaultArchetype } from '@/data/notebookArchetypes';
+import { ARCHETYPE_INFO, defaultArchetype } from '@/data/notebookArchetypes';
 import { PixelModal } from '@/components/primitives/PixelModal';
-import { PixelButton } from '@/components/primitives';
-import { setProductField } from '@/engine/mockEngine';
-import { playSfx } from '@/audio/audioManager';
 import { BuyerInterestTab, MarketDataTab } from './NotebookMarketTabs';
 import clsx from 'clsx';
 
 const VIEWS = ['angle', 'front', 'spine', 'open', 'shelf'] as const;
 type View = (typeof VIEWS)[number];
 
-/** Rail contents come from the live catalogue, so a published notebook
- *  gets a tile automatically. */
-const notebookIds = (): Archetype[] => notebookCatalogue().map((n) => n.id);
-
 /**
- * NO TABS. There were four — Product, Segments, Buyer Interest, Market Data —
- * so reaching a chart meant picking a notebook AND then picking a lens, and the
- * market numbers a player decides FROM sat two clicks deep behind the four
- * notebooks. Owner, 2026-10-05: Product and Segments are out, and the charts
- * render together on arrival.
+ * NO TABS AND NO RAIL. Reaching a chart used to mean picking a notebook from a
+ * left rail AND then picking one of four lenses, so the market numbers a player
+ * decides FROM sat two clicks deep. Owner, 2026-10-05: Product and Segments
+ * out, every chart for every notebook on arrival, and nothing highlighted —
+ * marking the player's own market would say the others matter less.
  */
 interface Props {
   open?: boolean;
@@ -45,39 +38,21 @@ interface Props {
 
 export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _hideViews }: Props) {
   // May be undefined with an EMPTY portfolio (deleting the last notebook is
-  // permitted) — Details can open in that state, so every access below the
-  // guard must stay behind `if (!product)`.
+  // permitted). Only the `inline` branch reads it, with `??`.
   const product = useGame(
     (s) => s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId)
       ?? (s.portfolio.productLines[0] as (typeof s.portfolio.productLines)[0] | undefined),
   );
-  const apply = useGame((s) => s.apply);
-  // Hooks run unconditionally (before the empty-portfolio early return).
-  const [arch, setArch] = useState<Archetype>(product?.productId ?? defaultArchetype());
   const [view, setView] = useState<View>('angle');
 
   // NO EMPTY-PORTFOLIO BAIL. This used to return "No notebook to inspect" when
-  // `productLines` was empty, which meant the market data — the reach matrix,
-  // the buyer weights, the segment copy — only appeared AFTER the player had
-  // already chosen. That is backwards: this sheet is what the choice is made
-  // FROM. Owner, 2026-10-01.
-  //
-  // Nothing here needs a line. The sheet reads the CATALOGUE, and `arch`
-  // defaults to `defaultArchetype()` when there is no active product, so every
-  // tab renders against a real notebook either way. The three places that did
-  // need `product` are the rail's "owned" mark and the footer, both guarded
-  // below with `?.` rather than by refusing the whole sheet.
+  // `productLines` was empty, which meant the market data only appeared AFTER
+  // the player had already chosen. That is backwards: this sheet is what the
+  // choice is made FROM. Owner, 2026-10-01. The sheet reads the CATALOGUE and
+  // needs no line at all now.
+  const arch: Archetype = product?.productId ?? defaultArchetype();
 
-  const info = ARCHETYPE_INFO[arch];
-
-  const pick = (next: Archetype) => {
-    if (next === arch) return;
-    playSfx('click-soft');
-    setArch(next);
-  };
-
-  // Inline (drawer) stays a single narrow column — no rail, no tabs, and the
-  // two halves stack because there is no room to sit them side by side.
+  // Inline (drawer) stays a single narrow column.
   if (inline) {
     return (
       <div className="pb-2 flex flex-col gap-3">
@@ -89,61 +64,20 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
     );
   }
 
-  // The full sheet, shared by both presentations so the drawer and the modal
-  // can never drift apart in content.
+  // The full sheet — every chart, one scroll, nothing to select.
   const body = (
     <div className="flex h-full min-h-0">
-      {/* ── Left rail — which notebook you're inspecting. Vertical so the
-           three stay visible while the panel beside them changes. ── */}
-      <div role="group" aria-label="Notebook to inspect" className="w-[92px] sm:w-[108px] shrink-0 border-r border-border-soft bg-cream-200 p-2 flex flex-col gap-2 overflow-y-auto">
-        {notebookIds().map((id) => (
-          <RailTile key={id} id={id} active={id === arch} owned={id === product?.productId} onPick={() => pick(id)} />
-        ))}
-      </div>
-
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* ── Panel — every chart, in one scroll ── */}
         <div className="flex-1 min-h-0 overflow-y-auto p-3.5 bg-cream-50">
-          {/* Keyed remount on the NOTEBOOK (there is nothing else to switch
-              now) rather than AnimatePresence+mode="wait": waiting for an exit
-              before mounting the next panel costs ~2x the duration and flashes
-              an empty panel mid-swap. */}
-          <motion.div
-            key={arch}
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.18, ease: [0.2, 1, 0.4, 1] }}
-            className="grid grid-cols-1 gap-6"
-          >
-            <BuyerInterestTab arch={arch} />
-            <MarketDataTab arch={arch} />
-          </motion.div>
+          <div className="grid grid-cols-1 gap-6">
+            <BuyerInterestTab />
+            <MarketDataTab />
+          </div>
         </div>
 
-        {/* ── Footer — the only action this modal offers. Always visible so
-             it never hides below a long scroll. ── */}
-        {/* `product &&` — with an EMPTY portfolio there is nothing to switch
-             FROM, and "Switch to X" would be an action this sheet cannot
-             perform: the notebook is added from Notebook Items, not here. The
-             sheet still reads in full; it just offers no action. */}
-        {product && arch !== product.productId && (
-          <div className="shrink-0 flex items-center justify-between gap-3 px-3.5 py-2.5 border-t border-border-soft bg-cream-200">
-            <div className="hint text-text-2 leading-snug min-w-0 truncate">
-              Currently making <span className="strong text-text">{ARCHETYPE_INFO[product.productId].title}</span>
-            </div>
-            <PixelButton
-              variant="primary"
-              size="md"
-              onClick={() => {
-                playSfx('coin');
-                apply((s) => setProductField(s, 'productId', arch));
-                if (onClose) onClose();
-              }}
-            >
-              Switch to {info.title}
-            </PixelButton>
-          </div>
-        )}
+        {/* The "Switch to X" footer went with the rail on 2026-10-05. It acted
+             on whichever notebook the rail had selected, and there is no
+             selection now — switching is the Notebook section's job. */}
       </div>
     </div>
   );
@@ -169,52 +103,8 @@ export function ArchetypeDetailModal({ open, onClose, inline, fill, hideViews: _
   );
 }
 
-/** One notebook in the left rail. */
-function RailTile({
-  id, active, owned, onPick,
-}: { id: Archetype; active: boolean; owned: boolean; onPick: () => void }) {
-  const art = ARCHETYPE_INFO[id]?.art;
-  return (
-    <motion.button
-      onClick={onPick}
-      aria-pressed={active}
-      className={clsx(
-        'relative flex flex-col items-center justify-center gap-1 px-1 py-2 border-2 cursor-pointer min-w-0 w-full',
-        active
-          ? 'border-ink-900 bg-cream-50 shadow-pixel-2 ring-2 ring-ui-primary/40'
-          : 'border-ink-700/30 bg-cream-100 hover:bg-cream-50',
-      )}
-      whileHover={{ y: -3, rotate: -1.5 }}
-      whileTap={{ scale: 0.94, rotate: 0 }}
-      animate={active ? { scale: 1 } : { scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 340, damping: 18 }}
-    >
-      {/* A dot, not a word — the rail is too narrow for a label that would
-          wrap, and "which one am I actually producing" still needs an answer. */}
-      {owned && (
-        <span
-          title="You're making this one"
-          className="absolute top-1 right-1 w-2 h-2 bg-success border border-ink-900"
-        />
-      )}
-      <img
-        src={art}
-        alt=""
-        className="h-10 sm:h-12 object-contain"
-        style={{ imageRendering: 'pixelated' }}
-        draggable={false}
-      />
-      <span
-        className={clsx(
-          'eyebrow eyebrow-sm truncate max-w-full',
-          active ? 'eyebrow-strong' : 'eyebrow-muted',
-        )}
-      >
-        {ARCHETYPE_INFO[id]?.title ?? id}
-      </span>
-    </motion.button>
-  );
-}
+/* `RailTile` was DELETED here on 2026-10-05 with the notebook rail it filled —
+   its `active` highlight and its "you're making this one" dot included. */
 
 function ProductGallery({
   arch, view, setView, showViews, compact,

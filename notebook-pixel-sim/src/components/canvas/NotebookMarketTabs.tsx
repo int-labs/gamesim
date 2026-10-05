@@ -32,8 +32,7 @@
 // Numerals are never set in a pixel face: digits like 9,752 turn to mush.
 
 import { motion } from 'framer-motion';
-import clsx from 'clsx';
-import { GENRES, genreGrowth, type GenreDef, type GenreId } from '@/engine/finlit/core/config/genres';
+import { GENRES, genreGrowth, type GenreDef } from '@/engine/finlit/core/config/genres';
 import {
   driverAxes,
   priceAnchorCost,
@@ -43,7 +42,6 @@ import {
 import { fmt$ } from '@/utils/format';
 import { driverCopy } from '@/engine/finlit/core/config/drivers';
 import { PixelBadge } from '@/components/primitives';
-import type { Archetype } from '@/types';
 
 // The "What they weigh" rows are DERIVED — `driverAxes(genreId)` reads the
 // product's own fields, in the operator's `order`, labelled with their own
@@ -62,18 +60,10 @@ const PHASES = [
   { key: 'p3', label: 'P3' },
 ] as const;
 
-/**
- * Is this card the notebook currently being designed?
- *
- * It used to ask whether the notebook's `bestFor` segment list included the
- * segment this market mapped to — a curated fit across two axes. Those axes have
- * collapsed: a notebook IS its market, so the only honest comparison left is
- * identity. The numbers on the card are what distinguish the markets; this only
- * says which one you are looking at from.
- */
-function isSameMarket(genre: GenreId, arch: Archetype): boolean {
-  return genre === arch;
-}
+/* `isSameMarket` was DELETED here on 2026-10-05. It asked "is this the notebook
+   being designed?" and the answer tinted a table row and gated a card. Every
+   market is shown to every player now, with nothing marked — owner's call: the
+   sheet is a reference, and highlighting one row says the others matter less. */
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -105,39 +95,38 @@ function maxDriverWeight(): number {
 // ── Tab 2 · Buyer Interest ───────────────────────────────────────────────────
 
 /**
- * ONE card — the notebook the tab strip has selected.
+ * EVERY market, one card each, on arrival.
  *
- * It used to render all four markets at once, ranked so the active one floated
- * to the top and carrying a "This notebook"/"Other market" badge to say which
- * was which. That duplicated the tab strip's whole job: the tabs already page
- * between notebooks, so four stacked tables meant scrolling past three
- * irrelevant ones to reach the selected one.
+ * It took an `arch` and drew the one card a tab strip had selected. There is no
+ * tab strip any more: the cards are the page, so the comparison this chart is
+ * for happens by scrolling rather than by paging.
  *
- * `scaleMax` still spans EVERY market, so the interest line's y-axis does not
- * rescale as you tab. A peak that looks taller on one notebook than another
- * still IS taller — that comparison survives the change.
+ * `scaleMax` spans EVERY market, so the interest lines share a y-axis. A peak
+ * that looks taller on one card than another IS taller — that is the whole
+ * point of drawing them together.
  */
-export function BuyerInterestTab({ arch }: { arch: Archetype }) {
-  const genre = GENRES.find((g) => g.id === arch);
+export function BuyerInterestTab() {
   const scaleMax = maxDriverWeight();
 
-  if (!genre) {
+  if (GENRES.length === 0) {
     return (
       <div className="body-xs text-text-3 italic">
-        This notebook is not in the published catalogue.
+        No notebooks in the published catalogue.
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <p className="body-xs text-text-2">
-        Each market weighs your decisions differently. The line traces how much this one cares about
-        each axis, on the same scale every market is drawn at — a higher peak really is a stronger
-        preference. Build toward its #1 and the same notebook sells more.
+        Each market weighs your decisions differently. Each line traces how much that market cares
+        about each axis, all drawn at the same scale — a higher peak really is a stronger
+        preference. Build toward a market's #1 and the same notebook sells more.
       </p>
 
-      <MarketCard genre={genre} scaleMax={scaleMax} />
+      {GENRES.map((genre) => (
+        <MarketCard key={genre.id} genre={genre} scaleMax={scaleMax} />
+      ))}
     </div>
   );
 }
@@ -155,8 +144,9 @@ function MarketCard({
   // an empty table. See the container-hydration rule in CLAUDE.md.
   const axes = driverAxes(genre.id);
 
-  // No fit border or badge: this is the only card on screen, so "this notebook"
-  // has nothing to contrast against. The tab strip already says which is open.
+  // No fit border or badge. Every market is drawn; marking one as the player's
+  // own would say the others matter less, and the numbers are what distinguish
+  // them.
   return (
     <motion.div
       className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1 flex flex-col"
@@ -388,27 +378,25 @@ function VocInterestChart({
 
 // ── Tab 3 · Market Data ──────────────────────────────────────────────────────
 
-export function MarketDataTab({ arch }: { arch: Archetype }) {
-  const active = GENRES.find((g) => g.id === arch);
+export function MarketDataTab() {
   const maxDemand = Math.max(...GENRES.flatMap((g) => PHASES.map((p) => g.demand[p.key])));
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <p className="body-xs text-text-2">
         Addressable demand per market across the run. Every market grows. The question is which one
-        grows fastest, and whether this notebook is built for it.
+        grows fastest, and whether a notebook is built for it.
       </p>
 
-      {/* ONE chart — the selected notebook. Four of them duplicated the table
-          below, which carries the same figures for every market in a quarter
-          the space. `max` still spans EVERY market so the bars stay comparable
-          as you tab. */}
-      {active && <DemandChart genre={active} max={maxDemand} />}
+      {/* One chart per market. `max` spans EVERY market, so the bars are
+          comparable across cards rather than each rescaling to its own peak. */}
+      {GENRES.map((genre) => (
+        <DemandChart key={genre.id} genre={genre} max={maxDemand} />
+      ))}
 
-      {/* The table stays whole: this tab asks which market grows fastest, and
-          that needs more than one row. It is the comparison; the chart above is
-          the detail for the one you are on. */}
-      <DemandTable arch={arch} />
+      {/* The table is the same figures side by side — the charts give each
+          market its shape, the table ranks them. */}
+      <DemandTable />
     </div>
   );
 }
@@ -467,7 +455,7 @@ function DemandChart({ genre, max }: { genre: GenreDef; max: number }) {
   );
 }
 
-function DemandTable({ arch }: { arch: Archetype }) {
+function DemandTable() {
   return (
     <div className="border-2 border-ink-900 bg-cream-50 shadow-pixel-1 overflow-x-auto">
       <table className="w-full border-collapse min-w-[520px]">
@@ -483,25 +471,21 @@ function DemandTable({ arch }: { arch: Archetype }) {
           </tr>
         </thead>
         <tbody>
-          {GENRES.map((g) => {
-            const fit = isSameMarket(g.id, arch);
-            return (
-              <tr
-                key={g.id}
-                className={clsx('border-b border-border-soft last:border-b-0', fit && 'bg-success-soft/40')}
-              >
-                <td className="px-3.5 py-2.5 item-name text-text whitespace-nowrap">{g.name}</td>
-                {PHASES.map((p) => (
-                  <td key={p.key} className="px-3.5 py-2.5 text-right num-xs text-ink-900">
-                    {fmt(g.demand[p.key])}
-                  </td>
-                ))}
-                <td className="px-3.5 py-2.5 text-right num-xs text-success">
-                  +{Math.round(genreGrowth(g, 'p0', 'p3') * 100)}%
+          {/* Every row drawn the same. The player's own market used to be
+              tinted `bg-success-soft/40`; nothing is marked now. */}
+          {GENRES.map((g) => (
+            <tr key={g.id} className="border-b border-border-soft last:border-b-0">
+              <td className="px-3.5 py-2.5 item-name text-text whitespace-nowrap">{g.name}</td>
+              {PHASES.map((p) => (
+                <td key={p.key} className="px-3.5 py-2.5 text-right num-xs text-ink-900">
+                  {fmt(g.demand[p.key])}
                 </td>
-              </tr>
-            );
-          })}
+              ))}
+              <td className="px-3.5 py-2.5 text-right num-xs text-success">
+                +{Math.round(genreGrowth(g, 'p0', 'p3') * 100)}%
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
