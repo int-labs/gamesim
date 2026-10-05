@@ -33,7 +33,7 @@
 
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
-import { GENRES, genreGrowth, growthCoefficient, type GenreDef, type GenreId } from '@/engine/finlit/core/config/genres';
+import { GENRES, genreGrowth, type GenreDef, type GenreId } from '@/engine/finlit/core/config/genres';
 import {
   driverAxes,
   priceAnchorCost,
