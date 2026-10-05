@@ -180,8 +180,13 @@ export function DesignControls() {
 }
 
 /**
- * AddOnGallery — the draggable add-on catalog. Lives in the left dock's
- * "Add-ons" drawer. Click a tile to toggle it, or drag it onto the notebook.
+ * AddOnGallery — the draggable add-on catalog. A HORIZONTAL strip along the
+ * bottom of the stage, directly under the notebook it decorates and above the
+ * footer. Click a tile to toggle it, or drag it onto the canvas.
+ *
+ * It was a vertical 3-column grid in the left drawer, which put the drag
+ * SOURCE in a panel that covered the drop TARGET. Laid out as a strip the two
+ * are on screen together, which is the whole point of the gesture.
  */
 export function AddOnGallery() {
   const { product, hasNotebook, apply } = useActiveLine();
@@ -237,21 +242,24 @@ export function AddOnGallery() {
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2 min-w-0">
       <div className="body-xs text-text-2">
         {/* The old copy said these were "cosmetic and don't change your score".
             That stopped being true when charms/ribbons/stickers/functional
             became real spec axes — each one is submitted and costs money, which
             is what the figure on every tile now shows. */}
-        <span className="strong text-text">{archAddOns.length}/3</span> on · tap to toggle. Each piece adds to your unit cost and to what buyers value — you can carry three.
+        <span className="strong text-text">{archAddOns.length}/3</span> on · tap to toggle, or drag onto the notebook. Each piece adds to your unit cost and to what buyers value — you can carry three.
       </div>
-      <div className="flex flex-col gap-3">
+      {/* One scrolling row, groups separated by a rule. `overflow-x-auto` on
+          the row and `shrink-0` on each group: without both, flex compresses
+          the tiles instead of scrolling them. */}
+      <div className="flex items-start gap-3 overflow-x-auto pb-1">
           {ADDON_GROUPS.map((group) => (
-            <div key={group.label}>
-              <div className="stat-label mb-2">
+            <div key={group.label} className="shrink-0 flex flex-col gap-1.5 pr-3 border-r border-border-soft last:border-r-0 last:pr-0">
+              <div className="stat-label">
                 {group.label}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex items-stretch gap-2">
                 {ADDONS.filter((a) => group.cats.includes(a.category)).map((a) => {
                   const placed = !!archAddOns.find((p: { defId: string }) => p.defId === a.id);
                   // BY AXIS, matching the swap rule: a Name Sticker and a
@@ -344,7 +352,9 @@ function AddOnTile({
       {...attributes}
       {...listeners}
       className={clsx(
-        'ctl-btn group relative border p-2.5 flex flex-col items-center gap-1.5 select-none touch-none',
+        // Fixed width + shrink-0: the gallery is a scrolling ROW now, so a
+        // tile that could shrink would squeeze instead of scrolling.
+        'ctl-btn group relative w-[88px] shrink-0 border p-2.5 flex flex-col items-center gap-1.5 select-none touch-none',
         isDragging && 'opacity-60 scale-105 shadow-pixel-2',
         placed
           ? 'bg-success-soft border-success'
