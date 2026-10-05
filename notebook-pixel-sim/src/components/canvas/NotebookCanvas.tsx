@@ -247,41 +247,10 @@ export function NotebookCanvas() {
       {/* Pixel bursts — add-on drops + notebook pats land here. */}
       <PixelBurstLayer />
 
-      {/* ── Floating TITLE PLATE (top-left) — reads as a proper game title:
-           accent icon chip + tiny eyebrow + chunky arcade-font name. Still a
-           single 48px row on the shared top band. ─────────────────────── */}
-      <div className="absolute left-3 top-3 z-20 max-w-[calc(50%-120px)]">
-        <div className="panel-frame bg-surface h-[48px] pl-2 pr-3 flex items-center gap-2.5 w-fit max-w-full">
-          {/* accent chip */}
-          <span aria-hidden className="inline-flex items-center justify-center w-8 h-8 border border-primary bg-primary-soft shrink-0">
-            <PixelIcon kind="product" size={15} color="var(--c-primary)" />
-          </span>
-          <div className="flex flex-col justify-center gap-[3px] leading-none min-w-0">
-            <span className="stat-label leading-none">
-              Notebook
-            </span>
-            {/* Read-only. Click-to-rename lived here until 2026-10-05; the
-                Notebook section's list owns renaming (pencil button and
-                double-click), and a second editing surface on a 420px stage
-                meant the same name could be mid-edit in two places. */}
-            {/* keyed slide-up so the title visibly "changes hands" when
-                you cycle notebooks */}
-            <motion.span
-              key={product.id}
-              initial={reduced ? false : { y: 9, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.2, ease: [0.2, 1, 0.4, 1] }}
-              className="eyebrow eyebrow-sm text-text truncate leading-none"
-            >
-              {product.name}
-            </motion.span>
-          </div>
-          <span aria-hidden className="hidden md:block w-px h-6 bg-border-soft shrink-0" />
-          <div className="hidden md:block hint text-text-2 truncate">
-            {labelArch(product.productId)} · {product.cover === 'leather' ? 'Leather' : 'Hardcover'} · {product.binding === 'ring' ? 'Ring' : 'Staple'} · {sizeLabel(drawnSize)}
-          </div>
-        </div>
-      </div>
+      {/* The floating TITLE PLATE was REMOVED here on 2026-10-05 — accent
+          chip, name, and the "genre · cover · binding · size" line. The stage
+          header above this canvas already names the notebook, and the Notebook
+          section's list owns both the name and that spec. */}
 
       {/* The Focus / Shelf / Details strip MOVED to `ProductPage` (2026-10-01).
           It lived here and in NotebookGallery, so it disappeared whenever this
