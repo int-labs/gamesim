@@ -3,21 +3,23 @@ import clsx from 'clsx';
 import { motion, useReducedMotion } from 'framer-motion';
 import { StudioPanel } from '@/components/panels/StudioPanel';
 import { InventoryPanel } from '@/components/panels/InventoryPanel';
-import { FinanceTable, PortfolioMetrics } from '@/components/hud/MetricsTable';
 import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import { BUSINESS_PAGE } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
 
 // V3 Business page — the OPERATIONS hub. Company decisions (hire/market/ship)
-// live here, plus inventory and the full P&L. Product design (genre + spec +
-// channels + price) lives in the Product page's drawers.
-type SubTab = 'operations' | 'inventory' | 'performance';
+// live here, plus inventory. Product design (genre + spec + channels + price)
+// lives on the Product page; the P&L lives on the Finance page.
+//
+// The third folder, `performance`, was removed on 2026-10-05: it rendered
+// FinanceTable + PortfolioMetrics, which the Finance tab now owns. Two routes
+// to one sheet is a sheet that can be stale in one of them.
+type SubTab = 'operations' | 'inventory';
 
 const TABS: { id: SubTab; label: string; icon: PixelIconKind; sub: string; explainer: string }[] = [
   { id: 'operations',  label: BUSINESS_PAGE.tabs.operations.label,  icon: 'operations', sub: BUSINESS_PAGE.tabs.operations.sub,  explainer: BUSINESS_PAGE.tabs.operations.explainer  },
   { id: 'inventory',   label: BUSINESS_PAGE.tabs.inventory.label,   icon: 'inventory',  sub: BUSINESS_PAGE.tabs.inventory.sub,   explainer: BUSINESS_PAGE.tabs.inventory.explainer   },
-  { id: 'performance', label: BUSINESS_PAGE.tabs.performance.label, icon: 'results',    sub: BUSINESS_PAGE.tabs.performance.sub, explainer: BUSINESS_PAGE.tabs.performance.explainer },
 ];
 
 /**
@@ -50,8 +52,7 @@ export function BusinessPage({ liveProjectionState }: { liveProjectionState: Liv
   return (
     // NATURAL height — the sheet grows with its content and the page's ONE
     // scrollbar (main#sim-scroll) handles everything; no scroll-in-scroll.
-    // pt-16 clears the floating Product/Business tabs pinned top-center.
-    <div className="flex flex-col px-3 sm:px-4 pb-3 pt-16">
+    <div className="flex flex-col px-3 sm:px-4 py-3">
       <FolderTabs
         tabs={TABS}
         active={tab}
@@ -81,12 +82,6 @@ export function BusinessPage({ liveProjectionState }: { liveProjectionState: Liv
         >
           {tab === 'operations' && <StudioPanel liveProjection={liveProjection} recalc={recalc} />}
           {tab === 'inventory' && <InventoryPanel liveProjection={liveProjection} recalc={recalc} />}
-          {tab === 'performance' && (
-            <div className="flex flex-col gap-5">
-              <FinanceTable />
-              <PortfolioMetrics liveProjection={liveProjection} />
-            </div>
-          )}
         </motion.div>
       </section>
     </div>

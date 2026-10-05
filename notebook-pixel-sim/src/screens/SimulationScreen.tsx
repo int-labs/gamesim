@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { BookOpen, BriefcaseBusiness } from 'lucide-react';
+import { BookOpen, BriefcaseBusiness, ReceiptText, Trophy } from 'lucide-react';
 import { TopHUD } from '@/components/hud/TopHUD';
 import type { MainPage } from '@/components/hud/MainNav';
 import { PhaseActionBar } from '@/components/hud/PhaseActionBar';
@@ -21,14 +21,10 @@ import {
 /**
  * Top-level layout for the playable run.
  *
- * Layout:
- *   [TopHUD — KPI pills combined into one bar]
- *   [scrollable main]
- *      ├── floating Product/Business tabs (top-center, over the canvas)
- *      ├── active page (fills the first viewport via h-full)
- *      └── #stats-section (Stats & P&L tables flow below — just scroll,
- *          no drawer; the canvas "Stats ↓" chip smooth-scrolls here)
- *   [PhaseActionBar] (sticky bottom, always visible)
+ *   [TopHUD]
+ *   [PageTabs — Product · Business · Finance · Results]
+ *   [left rail | scrollable centre]
+ *   [footer compartment — PhaseActionBar]
  */
 export function SimulationScreen() {
   const [page, setPage] = useState<MainPage>('product');
@@ -80,28 +76,32 @@ export function SimulationScreen() {
             nothing for it, so an unfilled rail costs no empty column. */}
         <PageRail page={page} />
 
-        {/* Scrollable centre column.
-            IMPORTANT: <main> is a normal scrollable BLOCK, not a flex column.
-            - Page wrapper is EXACTLY 100% of main's visible area (h-full) so
-              the canvas is never cropped; internal panels scroll themselves.
-            - BottomStats is a normal block AFTER the page → user scrolls down
-              (or taps the canvas "Stats ↓" chip). Both it and that chip go
-              when FINANCE lands as its own tab. */}
+        {/* Scrollable centre column. ONE page at a time — `BottomStats` used
+            to trail every page here, so Product and Business each carried the
+            Projection and P&L paperwork below them. It is the Finance tab's
+            content now and nothing else's. */}
         <main
           id="sim-scroll"
           className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden"
           style={{ scrollPaddingTop: 16 }}
         >
-          {/* Product locks to the viewport (h-full) so the canvas never
-              crops. Business flows at NATURAL height (min-h-full) — its
+          {/* Product and Results lock to the viewport (h-full) — both own
+              their internal scroll regions and the canvas must never crop.
+              Business and Finance flow at NATURAL height (min-h-full): their
               content grows the page and THIS scrollbar handles it all, so
               there's no scroll-within-scroll. */}
-          <div className={page === 'product' ? 'h-full flex flex-col' : 'min-h-full flex flex-col'}>
+          <div
+            className={
+              page === 'product' || page === 'results'
+                ? 'h-full flex flex-col'
+                : 'min-h-full flex flex-col'
+            }
+          >
             {page === 'product' && <ProductPage liveProjectionState={liveProjectionState} />}
             {page === 'business' && <BusinessPage liveProjectionState={liveProjectionState} />}
+            {page === 'finance' && <BottomStats liveProjectionState={liveProjectionState} />}
             {page === 'results' && <ResultsPage />}
           </div>
-          <BottomStats liveProjectionState={liveProjectionState} />
         </main>
       </div>
 
@@ -141,6 +141,8 @@ function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) 
   const TABS = [
     { id: 'product' as const, label: 'Product', icon: BookOpen },
     { id: 'business' as const, label: 'Business', icon: BriefcaseBusiness },
+    { id: 'finance' as const, label: 'Finance', icon: ReceiptText },
+    { id: 'results' as const, label: 'Results', icon: Trophy },
   ];
   return (
     <div className="shrink-0 bg-[#221710] border-b border-black/50">

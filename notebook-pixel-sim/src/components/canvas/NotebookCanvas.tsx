@@ -353,13 +353,16 @@ export function NotebookCanvas() {
         onCycle={setSlideDir}
       />
 
-      {/* Smooth-scrolls to the in-flow projection & P&L tables below the canvas
-          (they're plain page content now, not a drawer). Label tracks that
-          section's own heading so the chip and its destination agree. */}
+      {/* Jumps to the FINANCE tab, which owns the projection & P&L sheets. It
+          used to `scrollIntoView` them, because they trailed this page in the
+          same scroll; since 2026-10-05 they are their own tab, so a scroll
+          would land on nothing. Goes through `intlabs:goto` rather than a prop
+          — SimulationScreen already listens, and the canvas is four levels
+          down from the page state. */}
       <button
         onClick={() => {
           playSfx('click-soft');
-          document.getElementById('stats-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          window.dispatchEvent(new CustomEvent('intlabs:goto', { detail: { page: 'finance' } }));
         }}
         className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 h-[34px] bg-surface border-2 border-border text-text eyebrow eyebrow-sm shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:text-primary active:scale-95 transition-all cursor-pointer"
       >
