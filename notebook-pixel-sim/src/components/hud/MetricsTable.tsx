@@ -106,7 +106,10 @@ export function BottomStats({ liveProjectionState }: { liveProjectionState: Live
           note={loading ? <span className="body-xs text-cream-100/50 ml-2">Updating…</span> : undefined}
         />
 
-        <div className="relative grid gap-5 lg:grid-cols-2 items-start">
+        {/* ONE per row. `lg:grid-cols-2` keyed off the VIEWPORT, so in the
+            40vw rail it split a narrow column in half and squeezed both
+            sheets. Stacked, they grow downwards. */}
+        <div className="relative grid grid-cols-1 gap-5 items-start">
           <PaperSheet title="Active Notebook" icon={A.ui.sidebar.product} tilt={-0.6}>
             <NotebookMetrics liveProjection={liveProjection} />
           </PaperSheet>

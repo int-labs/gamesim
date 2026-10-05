@@ -397,7 +397,11 @@ export function StudioPanel({
         title="Sales Channels"
         hint="Where you sell. Applies to every notebook."
       >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* ONE per row. The `sm:grid-cols-3` here keyed off the VIEWPORT, which
+            is almost always past `sm` — but this now sits in a rail capped at
+            40vw, so it split a narrow column three ways and squeezed every
+            card. Stacked, the section grows downwards instead. */}
+        <div className="grid grid-cols-1 gap-3">
           {(Object.keys(CHANNEL_META) as ChannelId[]).map((ch) => {
             const on = companyChannels.has(ch);
             const isLastOn = on && companyChannels.size <= 1;
@@ -553,7 +557,8 @@ export function StudioPanel({
         title="Marketing Budget"
         hint="Budget to grow, shown per phase. Set back to $0 to switch off and refund the energy."
       >
-        <div className={clsx('grid gap-3', marketingLevers.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
+        {/* One per row — see the note on the channel grid above. */}
+        <div className="grid grid-cols-1 gap-3">
           {marketingLevers.map((lv) => {
             // At the cap, only levers already paid for stay editable, so the
             // player can always wind one back down to free a slot.
@@ -627,11 +632,10 @@ export function StudioPanel({
         }
       >
         {/* Two columns from xl. Four candidates stacked full-width left each
-            row ~1330px wide around ~500px of content, so every card carried a
-            half-empty right side and the four ran together as one long list.
-            Paired up they read as a roster you compare across, and the whole
-            section fits without scrolling. */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
+            row ~1330px wide around ~500px of content. That was the full-width
+            page; in the rail there is no spare width to pair across, so one per
+            row — see the note on the channel grid above. */}
+        <div className="grid grid-cols-1 gap-2.5">
           {(hiringGI?.inputs ?? []).map((item) => {
             // The roster IS the backend's hiring items. `options` gives the
             // steps; the level control is a 1-based INDEX into them, so an

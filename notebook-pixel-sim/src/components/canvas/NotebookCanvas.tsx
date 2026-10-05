@@ -6,18 +6,16 @@ import {
   useSpring,
   useTransform,
 } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useGame } from '@/state/store';
 import { EnvironmentBackground } from './EnvironmentBackground';
 import { Notebook, sizeScale } from './Notebook';
 import { lineSize } from '@/engine/selectors';
 import { AddOnLayer } from './AddOnLayer';
-import { currentAddOns, renameProductLine } from '@/engine/mockEngine';
+import { currentAddOns } from '@/engine/mockEngine';
 import { archetypeLabel } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { NotebookCycler } from '@/components/canvas/NotebookCycler';
-import { Pencil } from 'lucide-react';
-import { NavIcon } from '@/components/icons/NavIcon';
 import { DustMotes } from '@/components/fx/DustMotes';
 import { PixelBurstLayer } from '@/components/fx/PixelBurst';
 import { playSfx } from '@/audio/audioManager';
@@ -51,20 +49,10 @@ export function NotebookCanvas() {
   // the DndContext).
   const { isOver, setNodeRef: setDropRef } = useDroppable({ id: 'notebook-canvas' });
   const hasNotebook = useGame((s) => s.portfolio.productLines.length > 0);
-  const apply = useGame((s) => s.apply);
   const addOns = useGame((s) => (hasNotebook ? currentAddOns(s) : []));
   const openDrawer = useGame((s) => s.openDrawer);
   const pushMascot = useGame((s) => s.pushMascot);
   const patCount = useRef(0);
-
-  // Inline rename — the floating title card is the name's editing surface
-  // (the top bar no longer shows it).
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    if (editing) inputRef.current?.select();
-  }, [editing]);
 
   // Chevron direction (−1 prev / +1 next) so the hero SLIDES the way you
   // navigate instead of popping. 0 = config change → gentle scale-fade.
@@ -156,17 +144,6 @@ export function NotebookCanvas() {
       </div>
     );
   }
-
-  const startRename = () => {
-    setDraft(product.name);
-    setEditing(true);
-    playSfx('click-soft');
-  };
-  const commitRename = () => {
-    const name = draft.trim();
-    if (name && name !== product.name) apply((s) => renameProductLine(s, product.id, name));
-    setEditing(false);
-  };
 
   return (
     <div
@@ -283,52 +260,21 @@ export function NotebookCanvas() {
             <span className="stat-label leading-none">
               Notebook
             </span>
-            {editing ? (
-              <input
-                ref={inputRef}
-                value={draft}
-                autoFocus
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRename();
-                  if (e.key === 'Escape') setEditing(false);
-                }}
-                maxLength={28}
-                aria-label="Notebook name"
-                // Shrinks with the viewport so the field never pushes out of
-                // the title card (the card's wrapper is max-w-[calc(50%-120px)]
-                // — the icon + padding eat ~120px, so cap the field to match).
-                className="w-[min(240px,calc(50vw_-_190px))] min-w-[90px] max-w-full bg-cream-50 border-2 border-primary text-ink-900 eyebrow eyebrow-sm outline-none px-1.5 py-0.5"
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={startRename}
-                aria-label={`Notebook name: ${product.name}. Click to rename.`}
-                className="group inline-flex items-center gap-1.5 min-w-0 cursor-text text-left"
-              >
-                {/* keyed slide-up so the title visibly "changes hands" when
-                    you cycle notebooks */}
-                <motion.span
-                  key={product.id}
-                  initial={reduced ? false : { y: 9, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.2, ease: [0.2, 1, 0.4, 1] }}
-                  className="eyebrow eyebrow-sm text-text truncate leading-none"
-                >
-                  {product.name}
-                </motion.span>
-                {/* Was opacity-35 until :hover — the only hint that this label is
-                      editable, and invisible on the tablets this is played on.
-                      Click-to-edit text is exempt from the button grammar (see the
-                      affordance rule), so the icon IS the affordance and must be
-                      legible at rest. */}
-                <span aria-hidden className="opacity-70 group-hover:opacity-100 transition-opacity shrink-0">
-                  <NavIcon icon={Pencil} size={11} color="var(--c-text-3)" />
-                </span>
-              </button>
-            )}
+            {/* Read-only. Click-to-rename lived here until 2026-10-05; the
+                Notebook section's list owns renaming (pencil button and
+                double-click), and a second editing surface on a 420px stage
+                meant the same name could be mid-edit in two places. */}
+            {/* keyed slide-up so the title visibly "changes hands" when
+                you cycle notebooks */}
+            <motion.span
+              key={product.id}
+              initial={reduced ? false : { y: 9, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.2, ease: [0.2, 1, 0.4, 1] }}
+              className="eyebrow eyebrow-sm text-text truncate leading-none"
+            >
+              {product.name}
+            </motion.span>
           </div>
           <span aria-hidden className="hidden md:block w-px h-6 bg-border-soft shrink-0" />
           <div className="hidden md:block hint text-text-2 truncate">

@@ -159,7 +159,9 @@ export function InventoryPanel({
     <div className="flex flex-col gap-3">
       {/* ── Overview — live stock + output (V3-real numbers) ── */}
       <PixelPanel title="Stock & Output">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {/* Two up, fixed. `sm:grid-cols-4` keyed off the VIEWPORT, so in the
+            40vw rail four stat boxes shared a narrow column. */}
+        <div className="grid grid-cols-2 gap-2">
           <Box label="Finished goods" value={fmtInt(finished)} tone="success" hint={BUSINESS_PAGE.inventory.finishedHint} />
           <Box label="Produce" value={fmtInt(totalTarget)} tone="neutral" hint="Total units per phase you've planned across all notebooks." />
           <Box

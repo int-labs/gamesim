@@ -28,8 +28,8 @@ import {
   SCRIPT_FIRST_BUSINESS_PAGE,
 } from '@/content/mascotScripts';
 
-/** How wide the notebook stage sits. The rail takes everything else. */
-const STAGE_W = 420;
+/** Widest the rail may grow. The stage takes everything it leaves. */
+const RAIL_MAX = '40vw';
 
 /**
  * Top-level layout for the playable run.
@@ -85,26 +85,23 @@ export function SimulationScreen() {
           chrome hovering on it. */}
       <PageTabs page={page} onChange={setPage} />
 
-      {/* ── BODY — rail (the active section) + stage (the notebook) ─────────
-          The rail is the wide one. Every decision moved into it, so it is where
-          the player actually works; the stage is a fixed column that shows what
-          those decisions are producing. */}
+      {/* ── BODY — rail (the active section) + stage (the notebook) ───────── */}
       <div className="flex-1 min-h-0 flex">
+        {/* The rail holds every decision. Capped at RAIL_MAX so it stops
+            growing on a wide screen and the stage takes the rest. It scrolls
+            DOWN only: the sections inside are single-column grids, so content
+            that does not fit the cap grows taller rather than wider. */}
         <main
           id="sim-scroll"
-          className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden"
-          style={{ scrollPaddingTop: 16 }}
+          className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden border-r border-black/40"
+          style={{ maxWidth: RAIL_MAX, scrollPaddingTop: 16 }}
         >
           <PageRail page={page} liveProjectionState={liveProjectionState} />
         </main>
 
-        {/* The notebook, on every section. `shrink-0` + a fixed width: it is a
-            reference now, not the hero, and a flexible stage would reclaim the
-            rail's width on a wide screen — the lopsidedness this replaced. */}
-        <ProductStage
-          className="shrink-0 min-h-0 flex flex-col border-l border-black/40 bg-surface"
-          style={{ width: STAGE_W }}
-        />
+        {/* The notebook, on every section. Takes whatever the capped rail
+            leaves. */}
+        <ProductStage className="flex-1 min-w-0 min-h-0 flex flex-col bg-surface" />
       </div>
 
       {/* ── FOOTER COMPARTMENT ──────────────────────────────────────────────
@@ -154,9 +151,13 @@ function PageRail({
   }
 
   return (
-    <div className="p-3.5">
+    // `grid grid-cols-1` rather than a flex column: ONE section per row, each
+    // taking the full track width and growing downwards. A flex row would let
+    // siblings sit side by side and share a column the cap already made
+    // narrow.
+    <div className="grid grid-cols-1 p-3.5">
       {page === 'notebook' && (
-        <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <ProductLineList />
           <FinlitDesignControls liveProjection={liveProjection} recalc={recalc} />
         </div>
