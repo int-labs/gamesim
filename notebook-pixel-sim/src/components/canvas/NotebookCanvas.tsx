@@ -47,7 +47,6 @@ export function NotebookCanvas() {
   const { isOver, setNodeRef: setDropRef } = useDroppable({ id: 'notebook-canvas' });
   const hasNotebook = useGame((s) => s.portfolio.productLines.length > 0);
   const addOns = useGame((s) => (hasNotebook ? currentAddOns(s) : []));
-  const openDrawer = useGame((s) => s.openDrawer);
   const pushMascot = useGame((s) => s.pushMascot);
   const patCount = useRef(0);
 
@@ -128,13 +127,18 @@ export function NotebookCanvas() {
             <PixelIcon kind="product" size={28} color="var(--c-text-3)" />
             <div className="item-name text-text">No notebook selected</div>
             <p className="hint text-text-2 max-w-[28ch]">
-              Open <span className="strong text-text">Notebook Items</span> in the left dock to add your first notebook.
+              Open the <span className="strong text-text">Notebook</span> section to add your first notebook.
             </p>
             <button
-              onClick={() => openDrawer('left', 'items')}
+              // Switches SECTION. It called `openDrawer('left', 'items')`, and
+              // that drawer no longer exists — the button was already dead.
+              onClick={() => {
+                playSfx('click-soft');
+                window.dispatchEvent(new CustomEvent('intlabs:goto', { detail: { page: 'notebook' } }));
+              }}
               className="pbtn mt-1 px-3 h-[30px] eyebrow eyebrow-sm text-text border-2 border-primary bg-primary-soft"
             >
-              Open Notebook Items
+              Go to Notebook
             </button>
           </div>
         </div>

@@ -561,8 +561,8 @@ export function FinanceTable() {
   // and this subscription does not churn.
   const availableGlobalInputs = useGame((s) => s.availableGlobalInputs);
   const reduced = useReducedMotion();
-  // Hooked, not passed: two render sites (BottomStats, BusinessPage), neither
-  // threads props.
+  // Hooked, not passed — the render site does not thread props. (There were
+  // two; `BusinessPage` was deleted 2026-10-05.)
   const { bootstrap, financialsByRound } = useGamesimSession();
   const totalRounds = bootstrap?.simulation.config?.totalRounds;
   // `financialsByRound` is keyed 0-BASED; `p` is a 1-based display phase.

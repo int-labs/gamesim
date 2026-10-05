@@ -42,7 +42,6 @@ export function NotebookGallery() {
   const activeLineId = useGame((s) => s.portfolio.activeLineId);
   const apply = useGame((s) => s.apply);
   const setViewMode = useGame((s) => s.setViewMode);
-  const openDrawer = useGame((s) => s.openDrawer);
   const reduced = useReducedMotion();
 
   const focus = (id: string) => {
@@ -77,11 +76,9 @@ export function NotebookGallery() {
           </span>
         </div>
       </div>
-      {/* The Focus / Shelf / Details strip MOVED to `ProductPage` (2026-10-01).
-          It was rendered here AND in NotebookCanvas — two copies of one control
-          that had already drifted apart (this one played a sound and carried no
-          `data-drawer-trigger`, so a press here both opened Details and let the
-          outside-pointer handler dismiss it). One copy, owned by the page. */}
+      {/* The Focus / Shelf toggle MOVED to the stage header (2026-10-01). It
+          was rendered here AND in NotebookCanvas — two copies of one control
+          that had already drifted apart. One copy, owned by the stage. */}
 
       {/* Shelf area — padding clears the floating header (top), the left
           dock column (sm+), the phone bottom dock bar, and the bottom-right
@@ -98,7 +95,14 @@ export function NotebookGallery() {
               onClick={() => focus(l.id)}
             />
           ))}
-          <AddCard onClick={() => { playSfx('click-soft'); openDrawer('left', 'items'); }} />
+          {/* Switches SECTION. It called `openDrawer('left', 'items')`, and
+              that drawer no longer exists — the card was already dead. */}
+          <AddCard
+            onClick={() => {
+              playSfx('click-soft');
+              window.dispatchEvent(new CustomEvent('intlabs:goto', { detail: { page: 'notebook' } }));
+            }}
+          />
         </div>
       </div>
     </div>

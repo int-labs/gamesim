@@ -247,13 +247,15 @@ export interface GameState {
     musicEnabled: boolean;
   };
   /**
-   * Transient UI-shell state for the wide-canvas simulation. NEVER persisted
-   * (reset in `partialize`): which edge-dock drawer is open on each side, the
-   * canvas view mode, and tips the player dismissed this session.
+   * Transient UI-shell state for the simulation. NEVER persisted (reset in
+   * `partialize`): the canvas view mode and tips the player dismissed this
+   * session.
+   *
+   * `leftDrawer` / `rightDrawer` were deleted on 2026-10-05 with the sliding
+   * drawers they tracked. The section switch is local state in
+   * `SimulationScreen`, deliberately — there is no closed state to hold.
    */
   ui: {
-    leftDrawer: string | null;
-    rightDrawer: string | null;
     viewMode: 'focus' | 'gallery';
     dismissedTips: string[];
   };
@@ -360,7 +362,7 @@ const startingState = (): GameState => ({
   series: { cash: [], revenue: [], profit: [], sold: [], finished: [], raw: [], demand: [], stockout: [], overstock: [] },
   mascot: { queue: [], current: null, history: [], seenScripts: [], seenMessages: [], mood: 'idle', minimized: false, position: null },
   audio: { sfxEnabled: true, musicEnabled: false },
-  ui: { leftDrawer: null, rightDrawer: null, viewMode: 'focus', dismissedTips: [] },
+  ui: { viewMode: 'focus', dismissedTips: [] },
   finlit: { demandMult: 1, sellMult: 1, resolvedScenarios: [] },
   globalInputSelections: [],
   availableGlobalInputs: [],
@@ -392,10 +394,8 @@ interface Actions {
   clearToast: () => void;
   // Generic mutators (used by mockEngine)
   apply: (mut: (s: GameState) => void) => void;
-  // UI shell (wide-canvas docks/drawers/tips) — transient, never persisted.
-  openDrawer: (side: 'left' | 'right', id: string) => void;
-  closeDrawer: (side: 'left' | 'right') => void;
-  toggleDrawer: (side: 'left' | 'right', id: string) => void;
+  // UI shell — transient, never persisted. `openDrawer` / `closeDrawer` /
+  // `toggleDrawer` were deleted 2026-10-05 with the drawers.
   setViewMode: (m: 'focus' | 'gallery') => void;
   dismissTip: (id: string) => void;
   /** Populate the server's globalInputs schema; called by GamesimProvider after bootstrap. Transient — never persisted. */
@@ -543,23 +543,6 @@ export const useGame = create<Store>()(
         }),
       clearToast: () => set((st) => { st.toast = null; }),
       apply: (mut) => set((st) => { mut(st); }),
-      // Left and right drawers are independent — ProductPage uses backdrop={false}
-      // on the left so both can be open at once (design + details side by side).
-      openDrawer: (side, id) =>
-        set((st) => {
-          if (side === 'left') st.ui.leftDrawer = id;
-          else st.ui.rightDrawer = id;
-        }),
-      closeDrawer: (side) =>
-        set((st) => {
-          if (side === 'left') st.ui.leftDrawer = null;
-          else st.ui.rightDrawer = null;
-        }),
-      toggleDrawer: (side, id) =>
-        set((st) => {
-          if (side === 'left') st.ui.leftDrawer = st.ui.leftDrawer === id ? null : id;
-          else st.ui.rightDrawer = st.ui.rightDrawer === id ? null : id;
-        }),
       setViewMode: (m) => set((st) => { st.ui.viewMode = m; }),
       dismissTip: (id) =>
         set((st) => {
@@ -569,7 +552,7 @@ export const useGame = create<Store>()(
     })),
     {
       name: 'intlabs:sim:state:v1',
-      version: 25,
+      version: 26,
       storage: createJSONStorage(() => localStorage),
       // ── Persistence boundary ────────────────────────────────────────
       // Persist DURABLE game progress (cash, inventory, ledger, lines,
@@ -604,9 +587,9 @@ export const useGame = create<Store>()(
           // player explicitly clicks the Music toggle. SFX preference
           // still persists so a player who muted SFX stays muted.
           audio: { ...s.audio, musicEnabled: false },
-          // UI shell is always transient — never rehydrate an open drawer,
-          // a gallery view, or dismissed tips across loads.
-          ui: { leftDrawer: null, rightDrawer: null, viewMode: 'focus', dismissedTips: [] },
+          // UI shell is always transient — never rehydrate a gallery view or
+          // dismissed tips across loads.
+          ui: { viewMode: 'focus', dismissedTips: [] },
           // Server schema: re-fetched every boot, never stored in localStorage.
           availableGlobalInputs: [],
           toast: null,
@@ -1073,6 +1056,17 @@ export const useGame = create<Store>()(
         // is deliberately untouched.
         if (fromVersion < 25 && persisted && 'history' in persisted) {
           delete persisted.history;
+        }
+
+        // ── v26: `ui.leftDrawer` / `ui.rightDrawer` are DROPPED ────────────
+        //
+        // Removed 2026-10-05 with the sliding drawers they tracked. Both were
+        // always written as `null` by `partialize`, so nothing is lost — but
+        // every existing save carries the two keys, and leaving them makes a
+        // save disagree with the `ui` type for no reason.
+        if (fromVersion < 26 && persisted?.ui) {
+          delete persisted.ui.leftDrawer;
+          delete persisted.ui.rightDrawer;
         }
 
         return persisted as Store;

@@ -79,7 +79,7 @@ function EmptyLine() {
     <div className="flex flex-col items-center justify-center text-center px-4 py-12 gap-2">
       <div className="h3 text-ink-900">No notebook selected</div>
       <p className="body-xs text-text-2 max-w-[32ch]">
-        Open <span className="strong text-text">Notebook Items</span> in the left dock to add one.
+        Open the <span className="strong text-text">Notebook</span> section to add one.
       </p>
     </div>
   );
@@ -87,8 +87,10 @@ function EmptyLine() {
 
 /**
  * DesignControls — the core notebook design inputs (type, cover, binding,
- * size, paper). Lives in the left dock's "Design" drawer; edits the ACTIVE
- * line only.
+ * size, paper). Edits the ACTIVE line only.
+ *
+ * DEAD — nothing renders it. `FinlitDesignControls` is what the NOTEBOOK
+ * section mounts.
  */
 export function DesignControls() {
   const { product, hasNotebook, apply } = useActiveLine();

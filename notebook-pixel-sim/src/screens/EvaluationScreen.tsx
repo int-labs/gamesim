@@ -117,8 +117,9 @@ export function EvaluationScreen() {
 
   const isFinal = phase >= finalRound;
   return (
-    // z-[60] — must cover the sim's floating chrome underneath (EdgeDock
-    // z-50, page tabs z-40) while staying under transitions/toast/VN.
+    // z-[60] — must cover the sim's chrome underneath while staying under
+    // transitions/toast/VN. The EdgeDock and drawers it outranked are gone
+    // (2026-10-05); the canvas still floats its own cards.
     <div className="absolute inset-0 z-[60]">
       {/* Same scene backdrop as the final screen — see the note there. A phase
           debrief is a pause IN the run, not a departure from it, and a flat
