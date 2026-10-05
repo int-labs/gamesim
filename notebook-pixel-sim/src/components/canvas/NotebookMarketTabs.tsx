@@ -34,13 +34,10 @@
 import { motion } from 'framer-motion';
 import { GENRES, genreGrowth, type GenreDef } from '@/engine/finlit/core/config/genres';
 import {
-  driverAxes,
   priceAnchorCost,
   priceSensitivity,
-  type DriverAxis,
 } from '@/engine/finlit/core/config/fieldConfig';
 import { fmt$ } from '@/utils/format';
-import { driverCopy } from '@/engine/finlit/core/config/drivers';
 import { PixelBadge } from '@/components/primitives';
 
 // The "What they weigh" rows are DERIVED — `driverAxes(genreId)` reads the
@@ -67,47 +64,20 @@ const PHASES = [
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
-/**
- * The tallest driver weight across EVERY market — the shared y-scale for the
- * interest lines.
- *
- * Shared on purpose: it is what makes the four cards comparable. This replaced a
- * `weightShare()` that normalised each market's weights to sum to 100%, which
- * looked tidy and was wrong — `direction` values do NOT sum to 1 (live sums run
- * 0.62 to 0.94), so dividing by each market's own total inflated the small-sum
- * markets. `paper_material` is 0.091 on both Anime and Cutesy, and rendered as
- * 14.7% on one card and 9.7% on the other. Cross-market comparison is the whole
- * point of this tab, and the percentage was the part that broke it.
- *
- * Lazy, never memoised at module scope — FIELD_CONFIG is filled at boot.
- */
-function maxDriverWeight(): number {
-  let max = 0;
-  for (const g of GENRES) {
-    for (const a of driverAxes(g.id)) max = Math.max(max, a.direction);
-  }
-  return max;
-}
+/* `maxDriverWeight` went with the VoC chart on 2026-10-05 — it existed to give
+   the interest lines one shared y-scale across all four markets. `rankOrder`
+   had gone earlier, when the chart started sorting its own axes. */
 
-// `rankOrder` is GONE — the chart sorts its own axes strongest-first, so rank is
-// the point's POSITION on the x-axis. It existed to number a separate legend.
-
-// ── Tab 2 · Buyer Interest ───────────────────────────────────────────────────
+// ── Buyer Interest ───────────────────────────────────────────────────────────
 
 /**
  * EVERY market, one card each, on arrival.
  *
  * It took an `arch` and drew the one card a tab strip had selected. There is no
- * tab strip any more: the cards are the page, so the comparison this chart is
- * for happens by scrolling rather than by paging.
- *
- * `scaleMax` spans EVERY market, so the interest lines share a y-axis. A peak
- * that looks taller on one card than another IS taller — that is the whole
- * point of drawing them together.
+ * tab strip any more: the cards are the page, so the comparison happens by
+ * scrolling rather than by paging.
  */
 export function BuyerInterestTab() {
-  const scaleMax = maxDriverWeight();
-
   if (GENRES.length === 0) {
     return (
       <div className="body-xs text-text-3 italic">
@@ -119,31 +89,18 @@ export function BuyerInterestTab() {
   return (
     <div className="grid grid-cols-1 gap-4">
       <p className="body-xs text-text-2">
-        Each market weighs your decisions differently. Each line traces how much that market cares
-        about each axis, all drawn at the same scale — a higher peak really is a stronger
-        preference. Build toward a market's #1 and the same notebook sells more.
+        What each market looks like today: how big it is, what it is used to paying, and how much a
+        price change moves it.
       </p>
 
       {GENRES.map((genre) => (
-        <MarketCard key={genre.id} genre={genre} scaleMax={scaleMax} />
+        <MarketCard key={genre.id} genre={genre} />
       ))}
     </div>
   );
 }
 
-function MarketCard({
-  genre,
-  scaleMax,
-}: {
-  genre: GenreDef;
-  /** Spans every market, not just this one — see `maxDriverWeight`. */
-  scaleMax: number;
-}) {
-  // Derived per render, never memoised at module scope: `FIELD_CONFIG` is filled
-  // at boot by `hydrateFieldConfig`, so a snapshot taken on import would freeze
-  // an empty table. See the container-hydration rule in CLAUDE.md.
-  const axes = driverAxes(genre.id);
-
+function MarketCard({ genre }: { genre: GenreDef }) {
   // No fit border or badge. Every market is drawn; marking one as the player's
   // own would say the others matter less, and the numbers are what distinguish
   // them.
@@ -183,17 +140,9 @@ function MarketCard({
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <div className="stat-label">Customer Preference</div>
-          {axes.length === 0 ? (
-            // No fields for this genre means `hydrateFieldConfig` matched no
-            // product to it — say so, rather than render an empty chart that
-            // reads as "buyers weigh nothing".
-            <div className="body-xs text-text-3 italic">No decision axes configured for this market.</div>
-          ) : (
-            <VocInterestChart axes={axes} productId={genre.id} scaleMax={scaleMax} delay={0.15} />
-          )}
-        </div>
+        {/* The "Customer Preference" VoC chart was REMOVED here on 2026-10-05,
+            and `VocInterestChart` with it. The card keeps the three figures;
+            the driver weights it plotted are not displayed anywhere now. */}
 
         {/* WHAT EACH DECISION MEANS — permanent, not a hover.
 
@@ -242,141 +191,17 @@ function Stat({ label, value, note, delay = 0 }: { label: string; value: string;
   );
 }
 
-/** A 10-pip pixel meter, same visual language as the HUD's energy/cash bars. */
-/**
- * FLAGGED — the meter form is wrong for this data, and it is not a tuning issue.
- *
- * `value` is a share of a market's total weight across SIX axes, so the shares
- * sum to 1 and the average is ~0.167. Against a 0–1 pip scale that is 1–2 pips
- * filled, and even a dominant axis at 40% only reaches 4 of 10. The bar can
- * never fill, which reads as "everything is low" rather than "this is the split".
- *
- * The numbers and the distribution are correct; the CONTAINER is the problem.
- * Candidates, not yet decided:
- *
- *   • A single stacked 100% bar — six segments in one track. This is what a
- *     share-of-total actually is, it fills by construction, and
- *     `PixelStackedBar` already exists (used for the cost mix).
- *   • Normalise each bar against the market's largest axis, so the top axis is
- *     always full. Shows shape within a market, but loses comparability BETWEEN
- *     markets — two markets with identical shapes look identical even if one
- *     weighs everything twice as hard.
- *   • Drop the meter and rank the axes with percentages only.
- *
- * Do NOT "fix" this by scaling `value` up — that would misreport the share.
- */
-/**
- * The interest curve: one point per decision axis, SORTED strongest-first, with
- * each axis named on the x-axis beneath its own point.
- *
- * Sorting is a frontend-only presentation choice. In the operator's `order` the
- * line zig-zagged and you had to read a separate ranked legend to learn which
- * spike was which — two things to cross-reference for one fact. Sorted, the
- * curve descends monotonically, so POSITION IS RANK: leftmost is what this
- * market cares about most, and the drop-off shape shows how sharply interest
- * falls away. The legend stops having a job.
- *
- * NO figure is printed. `direction` is a coefficient `calcFinancials` feeds into
- * dynamicPrice — not a share, not a percentage, and not something a player can
- * do arithmetic with. Shape and rank are the actionable parts.
- *
- * The y-scale spans EVERY market, so a peak that looks taller IS taller.
- */
-function VocInterestChart({
-  axes,
-  productId,
-  scaleMax,
-  delay,
-}: {
-  axes: DriverAxis[];
-  /** The Product these axes belong to — driver copy is scoped to it. */
-  productId: string;
-  scaleMax: number;
-  delay: number;
-}) {
-  const ranked = [...axes].sort((a, b) => b.direction - a.direction);
+/* VoC is GONE from this file. `VocBar` was deleted 2026-09-14 and the
+   `VocInterestChart` that replaced it on 2026-10-05 — the interest curve over
+   each market's decision axes, drawn on a shared y-scale.
 
-  // Uniform scaling — NOT `preserveAspectRatio="none"`, which stretches the
-  // viewBox to the container width and would squash the axis labels' glyphs.
-  const W = 620;
-  const PLOT_H = 130;
-  const LABEL_H = 78;
-  const H = PLOT_H + LABEL_H;
-  const padX = 30;
-  const padY = 12;
-  const span = W - padX * 2;
-  const step = ranked.length > 1 ? span / (ranked.length - 1) : 0;
-  const x = (i: number) => (ranked.length > 1 ? padX + i * step : W / 2);
-  const y = (v: number) => padY + (PLOT_H - padY * 2) * (1 - (scaleMax > 0 ? v / scaleMax : 0));
-  const baseline = PLOT_H - padY;
-
-  const pts = ranked.map((a, i) => `${x(i)},${y(a.direction)}`).join(' ');
-  const area = `${x(0)},${baseline} ${pts} ${x(ranked.length - 1)},${baseline}`;
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full h-auto"
-      role="img"
-      aria-label="Relative buyer interest across each decision axis, strongest first"
-    >
-      <polygon points={area} fill="rgba(154,107,58,0.14)" />
-      <line
-        x1={padX} y1={baseline} x2={W - padX} y2={baseline}
-        stroke="var(--c-border-soft)" strokeWidth={1} vectorEffect="non-scaling-stroke"
-      />
-      <motion.polyline
-        points={pts}
-        fill="none"
-        stroke="var(--c-primary-strong)"
-        strokeWidth={2}
-        vectorEffect="non-scaling-stroke"
-        initial={{ pathLength: 0 }}
-        animate={{ pathLength: 1 }}
-        transition={{ delay, duration: 0.5, ease: 'easeOut' }}
-      />
-      {ranked.map((a, i) => {
-        const copy = driverCopy(productId, a.key);
-        const top = i === 0;
-        return (
-          <g key={a.key}>
-            {/* The NAME only. The hint moved out of here and onto the card as
-                prose — owner 2026-09-30: it is what the player needs in order to
-                decide, and it was reachable only by hovering a 3.5px dot. */}
-            <title>{copy.label ?? a.label}</title>
-            <circle
-              cx={x(i)} cy={y(a.direction)} r={top ? 5 : 3.5}
-              fill={top ? 'var(--c-primary-strong)' : 'var(--c-surface)'}
-              stroke="var(--c-primary-strong)"
-              strokeWidth={1.5}
-              vectorEffect="non-scaling-stroke"
-            />
-            {/* Rotated so nine long field names fit without colliding. Anchored
-                at the END so each label's last character sits under its point. */}
-            <text
-              x={x(i)}
-              y={baseline + 10}
-              transform={`rotate(-45 ${x(i)} ${baseline + 10})`}
-              textAnchor="end"
-              fontSize={10}
-              fontWeight={top ? 700 : 500}
-              fill={top ? 'var(--c-primary-strong)' : 'var(--c-text-2)'}
-            >
-              {copy.label ?? a.label}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-// `VocBar` was DELETED here on 2026-09-14 with the normalised share it drew.
-// `VocInterestChart` above replaces it: shape + rank on a shared scale, no
-// percentage, because `direction` is a coefficient and not a share of a whole.
+   The rule that outlived both, should a VoC surface ever return: `direction` is
+   a COEFFICIENT `calcFinancials` feeds into dynamicPrice. It is not a share,
+   the weights do NOT sum to 1, and normalising them into percentages inflates
+   the small-sum markets. See [[project-voc-interest-display]]. */
 
 
-// ── Tab 3 · Market Data ──────────────────────────────────────────────────────
+// ── Market Data ──────────────────────────────────────────────────────────────
 
 export function MarketDataTab() {
   const maxDemand = Math.max(...GENRES.flatMap((g) => PHASES.map((p) => g.demand[p.key])));
