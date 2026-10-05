@@ -352,10 +352,16 @@ function AddOnTile({
       onClick={onToggle}
       {...attributes}
       {...listeners}
+      // SQUARE, and sized from the viewport. `w-[88px]` with a 64px image and
+      // two text lines made a tall tile that ate the canvas's height. The box
+      // now scales with the window and its height follows its width, so the
+      // strip keeps one constant proportion at every size.
+      //
+      // `shrink-0`: the gallery is a scrolling ROW, so a tile that could shrink
+      // would squeeze instead of scrolling.
+      style={{ width: 'clamp(64px, 7vw, 96px)' }}
       className={clsx(
-        // Fixed width + shrink-0: the gallery is a scrolling ROW now, so a
-        // tile that could shrink would squeeze instead of scrolling.
-        'ctl-btn group relative w-[88px] shrink-0 border p-2.5 flex flex-col items-center gap-1.5 select-none touch-none',
+        'ctl-btn group relative aspect-square shrink-0 border p-1.5 flex flex-col items-center justify-center gap-1 select-none touch-none overflow-hidden',
         isDragging && 'opacity-60 scale-105 shadow-pixel-2',
         placed
           ? 'bg-success-soft border-success'
@@ -373,16 +379,32 @@ function AddOnTile({
           : `${def.name} - tap to add`
       }
     >
+      {/* The art takes a SHARE of the tile, not a fixed 64px — so it shrinks
+          with the box instead of forcing it open. */}
       <SafeImage
         src={def.thumbPath ?? def.imgPath}
         alt={def.name}
-        className="w-16 h-16 object-contain"
+        className="w-[58%] h-[58%] object-contain shrink-0"
         fallbackIcon="sparkle"
-        fallbackSize={30}
+        fallbackSize={24}
       />
-      <span className="body-xs text-text text-center leading-tight">{def.name}</span>
+      {/* Font sizes track the window, like the box. The `body-xs` / `num-xs`
+          tokens are fixed px, so they stayed put while the tile scaled and
+          either overflowed it or swam in it. `clamp` keeps both legible at the
+          small end and stops them running away at the large end. */}
+      <span
+        className="text-text text-center leading-tight w-full truncate"
+        style={{ fontSize: 'clamp(8px, 0.72vw, 11px)' }}
+      >
+        {def.name}
+      </span>
       {addedCost != null && (
-        <span className="num-xs text-text-2 leading-none">+{fmt$(addedCost)}</span>
+        <span
+          className="text-text-2 leading-none tabular-nums"
+          style={{ fontSize: 'clamp(7px, 0.62vw, 10px)' }}
+        >
+          +{fmt$(addedCost)}
+        </span>
       )}
 
       {placed && (

@@ -204,7 +204,22 @@ export function NotebookCanvas() {
           >
             {/* pat squash-and-stretch */}
             <motion.div animate={patCtrl} style={{ transformOrigin: '50% 85%' }}>
-              <div ref={setDropRef} className="relative" style={{ width: 'min(48vw, 520px)', maxWidth: '100%', aspectRatio: '1 / 1' }}>
+              {/* SIZED IN vh, NOT vw. It was `min(48vw, 520px)`, which scaled
+                  with the whole WINDOW's width — but the stage is one column of
+                  that window now, behind a 52px tab rail and a rail capped at
+                  40vw, so 48vw was routinely wider than the region it sits in
+                  and the notebook bled out of its own drop zone.
+
+                  Viewport HEIGHT is the honest axis here: the stage spans the
+                  full height minus the HUD, the header, the add-on strip and
+                  the footer, and nothing competes with it vertically. The
+                  square tracks that, and `maxWidth: 100%` is the backstop on a
+                  short, narrow window. */}
+              <div
+                ref={setDropRef}
+                className="relative"
+                style={{ width: 'min(46vh, 520px)', maxWidth: '100%', aspectRatio: '1 / 1' }}
+              >
                 {/* Drop affordance. TRANSLUCENT on purpose: the notebook IS the
                     drop target, so an opaque fill covers the very thing the
                     player is aiming at and reads as the canvas going blank.

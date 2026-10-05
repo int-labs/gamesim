@@ -5,6 +5,12 @@ import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
 
 /**
+ * DEAD since 2026-10-05 — nothing renders this. The stage header's slot now
+ * holds a HIDE / SHOW button for the section rail (owner's call), so no control
+ * writes `ui.viewMode` to `'gallery'` any more and `NotebookGallery` (the Shelf
+ * view) is unreachable. Kept, not deleted: the owner has not said the Shelf is
+ * going, only that this control's slot was needed for something else.
+ *
  * ViewToggle — segmented control that flips the canvas between the single
  * FOCUS view (one notebook, hero) and the SHELF gallery (browse all). Bound to
  * the transient `ui.viewMode`. Rendered in both view headers, in the same

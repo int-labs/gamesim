@@ -43,6 +43,10 @@ const RAIL_MAX = '40vw';
  */
 export function SimulationScreen() {
   const [page, setPage] = useState<MainPage>('notebook');
+  // Is the section rail showing? Local, like `page` — it is pure layout, it
+  // must not survive a reload, and nothing outside this screen reads it. The
+  // Hide / Show button lives in the stage header and toggles this.
+  const [isExpand, setIsExpand] = useState(true);
   const pushMascotSequence = useGame((s) => s.pushMascotSequence);
   const liveProjectionState = useLiveProjection();
 
@@ -93,19 +97,27 @@ export function SimulationScreen() {
             growing on a wide screen and the stage takes the rest. It scrolls
             DOWN only: the sections inside are single-column grids, so content
             that does not fit the cap grows taller rather than wider. */}
-        <main
-          id="sim-scroll"
-          className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden border-r border-black/40"
-          style={{ maxWidth: RAIL_MAX, scrollPaddingTop: 16 }}
-        >
-          <PageRail page={page} liveProjectionState={liveProjectionState} />
-        </main>
+        {/* UNMOUNTED when hidden, not just visually collapsed: a rail kept in
+            the tree would keep its subscriptions live and keep re-rendering
+            panels nobody can see. The sections hold no local state worth
+            preserving across a hide — each reads the store. */}
+        {isExpand && (
+          <main
+            id="sim-scroll"
+            className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden border-r border-black/40"
+            style={{ maxWidth: RAIL_MAX, scrollPaddingTop: 16 }}
+          >
+            <PageRail page={page} liveProjectionState={liveProjectionState} />
+          </main>
+        )}
 
         {/* The notebook, on every section. Takes whatever the capped rail
-            leaves. */}
+            leaves — or the whole body once the rail is hidden. */}
         <ProductStage
           className="flex-1 min-w-0 min-h-0 flex flex-col bg-surface"
           liveProjectionState={liveProjectionState}
+          isExpand={isExpand}
+          onToggleExpand={() => setIsExpand((v) => !v)}
         />
       </div>
 

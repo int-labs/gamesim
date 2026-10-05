@@ -7,7 +7,6 @@ import { playSfx } from '@/audio/audioManager';
 import { NotebookCanvas } from '@/components/canvas/NotebookCanvas';
 import { NotebookGallery } from '@/components/canvas/NotebookGallery';
 import { AddOnGallery } from '@/components/panels/ProductPanel';
-import { ViewToggle } from '@/components/canvas/ViewToggle';
 import { TopHUD } from '@/components/hud/TopHUD';
 import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
 
@@ -30,11 +29,16 @@ export function ProductStage({
   className,
   style,
   liveProjectionState,
+  isExpand,
+  onToggleExpand,
 }: {
   className?: string;
   style?: React.CSSProperties;
   /** For `TopHUD`, which is this column's header since 2026-10-05. */
   liveProjectionState?: LiveProjectionState;
+  /** Whether the section rail is showing. Owned by `SimulationScreen`. */
+  isExpand?: boolean;
+  onToggleExpand?: () => void;
 }) {
   const viewMode = useGame((s) => s.ui.viewMode);
   const apply = useGame((s) => s.apply);
@@ -100,7 +104,7 @@ export function ProductStage({
             section rail; here it sits over the notebook whose numbers it
             reports. */}
         <TopHUD liveProjectionState={liveProjectionState} />
-        <StageHeader />
+        <StageHeader isExpand={isExpand} onToggleExpand={onToggleExpand} />
         <div className="flex-1 min-h-0 flex flex-col">
           {viewMode === 'gallery' ? <NotebookGallery /> : <NotebookCanvas />}
         </div>
@@ -133,17 +137,23 @@ export function ProductStage({
 
 /**
  * StageHeader — says WHICH notebook the stage is showing, and carries the one
- * control that acts on the stage as a whole.
+ * control that acts on the layout as a whole.
  *
- * Focus/Shelf was a floating strip pinned over the canvas's top-right corner,
- * which is why it had to be hoisted out of the two canvas components to
- * survive the empty-portfolio case. In a header row it is simply in the
- * layout: unconditional by construction, with nothing to overlap.
+ * That control was a Focus/Shelf segmented pair. It is a single HIDE / SHOW
+ * button now (owner, 2026-10-05): the rail is where the player works and the
+ * canvas is what they are working ON, so the useful toggle is how much room
+ * each gets — not which of two canvas renderings is drawn.
  *
- * The Details button that sat beside it is gone — that sheet is the MARKET tab
- * now, not an overlay this column opens.
+ * The Details button that sat beside it is gone — that sheet is the MARKET
+ * section now, not an overlay this column opens.
  */
-function StageHeader() {
+function StageHeader({
+  isExpand = true,
+  onToggleExpand,
+}: {
+  isExpand?: boolean;
+  onToggleExpand?: () => void;
+}) {
   // The ACTIVE line, by id — never `productLines[0]` as the primary read. The
   // `??` tail is the no-selection fallback only, matching `useActiveLine` in
   // ProductPanel so the header and the rail can never name two different
@@ -163,9 +173,19 @@ function StageHeader() {
           {line ? archetypeLabel(line.productId) : 'Add one from the Notebook tab'}
         </span>
       </div>
-      <div className="shrink-0">
-        <ViewToggle />
-      </div>
+      {/* HIDE collapses the section rail and gives the room to the canvas;
+          SHOW brings it back. One button, two states — `isExpand` says which
+          word it is currently offering, so the label is the ACTION, not the
+          state it reports. */}
+      <button
+        type="button"
+        onClick={() => { playSfx('click-soft'); onToggleExpand?.(); }}
+        aria-expanded={isExpand}
+        aria-controls="sim-scroll"
+        className="shrink-0 pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
+      >
+        {isExpand ? 'Hide' : 'Show'}
+      </button>
     </header>
   );
 }
