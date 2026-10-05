@@ -243,12 +243,11 @@ export function AddOnGallery() {
 
   return (
     <div className="flex flex-col gap-2 min-w-0">
-      <div className="body-xs text-text-2">
-        {/* The old copy said these were "cosmetic and don't change your score".
-            That stopped being true when charms/ribbons/stickers/functional
-            became real spec axes — each one is submitted and costs money, which
-            is what the figure on every tile now shows. */}
-        <span className="strong text-text">{archAddOns.length}/3</span> on · tap to toggle, or drag onto the notebook. Each piece adds to your unit cost and to what buyers value — you can carry three.
+      {/* ONE line, truncated. The long version wrapped to three lines in this
+          column and the height came straight off the canvas. The tiles say the
+          rest: each carries the figure it adds to unit cost. */}
+      <div className="body-xs text-text-2 truncate">
+        <span className="strong text-text">{archAddOns.length}/3</span> on · tap to toggle, drag to place
       </div>
       {/* One scrolling row, groups separated by a rule. `overflow-x-auto` on
           the row and `shrink-0` on each group: without both, flex compresses

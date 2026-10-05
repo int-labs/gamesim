@@ -1,43 +1,60 @@
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { BookOpen, BriefcaseBusiness, ReceiptText, Trophy } from 'lucide-react';
+import {
+  BookOpen,
+  Boxes,
+  Factory,
+  Megaphone,
+  ReceiptText,
+  Store,
+} from 'lucide-react';
 import { TopHUD } from '@/components/hud/TopHUD';
 import type { MainPage } from '@/components/hud/MainNav';
 import { PhaseActionBar } from '@/components/hud/PhaseActionBar';
 import { BottomStats } from '@/components/hud/MetricsTable';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { playSfx } from '@/audio/audioManager';
-import { ProductPage } from '@/pages/ProductPage';
-import { BusinessPage } from '@/pages/BusinessPage';
-import { ResultsPage } from '@/pages/ResultsPage';
+import { ProductStage } from '@/pages/ProductPage';
+import { ProductLineList } from '@/components/panels/ProductLineList';
+import { FinlitDesignControls } from '@/components/panels/FinlitDesignControls';
+import { InventoryPanel } from '@/components/panels/InventoryPanel';
+import { StudioPanel } from '@/components/panels/StudioPanel';
+import { ArchetypeDetailModal } from '@/components/canvas/ArchetypeDetailModal';
 import { useGame } from '@/state/store';
-import { useLiveProjection } from '@/gamesim/useLiveProjection';
+import { useLiveProjection, type LiveProjectionState } from '@/gamesim/useLiveProjection';
 import {
   expandScript,
   SCRIPT_FIRST_PRODUCT_PAGE,
   SCRIPT_FIRST_BUSINESS_PAGE,
 } from '@/content/mascotScripts';
 
+/** How wide the notebook stage sits. The rail takes everything else. */
+const STAGE_W = 420;
+
 /**
  * Top-level layout for the playable run.
  *
  *   [TopHUD]
- *   [PageTabs — Product · Business · Finance · Results]
- *   [left rail | scrollable centre]
+ *   [PageTabs — six sections]
+ *   [rail (the active section)  |  stage (the notebook)]
  *   [footer compartment — PhaseActionBar]
+ *
+ * The rail is the page: every decision lives there and the stage beside it
+ * never changes, so the notebook stays in view while the player works on it.
  */
 export function SimulationScreen() {
-  const [page, setPage] = useState<MainPage>('product');
+  const [page, setPage] = useState<MainPage>('notebook');
   const pushMascotSequence = useGame((s) => s.pushMascotSequence);
   const liveProjectionState = useLiveProjection();
 
-  // First-visit guidance scripts. Each script de-dupes via id, so once
-  // a player has seen the Product or Business intro it won't fire again
-  // — even across phase transitions.
+  // First-visit guidance scripts. Each script de-dupes via id, so once a
+  // player has seen an intro it won't fire again — even across phase
+  // transitions. The two scripts predate the six-section split; `notebook`
+  // and `sales` are the nearest heirs of the old Product and Business pages.
   useEffect(() => {
-    if (page === 'product') {
+    if (page === 'notebook') {
       pushMascotSequence(expandScript(SCRIPT_FIRST_PRODUCT_PAGE));
-    } else if (page === 'business') {
+    } else if (page === 'sales') {
       pushMascotSequence(expandScript(SCRIPT_FIRST_BUSINESS_PAGE));
     }
   }, [page, pushMascotSequence]);
@@ -68,41 +85,26 @@ export function SimulationScreen() {
           chrome hovering on it. */}
       <PageTabs page={page} onChange={setPage} />
 
-      {/* ── BODY — left rail + centre ───────────────────────────────────────
-          Two columns, no right rail: performance belongs to FINANCE, not to a
-          permanent sidebar. */}
+      {/* ── BODY — rail (the active section) + stage (the notebook) ─────────
+          The rail is the wide one. Every decision moved into it, so it is where
+          the player actually works; the stage is a fixed column that shows what
+          those decisions are producing. */}
       <div className="flex-1 min-h-0 flex">
-        {/* The rail renders its own <aside> and returns null while a page has
-            nothing for it, so an unfilled rail costs no empty column. */}
-        <PageRail page={page} />
-
-        {/* Scrollable centre column. ONE page at a time — `BottomStats` used
-            to trail every page here, so Product and Business each carried the
-            Projection and P&L paperwork below them. It is the Finance tab's
-            content now and nothing else's. */}
         <main
           id="sim-scroll"
           className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden"
           style={{ scrollPaddingTop: 16 }}
         >
-          {/* Product and Results lock to the viewport (h-full) — both own
-              their internal scroll regions and the canvas must never crop.
-              Business and Finance flow at NATURAL height (min-h-full): their
-              content grows the page and THIS scrollbar handles it all, so
-              there's no scroll-within-scroll. */}
-          <div
-            className={
-              page === 'product' || page === 'results'
-                ? 'h-full flex flex-col'
-                : 'min-h-full flex flex-col'
-            }
-          >
-            {page === 'product' && <ProductPage liveProjectionState={liveProjectionState} />}
-            {page === 'business' && <BusinessPage liveProjectionState={liveProjectionState} />}
-            {page === 'finance' && <BottomStats liveProjectionState={liveProjectionState} />}
-            {page === 'results' && <ResultsPage />}
-          </div>
+          <PageRail page={page} liveProjectionState={liveProjectionState} />
         </main>
+
+        {/* The notebook, on every section. `shrink-0` + a fixed width: it is a
+            reference now, not the hero, and a flexible stage would reclaim the
+            rail's width on a wide screen — the lopsidedness this replaced. */}
+        <ProductStage
+          className="shrink-0 min-h-0 flex flex-col border-l border-black/40 bg-surface"
+          style={{ width: STAGE_W }}
+        />
       </div>
 
       {/* ── FOOTER COMPARTMENT ──────────────────────────────────────────────
@@ -120,14 +122,58 @@ export function SimulationScreen() {
 }
 
 /**
- * The LEFT RAIL — each page's own stacked sections, with its own sub-tabs.
+ * PageRail — the active section's contents. ONE level of tabs: each of the six
+ * is a set of decisions, not a container of further tabs.
  *
- * Renders its own `<aside>` so a page with nothing for the rail costs no empty
- * column. Null for every page today; the Product page's panels move in next,
- * out of the sliding drawer they currently live in.
+ * `p-3.5` is load-bearing on the padded branch: `ProductLineList`'s sticky
+ * "Add Notebook" footer bleeds over it with `-mx-3.5 -mb-3.5`, inherited from
+ * the drawer body it used to live in.
+ *
+ * MARKET is unpadded and `h-full` — `ArchetypeDetailModal` is a filled sheet
+ * that owns its own rail, panel and scroll regions, so padding it would put a
+ * scrollbar inside a scrollbar.
  */
-function PageRail({ page: _page }: { page: MainPage }) {
-  return null;
+function PageRail({
+  page,
+  liveProjectionState,
+}: {
+  page: MainPage;
+  liveProjectionState: LiveProjectionState;
+}) {
+  const { liveProjection, recalc } = liveProjectionState;
+
+  if (page === 'market') {
+    return (
+      <div className="h-full min-h-0">
+        {/* No `onClose`: it is optional and only fires after "Switch to …",
+            which still applies. This is a tab, not an overlay — there is
+            nothing to close it back to. */}
+        <ArchetypeDetailModal fill open />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3.5">
+      {page === 'notebook' && (
+        <div className="flex flex-col gap-6">
+          <ProductLineList />
+          <FinlitDesignControls liveProjection={liveProjection} recalc={recalc} />
+        </div>
+      )}
+      {page === 'financial' && <BottomStats liveProjectionState={liveProjectionState} />}
+      {page === 'inventory' && <InventoryPanel liveProjection={liveProjection} recalc={recalc} />}
+      {/* The two halves of StudioPanel. It stays ONE component behind a filter
+          because the energy gate, the cash gate, the case-study modal and the
+          reference sheet are shared by all four blocks. */}
+      {page === 'capacity' && (
+        <StudioPanel liveProjection={liveProjection} recalc={recalc} sections={['hiring', 'vendor']} />
+      )}
+      {page === 'sales' && (
+        <StudioPanel liveProjection={liveProjection} recalc={recalc} sections={['channels', 'budget']} />
+      )}
+    </div>
+  );
 }
 
 /**
@@ -139,10 +185,12 @@ function PageRail({ page: _page }: { page: MainPage }) {
  */
 function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) => void }) {
   const TABS = [
-    { id: 'product' as const, label: 'Product', icon: BookOpen },
-    { id: 'business' as const, label: 'Business', icon: BriefcaseBusiness },
-    { id: 'finance' as const, label: 'Finance', icon: ReceiptText },
-    { id: 'results' as const, label: 'Results', icon: Trophy },
+    { id: 'market' as const, label: 'Market', icon: Store },
+    { id: 'financial' as const, label: 'Financial', icon: ReceiptText },
+    { id: 'notebook' as const, label: 'Notebook', icon: BookOpen },
+    { id: 'inventory' as const, label: 'Inventory & Production', icon: Boxes },
+    { id: 'capacity' as const, label: 'Capacity & RnD', icon: Factory },
+    { id: 'sales' as const, label: 'Sales & Marketing', icon: Megaphone },
   ];
   return (
     <div className="shrink-0 bg-[#221710] border-b border-black/50">

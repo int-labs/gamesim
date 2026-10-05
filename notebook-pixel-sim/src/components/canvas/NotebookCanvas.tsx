@@ -16,7 +16,7 @@ import { currentAddOns, renameProductLine } from '@/engine/mockEngine';
 import { archetypeLabel } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
 import { NotebookCycler } from '@/components/canvas/NotebookCycler';
-import { ChevronDown, Pencil } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { DustMotes } from '@/components/fx/DustMotes';
 import { PixelBurstLayer } from '@/components/fx/PixelBurst';
@@ -353,22 +353,10 @@ export function NotebookCanvas() {
         onCycle={setSlideDir}
       />
 
-      {/* Jumps to the FINANCE tab, which owns the projection & P&L sheets. It
-          used to `scrollIntoView` them, because they trailed this page in the
-          same scroll; since 2026-10-05 they are their own tab, so a scroll
-          would land on nothing. Goes through `intlabs:goto` rather than a prop
-          — SimulationScreen already listens, and the canvas is four levels
-          down from the page state. */}
-      <button
-        onClick={() => {
-          playSfx('click-soft');
-          window.dispatchEvent(new CustomEvent('intlabs:goto', { detail: { page: 'finance' } }));
-        }}
-        className="absolute bottom-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 h-[34px] bg-surface border-2 border-border text-text eyebrow eyebrow-sm shadow-[2px_2px_0_0_var(--c-shadow)] hover:border-primary hover:text-primary active:scale-95 transition-all cursor-pointer"
-      >
-        Projection &amp; P&amp;L
-        <NavIcon icon={ChevronDown} size={13} color="currentColor" />
-      </button>
+      {/* The "Projection & P&L" chip was REMOVED here on 2026-10-05. It
+          scrolled to tables that trailed this page; once those became the
+          FINANCIAL tab it was a second route to a tab the row above already
+          offers, parked on a canvas that is now a narrow stage. */}
 
     </div>
   );

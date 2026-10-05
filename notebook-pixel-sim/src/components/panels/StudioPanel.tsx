@@ -118,6 +118,10 @@ function engageSummary(p: Pending): { tiles: CostTile[]; effects: string[] } {
   return { tiles, effects };
 }
 
+/** The four decision blocks, in page order. */
+export type OpsId = 'channels' | 'budget' | 'hiring' | 'vendor';
+const ALL_OPS: readonly OpsId[] = ['channels', 'budget', 'hiring', 'vendor'];
+
 /**
  * StudioPanel — the V3 company-decision hub. Hire a candidate, set Marketing &
  * Sales budgets, and pick a shipping vendor for the active line. Each spends
@@ -127,11 +131,21 @@ function engageSummary(p: Pending): { tiles: CostTile[]; effects: string[] } {
 export function StudioPanel({
   liveProjection,
   recalc,
+  sections = ALL_OPS,
 }: {
   liveProjection?: ServerProjectionResult | null;
   /** Called at the END of a decision interaction. See useLiveProjection. */
   recalc?: (reason: string) => void;
+  /**
+   * Which of the four blocks to render. They used to be one unbroken stack;
+   * `Sales & Marketing` and `Capacity & RnD` are now separate tabs, and they
+   * split this panel down the middle. The energy gate, the cash gate, the case-
+   * study modal and the reference sheet are shared, which is why this is a
+   * filter and not two components.
+   */
+  sections?: readonly OpsId[];
 }) {
+  const shows = (id: OpsId) => sections.includes(id);
   const energy = useGame((s) => s.player.energy);
   // Keyed by `inputId` now — `selectedStepKey` holds the backend options key
   // (the level), not an identity, so it can no longer identify which hire.
@@ -324,12 +338,16 @@ export function StudioPanel({
   //
   // `channelDetail` takes `products` to resolve the reach impact's per-product
   // overrides onto genres for the reach matrix.
+  //
+  // Filtered to the blocks this instance RENDERS: the sheet is the reference
+  // for what is on screen, so a tab for a block the player cannot see here
+  // would explain a decision that is on another tab.
   const detailSections: DetailSection[] = !detailOpen ? [] : [
     { id: 'channels', label: 'Sales Channels',   icon: SECTION_ICON.channels, ...channelDetail(channelGI) },
     { id: 'budget',   label: 'Marketing Budget', icon: SECTION_ICON.budget,   ...budgetDetail(marketingGI) },
     { id: 'hiring',   label: 'Hiring',           icon: SECTION_ICON.hiring,   ...hiringDetail(hiringGI) },
     { id: 'vendor',   label: 'Vendor',           icon: SECTION_ICON.vendor,   ...vendorDetail(vendorGI) },
-  ];
+  ].filter((s) => shows(s.id as OpsId));
 
   return (
     <div className="flex flex-col gap-4">
@@ -343,11 +361,11 @@ export function StudioPanel({
           aria-expanded={detailOpen}
           onClick={() => {
             playSfx('click-soft');
-            // Opens on the FIRST tab every time rather than remembering the
-            // last one: a sheet that reopens somewhere else is the moving
-            // target this replaced. Set BEFORE the open flag so the sheet never
-            // renders a frame against the previous tab.
-            setDetailTab('channels');
+            // Opens on this instance's FIRST tab every time rather than
+            // remembering the last one: a sheet that reopens somewhere else is
+            // the moving target this replaced. Set BEFORE the open flag so the
+            // sheet never renders a frame against the previous tab.
+            setDetailTab(sections[0] ?? 'channels');
             setDetailOpen(true);
           }}
           className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
@@ -373,6 +391,7 @@ export function StudioPanel({
 
       {/* ── Sales channels — WHERE you sell. Company-wide: every notebook ships
            through the same channels, so this is one decision, not one per SKU. ── */}
+      {shows('channels') && (
       <OpsSection
         icon={SECTION_ICON.channels}
         title="Sales Channels"
@@ -526,8 +545,9 @@ export function StudioPanel({
           })}
         </div>
       </OpsSection>
+      )}
 
-      {/* ── Marketing budget ── */}
+      {shows('budget') && (
       <OpsSection
         icon={SECTION_ICON.budget}
         title="Marketing Budget"
@@ -584,8 +604,9 @@ export function StudioPanel({
           })}
         </div>
       </OpsSection>
+      )}
 
-      {/* ── Hiring ── */}
+      {shows('hiring') && (
       <OpsSection
         icon={SECTION_ICON.hiring}
         title="Hiring"
@@ -791,11 +812,13 @@ export function StudioPanel({
               same place, instead of a second button parked below the roster. */}
         </div>
       </OpsSection>
+      )}
 
       {/* ── Shipping vendor — COMPANY-WIDE, like every other global input. The
            active notebook is still needed to render the cards, because coverage
            (`productsImpacted`) and the per-product override are shown relative
            to a product; the decision itself is not per line. ── */}
+      {shows('vendor') && (
       <OpsSection
         icon={SECTION_ICON.vendor}
         title="Vendor"
@@ -914,6 +937,7 @@ export function StudioPanel({
           </div>
         ) : null}
       </OpsSection>
+      )}
 
       {/* The reference sheet: one tab per section, cost/energy/impact on the
           left of each, the market numbers behind it on the right. */}

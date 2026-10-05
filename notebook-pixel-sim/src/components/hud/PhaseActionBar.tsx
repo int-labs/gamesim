@@ -169,10 +169,9 @@ export function PhaseActionBar({
                 playSfx('whoosh');
                 // Cross-component navigation via custom event so we
                 // don't need to lift page/tab state into the store.
-                // SimulationScreen + BusinessPage each listen for this
-                // and update their local tab state.
+                // SimulationScreen listens for this and switches section.
                 window.dispatchEvent(
-                  new CustomEvent('intlabs:goto', { detail: { page: 'product' } }),
+                  new CustomEvent('intlabs:goto', { detail: { page: 'notebook' } }),
                 );
               }}
               className={clsx(
