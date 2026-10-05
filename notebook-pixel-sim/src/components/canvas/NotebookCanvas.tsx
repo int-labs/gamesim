@@ -25,8 +25,8 @@ import { useDroppable } from '@dnd-kit/core';
  * NotebookCanvas — the FULL-BLEED stage. The desk artwork fills the entire
  * region edge-to-edge; all chrome floats OVER it as game-HUD cards:
  *
- *   top-left   → title card (renameable name + config) with status pills
- *   top-right  → Focus/Shelf toggle + Details
+ *   top-left   → title card — READ-ONLY name + config. Renaming belongs to the
+ *                Notebook section's list, which is on screen beside this.
  *   mid-edges  → prev/next chevrons (offset inward past the floating docks)
  *   top-center → "n / N" position pill
  *
