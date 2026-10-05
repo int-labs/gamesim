@@ -66,20 +66,30 @@ export function SimulationScreen() {
           reactions were scored off the obsolete local `vocFit` model, and the
           trigger is being redesigned with the wider UX pass. */}
 
-      {/* Content area — relative so the floating page tabs can pin to its
-          top-center, over whichever page is active. */}
-      <div className="relative flex-1 min-h-0 flex flex-col">
-        <FloatingPageTabs page={page} onChange={setPage} />
+      {/* ── TAB ROW — docked, its own band ──────────────────────────────────
+          Was a pill FLOATING over the canvas top-centre. Docked here it owns a
+          row, so the page beneath it is a plain region instead of a stage with
+          chrome hovering on it. */}
+      <PageTabs page={page} onChange={setPage} />
 
-        {/* Scrollable main column.
+      {/* ── BODY — left rail + centre ───────────────────────────────────────
+          Two columns, no right rail: performance belongs to FINANCE, not to a
+          permanent sidebar. */}
+      <div className="flex-1 min-h-0 flex">
+        {/* The rail renders its own <aside> and returns null while a page has
+            nothing for it, so an unfilled rail costs no empty column. */}
+        <PageRail page={page} />
+
+        {/* Scrollable centre column.
             IMPORTANT: <main> is a normal scrollable BLOCK, not a flex column.
             - Page wrapper is EXACTLY 100% of main's visible area (h-full) so
               the canvas is never cropped; internal panels scroll themselves.
             - BottomStats is a normal block AFTER the page → user scrolls down
-              (or taps the canvas "Stats ↓" chip). */}
+              (or taps the canvas "Stats ↓" chip). Both it and that chip go
+              when FINANCE lands as its own tab. */}
         <main
           id="sim-scroll"
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+          className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden"
           style={{ scrollPaddingTop: 16 }}
         >
           {/* Product locks to the viewport (h-full) so the canvas never
@@ -95,7 +105,13 @@ export function SimulationScreen() {
         </main>
       </div>
 
-      {/* Same reason as AmeliaReactions above: the modal it opens shows the
+      {/* ── FOOTER COMPARTMENT ──────────────────────────────────────────────
+          Spans the full width, under BOTH columns. `PhaseActionBar` is the only
+          occupant today and carries the round-advance control; it is already
+          `shrink-0`, so this region is the place further buttons go rather than
+          a wrapper that re-does its layout.
+
+          Same reason as AmeliaReactions above: the modal it opens shows the
           projected cash figure, which must be the SAME instance the HUD chip
           reads or the two disagree. */}
       <PhaseActionBar liveProjection={liveProjectionState.liveProjection} />
@@ -104,24 +120,34 @@ export function SimulationScreen() {
 }
 
 /**
- * FloatingPageTabs — the Product/Business switch as a dark pill card floating
- * over the canvas top-center (per the reference layout), freeing the top bar
- * for the combined KPI group.
+ * The LEFT RAIL — each page's own stacked sections, with its own sub-tabs.
+ *
+ * Renders its own `<aside>` so a page with nothing for the rail costs no empty
+ * column. Null for every page today; the Product page's panels move in next,
+ * out of the sliding drawer they currently live in.
  */
-function FloatingPageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) => void }) {
+function PageRail({ page: _page }: { page: MainPage }) {
+  return null;
+}
+
+/**
+ * PageTabs — the top-level page switch, DOCKED in its own row.
+ *
+ * It was a pill floating over the canvas top-centre. Docked, it reads as the
+ * page's own chrome rather than something hovering on the stage, and the centre
+ * column gets its full height back.
+ */
+function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) => void }) {
   const TABS = [
     { id: 'product' as const, label: 'Product', icon: BookOpen },
     { id: 'business' as const, label: 'Business', icon: BriefcaseBusiness },
   ];
   return (
-    // top-3 + h-[48px] — sits on the SAME horizontal band as the canvas
-    // title card (left) and view controls (right), so the top edge reads
-    // as one clean aligned row.
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40">
+    <div className="shrink-0 bg-[#221710] border-b border-black/50">
       <div
         role="tablist"
         aria-label="Main pages"
-        className="h-[48px] inline-flex items-center gap-1 px-1 bg-[#221710] border border-black/50 shadow-[0_3px_0_0_rgba(0,0,0,0.35)]"
+        className="h-[48px] flex items-center gap-1 px-2"
       >
         {TABS.map((t) => {
           const active = page === t.id;

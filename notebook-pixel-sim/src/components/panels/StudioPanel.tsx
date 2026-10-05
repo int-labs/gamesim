@@ -1007,7 +1007,6 @@ function BudgetLever({
   hint,
   value,
   max,
-  stepLabel,
   spend,
   energy,
   effectLabel,

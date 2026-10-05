@@ -391,8 +391,6 @@ function VocInterestChart({
 export function MarketDataTab({ arch }: { arch: Archetype }) {
   const active = GENRES.find((g) => g.id === arch);
   const maxDemand = Math.max(...GENRES.flatMap((g) => PHASES.map((p) => g.demand[p.key])));
-  const totalNow = GENRES.reduce((sum, g) => sum + g.demand.p0, 0);
-  const totalEnd = GENRES.reduce((sum, g) => sum + g.demand.p3, 0);
 
   return (
     <div className="flex flex-col gap-4">
