@@ -94,10 +94,13 @@ function engageSummary(p: Pending): { tiles: CostTile[]; effects: string[] } {
     const lv = hireStep(p.item, p.stepKey);
     if (lv) {
       tiles.push({ label: 'Wage / phase', value: fmt$(lv.cost), tone: 'cost', icon: 'cash' });
-      if (lv.prodBonus > 0) effects.push(`+${(lv.prodBonus * 100).toFixed(0)}% production`);
-      if (lv.sellBonus > 0) effects.push(`+${(lv.sellBonus * 100).toFixed(1)}% sell-rate`);
-      if (lv.costReduction > 0) effects.push(`−${(lv.costReduction * 100).toFixed(0)}% unit cost`);
-      if (lv.marketingBonus > 0) effects.push(`+${(lv.marketingBonus * 100).toFixed(1)}% demand`);
+      // Driven by the item's own impacts, not by four named fields that were
+      // zero on every hire but one. A hire pointed at a different impact
+      // describes itself here with no branch added.
+      for (const e of lv.effects) {
+        if (e.contribution === 0) continue;
+        effects.push(`${e.presentation.format(e.contribution)} ${e.presentation.label.toLowerCase()}`);
+      }
     }
   } else {
     // Scoped to the active product, so the bonus quoted is the one that product
@@ -728,21 +731,49 @@ export function StudioPanel({
                 <div className="grid grid-cols-6 gap-2">
                   <StatChip className="col-span-3" label="Cost" value={fmt$(lv.cost)} tone="money" />
                   <StatChip className="col-span-3" label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" />
-                  <StatChip className="col-span-3" label="Capacity Increase" value={lv.prodBonus > 0 ? `+${(lv.prodBonus * 100).toFixed(1)}%` : '—'} tone="good" />
-                  <StatChip className="col-span-3" label="Cost reduction" value={lv.costReduction > 0 ? `−${(lv.costReduction * 100).toFixed(1)}%` : '—'} tone="good" />
-                  {/* Units to sell for cost savings to cover the hire wage:
-                      lv.cost / (dynamicCost × costReduction). Uses server dynamicCost
-                      from calcFinancials — only meaningful when costReduction > 0. */}
-                  <StatChip
-                    className="col-span-3"
-                    label="Breakeven"
-                    value={
-                      projDynamicCost !== null && projDynamicCost > 0 && lv.costReduction > 0
-                        ? `${Math.ceil(lv.cost / (projDynamicCost * lv.costReduction))} units`
-                        : '—'
-                    }
-                    tone="money"
-                  />
+                  {/* ONE CHIP PER IMPACT THIS HIRE ACTUALLY CARRIES.
+                      It was two fixed chips — "Capacity Increase" and "Cost
+                      reduction" — so every hire showed both and one of them
+                      always read "—". Production carries `inventory`, R&D
+                      carries `dynamic_cost`, and each now describes itself.
+                      The sign comes from the registry's `format` and the tone
+                      from `betterWhen`, which is why R&D's cut renders as
+                      "-15%" and still reads as good. */}
+                  {lv.effects.map((e) => (
+                    <StatChip
+                      key={e.key}
+                      className="col-span-3"
+                      label={e.presentation.label}
+                      value={e.contribution !== 0 ? e.presentation.format(e.contribution) : '—'}
+                      // `ChipTone` has no adverse hue — one colour per meaning,
+                      // and nothing in this panel has needed "this is working
+                      // against you" yet. `muted` until the chip system gets
+                      // one; no hiring impact is currently `bad`.
+                      tone={e.tone === 'good' ? 'good' : 'muted'}
+                    />
+                  ))}
+                  {/* Units to sell for the cost saving to cover the wage:
+                      `lv.cost / (dynamicCost × costReduction)`, on the server's
+                      own `dynamicCost`.
+
+                      RENDERED ONLY WHEN THIS HIRE CUTS COST. It is specific to
+                      `dynamic_cost` — there is no breakeven to state for a
+                      capacity hire — so it is gated on the IMPACT being
+                      present, not on the item being R&D. A hire that does not
+                      carry `dynamic_cost` simply does not get the chip,
+                      instead of getting one that reads "—". */}
+                  {lv.costReduction > 0 && (
+                    <StatChip
+                      className="col-span-3"
+                      label="Breakeven"
+                      value={
+                        projDynamicCost !== null && projDynamicCost > 0
+                          ? `${Math.ceil(lv.cost / (projDynamicCost * lv.costReduction))} units`
+                          : '—'
+                      }
+                      tone="money"
+                    />
+                  )}
                 </div>
               </div>
             );

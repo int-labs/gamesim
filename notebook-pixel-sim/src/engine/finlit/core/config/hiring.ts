@@ -1,5 +1,5 @@
 import type { GlobalInputItemDto } from '@/gamesim/types';
-import { effectiveImpactValue } from '@/gamesim/impacts';
+import { effectiveImpactValue, impactEffects, type ImpactEffect } from '@/gamesim/impacts';
 
 /**
  * Hiring reads STRAIGHT off the backend's globalInput items. There is no local
@@ -24,6 +24,17 @@ export interface HireStep {
   stepKey: string;
   /** `options[stepKey]` — scales every impact, and cost and energy with them. */
   multiplier: number;
+  /**
+   * EVERY impact this item actually carries, at this step — the thing to
+   * RENDER from.
+   *
+   * The four named fields below are the old fixed shape: each item got all
+   * four and three were always zero, which is why the roster card could only
+   * ever show one hardcoded "Capacity Increase" chip and R&D — whose impact is
+   * `dynamic_cost` — read as "—". Drive display off `effects` and a new hire
+   * pointed at any impact in the registry renders with no code change.
+   */
+  effects: ImpactEffect[];
   prodBonus: number;
   sellBonus: number;
   marketingBonus: number;
@@ -54,6 +65,7 @@ export const hireSteps = (
   return Object.entries(item.options ?? {}).map(([stepKey, multiplier]) => ({
     stepKey,
     multiplier,
+    effects: impactEffects(item, stepKey, productId),
     prodBonus:      value('inventory')     * multiplier,
     sellBonus:      value('sales_channel') * multiplier,
     marketingBonus: value('marketing')     * multiplier,

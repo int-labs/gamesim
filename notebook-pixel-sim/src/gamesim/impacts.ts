@@ -82,6 +82,107 @@ export function impactFor(
   );
 }
 
+/* ── How an impact READS ──────────────────────────────────────────────────
+ *
+ * The display half of `IMPACT_CONFIG` (`server/src/constants/impacts.ts`).
+ * Keyed by IMPACT, never by item key: `hiring`'s two items are the same shape
+ * and differ only in which impact they carry, so a UI that branches on
+ * `chewie` / `beta` is branching on operator data. Rename an item, add a third
+ * team, or re-point one at another impact and that branch breaks silently —
+ * whereas a registry entry is found or it is not.
+ *
+ * SIGN AND TONE ARE SEPARATE, which is the trap here. `dynamic_cost` is
+ * applied by the server as `dynamicCost *= (1 - v*m)`, so a contribution of
+ * 0.15 is a 15% CUT: it must READ as "-15%" and be TONED as good. Deriving the
+ * tone from the sign would paint R&D's whole benefit red.
+ */
+export type ImpactTone = 'good' | 'bad';
+
+export interface ImpactPresentation {
+  /** What the chip is called. */
+  label: string;
+  /** The contribution as the player should read it, sign included. */
+  format: (contribution: number) => string;
+  /**
+   * Which direction of `contribution` is good for the player. NOT the sign of
+   * the rendered figure — see the note above.
+   */
+  betterWhen: 'higher' | 'lower';
+}
+
+const pct = (n: number) => `${(n * 100).toFixed(0)}%`;
+
+export const IMPACT_PRESENTATION: Record<string, ImpactPresentation> = {
+  // `inventoryAugmentation *= (1 + v*m)` — raises the production ceiling.
+  inventory: {
+    label: 'Capacity',
+    format: (v) => `+${pct(v)}`,
+    betterWhen: 'higher',
+  },
+  // `dynamicCost *= (1 - v*m)` — a bigger contribution is a BIGGER CUT. The
+  // owner's framing: higher investment in cost reduction is better.
+  dynamic_cost: {
+    label: 'Unit cost',
+    format: (v) => `-${pct(v)}`,
+    betterWhen: 'higher',
+  },
+  // `customersObtainedAugment *= (1 + v*m)`.
+  marketing: {
+    label: 'Reach',
+    format: (v) => `+${pct(v)}`,
+    betterWhen: 'higher',
+  },
+  sales_channel: {
+    label: 'Sell-through',
+    format: (v) => `+${pct(v)}`,
+    betterWhen: 'higher',
+  },
+  // `entryRate += v` — the channel's cut of each sale. The one impact where
+  // more is WORSE.
+  consignment: {
+    label: 'Channel cut',
+    format: (v) => pct(v),
+    betterWhen: 'lower',
+  },
+};
+
+/** One impact's contribution at a step, ready to render. */
+export interface ImpactEffect {
+  key: string;
+  /** `effectiveImpactValue × stepMultiplier` — the server's own expression. */
+  contribution: number;
+  presentation: ImpactPresentation;
+  /** `good` unless the figure moves the wrong way for this impact. */
+  tone: ImpactTone;
+}
+
+/**
+ * EVERY impact an item actually carries, at a given step — not a fixed set of
+ * named fields with the absent ones zeroed.
+ *
+ * This is what lets one card render both hires: Production carries
+ * `inventory`, R&D carries `dynamic_cost`, and each gets exactly the chips its
+ * own configuration earns. An item pointed at an impact with no registry entry
+ * is SKIPPED rather than guessed at — the server's `IMPACT_CONFIG` is a closed
+ * set, so an unknown key is a config error, not a label to invent.
+ */
+export function impactEffects(
+  item: GlobalInputItemDto,
+  stepKey: string | null | undefined,
+  productId?: string | null,
+): ImpactEffect[] {
+  const multiplier = stepMultiplier(item, stepKey);
+  return Object.keys(item.impacts ?? {})
+    .filter((key) => key in IMPACT_PRESENTATION)
+    .map((key) => {
+      const presentation = IMPACT_PRESENTATION[key];
+      const contribution = effectiveImpactValue(item.impacts?.[key], productId) * multiplier;
+      const helps =
+        presentation.betterWhen === 'higher' ? contribution >= 0 : contribution <= 0;
+      return { key, contribution, presentation, tone: helps ? 'good' as const : 'bad' as const };
+    });
+}
+
 /**
  * Whether this item's impacts reach `productId` at all. An empty
  * `productsImpacted` means every product; otherwise only the listed ones
