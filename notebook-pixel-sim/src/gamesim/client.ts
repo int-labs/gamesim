@@ -205,6 +205,60 @@ export function getRoundDebrief(args: {
   return request(`/round-debrief${qs(args)}`);
 }
 
+// ── Round report PDFs ───────────────────────────────────────────────────
+/**
+ * GET /reports/:kind — the operator's round PDFs, same shape as the admin
+ * console's `downloadRoundReport`: `?simulationId=&roundNumber=`, streamed as a
+ * blob, filename taken from `x-report-filename`.
+ *
+ * ⚠ THE SERVER REFUSES A TEAM TOKEN. `reportRoutes.ts` wraps this in
+ * `authorize([ADMIN, OPERATOR])`, with a stated reason: these show every team's
+ * figures side by side, so a team must not be able to pull one and read its
+ * competitors' decisions. A player hitting this gets 403, and that is the
+ * server working as designed — not a bug in this function.
+ *
+ * Unblocking it is a SERVER change, and `round-debrief` is the pattern to
+ * copy: drop `authorize`, gate in the controller on the round being Completed
+ * and on the caller's own simulation.
+ */
+export async function downloadRoundReport(args: {
+  kind: 'decisions' | 'competitor';
+  simulationId: Id;
+  roundNumber: number;
+}): Promise<string> {
+  const { kind, ...params } = args;
+  const token = getGamesimToken();
+  const res = await fetch(`${getGamesimBaseUrl()}/reports/${kind}${qs(params)}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+  if (!res.ok) {
+    // The body is a blob on this route, so the server's own message has to be
+    // read back OUT of it — otherwise every failure reads "403".
+    let message = `Report request failed (${res.status}).`;
+    try {
+      const parsed = JSON.parse(await res.text()) as { message?: string };
+      if (parsed?.message) message = parsed.message;
+    } catch { /* not JSON — keep the status line */ }
+    throw new GamesimApiError(res.status, undefined, message);
+  }
+
+  const name =
+    res.headers.get('x-report-filename') ??
+    `${kind}_${params.simulationId}_round${params.roundNumber}.pdf`;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Freed on the NEXT tick: revoking before the browser has started the
+  // download cancels it in Safari and older Chrome.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  return name;
+}
+
 // ── Results (cross-team shares) ─────────────────────────────────────────
 /** GET /results — one document per product+segment+round, holding EVERY team's
  *  weighted score and market share. Written by the operator's calculation run;
