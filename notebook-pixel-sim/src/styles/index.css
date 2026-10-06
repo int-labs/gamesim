@@ -121,6 +121,29 @@
   --c-fin-cash-ink:      #604479;
   --c-fin-inventory-ink: #674A2C;
   --c-fin-demand-ink:    #6F3690;
+
+  /* ─── THE TYPE UNIT — one knob for every font size in the app ───────────
+     Every `font-size` below is `calc(N * var(--fs-unit))`, where N is the
+     px value the scale used to be set in. Change this and the whole ramp
+     moves together; change a single `N` and only that role moves.
+
+     `vmin`, not `vw` or `vh`. A width-driven unit grows the type on a short
+     wide window, which is the one shape where there is least room for it;
+     a height-driven one does the same on a tall narrow one. `vmin` tracks
+     whichever dimension is scarcer, so text never grows into the axis that
+     is already tight.
+
+     0.1111vmin = exactly 1px at vmin 900 (a 1440x900 laptop, the reference
+     this UI was drawn at), so NOTHING changes size at that resolution — the
+     scale is anchored on the values it replaced.
+
+         vmin   720    900    1080   1440
+         unit   0.85*  1.00   1.20   1.30*          (* clamped)
+         .body  13.6   16.0   19.2   20.8  px
+
+     The clamp is doing real work at both ends: unbounded, a 4K display
+     would run body copy at 28px and a short laptop window at 11px. */
+  --fs-unit: clamp(0.85px, 0.1111vmin, 1.3px);
 }
 
 html, body, #root {
@@ -137,7 +160,7 @@ html, body, #root {
      noise. Legibility on cream comes from the DARKENED text tokens + larger
      sizes, not a uniformly heavy weight (that flattened the hierarchy). */
   font-weight: 500;
-  font-size: 14px;
+  font-size: calc(14 * var(--fs-unit));
   line-height: 1.55;
   font-feature-settings: 'cv11', 'ss01', 'ss03';
   -webkit-font-smoothing: antialiased;
@@ -289,7 +312,7 @@ button {
   .field-label {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 500;
-    font-size: 14px;
+    font-size: calc(14 * var(--fs-unit));
     line-height: 1.3;
     color: var(--c-text-2);
   }
@@ -298,7 +321,7 @@ button {
   .hint {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 13px;
+    font-size: calc(13 * var(--fs-unit));
     line-height: 1.45;
     color: var(--c-text-3);
   }
@@ -306,7 +329,7 @@ button {
   .eyebrow {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 700;
-    font-size: 14px;
+    font-size: calc(14 * var(--fs-unit));
     line-height: 1.1;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -315,9 +338,9 @@ button {
   .eyebrow-strong { color: var(--c-text); }
   .eyebrow-light  { color: var(--c-surface); }
   .eyebrow-muted  { color: var(--c-text-3); }
-  .eyebrow-sm     { font-size: 13px; letter-spacing: 0.11em; }
-  .eyebrow-md     { font-size: 15px; letter-spacing: 0.08em; }
-  .eyebrow-lg     { font-size: 17px; letter-spacing: 0.06em; }
+  .eyebrow-sm     { font-size: calc(13 * var(--fs-unit)); letter-spacing: 0.11em; }
+  .eyebrow-md     { font-size: calc(15 * var(--fs-unit)); letter-spacing: 0.08em; }
+  .eyebrow-lg     { font-size: calc(17 * var(--fs-unit)); letter-spacing: 0.06em; }
 
   /* The caption that names a value: "REACH" over "35%", "PER DAY" over "$12".
      A distinct role from .eyebrow, which kicks off a SECTION and is allowed to
@@ -336,7 +359,7 @@ button {
        caption — it competes with the figure below it and pushes every chip in
        the row to a different height. `truncate` alone was not enough because
        the label would wrap BEFORE it overflowed. */
-    font-size: 10px;
+    font-size: calc(10 * var(--fs-unit));
     line-height: 1.15;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -355,7 +378,7 @@ button {
   .item-name {
     font-family: 'Jura', 'Inter', system-ui, sans-serif;
     font-weight: 700;
-    font-size: 14px;
+    font-size: calc(14 * var(--fs-unit));
     line-height: 1.35;
   }
 
@@ -382,13 +405,13 @@ button {
      reach for. */
   .chart-label {
     font-family: 'Press Start 2P', 'Pixelify Sans', system-ui, sans-serif;
-    font-size: 8px;
+    font-size: calc(8 * var(--fs-unit));
     letter-spacing: 0.02em;
   }
   .chart-value {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 700;
-    font-size: 10px;
+    font-size: calc(10 * var(--fs-unit));
     font-variant-numeric: tabular-nums;
   }
 
@@ -398,7 +421,7 @@ button {
      put a figure in it - pair it with .num-xs for the value. */
   .pixel-caption {
     font-family: 'Press Start 2P', 'Pixelify Sans', system-ui, sans-serif;
-    font-size: 10px;
+    font-size: calc(10 * var(--fs-unit));
     line-height: 1.4;
     letter-spacing: 0.04em;
   }
@@ -414,18 +437,18 @@ button {
      already bold by design, body at 600 left almost nothing set in a light
      weight, so no emphasis could register. 500 restores the contrast the
      rest of the scale depends on. */
-  .body-xs  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 14px; line-height: 1.5; }
-  .body-sm  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 15px; line-height: 1.55; }
-  .body     { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 16px; line-height: 1.55; }
-  .body-md  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 18px; line-height: 1.55; }
-  .body-lg  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 20px; line-height: 1.6; }
+  .body-xs  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: calc(14 * var(--fs-unit)); line-height: 1.5; }
+  .body-sm  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: calc(15 * var(--fs-unit)); line-height: 1.55; }
+  .body     { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: calc(16 * var(--fs-unit)); line-height: 1.55; }
+  .body-md  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: calc(18 * var(--fs-unit)); line-height: 1.55; }
+  .body-lg  { font-family: 'Jura', 'Inter', system-ui, sans-serif; font-weight: 500; font-size: calc(20 * var(--fs-unit)); line-height: 1.6; }
 
-  .num-xs   { font-family: 'Inter'; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; line-height: 1; }
-  .num-sm   { font-family: 'Inter'; font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .num-md   { font-family: 'Inter'; font-weight: 700; font-size: 21px; font-variant-numeric: tabular-nums; line-height: 1.05; }
-  .num-lg   { font-family: 'Inter'; font-weight: 800; font-size: 28px; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.01em; }
-  .num-xl   { font-family: 'Inter'; font-weight: 800; font-size: 34px; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.02em; }
-  .num-hero { font-family: 'Press Start 2P', 'Inter'; font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0.04em; }
+  .num-xs   { font-family: 'Inter'; font-weight: 700; font-size: calc(15 * var(--fs-unit)); font-variant-numeric: tabular-nums; line-height: 1; }
+  .num-sm   { font-family: 'Inter'; font-weight: 700; font-size: calc(17 * var(--fs-unit)); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .num-md   { font-family: 'Inter'; font-weight: 700; font-size: calc(21 * var(--fs-unit)); font-variant-numeric: tabular-nums; line-height: 1.05; }
+  .num-lg   { font-family: 'Inter'; font-weight: 800; font-size: calc(28 * var(--fs-unit)); font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.01em; }
+  .num-xl   { font-family: 'Inter'; font-weight: 800; font-size: calc(34 * var(--fs-unit)); font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.02em; }
+  .num-hero { font-family: 'Press Start 2P', 'Inter'; font-size: calc(24 * var(--fs-unit)); font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0.04em; }
 
   /* ──────────────────────────────────────────────────────────────────
      Title typography — VT323 for arcade / terminal feel.
@@ -450,7 +473,7 @@ button {
   .section-title {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 16px;          /* +4 vs. Inter — VT323 reads narrower */
+    font-size: calc(16 * var(--fs-unit));  /* +4 vs. Inter — VT323 reads narrower */
     line-height: 1.05;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -467,7 +490,7 @@ button {
   .section-heading {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 32px;
+    font-size: calc(32 * var(--fs-unit));
     line-height: 1.02;
     letter-spacing: 0.03em;
     text-transform: uppercase;
@@ -476,7 +499,7 @@ button {
   .panel-title {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 19px;          /* +5 vs. original Inter 11px */
+    font-size: calc(19 * var(--fs-unit));  /* +5 vs. original Inter 11px */
     line-height: 1.05;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -485,14 +508,14 @@ button {
   .h1 {
     /* Hero titles only — Press Start 2P stays here. Works at 22px+. */
     font-family: 'Press Start 2P', 'VT323', 'Inter';
-    font-size: 22px;
+    font-size: calc(22 * var(--fs-unit));
     line-height: 1.2;
     letter-spacing: 0.03em;
   }
   .h2 {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 28px;          /* +6 vs. Inter 18px to match visual weight */
+    font-size: calc(28 * var(--fs-unit));  /* +6 vs. Inter 18px to match visual weight */
     line-height: 1.05;
     letter-spacing: 0.02em;
   }
@@ -504,7 +527,7 @@ button {
   .h3 {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 22px;          /* +4 vs. Inter 14px */
+    font-size: calc(22 * var(--fs-unit));  /* +4 vs. Inter 14px */
     line-height: 1.1;
     letter-spacing: 0.02em;
   }
@@ -513,7 +536,7 @@ button {
     /* Main nav tabs (Product / Business / Results). */
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 18px;          /* +5 vs. Inter 13px */
+    font-size: calc(18 * var(--fs-unit));  /* +5 vs. Inter 13px */
     line-height: 1;
     letter-spacing: 0.04em;
   }
@@ -521,7 +544,7 @@ button {
     /* Sub-tabs (Evaluation / Score). Compact terminal feel. */
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 15px;          /* +4 vs. Inter 11px */
+    font-size: calc(15 * var(--fs-unit));  /* +4 vs. Inter 11px */
     line-height: 1;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -541,14 +564,14 @@ button {
   .signature {
     font-family: 'Caveat', cursive;
     font-weight: 600;
-    font-size: 15px;
+    font-size: calc(15 * var(--fs-unit));
     line-height: 1.2;
   }
 
   .stamp {
     font-family: 'VT323', 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 400;
-    font-size: 12px;
+    font-size: calc(12 * var(--fs-unit));
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
@@ -556,13 +579,13 @@ button {
   .btn-label {
     font-family: 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 600;
-    font-size: 14px;
+    font-size: calc(14 * var(--fs-unit));
     letter-spacing: 0.03em;
   }
   .btn-label-sm {
     font-family: 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 600;
-    font-size: 12px;
+    font-size: calc(12 * var(--fs-unit));
     letter-spacing: 0.04em;
   }
 
@@ -570,7 +593,7 @@ button {
     /* Chips also pixel — they're short labels, never paragraphs. */
     font-family: 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 600;
-    font-size: 13px;
+    font-size: calc(13 * var(--fs-unit));
     letter-spacing: 0.01em;
     line-height: 1.1;
   }
@@ -623,7 +646,7 @@ button {
   .kpi-chip .kpi-label {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 600;
-    font-size: 9px;
+    font-size: calc(9 * var(--fs-unit));
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--c-text-3);
@@ -631,7 +654,7 @@ button {
   .kpi-chip .kpi-value {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 700;
-    font-size: 13px;
+    font-size: calc(13 * var(--fs-unit));
     color: var(--c-text);
     font-variant-numeric: tabular-nums;
     line-height: 1;
@@ -1013,7 +1036,7 @@ button {
     color: var(--c-warning);
     font-family: 'Pixelify Sans', 'Inter', system-ui, sans-serif;
     font-weight: 600;
-    font-size: 12px;
+    font-size: calc(12 * var(--fs-unit));
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
@@ -1089,7 +1112,7 @@ button {
     border: 1.5px solid var(--c-border);
     background: var(--c-surface);
     font-family: 'VT323', 'Pixelify Sans', system-ui, sans-serif;
-    font-size: 11px;
+    font-size: calc(11 * var(--fs-unit));
     line-height: 1;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -1152,7 +1175,7 @@ button {
     background-color: var(--c-surface);
     box-shadow: 2px 2px 0 0 var(--c-shadow);
     font-weight: 700;
-    font-size: 11px;
+    font-size: calc(11 * var(--fs-unit));
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
@@ -1217,7 +1240,7 @@ button {
   top: -8px;
   pointer-events: none;
   font-weight: 800;
-  font-size: 10px;
+  font-size: calc(10 * var(--fs-unit));
   line-height: 1;
   letter-spacing: 0.02em;
   white-space: nowrap;

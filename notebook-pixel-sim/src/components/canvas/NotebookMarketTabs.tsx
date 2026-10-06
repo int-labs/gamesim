@@ -92,7 +92,9 @@ export function BuyerInterestTab() {
           one undifferentiated wall otherwise — each now announces what the
           cards under it are. */}
       <header className="border-b-2 border-ink-900 pb-1.5">
-        <h3 className="section-title text-ink-900">What each market looks like today:</h3>
+        {/* `.h2`, not `.section-title` (16px) — this heads a whole sheet and
+            was smaller than the card titles under it. */}
+        <h3 className="h2 text-ink-900">What each market looks like today:</h3>
       </header>
 
       {GENRES.map((genre) => (
@@ -212,7 +214,7 @@ export function MarketDataTab() {
     <div className="grid grid-cols-1 gap-4">
       {/* Same treatment as the Buyer Interest header above. */}
       <header className="border-b-2 border-ink-900 pb-1.5">
-        <h3 className="section-title text-ink-900">Addressable demand per market per phase:</h3>
+        <h3 className="h2 text-ink-900">Addressable demand per market per phase:</h3>
       </header>
 
       {/* One chart per market. `max` spans EVERY market, so the bars are

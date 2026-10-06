@@ -280,17 +280,20 @@ function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) 
             {/* RIBBON — unrolls to the RIGHT on hover, over the section rail.
                 `pointer-events-none` so it can never sit between the cursor and
                 whatever is underneath; the button already owns the click. */}
+            {/* Cream, not the rail's near-black: the ribbon reads as a label
+                laid ON the dark rail rather than more of the rail itself. Its
+                text is ink, since the button's own colour is set for a dark
+                ground and would be invisible here. */}
             <div
               aria-hidden
               className={clsx(
                 'pointer-events-none absolute left-full top-0 h-[48px] z-50 flex items-center whitespace-nowrap',
-                'border border-l-0 bg-[#221710] pr-4 pl-3',
+                'border border-l-0 border-black/50 bg-cream-100 pr-4 pl-3 shadow-[2px_2px_0_0_rgba(0,0,0,0.35)]',
                 'opacity-0 -translate-x-2 transition-[opacity,transform] duration-150',
                 'group-hover:opacity-100 group-hover:translate-x-0',
-                active ? 'border-primary' : 'border-black/50',
               )}
             >
-              <h4 className="eyebrow eyebrow-sm leading-none">{t.label}</h4>
+              <h4 className="eyebrow eyebrow-sm leading-none text-ink-900">{t.label}</h4>
             </div>
           </button>
         );

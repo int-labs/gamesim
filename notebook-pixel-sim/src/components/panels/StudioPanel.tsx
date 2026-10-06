@@ -771,18 +771,15 @@ export function StudioPanel({
       >
         {activeLine ? (
           <div className="flex flex-col gap-2">
-            {/* ONE PER ROW, scrolling vertically — the last `grid-cols-2` in
-                this panel. Two vendor cards side by side in a rail capped at
-                40vw squeezed both; stacked, each gets the full track and the
-                list grows downwards into its own scroller instead of pushing
-                the section taller without limit.
+            {/* ONE PER ROW — the last `grid-cols-2` in this panel. Two vendor
+                cards side by side in a rail capped at 40vw squeezed both;
+                stacked, each gets the full track.
 
-                `max-h` in `vh` so the cap tracks the window rather than a
-                fixed pixel guess. */}
-            <div
-              className="grid grid-cols-1 gap-2 overflow-y-auto"
-              style={{ maxHeight: '52vh' }}
-            >
+                NO `max-h` and NO scroller of its own. The RAIL is the one
+                scroller — a second one here would be a scrollbar inside a
+                scrollbar, and it would cut the list off at an arbitrary height
+                while the section around it still had room. */}
+            <div className="grid grid-cols-1 gap-2">
               {(vendorGI?.inputs ?? []).map((item) => {
                 const itemId = String(item._id);
                 // Scoped to the active product: coverage from `productsImpacted`,
