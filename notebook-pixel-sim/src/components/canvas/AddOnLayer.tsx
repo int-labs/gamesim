@@ -13,6 +13,15 @@ interface Props {
   addOns: AddOnInstance[];
   /** Optional remove hook — kept for prop compatibility with old callers. */
   onRemove?: (instId: string) => void;
+  /**
+   * Called at the END of a decision interaction. See useLiveProjection.
+   *
+   * ONLY the toolbar's REMOVE needs it. Moving, resizing and re-stacking an
+   * add-on write `x` / `y` / `scale` / `zIndex`, which are cosmetic — the
+   * SPEC axis is which add-on is on the notebook, not where it sits — so
+   * those must NOT fire a recalc or every drag frame would hit the server.
+   */
+  recalc?: (reason: string) => void;
 }
 
 /**
@@ -37,7 +46,7 @@ interface Props {
  *   - State commits live during the drag; Done is just an explicit
  *     "deselect" affordance.
  */
-export function AddOnLayer({ addOns }: Props) {
+export function AddOnLayer({ addOns, recalc }: Props) {
   const apply = useGame((s) => s.apply);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -165,6 +174,9 @@ export function AddOnLayer({ addOns }: Props) {
   const remove = (instId: string) => {
     setSelectedId((cur) => (cur === instId ? null : cur));
     apply((s) => removeAddOn(s, instId));
+    // Taking an add-on OFF is a spec change — it drops that axis's unit cost
+    // and its contribution to dynamicPrice.
+    recalc?.('add-on removed from notebook');
   };
   const done = () => setSelectedId(null);
 

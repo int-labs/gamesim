@@ -30,7 +30,13 @@ import { useDroppable } from '@dnd-kit/core';
  * The root is the dnd droppable + an `isolate` stacking context so add-on
  * z-indices stay clamped inside the stage.
  */
-export function NotebookCanvas() {
+export function NotebookCanvas({
+  recalc,
+}: {
+  /** Passed straight through to `AddOnLayer`, whose Remove is a spec change.
+   *  See useLiveProjection. */
+  recalc?: (reason: string) => void;
+}) {
   // Canvas reflects the ACTIVE notebook item. May be undefined if the
   // player has deleted every notebook — in that case we render an empty
   // state below.
@@ -252,7 +258,7 @@ export function NotebookCanvas() {
                   className="absolute inset-0"
                   style={{ transform: `scale(${sizeScale(drawnSize)})`, transformOrigin: 'center center' }}
                 >
-                  <AddOnLayer addOns={addOns} />
+                  <AddOnLayer addOns={addOns} recalc={recalc} />
                 </div>
               </div>
             </motion.div>

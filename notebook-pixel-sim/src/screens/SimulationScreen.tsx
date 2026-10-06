@@ -199,7 +199,7 @@ function PageRail({
       <section className="panel-frame panel-frame--lifted p-3.5">
       {page === 'notebook' && (
         <div className="grid grid-cols-1 gap-6">
-          <ProductLineList />
+          <ProductLineList recalc={recalc} />
           <FinlitDesignControls liveProjection={liveProjection} recalc={recalc} />
         </div>
       )}

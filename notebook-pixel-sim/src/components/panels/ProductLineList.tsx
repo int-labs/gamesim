@@ -52,7 +52,16 @@ const archetypeThumb = (archetype: Archetype): string =>
  * inline qty stepper per card; actions are ALWAYS visible (hover-only icons
  * were undiscoverable). Add Notebook opens a portaled archetype picker.
  */
-export function ProductLineList() {
+export function ProductLineList({
+  recalc,
+}: {
+  /** Called at the END of a decision interaction. See useLiveProjection.
+   *
+   *  Adding or removing a LINE adds or removes a whole product from what the
+   *  round submits, so it moves every figure in the projection. Renaming and
+   *  focusing do not — those are local. */
+  recalc?: (reason: string) => void;
+}) {
   const lines = useGame((s) => s.portfolio.productLines);
   const activeLineId = useGame((s) => s.portfolio.activeLineId);
   const phase = useGame((s) => s.meta.phase);
@@ -128,6 +137,7 @@ export function ProductLineList() {
     playSfx('coin');
     // The picker lists the backend catalogue, so this IS the Product `_id`.
     apply((s) => addProductLine(s, archetype));
+    recalc?.('notebook added');
     setAddOpen(false);
     // Juice: the newcomer pops onto the canvas behind the drawer.
     window.dispatchEvent(new CustomEvent('intlabs:burst', { detail: { x: 0.5, y: 0.5 } }));
@@ -139,6 +149,7 @@ export function ProductLineList() {
     if (!confirmId) return;
     playSfx('delete');
     apply((s) => removeProductLine(s, confirmId));
+    recalc?.('notebook removed');
     setConfirmId(null);
   };
 

@@ -190,7 +190,18 @@ export function DesignControls() {
  * SOURCE in a panel that covered the drop TARGET. Laid out as a strip the two
  * are on screen together, which is the whole point of the gesture.
  */
-export function AddOnGallery() {
+export function AddOnGallery({
+  recalc,
+}: {
+  /** Called at the END of a decision interaction. See useLiveProjection.
+   *
+   *  REQUIRED for correctness, optional only in the type: an add-on is a spec
+   *  axis that is submitted and costs money, so toggling one moves
+   *  `dynamicCost` and `dynamicPrice`. Nothing subscribes to state on the
+   *  projection path — without this the projection keeps showing the previous
+   *  spec. */
+  recalc?: (reason: string) => void;
+}) {
   const { product, hasNotebook, apply } = useActiveLine();
   const archAddOns = useGame((s) => (hasNotebook ? currentAddOns(s) : []));
   if (!hasNotebook || !product) return <EmptyLine />;
@@ -200,6 +211,11 @@ export function AddOnGallery() {
   const genre = product.productId;
 
   const toggleAddOn = (defId: string) => {
+    // Set inside `apply` and read after it: the mutator runs synchronously on
+    // the Immer draft, so by the time `apply` returns this says whether the
+    // spec actually moved. A failed place (the 3-add-on cap) changes nothing
+    // and must NOT spend a recalc.
+    let changed = false;
     apply((s) => {
       const list = currentAddOns(s);
       const existing = list.find((p: { defId: string; id: string }) => p.defId === defId);
@@ -207,6 +223,7 @@ export function AddOnGallery() {
         // Clicked the same add-on again → toggle it off.
         playSfx('delete');
         removeAddOn(s, existing.id);
+        changed = true;
         return;
       }
       // Click on a DIFFERENT add-on in the same AXIS (e.g. cat charm placed,
@@ -224,7 +241,11 @@ export function AddOnGallery() {
           const cat = addOnById(p.defId)?.category;
           return newAxis ? axisForAddOnCategory(cat) === newAxis : cat === newCat;
         });
-        if (occupant) removeAddOn(s, occupant.id);
+        // An eviction is a spec change in its own right. It should always be
+        // followed by a successful place (it just freed the slot, so the cap
+        // cannot bite), but marking it here means a recalc is never skipped
+        // because of how the branch below happened to end.
+        if (occupant) { removeAddOn(s, occupant.id); changed = true; }
       }
       const ok = placeAddOn(s, defId);
       if (!ok) {
@@ -239,8 +260,12 @@ export function AddOnGallery() {
         };
       } else {
         playSfx('pop');
+        changed = true;
       }
     });
+    // Interaction END — the click IS the whole interaction here, so it fires
+    // straight away rather than on a pointer-up/commit pair like the sliders.
+    if (changed) recalc?.('add-on toggled');
   };
 
   return (

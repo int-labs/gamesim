@@ -89,6 +89,16 @@ export function ProductStage({
         });
         if (placed) {
           playSfx('pop');
+          // THE DROP IS A DECISION, so the server has to be told.
+          //
+          // Add-ons are real spec axes — charms / ribbons / stickers /
+          // functional — and each is submitted and costs money, so placing one
+          // moves `dynamicCost` and `dynamicPrice`. Nothing subscribes to state
+          // on the projection path: a control that changes a decision and does
+          // not call `recalc` leaves the projection showing the PREVIOUS spec,
+          // and this one never called it. See CLAUDE.md, "triggered on
+          // interaction END".
+          liveProjectionState?.recalc?.('add-on dropped on notebook');
           // No drawer to close any more — the rail sits BESIDE the canvas, so
           // the add-on lands in full view without dismissing anything.
           window.dispatchEvent(new CustomEvent('intlabs:burst', { detail: { x: 0.5, y: 0.5 } }));
@@ -106,13 +116,15 @@ export function ProductStage({
         <TopHUD liveProjectionState={liveProjectionState} />
         <StageHeader isExpand={isExpand} onToggleExpand={onToggleExpand} />
         <div className="flex-1 min-h-0 flex flex-col">
-          {viewMode === 'gallery' ? <NotebookGallery /> : <NotebookCanvas />}
+          {viewMode === 'gallery'
+            ? <NotebookGallery />
+            : <NotebookCanvas recalc={liveProjectionState?.recalc} />}
         </div>
         {/* ADD-ON STRIP — the drag source, directly under the notebook it
             decorates. `shrink-0` so a long catalogue scrolls SIDEWAYS rather
             than growing downwards and eating the canvas's height. */}
         <div className="shrink-0 border-t border-border-soft bg-surface-2 px-2 py-1.5">
-          <AddOnGallery />
+          <AddOnGallery recalc={liveProjectionState?.recalc} />
         </div>
 
       {/* The dragged tile's ghost. dropAnimation={null} because the add-on
