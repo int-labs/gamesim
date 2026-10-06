@@ -164,7 +164,10 @@ function StageHeader({
       ?? s.portfolio.productLines[0],
   );
   return (
-    <header className="shrink-0 h-[48px] flex items-center gap-2 px-2.5 border-b border-border-soft bg-surface-2">
+    // `min-h`, not `h`: the two stacked lines here are `item-name` over `hint`,
+    // both on the fluid type scale, and at a high resolution they are taller
+    // than a fixed 48px box.
+    <header className="shrink-0 min-h-[48px] flex items-center gap-2 px-2.5 py-1 border-b border-border-soft bg-surface-2">
       <div className="min-w-0 flex-1 flex flex-col justify-center">
         <span className="item-name text-text truncate leading-tight">
           {line?.name ?? 'No notebook selected'}

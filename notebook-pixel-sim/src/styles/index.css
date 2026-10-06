@@ -133,17 +133,20 @@
      whichever dimension is scarcer, so text never grows into the axis that
      is already tight.
 
-     0.1111vmin = exactly 1px at vmin 900 (a 1440x900 laptop, the reference
-     this UI was drawn at), so NOTHING changes size at that resolution — the
-     scale is anchored on the values it replaced.
+     ANCHORED ON 22px BODY AT 1080p — the owner's target (2026-10-06): 16px
+     body "is too small even for me", and ~22px is the readable size for a
+     classroom of mixed ages at that resolution. `.body` is N=16, so the unit
+     must be 22/16 = 1.375px at vmin 1080, i.e. 0.12731vmin.
 
-         vmin   720    900    1080   1440
-         unit   0.85*  1.00   1.20   1.30*          (* clamped)
-         .body  13.6   16.0   19.2   20.8  px
+         vmin    768    900    1080   1200   1440+
+         unit    1.00*  1.146  1.375  1.528  1.55*     (* clamped)
+         .body   16.0   18.3   22.0   24.4   24.8  px
+         .hint   13.0   14.9   17.9   19.9   20.2  px
 
-     The clamp is doing real work at both ends: unbounded, a 4K display
-     would run body copy at 28px and a short laptop window at 11px. */
-  --fs-unit: clamp(0.85px, 0.1111vmin, 1.3px);
+     The FLOOR is 1px so body copy never drops below the 16px it used to be
+     fixed at — the small end is a tablet, where legibility matters most. The
+     CEILING stops a 4K panel running body text at 34px. */
+  --fs-unit: clamp(1px, 0.12731vmin, 1.55px);
 }
 
 html, body, #root {
@@ -919,9 +922,13 @@ button {
   .game-hud-chip {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    height: 34px;
-    padding: 0 11px;
+    /* Box and text scale TOGETHER. These were a fixed 34px/11px/7px, sized for
+       a 15px `.num-xs`; once the type scale moved, the same box held ~21px
+       numerals and clipped them. Anything that wraps scaling text has to scale
+       with it. */
+    gap: calc(7 * var(--fs-unit));
+    height: calc(34 * var(--fs-unit));
+    padding: 0 calc(11 * var(--fs-unit));
     background: var(--c-surface);
     border: 1px solid var(--c-border);
     box-shadow: inset 1.5px 1.5px 0 rgba(0, 0, 0, 0.09);

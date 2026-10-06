@@ -169,7 +169,9 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
       {/* `justify-between`: equal distance between each readout. There is no
           `gap` and no `flex-1` spacer — either would override the distribution
           this is here to produce. */}
-      <div className="flex items-center justify-between px-3 sm:px-4 h-[58px]">
+      {/* `min-h`, not `h`. The chips inside scale with the type scale, so a
+          fixed bar height would crop them at a high resolution. */}
+      <div className="flex items-center justify-between px-3 sm:px-4 min-h-[58px] py-1.5">
         {/* === Resources — Energy (caramel) + Cash (green). Matches
              Figma 1: ENERGY is the only caramel chip, CASH is the
              only green-filled value chip. === */}
