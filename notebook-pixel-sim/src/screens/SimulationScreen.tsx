@@ -220,11 +220,16 @@ function PageRail({
 }
 
 /**
- * PageTabs — the section switch, a VERTICAL rail of icons on the left edge.
+ * PageTabs — the section switch, a VERTICAL rail on the left edge.
  *
- * The labels are gone from the face of each button and live in `title` +
- * `aria-label`, so the control is still named for a screen reader and still
- * explains itself on hover. Same icons as the labelled row it replaces.
+ * At rest each tab is its icon alone. On HOVER it becomes a RIBBON: the icon
+ * box stays put and the title unrolls to the right of it. The ribbon is
+ * ABSOLUTE, so it overlays the section rail instead of widening this one —
+ * expanding in flow would reflow the whole page under the cursor, which is the
+ * worst thing a hover can do.
+ *
+ * `title` + `aria-label` stay on the button regardless: the ribbon is a
+ * pointer affordance, and a touch device or a screen reader never sees it.
  */
 function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) => void }) {
   const TABS = [
@@ -240,7 +245,7 @@ function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) 
       role="tablist"
       aria-orientation="vertical"
       aria-label="Sections"
-      className="shrink-0 w-[52px] flex flex-col items-center gap-1 py-2 bg-[#221710] border-r border-black/50"
+      className="shrink-0 w-[60px] flex flex-col items-center gap-1 py-2 bg-[#221710] border-r border-black/50"
     >
       {TABS.map((t) => {
         const active = page === t.id;
@@ -249,20 +254,44 @@ function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) 
             key={t.id}
             role="tab"
             aria-selected={active}
-            // The label the face no longer carries. `title` for a pointer,
-            // `aria-label` for a screen reader — an icon-only button with
-            // neither is unnamed.
+            // Kept even though the ribbon shows the title: the ribbon is a
+            // POINTER affordance. A screen reader never sees it, and this is a
+            // tablet tool where a large share of players have no hover at all.
             title={t.label}
             aria-label={t.label}
             onClick={() => { if (!active) playSfx('click-soft'); onChange(t.id); }}
             className={clsx(
-              'w-[40px] h-[40px] inline-flex items-center justify-center border transition-all duration-150 active:scale-95 cursor-pointer',
-              active
-                ? 'bg-surface border-primary'
-                : 'border-transparent text-[#D9B57A] hover:bg-white/5 hover:text-cream-100',
+              'group relative flex items-center transition-colors duration-150 active:scale-95 cursor-pointer',
+              active ? 'text-cream-100' : 'text-[#D9B57A] hover:text-cream-100',
             )}
           >
-            <NavIcon icon={t.icon} size={18} color={active ? 'var(--c-primary)' : 'currentColor'} />
+            {/* ICON BOX — the only part that occupies rail width. */}
+            <div
+              className={clsx(
+                'w-[48px] h-[48px] inline-flex items-center justify-center border transition-colors duration-150',
+                active
+                  ? 'bg-surface border-primary'
+                  : 'border-transparent group-hover:bg-white/10',
+              )}
+            >
+              <NavIcon icon={t.icon} size={24} color={active ? 'var(--c-primary)' : 'currentColor'} />
+            </div>
+
+            {/* RIBBON — unrolls to the RIGHT on hover, over the section rail.
+                `pointer-events-none` so it can never sit between the cursor and
+                whatever is underneath; the button already owns the click. */}
+            <div
+              aria-hidden
+              className={clsx(
+                'pointer-events-none absolute left-full top-0 h-[48px] z-50 flex items-center whitespace-nowrap',
+                'border border-l-0 bg-[#221710] pr-4 pl-3',
+                'opacity-0 -translate-x-2 transition-[opacity,transform] duration-150',
+                'group-hover:opacity-100 group-hover:translate-x-0',
+                active ? 'border-primary' : 'border-black/50',
+              )}
+            >
+              <h4 className="eyebrow eyebrow-sm leading-none">{t.label}</h4>
+            </div>
           </button>
         );
       })}

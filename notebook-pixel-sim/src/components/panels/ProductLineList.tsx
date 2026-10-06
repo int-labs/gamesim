@@ -21,6 +21,12 @@ import { playSfx } from '@/audio/audioManager';
 /** Live catalogue — see notebookArchetypes.ts. */
 const notebookIds = (): Archetype[] => notebookCatalogue().map((n) => n.id);
 
+/** Rename / delete button box. `5vh` is the owner's floor (2026-10-06); the
+ *  clamp keeps it tappable on a short screen and sane on a tall one. */
+const ACTION_BTN = 'clamp(28px, 5vh, 44px)';
+/** Room the title/subtitle must leave for the two buttons + their gap. */
+const ACTION_CLEARANCE = `calc(2 * ${ACTION_BTN} + 14px)`;
+
 // No description in the picker: the Details tab owns that copy. An `ARCH_DESC`
 // map used to render one here, keyed by the RETIRED V2 archetypes, so against
 // the operator's real genres every lookup missed and the line was blank anyway.
@@ -222,7 +228,11 @@ export function ProductLineList() {
                     ) : (
                       // TITLE — biggest, boldest, darkest ink.
                       <div
-                        className="item-name text-text truncate leading-tight pr-12"
+                        className="item-name text-text truncate leading-tight"
+                        // Clears the two action buttons, which SCALE — a fixed
+                        // `pr-12` (48px) was sized for the old 24px pair and
+                        // the title ran under them once they grew.
+                        style={{ paddingRight: ACTION_CLEARANCE }}
                         title={`${line.name} - double-click to rename`}
                         onDoubleClick={(e) => { e.stopPropagation(); startRename(line); }}
                       >
@@ -230,7 +240,10 @@ export function ProductLineList() {
                       </div>
                     )}
                     {/* SUBTITLE — smaller, muted. */}
-                    <div className="hint truncate leading-tight -mt-0.5 pr-12">
+                    <div
+                      className="hint truncate leading-tight -mt-0.5"
+                      style={{ paddingRight: ACTION_CLEARANCE }}
+                    >
                       {archetypeLabel(line.productId)}
                     </div>
                     {/* TAG — the market genre, the quietest level: tiny caps
@@ -256,26 +269,34 @@ export function ProductLineList() {
                     </span>
                   )}
 
-                  {/* Actions — ALWAYS visible (hover-only was undiscoverable),
-                       dimmed until hover for calm. */}
-                  <div className="absolute top-1 right-1 flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                  {/* Actions — ALWAYS visible (hover-only was undiscoverable).
+                       SIZED FROM THE VIEWPORT: at a fixed 24px box around a
+                       10px glyph these were, in the owner's words, "barely
+                       noticeable". `5vh` is the floor the owner set; the clamp
+                       keeps them tappable on a short screen and stops them
+                       becoming buttons you could park a bus in on a tall one.
+                       Full opacity at rest — dimming an affordance you want
+                       found is working against yourself. */}
+                  <div className="absolute top-1 right-1 flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); startRename(line); }}
                       title="Rename"
                       aria-label={`Rename ${line.name}`}
-                      className="w-6 h-6 inline-flex items-center justify-center bg-surface border-2 border-border shadow-pixel-press hover:shadow-pixel-1 active:translate-y-px active:shadow-none hover:bg-surface-2 cursor-pointer transition-[box-shadow,transform,background-color]"
+                      style={{ width: ACTION_BTN, height: ACTION_BTN }}
+                      className="inline-flex items-center justify-center bg-surface border-2 border-border shadow-pixel-press hover:shadow-pixel-1 active:translate-y-px active:shadow-none hover:bg-surface-2 cursor-pointer transition-[box-shadow,transform,background-color]"
                     >
-                      <PixelIcon kind="pen" size={10} />
+                      <PixelIcon kind="pen" size={16} />
                     </button>
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); askDelete(line.id); }}
                       title="Delete this notebook"
                       aria-label={`Delete ${line.name}`}
-                      className="w-6 h-6 inline-flex items-center justify-center bg-surface border-2 border-border text-danger shadow-pixel-press hover:shadow-pixel-1 active:translate-y-px active:shadow-none hover:border-danger hover:bg-danger-soft cursor-pointer transition-[box-shadow,transform,background-color,border-color]"
+                      style={{ width: ACTION_BTN, height: ACTION_BTN }}
+                      className="inline-flex items-center justify-center bg-surface border-2 border-border text-danger shadow-pixel-press hover:shadow-pixel-1 active:translate-y-px active:shadow-none hover:border-danger hover:bg-danger-soft cursor-pointer transition-[box-shadow,transform,background-color,border-color]"
                     >
-                      <PixelIcon kind="trash" size={10} color="var(--c-danger)" />
+                      <PixelIcon kind="trash" size={16} color="var(--c-danger)" />
                     </button>
                   </div>
                 </motion.article>

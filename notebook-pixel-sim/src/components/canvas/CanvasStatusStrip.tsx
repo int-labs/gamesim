@@ -84,7 +84,7 @@ export function CanvasStatusStrip({ liveProjection }: { liveProjection: ServerPr
       />
       <Kpi
         icon="fit"
-        label="Product Score"
+        label="Score"
         value={productScore == null ? '–' : fmtInt(Math.round(productScore))}
         tone="warn"
         tip={

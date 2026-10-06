@@ -88,10 +88,12 @@ export function BuyerInterestTab() {
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <p className="body-xs text-text-2">
-        What each market looks like today: how big it is, what it is used to paying, and how much a
-        price change moves it.
-      </p>
+      {/* A HEADER, not a loose paragraph. The two blocks on this sheet read as
+          one undifferentiated wall otherwise — each now announces what the
+          cards under it are. */}
+      <header className="border-b-2 border-ink-900 pb-1.5">
+        <h3 className="section-title text-ink-900">What each market looks like today:</h3>
+      </header>
 
       {GENRES.map((genre) => (
         <MarketCard key={genre.id} genre={genre} />
@@ -208,10 +210,10 @@ export function MarketDataTab() {
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <p className="body-xs text-text-2">
-        Addressable demand per market across the run. Every market grows. The question is which one
-        grows fastest, and whether a notebook is built for it.
-      </p>
+      {/* Same treatment as the Buyer Interest header above. */}
+      <header className="border-b-2 border-ink-900 pb-1.5">
+        <h3 className="section-title text-ink-900">Addressable demand per market per phase:</h3>
+      </header>
 
       {/* One chart per market. `max` spans EVERY market, so the bars are
           comparable across cards rather than each rescaling to its own peak. */}
