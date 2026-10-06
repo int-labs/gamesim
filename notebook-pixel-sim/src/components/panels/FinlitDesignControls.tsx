@@ -99,7 +99,7 @@ export function FinlitDesignControls({
   const proj = liveProjection?.byProduct.find((p) => p.productId === line?.productId) ?? null;
   const uCost = proj?.dynamicCost ?? null;
   const capacityPerPhase = proj?.inventoryQty ?? null;
-  const margin = uCost != null ? line.price - uCost : null;
+  const margin = uCost != null ? (line.price - uCost) / line.price : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -168,7 +168,7 @@ export function FinlitDesignControls({
         <Stat label="Unit cost" value={uCost != null ? fmt$(uCost) : '—'} tone="warn" />
         <Stat
           label="Margin"
-          value={margin != null ? fmt$(margin) : '—'}
+          value={margin != null ? `${Math.round(margin * 100)}%` : '—'}
           tone={margin == null ? 'info' : margin > 0 ? 'good' : 'bad'}
         />
       </div>

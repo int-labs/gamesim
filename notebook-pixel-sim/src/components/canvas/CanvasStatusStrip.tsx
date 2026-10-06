@@ -55,7 +55,9 @@ export function CanvasStatusStrip({ liveProjection }: { liveProjection: ServerPr
   const dynamicPrice = liveProjection?.byProduct
     ?.find((p) => p.productId === activeProductId)?.dynamicPrice;
   // ×4 is the owner's presentation scale — no model term multiplies by 4.
-  const productScore = dynamicPrice == null ? null : dynamicPrice * 4;
+  // value is multiplied by 2^3 as 2^3 only reverts resulting product score from the /4 derived from the sigma value. 
+  // actual x4 means it's 2^3 as opposed to 2^2
+  const productScore = dynamicPrice == null ? null : dynamicPrice * 8;
 
   return (
     // `gap-2`, matching the Energy/Cash group in TopHUD — these are the same
