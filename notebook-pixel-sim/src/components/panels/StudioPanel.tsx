@@ -670,9 +670,16 @@ export function StudioPanel({
             // level. See IMPACT_PRESENTATION.stepControl.
             const control = stepControlFor(item);
             const costs = steps.map((s) => s.cost);
+            // MONEY IS SHOWN AT 2dp AND NEVER ROUNDED UP. `cost` is
+            // `item.cost × multiplier`, so a multiplier like 1.06 gives
+            // 5.300000000000001 — the raw float belongs in the arithmetic, not
+            // in a field the player reads or types into. `toFixed(2)` for
+            // DISPLAY only; `commitHire` still prices the delta off the raw
+            // value, and `Math.ceil` must never touch a cost.
+            const money2 = (n: number) => n.toFixed(2);
             const draftRaw =
               levelDraft[itemId] ??
-              (control === 'cost' ? String(costs[curIdx] ?? 0) : String(curIdx));
+              (control === 'cost' ? money2(costs[curIdx] ?? 0) : String(curIdx));
             const parsed = Number(draftRaw);
             const idx =
               control === 'cost'
@@ -784,7 +791,10 @@ export function StudioPanel({
                       inputMode="numeric"
                       // BOTH start at 0 — the `"0"` option is the off step.
                       min={0}
-                      max={control === 'cost' ? costs[costs.length - 1] ?? 0 : maxIdx}
+                      max={control === 'cost' ? money2(costs[costs.length - 1] ?? 0) : maxIdx}
+                      // Cents are typeable — the tiers are multiples of a base
+                      // and need not land on whole dollars.
+                      step={control === 'cost' ? '0.01' : 1}
                       value={draftRaw}
                       onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
                       // ARROWS MOVE A TIER, not a dollar. The native ±1 cannot
@@ -802,7 +812,7 @@ export function StudioPanel({
                                 maxIdx,
                                 Math.max(0, idx + (e.key === 'ArrowUp' ? 1 : -1)),
                               );
-                              setLevelDraft((d) => ({ ...d, [c.id]: String(steps[next]?.cost ?? '') }));
+                              setLevelDraft((d) => ({ ...d, [c.id]: money2(steps[next]?.cost ?? 0) }));
                             }
                           : undefined
                       }
@@ -818,7 +828,7 @@ export function StudioPanel({
                       onBlur={() => {
                         setLevelDraft((d) => ({
                           ...d,
-                          [c.id]: control === 'cost' ? String(lv?.cost ?? 0) : String(idx),
+                          [c.id]: control === 'cost' ? money2(lv?.cost ?? 0) : String(idx),
                         }));
                         commitHire(item, steps, idx);
                       }}
