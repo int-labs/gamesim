@@ -108,6 +108,20 @@ export interface ImpactPresentation {
    * the rendered figure — see the note above.
    */
   betterWhen: 'higher' | 'lower';
+  /**
+   * What the player TYPES to choose a step.
+   *
+   *   'level' — the step's position, 1..n. The natural handle when the thing
+   *             being bought is capability: you hire a better team.
+   *   'cost'  — the step's COST. The natural handle when the thing being
+   *             bought IS spend: R&D is an investment in cost reduction, so
+   *             "how much am I putting in" is the decision, and the level is
+   *             a consequence of it.
+   *
+   * On the IMPACT, not the item, so a second cost-driven lever gets the same
+   * control without a branch. Defaults to 'level'.
+   */
+  stepControl?: 'level' | 'cost';
 }
 
 const pct = (n: number) => `${(n * 100).toFixed(0)}%`;
@@ -125,6 +139,9 @@ export const IMPACT_PRESENTATION: Record<string, ImpactPresentation> = {
     label: 'Unit cost',
     format: (v) => `-${pct(v)}`,
     betterWhen: 'higher',
+    // You buy cost reduction BY SPENDING. The amount is the decision; the tier
+    // it lands in is the consequence.
+    stepControl: 'cost',
   },
   // `customersObtainedAugment *= (1 + v*m)`.
   marketing: {
@@ -181,6 +198,47 @@ export function impactEffects(
         presentation.betterWhen === 'higher' ? contribution >= 0 : contribution <= 0;
       return { key, contribution, presentation, tone: helps ? 'good' as const : 'bad' as const };
     });
+}
+
+/**
+ * How this item's step is chosen — read off the FIRST registered impact it
+ * carries, so the control follows the configuration.
+ *
+ * An item carrying several impacts takes the first one's control; that is a
+ * judgement call, not a rule, and no live item has more than one.
+ */
+export function stepControlFor(item: GlobalInputItemDto): 'level' | 'cost' {
+  for (const key of Object.keys(item.impacts ?? {})) {
+    const p = IMPACT_PRESENTATION[key];
+    if (p) return p.stepControl ?? 'level';
+  }
+  return 'level';
+}
+
+/**
+ * The step whose COST sits closest to `spend`, for a cost-driven control.
+ *
+ * NEAREST, with ties resolving UPWARD, so a stepper arrow always lands on a
+ * real tier rather than hovering between two. The tiers are not evenly spaced
+ * — `options` multiplies a base, so 5 / 6 / 8 / 12 is typical — which is why
+ * the input cannot simply carry a fixed `step` attribute.
+ *
+ * Returns a 0-BASED index into the steps, or -1 when there are none.
+ */
+export function stepIndexForSpend(costs: number[], spend: number): number {
+  if (costs.length === 0) return -1;
+  if (!Number.isFinite(spend)) return 0;
+  let best = 0;
+  let bestGap = Infinity;
+  costs.forEach((cost, i) => {
+    const gap = Math.abs(cost - spend);
+    // `<=` is the tie-break: a later (dearer) tier wins an exact tie.
+    if (gap <= bestGap) {
+      bestGap = gap;
+      best = i;
+    }
+  });
+  return best;
 }
 
 /**

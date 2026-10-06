@@ -15,7 +15,7 @@ import {
   vendorStep, vendorQuality, vendorCoversProduct, VENDOR_IMAGE,
 } from '@/engine/finlit/core/config/vendors';
 import type { GlobalInputItemDto } from '@/gamesim/types';
-import { impactFor } from '@/gamesim/impacts';
+import { impactFor, stepControlFor, stepIndexForSpend } from '@/gamesim/impacts';
 import { canSpend, selectCashBalance } from '@/engine/selectors';
 import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 import { fmt$, fmtPct } from '@/utils/format';
@@ -590,9 +590,25 @@ export function StudioPanel({
               : -1;
             const curLevel = engagedIdx >= 0 ? engagedIdx + 1 : 0;
             const maxLevel = Math.max(1, steps.length);
-            const draftRaw = levelDraft[itemId] ?? String(curLevel || 1);
-            const parsed = parseInt(draftRaw, 10);
-            const level = Number.isFinite(parsed) ? Math.min(maxLevel, Math.max(1, parsed)) : 1;
+            // WHAT THE PLAYER TYPES. Read off the item's impact, never its key
+            // — `dynamic_cost` is bought by spending, so R&D's handle is the
+            // COST and the tier is the consequence; everything else keeps the
+            // level. See IMPACT_PRESENTATION.stepControl.
+            const control = stepControlFor(item);
+            const costs = steps.map((s) => s.cost);
+            const curIdx = Math.max(0, curLevel - 1);
+            const draftRaw =
+              levelDraft[itemId] ??
+              (control === 'cost'
+                ? String(costs[curIdx] ?? item.cost)
+                : String(curLevel || 1));
+            const parsed = Number(draftRaw);
+            const level =
+              control === 'cost'
+                ? stepIndexForSpend(costs, parsed) + 1
+                : Number.isFinite(parsed)
+                ? Math.min(maxLevel, Math.max(1, Math.trunc(parsed)))
+                : 1;
             const lv = steps[level - 1] ?? null;
             // Presentation only. Name and blurb are the backend's label and
             // description; the portrait comes from PlayerConfig via
@@ -669,16 +685,58 @@ export function StudioPanel({
                   {/* <label> wraps both parts, so the caption is a click target
                       for the field rather than decoration beside it. */}
                   <label className="min-w-0 flex-1 flex flex-col cursor-pointer">
-                    <span className="stat-label truncate">{`Level · max ${maxLevel}`}</span>
+                    {/* The caption names what the FIELD holds. On a
+                        cost-driven lever it also states the base, because the
+                        tiers are multiples of it — `options` scales
+                        `item.cost`, so the base is the unit the steps are
+                        counted in. */}
+                    <span className="stat-label truncate">
+                      {control === 'cost'
+                        ? `Investment · from ${fmt$(costs[0] ?? item.cost)}`
+                        : `Level · max ${maxLevel}`}
+                    </span>
                     <input
                       type="number"
                       inputMode="numeric"
-                      min={1}
-                      max={maxLevel}
+                      min={control === 'cost' ? costs[0] ?? item.cost : 1}
+                      max={control === 'cost' ? costs[costs.length - 1] ?? item.cost : maxLevel}
                       value={draftRaw}
                       onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
-                      onBlur={() => setLevelDraft((d) => ({ ...d, [c.id]: String(level) }))}
-                      aria-label={`${c.name} level, 1 to ${maxLevel}`}
+                      // ARROWS MOVE A TIER, not a dollar. The native ±1 cannot
+                      // walk this ladder: the tiers are 5 / 6 / 8 / 12, so from
+                      // $8 an arrow-up types 9, which still resolves to $8 and
+                      // the control appears stuck. Stepping by INDEX is what
+                      // "every increase is based on the multiplier" means.
+                      // Typing is untouched and snaps on blur.
+                      onKeyDown={
+                        control === 'cost'
+                          ? (e) => {
+                              if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                              e.preventDefault();
+                              const next = Math.min(
+                                steps.length - 1,
+                                Math.max(0, level - 1 + (e.key === 'ArrowUp' ? 1 : -1)),
+                              );
+                              setLevelDraft((d) => ({ ...d, [c.id]: String(steps[next]?.cost ?? '') }));
+                            }
+                          : undefined
+                      }
+                      // Snap on blur. A cost-driven field is typed freely and
+                      // then resolved to the nearest CONFIGURED tier — the
+                      // tiers are multiples of the base (5 / 6 / 8 / 12), not
+                      // an even ladder, so the field cannot carry a fixed
+                      // `step` and land on them.
+                      onBlur={() =>
+                        setLevelDraft((d) => ({
+                          ...d,
+                          [c.id]: control === 'cost' ? String(lv?.cost ?? costs[0] ?? item.cost) : String(level),
+                        }))
+                      }
+                      aria-label={
+                        control === 'cost'
+                          ? `${c.name} investment, ${fmt$(costs[0] ?? item.cost)} to ${fmt$(costs[costs.length - 1] ?? item.cost)}`
+                          : `${c.name} level, 1 to ${maxLevel}`
+                      }
                       // w-full, so the field spans its caption instead of
                       // floating as a 58px box inside a wider container.
                       className="w-full mt-1 bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary shadow-[2px_2px_0_0_var(--c-shadow)] px-1.5 py-1 cursor-text"
@@ -729,7 +787,12 @@ export function StudioPanel({
                     six-column grid so the two rows share gutters: costs take
                     halves, outcomes take thirds. */}
                 <div className="grid grid-cols-6 gap-2">
-                  <StatChip className="col-span-3" label="Cost" value={fmt$(lv.cost)} tone="money" />
+                  {/* No COST chip when cost IS the input — it would restate the
+                      field directly above it. On a level-driven lever the cost
+                      is a consequence the player has not typed, so it stays. */}
+                  {control !== 'cost' && (
+                    <StatChip className="col-span-3" label="Cost" value={fmt$(lv.cost)} tone="money" />
+                  )}
                   <StatChip className="col-span-3" label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" />
                   {/* ONE CHIP PER IMPACT THIS HIRE ACTUALLY CARRIES.
                       It was two fixed chips — "Capacity Increase" and "Cost
