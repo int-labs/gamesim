@@ -63,14 +63,17 @@ export function CanvasStatusStrip({ liveProjection }: { liveProjection: ServerPr
     <div className="flex items-center gap-2 min-w-0">
       <Kpi
         icon="revenue"
-        label="Proj. Revenue"
+        // "Proj. Revenue" / "Proj. Profit" — the qualifier cost more width than
+        // it earned in a bar this narrow, and every figure up here is a
+        // projection anyway. The tooltip still says so in full.
+        label="Revenue"
         value={fmt$(Math.round(revenue))}
         tone="revenue"
         tip="Your price against your own demand estimate, capped by what each line can produce. Same figure as Est. revenue in User Projection below."
       />
       <Kpi
         icon="profit"
-        label="Proj. Profit"
+        label="Profit"
         value={profit == null ? '–' : `${profit >= 0 ? '' : '−'}${fmt$(Math.abs(profit))}`}
         tone={profitTone}
         tip={
@@ -139,16 +142,22 @@ function Kpi({
           and nothing about the colour. NO `-warm` / `-success` variant here:
           those are Energy's caramel and Cash's green, and the tone on these two
           belongs to the VALUE, not the fill. */}
-      <div className="game-hud-chip shrink-0 min-w-0" role="status" aria-label={`${label}: ${value}`}>
+      {/* NOT `shrink-0`. Every chip on this bar was, so the row could not
+          compress and simply overflowed its clipped track — chips sliced in
+          half, which is the "destroyed" display. These three are the ones that
+          should give way: `min-w-0` lets the chip shrink and the LABEL
+          truncates, while the icon and the value stay whole. The value is the
+          only part anyone is actually reading. */}
+      <div className="game-hud-chip min-w-0" role="status" aria-label={`${label}: ${value}`}>
         <PixelIcon kind={icon} size={14} color={t.icon} />
-        <span className="stat-label text-text-3">{label}</span>
+        <span className="stat-label text-text-3 truncate">{label}</span>
         {/* keyed pop — the number ticks whenever the projection changes. */}
         <motion.span
           key={value}
           initial={reduced ? false : { scale: 1.22 }}
           animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-          className={clsx('num-xs inline-block', t.value)}
+          className={clsx('num-xs inline-block shrink-0', t.value)}
         >
           {value}
         </motion.span>

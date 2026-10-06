@@ -227,7 +227,13 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
             stage. Without it the strip keeps its full 519px however little room
             it has and spills over the chips on either side. A flex child cannot
             overflow a box that clips. */}
-        <div className="min-w-0 overflow-hidden hidden lg:flex px-2">
+        {/* `xl`, not `lg`. The breakpoint keys off the VIEWPORT, but this bar
+            lives in the STAGE — roughly 60% of it, behind a 52px tab rail and a
+            rail capped at 40vw. At a 1024px viewport (`lg`) the stage is ~610px
+            and the strip needs more than that, so it appeared exactly where it
+            could not fit and spilled over the chips either side. Shown from
+            1280px up, the stage has ~770px and the row fits. */}
+        <div className="min-w-0 overflow-hidden hidden xl:flex px-2">
           {hasLines && <CanvasStatusStrip liveProjection={liveProjectionState?.liveProjection ?? null} />}
         </div>
 
