@@ -9,7 +9,8 @@ import { expandScript, SCRIPT_BEFORE_PHASE1_CONFIRM } from '@/content/mascotScri
 import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import { SessionChip } from '@/components/hud/SessionChip';
-import { useTotalRounds } from '@/gamesim/GamesimProvider';
+import { useTotalRounds, useGamesimSession } from '@/gamesim/GamesimProvider';
+import { downloadRoundReport } from '@/gamesim/client';
 
 /**
  * Action bar that runs the entire current phase to its end day in one click.
@@ -205,6 +206,11 @@ export function PhaseActionBar({
 
         <div className={blockReason ? 'hidden sm:block' : 'sm:ml-auto'} />
 
+        {/* The round's paperwork, immediately LEFT of the confirm button —
+            documents you consult before committing the round, beside the
+            control that commits it. */}
+        <RoundDocuments />
+
         {/* When validation passes, the CTA quietly pulses to telegraph
              "ready to commit". When blocked, the button still RECEIVES
              clicks (so we can surface guidance) but is styled as
@@ -243,5 +249,124 @@ export function PhaseActionBar({
         liveProjection={liveProjection ?? null}
       />
     </>
+  );
+}
+
+/** The case study PDF, hosted outside the app. */
+const CASE_STUDY_URL =
+  'https://drive.google.com/file/d/1JaipoMFrGe5T3LKEp2owf85L2QjXytGb/view';
+
+/**
+ * The round's paperwork — the three documents a player can open before
+ * committing the round. They sit immediately LEFT of the confirm button: the
+ * things you consult, beside the control you consult them for.
+ *
+ * TWO OF THEM ARE GATED ON A SCORED ROUND. `roundContext.roundNumber` is the
+ * server's own 0-BASED round; round 0 is the first and has nothing to report
+ * until the operator calculates it, so `roundNumber > 0` is the gate. The Case
+ * Study is a fixed document and is never gated.
+ *
+ * ⚠ COMPETITOR REPORT WILL 403 TODAY. `/reports/:kind` is
+ * `authorize([ADMIN, OPERATOR])` on the server, deliberately — the report shows
+ * every team's figures side by side. The button is wired to the same endpoint
+ * the admin console uses and surfaces the server's own message. Whether teams
+ * may read it is QA's call, NOT a client fix. See `downloadRoundReport`.
+ */
+function RoundDocuments() {
+  const setScreen = useGame((s) => s.setScreen);
+  const showToast = useGame((s) => s.showToast);
+  const { roundContext } = useGamesimSession();
+  const [busy, setBusy] = useState(false);
+
+  // The SERVER's own round number, taken from `roundContext` rather than
+  // converted from the client's 1-based `phase` — one fewer conversion seam.
+  const roundNumber = roundContext?.roundNumber ?? 0;
+  // Nothing to report until a round past the first has begun, i.e. until
+  // round 0 has been calculated.
+  const isRoundScored = roundNumber > 0;
+  const lockedWhy = 'Available once the first round has been calculated.';
+
+  const openCompetitorReport = async () => {
+    if (!roundContext || busy) return;
+    setBusy(true);
+    try {
+      // The PREVIOUS round — the current one has not been scored yet.
+      await downloadRoundReport({
+        kind: 'competitor',
+        simulationId: roundContext.simulationId,
+        roundNumber: roundNumber - 1,
+      });
+    } catch (err) {
+      showToast({
+        kind: 'warning',
+        text: err instanceof Error ? err.message : 'Could not fetch the competitor report.',
+        ms: 2600,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    // `order-2` on phones so the documents sit under the phase summary and the
+    // confirm button keeps the full-width bottom row it already had.
+    <div className="order-2 sm:order-none flex flex-wrap items-center gap-1.5">
+      <DocButton
+        label="Debrief Slide"
+        disabled={!isRoundScored}
+        title={isRoundScored ? 'Reopen the last round debrief' : lockedWhy}
+        onClick={() => { playSfx('click-soft'); setScreen('limbo'); }}
+      />
+      <DocButton
+        label="Competitor Report"
+        disabled={!isRoundScored || busy}
+        title={isRoundScored ? 'Download the competitor report PDF' : lockedWhy}
+        onClick={openCompetitorReport}
+      />
+      <DocButton
+        label="Case Study"
+        // `noopener` is not optional on a `_blank` link: without it the opened
+        // page gets a handle on this one through `window.opener`.
+        onClick={() => { playSfx('click-soft'); window.open(CASE_STUDY_URL, '_blank', 'noopener,noreferrer'); }}
+        title="Open the case study (opens in a new tab)"
+      />
+    </div>
+  );
+}
+
+/**
+ * A document button. Deliberately QUIETER than the confirm CTA beside it —
+ * outlined on the bar's own parchment rather than filled — so the thing that
+ * ends the round stays the loudest control in the footer.
+ */
+function DocButton({
+  label,
+  onClick,
+  disabled = false,
+  title,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  title: string;
+}) {
+  return (
+    <Tooltip content={title} placement="top">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={title}
+        className={clsx(
+          'min-h-[36px] px-2.5 border-2 btn-label-sm uppercase whitespace-nowrap',
+          'transition-[background-color,border-color,transform]',
+          disabled
+            ? 'border-[#6A563A]/50 text-[#9F7F52]/60 cursor-not-allowed'
+            : 'border-[#9F7F52] text-[#E8DCBE] hover:bg-[#E8DCBE]/10 active:translate-y-px cursor-pointer',
+        )}
+      >
+        {label}
+      </button>
+    </Tooltip>
   );
 }

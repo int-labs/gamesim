@@ -1,9 +1,6 @@
-import { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import clsx from 'clsx';
 import { useGame } from '@/state/store';
-import { playSfx } from '@/audio/audioManager';
-import { downloadRoundReport } from '@/gamesim/client';
 import { NotebookCycler } from '@/components/canvas/NotebookCycler';
 import { A } from '@/assets';
 import { fmt$, fmtInt, fmtPct } from '@/utils/format';
@@ -161,121 +158,13 @@ export function BottomStats({ liveProjectionState }: { liveProjectionState: Live
         <PaperSheet title="Profit & Loss · by phase" icon={A.ui.pnl.operating_profit} tilt={0.35} delay={0.05} className="relative">
           <FinanceTable />
         </PaperSheet>
-
-        <RoundDocuments />
       </section>
     </>
   );
 }
 
-/** The case study PDF, hosted outside the app. */
-const CASE_STUDY_URL =
-  'https://drive.google.com/file/d/1JaipoMFrGe5T3LKEp2owf85L2QjXytGb/view';
-
-/**
- * The round's paperwork — the three documents a player can open from here.
- *
- * TWO OF THEM ARE GATED ON A SCORED ROUND. `roundContext.roundNumber` is the
- * server's own 0-BASED round; round 0 is the first and has nothing to report
- * until the operator calculates it, so `roundNumber > 0` is the gate. The Case
- * Study is a fixed document and is never gated.
- *
- * ⚠ COMPETITOR REPORT WILL 403 TODAY. `/reports/:kind` is
- * `authorize([ADMIN, OPERATOR])` on the server, deliberately — the report shows
- * every team's figures side by side. The button is wired to the same endpoint
- * the admin console uses and surfaces the server's own message; making it work
- * is a server change. See `downloadRoundReport` in `gamesim/client.ts`.
- */
-function RoundDocuments() {
-  const setScreen = useGame((s) => s.setScreen);
-  const showToast = useGame((s) => s.showToast);
-  const { roundContext } = useGamesimSession();
-  const [busy, setBusy] = useState(false);
-
-  // The SERVER's own round number, taken from `roundContext` rather than
-  // converted from the client's 1-based `phase`. Same figure, one fewer
-  // conversion seam to get wrong — see the round-numbering note in memory.
-  const roundNumber = roundContext?.roundNumber ?? 0;
-  // The boolean the owner asked for: nothing to report until a round past the
-  // first has begun, i.e. until round 0 has been calculated.
-  const isRoundScored = roundNumber > 0;
-  const lockedWhy = 'Available once the first round has been calculated.';
-
-  const openCompetitorReport = async () => {
-    if (!roundContext || busy) return;
-    setBusy(true);
-    try {
-      // The PREVIOUS round — the current one has not been scored yet.
-      await downloadRoundReport({
-        kind: 'competitor',
-        simulationId: roundContext.simulationId,
-        roundNumber: roundNumber - 1,
-      });
-    } catch (err) {
-      showToast({
-        kind: 'warning',
-        text: err instanceof Error ? err.message : 'Could not fetch the competitor report.',
-        ms: 2600,
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="relative mt-6 flex flex-wrap items-center gap-2">
-      <DocButton
-        label="Debrief Slide"
-        disabled={!isRoundScored}
-        title={isRoundScored ? 'Reopen the last round debrief' : lockedWhy}
-        onClick={() => { playSfx('click-soft'); setScreen('limbo'); }}
-      />
-      <DocButton
-        label="Competitor Report"
-        disabled={!isRoundScored || busy}
-        title={isRoundScored ? 'Download the competitor report PDF' : lockedWhy}
-        onClick={openCompetitorReport}
-      />
-      <DocButton
-        label="Case Study"
-        // `noopener` is not optional on a `_blank` link: without it the opened
-        // page gets a handle on this one through `window.opener`.
-        onClick={() => { playSfx('click-soft'); window.open(CASE_STUDY_URL, '_blank', 'noopener,noreferrer'); }}
-        title="Open the case study (opens in a new tab)"
-      />
-    </div>
-  );
-}
-
-function DocButton({
-  label,
-  onClick,
-  disabled = false,
-  title,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={title}
-      className={clsx(
-        'px-3 py-2 border-2 btn-label transition-[background-color,border-color,transform]',
-        disabled
-          ? 'border-cream-100/20 bg-cream-100/5 text-cream-100/35 cursor-not-allowed'
-          : 'border-cream-100/45 bg-cream-100/10 text-cream-100 hover:bg-cream-100/20 active:translate-y-px cursor-pointer',
-      )}
-    >
-      {label}
-    </button>
-  );
-}
+/* `RoundDocuments` and `DocButton` MOVED to `PhaseActionBar` on 2026-10-06 —
+   they belong beside the confirm button, not under the P&L. */
 
 /**
  * PaperSheet - a document lying on the desk: taped at the top corners, at a
