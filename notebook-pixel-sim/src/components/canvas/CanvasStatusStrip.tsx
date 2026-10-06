@@ -1,5 +1,5 @@
 import { useGame } from '@/state/store';
-import { fmt$ } from '@/utils/format';
+import { fmt$, fmtInt } from '@/utils/format';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import { computeUserProjection } from '@/gamesim/computeUserProjection';
 import type { ServerProjectionResult } from '@/gamesim/sync';
@@ -23,10 +23,39 @@ import clsx from 'clsx';
  */
 export function CanvasStatusStrip({ liveProjection }: { liveProjection: ServerProjectionResult | null }) {
   const lines = useGame((s) => s.portfolio.productLines);
+  const activeLineId = useGame((s) => s.portfolio.activeLineId);
   if (lines.length === 0) return null;
 
   const { revenue, profit } = computeUserProjection(lines, liveProjection?.byProduct);
   const profitTone: Tone = profit == null ? 'warn' : profit >= 0 ? 'good' : 'bad';
+
+  /**
+   * PRODUCT SCORE — the ACTIVE notebook's `dynamicPrice`, ×4.
+   *
+   * `dynamicPrice` is what the spec decisions are worth: `calcFinancials`
+   * builds it as `Σ (resolved × bellFactor × direction)` over the priced
+   * fields, and `Σ productScoreBreakdown === dynamicPrice` by construction.
+   *
+   * It is the CENTER the pricing curve pivots on, and pricing AT it is very
+   * close to optimal: `productScore` falls as price rises, but revenue is
+   * `price × productScore`, and that product peaks just above the center.
+   * Solving it on the overpricing branch gives `p(p − D) = σ²` with
+   * `σ = (max − D) / 4` — about 6% above `D`, on a curve flat enough either
+   * side that the center is the right thing to aim a player at. Pricing at the
+   * FLOOR maximises customer COUNT and roughly halves the money.
+   *
+   * ⚠ It is NOT the server's `productScore` field, which is a different number
+   * (0..1, how the asking price sits against that center). Both ride on the
+   * same DTO. The label here is the owner's.
+   *
+   * Keyed by `productId`, never by position — `byProduct` follows the SERVER's
+   * pairing, not portfolio order.
+   */
+  const activeProductId = (lines.find((l) => l.id === activeLineId) ?? lines[0])?.productId;
+  const dynamicPrice = liveProjection?.byProduct
+    ?.find((p) => p.productId === activeProductId)?.dynamicPrice;
+  // ×4 is the owner's presentation scale — no model term multiplies by 4.
+  const productScore = dynamicPrice == null ? null : dynamicPrice * 4;
 
   return (
     // `gap-2`, matching the Energy/Cash group in TopHUD — these are the same
@@ -48,6 +77,17 @@ export function CanvasStatusStrip({ liveProjection }: { liveProjection: ServerPr
           profit == null
             ? 'Waiting for the server projection — the per-unit cost comes from there.'
             : 'Gross profit: projected revenue minus the cost of the same units. Operating expenses are not deducted — those land in Actual Results.'
+        }
+      />
+      <Kpi
+        icon="fit"
+        label="Product Score"
+        value={productScore == null ? '–' : fmtInt(Math.round(productScore))}
+        tone="warn"
+        tip={
+          productScore == null
+            ? 'Waiting for the server projection — this comes from there.'
+            : 'What your design decisions are worth on this notebook. Build more of what its market weighs heavily and it rises — and the more it is worth, the more you can charge before buyers walk.'
         }
       />
     </div>

@@ -28,8 +28,7 @@ import { PixelButton } from '@/components/primitives';
 import { SafeImage } from '@/components/primitives/SafeImage';
 import { A } from '@/assets';
 import { studyFor, type CaseStudy } from '@/content/finlitCaseStudies';
-import { OpsSection, StatChip, OperationsDetailSheet, type DetailSection } from './OperationsKit';
-import { channelDetail, budgetDetail, hiringDetail, vendorDetail } from './operationsDetails';
+import { OpsSection, StatChip } from './OperationsKit';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
@@ -243,32 +242,11 @@ export function StudioPanel({
   // Raw text per candidate so the field can be empty mid-typing; it is parsed
   // and clamped before anything reaches the engine.
   const [levelDraft, setLevelDraft] = useState<Record<string, string>>({});
-  // ONE sheet for all four sections.
-  //
-  // TWO FLAGS, not one. `detailTab` was doing both jobs — which tab is showing,
-  // AND whether the sheet is open — so closing it had to write `null` over the
-  // tab, which also emptied `detailSections` (gated on the same value) in the
-  // very render the exit animation starts. The sheet then animated out with no
-  // tabs and no panel, and whatever had focus inside it was unmounted mid-flight
-  // with nothing to hand focus back to.
-  //
-  // Split, `detailTab` keeps its value through the close, so the sheet leaves
-  // with its content intact and reopens where the reader left it.
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<string>('channels');
-
-  /**
-   * Closes EVERY popup this panel owns, not just the sheet.
-   *
-   * `pending` is the case-study gate and is its own modal. Both could be open at
-   * once — the sheet is reachable while the gate is up — and closing one left
-   * the other's backdrop over the page, which is indistinguishable from a hang.
-   * One function, so a new popup added here is closed by the same call.
-   */
-  const closeAllPopups = () => {
-    setDetailOpen(false);
-    setPending(null);
-  };
+  /* `detailOpen` / `detailTab` and the `closeAllPopups` that cleared them went
+     with the details sheet on 2026-10-05. The case-study gate (`pending`) is
+     the only popup this panel owns now, so it is closed directly — if a second
+     one is ever added, bring back a single close-everything function rather
+     than letting each clear only itself. */
 
   // Days remaining in the current phase — see the Hiring hint for why the
   // per-phase figures need this qualifier. Derived from a PRIMITIVE read on
@@ -332,54 +310,13 @@ export function StudioPanel({
     setPending(null);
   };
 
-  // The four sections, in page order, as tabs. Built only while the sheet is
-  // open: each builder walks its global input's items and the four ran on every
-  // render of this panel once they stopped being behind a click.
-  //
-  // `channelDetail` takes `products` to resolve the reach impact's per-product
-  // overrides onto genres for the reach matrix.
-  //
-  // Filtered to the blocks this instance RENDERS: the sheet is the reference
-  // for what is on screen, so a tab for a block the player cannot see here
-  // would explain a decision that is on another tab.
-  const detailSections: DetailSection[] = !detailOpen ? [] : [
-    { id: 'channels', label: 'Sales Channels',   icon: SECTION_ICON.channels, ...channelDetail(channelGI) },
-    { id: 'budget',   label: 'Marketing Budget', icon: SECTION_ICON.budget,   ...budgetDetail(marketingGI) },
-    { id: 'hiring',   label: 'Hiring',           icon: SECTION_ICON.hiring,   ...hiringDetail(hiringGI) },
-    { id: 'vendor',   label: 'Vendor',           icon: SECTION_ICON.vendor,   ...vendorDetail(vendorGI) },
-  ].filter((s) => shows(s.id as OpsId));
-
   return (
     <div className="flex flex-col gap-4">
-      {/* ── The page's ONE reference control. Right-aligned at the top, which is
-           where the Product page keeps its own Details button — the point is
-           that it does not move: not between sections, and not between pages.
-           Same classes as that button so the two read as one control, not two
-           designs. ── */}
-      <div className="flex items-center justify-end">
-        <button
-          aria-expanded={detailOpen}
-          onClick={() => {
-            playSfx('click-soft');
-            // Opens on this instance's FIRST tab every time rather than
-            // remembering the last one: a sheet that reopens somewhere else is
-            // the moving target this replaced. Set BEFORE the open flag so the
-            // sheet never renders a frame against the previous tab.
-            setDetailTab(sections[0] ?? 'channels');
-            setDetailOpen(true);
-          }}
-          className="pbtn ctl-btn px-2.5 h-[32px] eyebrow eyebrow-sm text-text-2 hover:text-text"
-        >
-          <img
-            src={A.ui.pixel.info}
-            alt=""
-            className="w-[14px] h-[14px] object-contain"
-            style={{ imageRendering: 'pixelated' }}
-            draggable={false}
-          />
-          <span>Details</span>
-        </button>
-      </div>
+      {/* The DETAILS button and the `OperationsDetailSheet` it opened were
+          REMOVED on 2026-10-05. Owner: that reference material belongs in the
+          CASE STUDY, which is the gate the player already reads before
+          committing a hire or a vendor — so the explanation sits where the
+          decision is made instead of behind a second control beside it. */}
 
       {/* No page-level status strip. The page already opened with THREE
           stacked bands of meta-text — the panel masthead, the tab explainer,
@@ -942,16 +879,6 @@ export function StudioPanel({
         ) : null}
       </OpsSection>
       )}
-
-      {/* The reference sheet: one tab per section, cost/energy/impact on the
-          left of each, the market numbers behind it on the right. */}
-      <OperationsDetailSheet
-        open={detailOpen}
-        onClose={closeAllPopups}
-        sections={detailSections}
-        activeId={detailTab}
-        onSelect={setDetailTab}
-      />
 
       {/* Case-study gate — the PDF's "read before choosing". */}
       <PixelModal

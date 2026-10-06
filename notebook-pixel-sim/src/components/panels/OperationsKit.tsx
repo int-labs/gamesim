@@ -275,6 +275,12 @@ export interface DetailSection {
  * The tab bar is deliberately the SAME component shape as ArchetypeDetailModal's
  * (tab-label-sm, 2px top border, shared-layout underline): two sheets that
  * behave differently are two things to learn.
+ *
+ * DEAD since 2026-10-05 — nothing renders it. `StudioPanel`'s Details button
+ * was removed on the owner's call that this material belongs in the CASE STUDY.
+ * It and `operationsDetails.ts` are kept, not deleted: those builders hold the
+ * reach-matrix override resolution (the per-product `selections` lookup fixed
+ * in 1d96463), which is the part worth reusing wherever the explanation lands.
  */
 export function OperationsDetailSheet({
   open,
