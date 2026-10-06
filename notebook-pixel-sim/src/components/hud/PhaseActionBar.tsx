@@ -335,9 +335,12 @@ function RoundDocuments() {
 }
 
 /**
- * A document button. Deliberately QUIETER than the confirm CTA beside it —
- * outlined on the bar's own parchment rather than filled — so the thing that
- * ends the round stays the loudest control in the footer.
+ * A document button — FILLED cream, dark ink.
+ *
+ * It was outlined, caramel-on-near-black, which on this bar was close to
+ * invisible. Cream is the fill now and the text is ink. It still does not
+ * compete with Confirm: that button is the primary GREEN, so the two read as
+ * different kinds of control rather than two weights of the same one.
  */
 function DocButton({
   label,
@@ -358,11 +361,14 @@ function DocButton({
         disabled={disabled}
         aria-label={title}
         className={clsx(
-          'min-h-[36px] px-2.5 border-2 btn-label-sm uppercase whitespace-nowrap',
-          'transition-[background-color,border-color,transform]',
+          'min-h-[36px] px-2.5 border-2 border-ink-900 btn-label-sm uppercase whitespace-nowrap',
+          'transition-[background-color,opacity,transform]',
           disabled
-            ? 'border-[#6A563A]/50 text-[#9F7F52]/60 cursor-not-allowed'
-            : 'border-[#9F7F52] text-[#E8DCBE] hover:bg-[#E8DCBE]/10 active:translate-y-px cursor-pointer',
+            // Still cream, just dimmed — a disabled control that changes
+            // COLOUR reads as a different control rather than the same one
+            // turned off.
+            ? 'bg-cream-100/40 text-ink-900/45 border-ink-900/40 cursor-not-allowed'
+            : 'bg-cream-100 text-ink-900 shadow-[2px_2px_0_0_var(--c-shadow)] hover:bg-cream-50 active:translate-y-px active:shadow-none cursor-pointer',
         )}
       >
         {label}
