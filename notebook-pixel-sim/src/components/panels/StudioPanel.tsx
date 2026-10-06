@@ -9,7 +9,7 @@ import {
   CHANNEL_META, channelRow,
   type ChannelId,
 } from '@/data/finlit';
-import { hireSteps, hireStep, CANDIDATE_IMAGE } from '@/engine/finlit/core/config/hiring';
+import { hireSteps, hireStep, CANDIDATE_IMAGE, type HireStep } from '@/engine/finlit/core/config/hiring';
 import { MARKETING_IMAGE } from '@/engine/finlit/core/config/marketing';
 import {
   vendorStep, vendorQuality, vendorCoversProduct, VENDOR_IMAGE,
@@ -75,8 +75,12 @@ const VENDOR_ICON: Record<string, string> = {
 // A pending pick — set when the player taps an option; the case-study modal
 // then gates the actual engage (the PDF's "read before choosing").
 type Pending =
-  // A hire carries the backend ITEM and one of its own `options` keys — the two
-  // things the server can actually resolve. No frontend candidate id.
+  // DEAD since 2026-10-06 — nothing constructs this variant. Hiring commits
+  // from the level/investment field on blur (`commitHire`), with no modal in
+  // front of it, so every `kind === 'candidate'` branch below is unreachable:
+  // the `engageSummary` hire arm, `commit`'s `isHire` path, and the modal's
+  // candidate body. VENDORS still use the modal, which is why the union and
+  // its machinery stay rather than being torn out around them.
   | { kind: 'candidate'; item: GlobalInputItemDto; stepKey: string; energy: number; study: CaseStudy }
   // A vendor likewise carries the backend item. It is a COMPANY-WIDE selection;
   // `productId` is only what the per-product override and coverage are read
@@ -273,6 +277,71 @@ export function StudioPanel({
     const item = vendorGI?.inputs.find((i) => String(i._id) === sel.inputId);
     return sum + (item ? vendorStep(item, sel.selectedStepKey ?? null)?.energy ?? 0 : 0);
   }, 0);
+
+  /**
+   * Commit a hire straight from the level/investment field — THE decision, with
+   * no Hire button and no confirmation modal in front of it (owner,
+   * 2026-10-06). Called on blur, which is the interaction END for a typed
+   * field, the same rule the sliders follow.
+   *
+   * It carries every guard the modal's `commit` had, because losing one here
+   * loses it on the money path:
+   *
+   *   • NO-OP SHORT-CIRCUIT — blur fires whenever focus leaves, including when
+   *     nothing was typed. Without this, tabbing past a card would re-commit
+   *     and spend a recalc on an unchanged decision.
+   *   • index 0 RELEASES. The `"0"` option is the off step, so winding the
+   *     field back to 0 is what the Release button used to do.
+   *   • CASH is checked BEFORE the mutator, on the DELTA against the current
+   *     commitment, so re-levelling is priced on the difference.
+   *   • ENERGY and the selection cap live inside `engageFinlitHire`, which
+   *     charges the delta and refuses rather than half-applying.
+   */
+  const commitHire = (item: GlobalInputItemDto, steps: HireStep[], nextIdx: number) => {
+    const itemId = String(item._id);
+    const current = hireSelections.find((sel) => sel.inputId === itemId);
+    const curKey = current?.selectedStepKey ?? null;
+    const next = steps[nextIdx] ?? null;
+    // A zero multiplier is not a step you can hold — it is the absence of one.
+    const nextKey = next && next.multiplier !== 0 ? next.stepKey : null;
+    if (nextKey === curKey) return;
+
+    if (nextKey == null) {
+      apply((s) => clearFinlitHire(s, item));
+      playSfx('click-soft');
+      recalc?.(`hire released · ${item.key}`);
+      return;
+    }
+
+    const costAt = (k: string | null) => hireStep(item, k)?.cost ?? 0;
+    const extra = costAt(nextKey) - costAt(curKey);
+    let ok = false;
+    apply((s) => {
+      if (!canSpend(s, extra, cashByProduct, cashBase)) {
+        s.toast = {
+          id: 'cash-short-hire-' + itemId,
+          kind: 'warning',
+          text: `Not enough cash for ${item.label ?? 'that hire'} at that level.`,
+          until: Date.now() + 1900,
+        };
+        return;
+      }
+      ok = engageFinlitHire(s, item, nextKey, hiringMaxSelections);
+      if (!ok) {
+        // `engageFinlitHire` refuses on energy OR on the selection cap and
+        // says which only in a console line. Without a toast the field would
+        // simply snap back with no reason given.
+        s.toast = {
+          id: 'hire-refused-' + itemId,
+          kind: 'warning',
+          text: `Not enough energy for ${item.label ?? 'that hire'}, or you already have ${hiringMaxSelections} hires.`,
+          until: Date.now() + 1900,
+        };
+      }
+    });
+    playSfx(ok ? 'confirm' : 'fail');
+    if (ok) recalc?.(`hire committed · ${item.key}`);
+  };
 
   const commit = () => {
     if (!pending) return;
@@ -578,9 +647,9 @@ export function StudioPanel({
         <div className="grid grid-cols-1 gap-2.5">
           {(hiringGI?.inputs ?? []).map((item) => {
             // The roster IS the backend's hiring items. `options` gives the
-            // steps; the level control is a 1-based INDEX into them, so an
-            // operator can name the keys anything and the ceiling follows the
-            // configuration rather than a hardcoded 4.
+            // steps; the control is a 0-BASED INDEX into them, so an operator
+            // can name the keys anything and both the floor and the ceiling
+            // follow the configuration rather than a hardcoded 1..4.
             const itemId = String(item._id);
             const steps = hireSteps(item);
             const engagedSel = hireSelections.find((sel) => sel.inputId === itemId);
@@ -588,28 +657,40 @@ export function StudioPanel({
             const engagedIdx = engaged
               ? steps.findIndex((s) => s.stepKey === engagedSel.selectedStepKey)
               : -1;
-            const curLevel = engagedIdx >= 0 ? engagedIdx + 1 : 0;
-            const maxLevel = Math.max(1, steps.length);
+            // 0-BASED, like the marketing lever. `options` now carries a `"0"`
+            // step whose multiplier is 0, so index 0 IS "not hired" and the
+            // ladder runs 0..n rather than starting at the first paid tier.
+            // There is no separate "off" state to model any more — the
+            // configuration expresses it.
+            const curIdx = engagedIdx >= 0 ? engagedIdx : 0;
+            const maxIdx = Math.max(0, steps.length - 1);
             // WHAT THE PLAYER TYPES. Read off the item's impact, never its key
             // — `dynamic_cost` is bought by spending, so R&D's handle is the
             // COST and the tier is the consequence; everything else keeps the
             // level. See IMPACT_PRESENTATION.stepControl.
             const control = stepControlFor(item);
             const costs = steps.map((s) => s.cost);
-            const curIdx = Math.max(0, curLevel - 1);
             const draftRaw =
               levelDraft[itemId] ??
-              (control === 'cost'
-                ? String(costs[curIdx] ?? item.cost)
-                : String(curLevel || 1));
+              (control === 'cost' ? String(costs[curIdx] ?? 0) : String(curIdx));
             const parsed = Number(draftRaw);
-            const level =
+            const idx =
               control === 'cost'
-                ? stepIndexForSpend(costs, parsed) + 1
+                ? stepIndexForSpend(costs, parsed)
                 : Number.isFinite(parsed)
-                ? Math.min(maxLevel, Math.max(1, Math.trunc(parsed)))
-                : 1;
-            const lv = steps[level - 1] ?? null;
+                ? Math.min(maxIdx, Math.max(0, Math.trunc(parsed)))
+                : 0;
+            const lv = steps[idx] ?? null;
+            // Index 0 is the OFF step — nothing to buy, so nothing to commit.
+            const atZero = (lv?.multiplier ?? 0) === 0;
+            // ENERGY PREVIEWS THE NEXT STEP WHEN THIS ONE IS FREE, exactly as
+            // the marketing lever does: at a zero step `energy × 0` would
+            // advertise activation as free while the mutator charges the step
+            // actually moved to.
+            const energyMult = !atZero
+              ? lv?.multiplier ?? 0
+              : steps[idx + 1]?.multiplier ?? 0;
+            const energyShown = Math.ceil((item.energy ?? 0) * energyMult);
             // Presentation only. Name and blurb are the backend's label and
             // description; the portrait comes from PlayerConfig via
             // configHydrator, falling back to the bundled mark.
@@ -645,7 +726,10 @@ export function StudioPanel({
                       {engaged && (
                         <span className="shrink-0 inline-flex items-center gap-1 px-2 py-[2px] border-2 border-primary-strong bg-primary-strong text-cream-50">
                           <span aria-hidden className="btn-label-sm leading-none">✓</span>
-                          <span className="eyebrow eyebrow-sm text-inherit">Level {curLevel}</span>
+                          {/* The operator's own step KEY, not a derived
+                              ordinal — `options` names the steps and that name
+                              is what gets submitted. */}
+                          <span className="eyebrow eyebrow-sm text-inherit">Level {steps[curIdx]?.stepKey ?? curIdx}</span>
                         </span>
                       )}
                     </div>
@@ -692,14 +776,15 @@ export function StudioPanel({
                         counted in. */}
                     <span className="stat-label truncate">
                       {control === 'cost'
-                        ? `Investment · from ${fmt$(costs[0] ?? item.cost)}`
-                        : `Level · max ${maxLevel}`}
+                        ? `Investment · up to ${fmt$(costs[costs.length - 1] ?? 0)}`
+                        : `Level · 0 to ${maxIdx}`}
                     </span>
                     <input
                       type="number"
                       inputMode="numeric"
-                      min={control === 'cost' ? costs[0] ?? item.cost : 1}
-                      max={control === 'cost' ? costs[costs.length - 1] ?? item.cost : maxLevel}
+                      // BOTH start at 0 — the `"0"` option is the off step.
+                      min={0}
+                      max={control === 'cost' ? costs[costs.length - 1] ?? 0 : maxIdx}
                       value={draftRaw}
                       onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
                       // ARROWS MOVE A TIER, not a dollar. The native ±1 cannot
@@ -714,8 +799,8 @@ export function StudioPanel({
                               if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
                               e.preventDefault();
                               const next = Math.min(
-                                steps.length - 1,
-                                Math.max(0, level - 1 + (e.key === 'ArrowUp' ? 1 : -1)),
+                                maxIdx,
+                                Math.max(0, idx + (e.key === 'ArrowUp' ? 1 : -1)),
                               );
                               setLevelDraft((d) => ({ ...d, [c.id]: String(steps[next]?.cost ?? '') }));
                             }
@@ -726,59 +811,33 @@ export function StudioPanel({
                       // tiers are multiples of the base (5 / 6 / 8 / 12), not
                       // an even ladder, so the field cannot carry a fixed
                       // `step` and land on them.
-                      onBlur={() =>
+                      // BLUR IS THE COMMIT. Snap the field to the resolved step
+                      // and apply it in the same handler — leaving focus is the
+                      // interaction end for a typed field, the same rule the
+                      // sliders follow with `onPointerUp`.
+                      onBlur={() => {
                         setLevelDraft((d) => ({
                           ...d,
-                          [c.id]: control === 'cost' ? String(lv?.cost ?? costs[0] ?? item.cost) : String(level),
-                        }))
-                      }
+                          [c.id]: control === 'cost' ? String(lv?.cost ?? 0) : String(idx),
+                        }));
+                        commitHire(item, steps, idx);
+                      }}
                       aria-label={
                         control === 'cost'
-                          ? `${c.name} investment, ${fmt$(costs[0] ?? item.cost)} to ${fmt$(costs[costs.length - 1] ?? item.cost)}`
-                          : `${c.name} level, 1 to ${maxLevel}`
+                          ? `${c.name} investment, 0 to ${fmt$(costs[costs.length - 1] ?? 0)}`
+                          : `${c.name} level, 0 to ${maxIdx}`
                       }
                       // w-full, so the field spans its caption instead of
                       // floating as a 58px box inside a wider container.
                       className="w-full mt-1 bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary shadow-[2px_2px_0_0_var(--c-shadow)] px-1.5 py-1 cursor-text"
                     />
                   </label>
-                  <span className="shrink-0 self-end pb-0.5">
-                  {engaged ? (
-                    <PixelButton
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        playSfx('click-soft');
-                        apply((s2) => clearFinlitHire(s2, item));
-                        // Releasing a hire removes a globalInput selection — the
-                        // projection is stale until this fires.
-                        recalc?.(`hire released · ${item.key}`);
-                      }}
-                    >
-                      Release
-                    </PixelButton>
-                  ) : (
-                    <PixelButton
-                      size="sm"
-                      disabled={lv == null || energy < lv.energy}
-                      onClick={() => {
-                        if (!lv) return;
-                        playSfx('click-soft');
-                        // Case studies are still keyed by the operator's own id
-                        // (`item.key`), which is what PlayerConfig sets them under.
-                        setPending({
-                          kind: 'candidate',
-                          item,
-                          stepKey: lv.stepKey,
-                          energy: lv.energy,
-                          study: studyFor('candidate', item.key),
-                        });
-                      }}
-                    >
-                      Hire
-                    </PixelButton>
-                  )}
-                  </span>
+                  {/* NO Hire BUTTON AND NO Release BUTTON (2026-10-06). The
+                      field IS the decision: blur commits it, and winding it
+                      back to 0 — the off step — is what Release did. A button
+                      beside a field that already applies itself is a second
+                      way to do one thing, and the two would disagree the
+                      moment one of them grew a guard the other lacked. */}
                 </div>
 
                 {/* What it COSTS, then what it GIVES - and every figure
@@ -793,7 +852,15 @@ export function StudioPanel({
                   {control !== 'cost' && (
                     <StatChip className="col-span-3" label="Cost" value={fmt$(lv.cost)} tone="money" />
                   )}
-                  <StatChip className="col-span-3" label="Energy" value={<EnergyValue amount={lv.energy} size={13} />} tone="energy" />
+                  {/* "Running on" once paid for, "To activate" at the off step
+                      — where the figure is the NEXT step's, not this one's
+                      zero. Same rule and same wording as the marketing lever. */}
+                  <StatChip
+                    className="col-span-3"
+                    label={atZero ? 'To activate' : 'Running on'}
+                    value={<EnergyValue amount={energyShown} size={13} />}
+                    tone="energy"
+                  />
                   {/* ONE CHIP PER IMPACT THIS HIRE ACTUALLY CARRIES.
                       It was two fixed chips — "Capacity Increase" and "Cost
                       reduction" — so every hire showed both and one of them
