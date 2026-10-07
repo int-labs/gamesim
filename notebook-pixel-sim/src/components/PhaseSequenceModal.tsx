@@ -28,10 +28,10 @@ import clsx from 'clsx';
 import {
   GamesimSyncError,
   submitRoundDecision,
-  type ServerProductProjection,
   type ServerProjectionResult,
 } from '@/gamesim/sync';
 import { collectClientMetrics } from '@/gamesim/clientMetrics';
+import { computeUserProjection } from '@/gamesim/computeUserProjection';
 import { selectCashBalance, selectProjectedCash } from '@/engine/selectors';
 import {
   useGamesimSession,
@@ -206,24 +206,25 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   const target = phaseEndDay(phase);
   const daysLeft = Math.max(0, target - day + 1);
 
-  // Confirm figures come from the LIVE SERVER PROJECTION — the same numbers
-  // the round will be scored on. A local estimate here would be a second
-  // opinion on the one screen where the player commits.
-  const sum = (pick: (p: ServerProductProjection) => number | undefined) =>
-    liveProjection?.byProduct.reduce((a, p) => a + (pick(p) ?? 0), 0) ?? null;
-
-  const serverRevenue = sum((p) => p.revenue);
-  const serverGrossProfit = sum((p) => p.grossProfit);
-  const serverCustomers = sum((p) => p.customersObtained);
+  // THE SAME FIGURES THE HUD SHOWS, from the same single implementation.
+  //
+  // This used to sum `liveProjection.byProduct` for revenue, gross profit,
+  // units sold, operating expenses and operating profit — all of which hang off
+  // `customersObtained`, a figure the round calculation derives LATER against
+  // every other team's submission. Quoting it here as "what your facilitator
+  // scores" stated a number that does not exist yet.
+  //
+  // `computeUserProjection` is what the chips run, so the confirm screen and
+  // the bar the player has been watching all round cannot drift apart.
+  const { revenue: hudRevenue, profit: hudProfit } = computeUserProjection(
+    lines,
+    liveProjection?.byProduct,
+  );
 
   // The player's produce plan (from InventoryPanel) — the same value shown as
   // "Produce / phase" there. It IS their demand estimate now that the separate
   // estimate input is gone. 0 renders as '—'.
   const intProduce = lines.reduce((sum_, l) => sum_ + (l.targetPerPhase ?? 0), 0);
-  const expectedSold = Math.round(sum((p) => p.unitsSold) ?? 0);
-  const expectedRevenue = Math.round(serverRevenue ?? 0);
-  const dailyExpenses = Math.round(sum((p) => p.operatingExpenses) ?? 0);
-  const expectedNetCash = Math.round(sum((p) => p.operatingProfit) ?? 0);
 
   // ─── Step transitions ────────────────────────────────────────────────────
 
@@ -487,43 +488,47 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 
+            {/* ONE PANEL, not two.
+                There were two — "Estimated phase impact (your studio's own
+                model)" and "Official projection · from the simulation server" —
+                presented as rival models the player should compare. They were
+                not: both summed the SAME `liveProjection.byProduct`, and
+                `expectedRevenue` was literally `serverRevenue`. Two headings
+                over one calculation, on the screen where the player commits.
+
+                THE "OFFICIAL PROJECTION" FRAMING WAS ALSO FALSE. It quoted
+                `customersObtained` as a number the facilitator scores, but that
+                figure is recomputed at round calculation against every other
+                team's submission — it does not exist yet at this point, and
+                `unitsSold`, `revenue` and `grossProfit` all hang off it.
+
+                What is left is the same forecast the HUD shows, from the same
+                `computeUserProjection`, so the chips the player has been
+                watching all round and this panel cannot disagree. */}
             <div className="panel-muted px-3.5 py-3">
-              <div className="panel-title text-text mb-2">Estimated phase impact (your studio's own model)</div>
+              <div className="panel-title text-text mb-2">
+                Estimated phase impact
+                {frozen && <span className="stat-label text-success ml-2">· Locked in</span>}
+              </div>
               <CostTiles
                 tiles={[
-                  { label: `Sold / ${daysLeft}d`, value: `~${fmtInt(expectedSold)}`, tone: 'neutral', icon: 'stock' },
-                  { label: 'Revenue', value: fmt$(expectedRevenue), tone: 'gain', icon: 'cash' },
-                  { label: 'Op + channel', value: fmt$(dailyExpenses), tone: 'cost', icon: 'cash' },
+                  { label: 'Produce', value: intProduce > 0 ? fmtInt(intProduce) : '—', tone: 'neutral', icon: 'stock' },
+                  { label: 'Revenue', value: fmt$(Math.round(hudRevenue)), tone: 'gain', icon: 'cash' },
                   {
-                    label: 'Net cash',
-                    value: `${expectedNetCash >= 0 ? '+' : ''}${fmt$(expectedNetCash)}`,
-                    tone: expectedNetCash >= 0 ? 'gain' : 'danger',
+                    label: 'Gross profit',
+                    value: hudProfit == null ? '—' : fmt$(Math.round(hudProfit)),
+                    tone: (hudProfit ?? 0) >= 0 ? 'gain' : 'danger',
                     icon: 'profit',
                   },
                 ] satisfies CostTile[]}
               />
+              <p className="text-text-2 body-xs mt-2">
+                Your price against your own produce plan, capped by what each notebook can make.
+                What you actually sell is decided when your facilitator scores the round — it
+                depends on what every other team submits, so expect the final figures to be lower
+                than this.
+              </p>
             </div>
-
-            {liveProjection && (
-              <div className="panel-muted px-3.5 py-3">
-                <div className="panel-title text-text mb-2">
-                  Official projection · from the simulation server
-                  {frozen && <span className="stat-label text-success ml-2">· Locked in</span>}
-                </div>
-                <CostTiles
-                  tiles={[
-                    { label: 'Revenue', value: fmt$(Math.round(serverRevenue ?? 0)), tone: 'gain', icon: 'cash' },
-                    { label: 'Gross profit', value: fmt$(Math.round(serverGrossProfit ?? 0)), tone: (serverGrossProfit ?? 0) >= 0 ? 'gain' : 'danger', icon: 'profit' },
-                    { label: 'Customers', value: fmtInt(Math.round(serverCustomers ?? 0)), tone: 'neutral', icon: 'demand' },
-                  ] satisfies CostTile[]}
-                />
-                <p className="text-text-2 body-xs mt-2">
-                  These are the numbers your facilitator scores. They come from a different model
-                  than the studio estimate above, so the two will not match - final market share
-                  also depends on what every other team submits.
-                </p>
-              </div>
-            )}
 
             <div className="flex flex-col gap-2 pt-1">
               {submittedDecision && (

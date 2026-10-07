@@ -295,6 +295,10 @@ export const TOAST = {
 
 export const VALIDATION = {
   noNotebook: 'Add at least one notebook to continue.',
+  // A round with no channel is unsellable: `calcFinancials` zeroes
+  // `customersObtained` outright when the total channel weight is 0, so the
+  // team builds its stock, pays the COGS and sells none of it.
+  noChannel: 'Pick a sales channel — you have nowhere to sell.',
   runEnded: 'This run is finished. Start a new game from Home.',
   pendingEvent: 'Resolve the event before confirming the next phase.',
   pendingEval: 'Finish the phase evaluation before continuing.',

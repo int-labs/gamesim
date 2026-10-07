@@ -9,6 +9,8 @@ import { expandScript, SCRIPT_BEFORE_PHASE1_CONFIRM } from '@/content/mascotScri
 import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import { SessionChip } from '@/components/hud/SessionChip';
+import { finlitCompanyChannels } from '@/engine/mockEngine';
+import type { MainPage } from '@/components/hud/MainNav';
 import { useTotalRounds, useGamesimSession } from '@/gamesim/GamesimProvider';
 import { downloadRoundReport } from '@/gamesim/client';
 
@@ -33,6 +35,10 @@ export function PhaseActionBar({
   const pendingEvent = useGame((s) => s.meta.pendingEventId);
   const pendingEval = useGame((s) => s.meta.pendingEvalPhase);
   const lineCount = useGame((s) => s.portfolio.productLines.length);
+  // A COUNT, not the array: `finlitCompanyChannels` builds a new array every
+  // call, so subscribing to it directly would re-render this bar on every
+  // store mutation.
+  const channelCount = useGame((s) => finlitCompanyChannels(s).length);
   const pushMascot = useGame((s) => s.pushMascot);
   const pushMascotSequence = useGame((s) => s.pushMascotSequence);
   const showToast = useGame((s) => s.showToast);
@@ -56,10 +62,17 @@ export function PhaseActionBar({
   const stateBlocked = ended || !!pendingEvent || pendingEval !== null;
   // Validation blocks (player needs to make a required decision)
   const needsAnyNotebook = lineCount === 0;
+  // NO CHANNEL, NO SALE — the same rule `calcFinancials` enforces by zeroing
+  // `customersObtained` when the total channel weight is 0. Without this gate a
+  // team can submit a round it cannot possibly sell: observed 2026-10-06, a
+  // decision carrying only hiring globalInputs scored `customersObtained: 0`,
+  // `revenue: 0` and `COGS: 3927.22` on 604 units built. The server was right;
+  // nothing on the client had said no.
+  const needsAnyChannel = !needsAnyNotebook && channelCount === 0;
   // A `needsSegment` gate sat here. It could never fire — `targetSegment` was
   // seeded at startup and `segmentForGenre` never returned null — and the axis
   // it guarded is gone.
-  const blocked = stateBlocked || needsAnyNotebook;
+  const blocked = stateBlocked || needsAnyNotebook || needsAnyChannel;
 
   const blockReason = ended
     ? VALIDATION.runEnded
@@ -69,6 +82,15 @@ export function PhaseActionBar({
     ? VALIDATION.pendingEval
     : needsAnyNotebook
     ? VALIDATION.noNotebook
+    : needsAnyChannel
+    ? VALIDATION.noChannel
+    : null;
+
+  /** Which section fixes the current block, for the chip's "Tap to fix". */
+  const fixPage: MainPage | null = needsAnyNotebook
+    ? 'notebook'
+    : needsAnyChannel
+    ? 'sales'
     : null;
 
   const phaseTitle =
@@ -104,6 +126,23 @@ export function PhaseActionBar({
         id: 'no-notebook',
         type: 'warning',
         body: 'You need at least one notebook product before simulating the phase. Add one on the Product page.',
+        priority: 1,
+        mood: 'concerned_soft',
+      });
+      return;
+    }
+    // Same treatment as the notebook gate: warn, shake, and say where to fix
+    // it. A round with no channel is the one block a player can reach while
+    // everything else looks finished — the notebooks are designed and the
+    // produce plan is set, so nothing on screen looks wrong.
+    if (needsAnyChannel) {
+      playSfx('warning');
+      flashWarn();
+      showToast({ kind: 'warning', text: VALIDATION.noChannel, ms: 2800 });
+      pushMascot({
+        id: 'no-channel',
+        type: 'warning',
+        body: 'You have nowhere to sell. Open Sales & Marketing and switch on at least one channel, or this phase builds stock it cannot move.',
         priority: 1,
         mood: 'concerned_soft',
       });
@@ -154,14 +193,18 @@ export function PhaseActionBar({
         <SessionChip />
 
         {blockReason && (
-          needsAnyNotebook ? (
-            // Validation block has a fix the player can act on right now.
-            // Render the warning as a clickable button that jumps the
-            // user directly to the page that resolves it. The pulse
-            // draws attention; the right-arrow + cursor-pointer signal
-            // "tap me." Subtle but unmistakable on first run.
+          // `fixPage`, not `needsAnyNotebook`: a validation block the player can
+          // act on renders as a button that jumps to the section that resolves
+          // it. Keyed on which block fired, so a second one — the channel gate —
+          // gets the same treatment rather than silently falling through to the
+          // read-only chip below.
+          fixPage ? (
             <Tooltip
-              content="Add a notebook on the Product page first."
+              content={
+                fixPage === 'notebook'
+                  ? 'Add a notebook in the Notebook section first.'
+                  : 'Switch on a sales channel in Sales & Marketing first.'
+              }
               placement="top"
             >
             <button
@@ -172,7 +215,7 @@ export function PhaseActionBar({
                 // don't need to lift page/tab state into the store.
                 // SimulationScreen listens for this and switches section.
                 window.dispatchEvent(
-                  new CustomEvent('intlabs:goto', { detail: { page: 'notebook' } }),
+                  new CustomEvent('intlabs:goto', { detail: { page: fixPage } }),
                 );
               }}
               className={clsx(
