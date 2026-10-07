@@ -902,18 +902,6 @@ export function StudioPanel({
                       present, not on the item being R&D. A hire that does not
                       carry `dynamic_cost` simply does not get the chip,
                       instead of getting one that reads "—". */}
-                  {lv.costReduction > 0 && (
-                    <StatChip
-                      className="col-span-3"
-                      label="Breakeven"
-                      value={
-                        projDynamicCost !== null && projDynamicCost > 0
-                          ? `${Math.ceil(lv.cost / (projDynamicCost * lv.costReduction))} units`
-                          : '—'
-                      }
-                      tone="money"
-                    />
-                  )}
                 </div>
               </div>
             );
