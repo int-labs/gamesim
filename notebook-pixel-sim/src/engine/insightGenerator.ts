@@ -25,7 +25,7 @@ export function generateInsightQuestion(state: GameState, phase: Phase): Insight
     // the V2 segment axis; it now resolves to the same branch that ran whenever
     // a segment WAS set, so the question is fixed rather than state-derived.
     const opts: InsightQuestion['options'] = [
-      { id: 'A', text: 'Picking and matching a target audience', correct: true },
+      { id: 'A', text: 'Picking and matching a target customer', correct: true },
       { id: 'B', text: 'Buying lots of raw materials', correct: false },
       { id: 'C', text: 'Setting the highest price possible', correct: false },
       { id: 'D', text: 'Adding many decorative items', correct: false },
@@ -36,7 +36,7 @@ export function generateInsightQuestion(state: GameState, phase: Phase): Insight
       question: 'Which of these levers drive demand the most when starting a new business venture?',
       options: opts,
       explanation:
-        "You picked an audience and your design fit them - that's why demand had a base to grow from.",
+        "You picked a customer segment and your design fit them - that's why demand had a base to grow from.",
     };
   }
 
@@ -53,7 +53,7 @@ export function generateInsightQuestion(state: GameState, phase: Phase): Insight
         { id: 'D', text: 'Marketing was bleeding cash without enough sales', correct: true },
       ],
       explanation:
-        "Marketing works by establishing a wider audience. if the product is too niche, all of that marketing budget is aimed at no one. even if all other production costs are lessened. marketing strategies bleed money"
+        "Marketing works by establishing a wider market. if the product is too niche, all of that marketing budget is aimed at no one. even if all other production costs are lessened. marketing strategies bleed money"
     };
   }
 

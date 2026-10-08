@@ -92,7 +92,7 @@ const KIND_TO_LUCIDE: Record<PixelIconKind, LucideIcon> = {
   energy: Zap,
   // Game structure
   phase: Flag,
-  audience: Users,
+  customers: Users,
   operations: Settings,
   gear: Settings,
   sales: Megaphone,

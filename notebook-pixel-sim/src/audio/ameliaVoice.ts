@@ -110,7 +110,7 @@ export function moodFromMessage(msg: { mood?: MascotMood; type?: BubbleType }): 
  * Clean dialogue text for TTS. The visual novel overlay shows the
  * RAW string; this is the spoken-only transformation.
  *
- *   "Open Business → Audience"   →  "Open Business, then Audience"
+ *   "Open Business → Customer"   →  "Open Business, then Customer"
  *   "P&L"                        →  "P and L"
  *   "$2,500"                     →  "$2500"   (browsers read OK)
  *   "90-day"                     →  "90 day"

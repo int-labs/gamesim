@@ -26,7 +26,7 @@ import { useDraggable } from '@dnd-kit/core';
 // what it's labelled.
 const COVER_TIPS: Record<string, string> = {
   hardcover: 'Hardcover - sturdy, classic feel. Lower unit cost than leather, mid-range perceived value.',
-  leather:   'Leather - premium feel. Higher unit cost, higher perceived value. Lifts price tolerance with picky audiences.',
+  leather:   'Leather - premium feel. Higher unit cost, higher perceived value. Lifts price tolerance with picky customers.',
 };
 const BINDING_TIPS: Record<string, string> = {
   ring:    'Ring binding - lays flat for note-takers. Slightly higher cost, broadly liked.',

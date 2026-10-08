@@ -14,7 +14,7 @@ export const HOME = {
   // Phases, not days — nothing ticks per day, and the phase count is the
   // operator's `config.totalRounds`, so copy must not name either number.
   tagline:
-    "Run a notebook business phase by phase. Pick your audience, design your products, manage stock and cash - and learn why growth is more than revenue.",
+    "Run a notebook business phase by phase. Pick your customers, design your products, manage stock and cash - and learn why growth is more than revenue.",
   taglineReturning:
     'Pick up where you left off. Your run is saved.',
   taglineEnded:
@@ -152,7 +152,7 @@ export const ROUTE = {
 export const PHASE_INTRO = {
   1: {
     title: 'Phase 1 - Market Positioning',
-    body: "Find your audience and ship your first notebook. This phase is about discovery - pick a segment, set a price, and watch what fit feels like.",
+    body: "Find your customers and ship your first notebook. This phase is about discovery - pick a segment, set a price, and watch what fit feels like.",
     cta: 'Start Phase 1',
     learningFocus: 'LP1',
   },
@@ -208,7 +208,7 @@ export const HUD_TOOLTIPS = {
   revenue: 'Total money customers paid you. Revenue alone does not equal profit.',
   stock: 'Finished notebooks ready to sell. No stock means no sales, even if demand is high.',
   demand: 'Estimated customer interest based on segment fit, price, marketing, and brand.',
-  fit: 'How well the active notebook matches the selected audience. Above 70% is strong; below 40% is weak.',
+  fit: 'How well the active notebook matches the selected customer segment. Above 70% is strong; below 40% is weak.',
 };
 
 export const PNL = {
@@ -265,7 +265,7 @@ export const FINAL = {
   finalLabel: 'Final score',
   netProjected: (amount: string) => `Net profit projected from ledger: ${amount}`,
   takeaway: {
-    strong: 'Strong run - your audience choice and operations stayed in sync. Notice what compounded.',
+    strong: 'Strong run - your customer segment choice and operations stayed in sync. Notice what compounded.',
     mixed: 'Mixed run - solid moments and some leaks. The P&L will show where margin slipped.',
     tough:  'Tough run - re-read your decisions in the timeline below. The numbers will tell the story.',
   },

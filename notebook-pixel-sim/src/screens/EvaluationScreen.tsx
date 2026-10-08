@@ -196,7 +196,7 @@ export function EvaluationScreen() {
                 <div className="body-xs font-body text-ink-800 leading-relaxed">
                   <p className="mb-1.5">
                     {netIncome >= 0
-                      ? `Profit positive (${fmt$(netIncome)}) - your decisions paid off this phase. The audience and price found each other.`
+                      ? `Profit positive (${fmt$(netIncome)}) - your decisions paid off this phase. The customers and price found each other.`
                       : `Profit dipped (${fmt$(netIncome)}). Revenue alone is not the story - open the cost mix on the left to see which line ate the margin.`}
                   </p>
                   {inventory.stockoutDays > 3 && (

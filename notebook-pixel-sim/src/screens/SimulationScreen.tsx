@@ -72,7 +72,7 @@ export function SimulationScreen() {
 
   // Cross-component navigation — listen for `intlabs:goto` events
   // dispatched by validation pills (e.g. PhaseActionBar's "Pick an
-  // audience" warning chip) so any deep-linked nudge can move the
+  // customers" warning chip) so any deep-linked nudge can move the
   // player to the right page without lifting state into the store.
   useEffect(() => {
     const onGoto = (e: Event) => {

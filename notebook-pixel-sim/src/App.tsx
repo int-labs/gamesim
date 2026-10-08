@@ -176,7 +176,7 @@ export default function App() {
             <Suspense fallback={null}><FinalResultsScreen /></Suspense>
           )}
 
-          {/* First decision of a run: pick the target audience (drives demand
+          {/* First decision of a run: pick the target customers (drives demand
               + fit). Dismissible; also changeable on the Business page. */}
 
           {/* The phase-intro hero screen has its own big mascot, so suppress

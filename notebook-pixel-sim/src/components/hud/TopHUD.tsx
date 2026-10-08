@@ -136,7 +136,7 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
         mood: 'presenting' as const,
       },
       {
-        body: "Open Business → Audience first. The segment you pick determines fit, demand, and price tolerance for every notebook.",
+        body: "Open Business → Customer first. The segment you pick determines fit, demand, and price tolerance for every notebook.",
         mood: 'pointing_left_explain' as const,
       },
       {

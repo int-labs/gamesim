@@ -111,7 +111,7 @@ export function PhaseActionBar({
     // The button is INTENTIONALLY clickable even when blocked — the
     // visual disabled state is a class, not the `disabled` attribute.
     // This lets us surface real guidance (toast + Amelia + shake) the
-    // instant the player taps Confirm without an audience or notebook.
+    // instant the player taps Confirm without an customers or notebook.
     if (stateBlocked) {
       playSfx('warning');
       flashWarn();

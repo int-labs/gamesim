@@ -56,7 +56,7 @@ export const SCRIPT_INTRO: MascotScript = {
       mood: 'idle_soft_wave',
     },
     {
-      body: "You're going to run a small notebook business, one phase at a time. The goal is to learn how product, audience, operations, and cash actually fit together - not just to pick a winner.",
+      body: "You're going to run a small notebook business, one phase at a time. The goal is to learn how product, customers, operations, and cash actually fit together - not just to pick a winner.",
       mood: 'presenting',
     },
     {
@@ -132,7 +132,7 @@ export const SCRIPT_FIRST_ADDON: MascotScript = {
   title: 'Add-Ons',
   messages: [
     {
-      body: 'Nice - your first add-on. These raise perceived value but raise unit cost, so they only pay off when the audience values that detail.',
+      body: 'Nice - your first add-on. These raise perceived value but raise unit cost, so they only pay off when the customers values that detail.',
       mood: 'happy_soft',
     },
     {
@@ -147,7 +147,7 @@ export const SCRIPT_BEFORE_PHASE1_CONFIRM: MascotScript = {
   title: 'Before You Confirm',
   messages: [
     {
-      body: "Before you lock Phase 1, two checks: have you picked an audience, and does your notebook fit them? The right rail tells you both.",
+      body: "Before you lock Phase 1, two checks: have you picked a customer segment, and does your notebook fit them? The right rail tells you both.",
       mood: 'thinking_side',
     },
     {
@@ -227,7 +227,7 @@ export const SCRIPT_FINAL: MascotScript = {
       mood: 'pointing_right_explain',
     },
     {
-      body: "Try a new run with a different audience. Two runs side-by-side teach more than one perfect run.",
+      body: "Try a new run with a different customers. Two runs side-by-side teach more than one perfect run.",
       mood: 'happy_soft',
     },
   ],
