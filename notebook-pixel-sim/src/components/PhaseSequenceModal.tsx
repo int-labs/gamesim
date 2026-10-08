@@ -5,16 +5,10 @@ import { CoinRain } from '@/components/fx/CoinRain';
 import { useGame } from '@/state/store';
 import {
   advanceFinlitPhase,
-  applyEventChoice,
   answerInsight,
   generateInsightQuestion,
-  resolveFinlitScenario,
 } from '@/engine/mockEngine';
-import { scenariosForPhase } from '@/data/finlit';
-import { selectEvaluationSummary } from '@/engine/selectors';
-import { eventForDay, EVENTS } from '@/data/events';
-import { maxEnergyForPhase } from '@/data/balance';
-import { ENERGY_REPLENISH, DAYS_PER_PHASE } from '@/engine/config';
+import { DAYS_PER_PHASE } from '@/engine/config';
 import { fmt$, fmtInt } from '@/utils/format';
 import { playSfx } from '@/audio/audioManager';
 import type { Phase } from '@/types';
@@ -39,7 +33,6 @@ import {
   roundNumberFromPhase,
   phaseFromRoundNumber,
 } from '@/gamesim/GamesimProvider';
-import { EnergyValue } from '@/components/primitives/EnergyValue';
 
 // The end day of a phase is its round number times the phase length. The old
 // three-entry lookup table could not answer for round 4, and the round count is
@@ -58,7 +51,7 @@ const phaseEndDay = (phase: number) => phase * DAYS_PER_PHASE;
  * decision had already been posted, so persisting it needed a second endpoint
  * and left a window where a round existed with no insight attached.
  */
-type Step = 'preview' | 'scenario' | 'insight' | 'simulating' | 'event' | 'evaluation' | 'result';
+type Step = 'preview' | 'insight' | 'simulating' | 'result';
 
 interface Props {
   open: boolean;
@@ -75,15 +68,17 @@ interface Props {
 /**
  * Phase Sequence Modal — single coordinated flow that handles:
  *
- *   preview → simulating → (event* → simulating)* → evaluation → result
+ *   preview → insight → simulating → result
  *
- * Replaces the prior 3 separate dialogs (ConfirmPhaseModal + EventModal +
- * EvaluationScreen) with one cohesive sequence so the player experiences a
- * phase as one chapter, not three pop-ups.
+ * EVENTS, KEY SCENARIOS AND THE PHASE-REVIEW SLIDE WERE REMOVED (2026-10-08,
+ * QA's call) — the branching options taught nothing the rest of the game
+ * builds on.
  *
- * The engine is unchanged — `advanceDay` still pauses on events / eval days
- * by setting `meta.pendingEventId` / `meta.pendingEvalPhase`. This component
- * just observes those flags and renders the appropriate step inline.
+ * The event step was already unreachable: nothing in the codebase ever assigns
+ * `meta.pendingEventId` a non-null value — `applyEventChoice` only clears it.
+ * The phase-review slide said one sentence and offered a Continue button, but
+ * it also carried the ONLY phase bump in the app; that bookkeeping moved into
+ * `tick` rather than going with it. See `finishEvaluation`.
  */
 export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Props) {
   const apply = useGame((s) => s.apply);
@@ -93,8 +88,6 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   const energy = useGame((s) => s.player.energy);
   const finished = useGame((s) => s.inventory.totalFinished);
   const lines = useGame((s) => s.portfolio.productLines);
-  const pendingEventId = useGame((s) => s.meta.pendingEventId);
-  const pendingEvalPhase = useGame((s) => s.meta.pendingEvalPhase);
   const setScreen = useGame((s) => s.setScreen);
   const { canSubmit, canAdvance, bootstrap, roundContext, submittedDecision, refreshOfficial, financialsByRound, clientMetricSources } = useGamesimSession();
   // Snapshot projected cash at the moment the decision is submitted so the modal
@@ -136,15 +129,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   // than advancing into a round the operator may not have configured.
   const finalRound = useTotalRounds() ?? phase;
 
-  // Key scenarios (P5) — the phase's unresolved scenarios, shown before the sim.
-  // The list is SELF-CONSUMING: resolving one removes it from `pendingScenarios`
-  // (recomputed from `resolvedScenarios`), so the head is always "next".
-  const resolvedScenarios = useGame((s) => s.finlit.resolvedScenarios);
-  const allPhaseScenarios = scenariosForPhase(phase);
-  const pendingScenarios = allPhaseScenarios.filter((sc) => !resolvedScenarios.includes(sc.id));
-  const currentEnergy = useGame((s) => s.player.energy);
-
-  /** Preview "Confirm" → run scenarios first (if any), else simulate. */
+  /** Preview "Confirm" → straight to the insight check. */
   const onConfirm = () => {
     if (!canAdvance) {
       const status = bootstrap?.round?.status ?? 'unknown';
@@ -156,18 +141,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
       return;
     }
     setSyncError(null);
-    if (pendingScenarios.length > 0) setStep('scenario');
-    else setStep('insight');
-  };
-
-  const onScenarioPick = (opt: 'A' | 'B' | 'C' | 'D') => {
-    const sc = pendingScenarios[0];
-    if (!sc) { setStep('insight'); return; }
-    apply((s) => resolveFinlitScenario(s, sc.id, opt));
-    // Was that the last unresolved scenario? If so, on to the insight check;
-    // else the head re-renders as the next one.
-    const stillPending = allPhaseScenarios.some((x) => x.id !== sc.id && !resolvedScenarios.includes(x.id));
-    if (!stillPending) setStep('insight');
+    setStep('insight');
   };
 
   /**
@@ -287,16 +261,11 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
       // V3: the whole phase resolves at once on the FinLit engine.
       // `totalRounds` decides which round is the last — the mutator has no
       // session access, so the round count is passed in.
+      // One mutator for the whole round transition — the phase bump, the energy
+      // refill and the evaluation record all moved into it. The modal used to
+      // run a second copy of all three in `finishEvaluation`.
       apply((s) => advanceFinlitPhase(s, finalRound));
-      const after = useGame.getState();
-      if (after.meta.pendingEventId) {
-        setStep('event');
-      } else if (after.meta.pendingEvalPhase !== null) {
-        setStep('evaluation');
-      } else {
-        // Rare: no event/eval until day 90+
-        finishPhase();
-      }
+      finishPhase();
     }, 1600);
   };
 
@@ -317,24 +286,6 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
       ticks: 200,
     });
     setStep('result');
-  };
-
-  // ─── Event handlers ──────────────────────────────────────────────────────
-
-  const onEventChoice = (option: 'A' | 'B' | 'C' | 'D') => {
-    if (!pendingEventId) return;
-    apply((s) => applyEventChoice(s, pendingEventId, option));
-    // After resolution, check if there's also a pending eval (Day 30 has both)
-    const after = useGame.getState();
-    if (after.meta.pendingEvalPhase !== null) {
-      setStep('evaluation');
-    } else if (after.meta.day < phaseEndDay(phaseAtOpen)) {
-      // Continue simulating remaining days
-      tick();
-    } else {
-      // End of phase reached without eval (shouldn't normally happen)
-      finishPhase();
-    }
   };
 
   // ─── Evaluation ─────────────────────────────────────────────────────────
@@ -361,8 +312,12 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
 
   const [insightAnswer, setInsightAnswer] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
   const [insightRevealed, setInsightRevealed] = useState(false);
+  // Cleared at `preview`, the one step every run starts from. This keyed off
+  // `step !== 'evaluation'` while the question lived on that step; with the
+  // step gone, clearing on "anything else" would wipe the answer the moment
+  // `insight` hands over to `simulating` — and `finishEvaluation` reads it.
   useEffect(() => {
-    if (step !== 'evaluation') {
+    if (step === 'preview') {
       setInsightAnswer(null);
       setInsightRevealed(false);
     }
@@ -374,29 +329,6 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     playSfx(correct ? 'chime' : 'fail');
     apply((s) => answerInsight(s, insight.id, insightAnswer, correct));
     setInsightRevealed(true);
-  };
-
-  const onContinueFromEval = () => {
-    playSfx('whoosh');
-    const evalPhase = pendingEvalPhase ?? phaseAtOpen;
-    apply((s) => {
-      s.meta.pendingEvalPhase = null;
-      s.evaluations.resolved.push({
-        phase: evalPhase as Phase,
-        insightCorrect: insightRevealed && insightAnswer
-          ? !!insight?.options.find((o) => o.id === insightAnswer)?.correct
-          : null,
-        day: s.meta.day,
-      });
-      // Bump phase + replenish energy if not the final phase
-      if (evalPhase < 3) {
-        const next = (evalPhase + 1) as Phase;
-        s.meta.phase = next;
-        s.player.maxEnergy = maxEnergyForPhase(next);
-        s.player.energy = Math.min(s.player.maxEnergy, s.player.energy + ENERGY_REPLENISH);
-      }
-    });
-    finishPhase();
   };
 
   const onResultContinue = () => {
@@ -418,12 +350,10 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
 
   // ─── Render ─────────────────────────────────────────────────────────────
 
-  const ev = pendingEventId ? EVENTS.find((e) => e.id === pendingEventId) ?? eventForDay(day) : null;
   const stepIndex =
     step === 'preview' ? 1 :
-    step === 'simulating' ? 2 :
-    step === 'event' ? 2 :
-    step === 'evaluation' ? 3 :
+    step === 'insight' ? 2 :
+    step === 'simulating' ? 3 :
     4;
 
   return (
@@ -444,15 +374,10 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     >
       {/* Step transitions — single live motion.div keyed on the current
           step. AnimatePresence with multiple sibling step containers led to
-          stuck exits when the engine chained step transitions quickly
-          (event → simulating → event → evaluation). One container, one key,
-          clean swap. */}
+          stuck exits when the engine chained step transitions quickly. One
+          container, one key, clean swap. */}
       <motion.div
-        key={
-          step === 'event' && ev ? `event-${ev.id}` :
-          step === 'evaluation' && insight ? `eval-${insight.id}` :
-          step
-        }
+        key={step === 'insight' && insight ? `insight-${insight.id}` : step}
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.18, ease: [0.2, 1.4, 0.4, 1] }}
@@ -466,7 +391,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
                 <p className="mb-1">
                   Lock in your decisions for <strong>Phase {phase}</strong>. The simulation
                   will run <strong>{daysLeft} day{daysLeft === 1 ? '' : 's'}</strong>, pausing for
-                  events and the phase evaluation in this same window.
+                  the insight check in this same window.
                 </p>
                 <p className="text-text-2 body-sm">
                   Numbers below are an estimate based on today's settings - actual demand is
@@ -566,65 +491,12 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
                     ? 'Syncing decision…'
                     : syncError
                       ? 'Retry sync & confirm'
-                      : pendingScenarios.length > 0
-                        ? `Confirm · ${pendingScenarios.length} decision${pendingScenarios.length === 1 ? '' : 's'} ahead`
-                        : `Confirm · Simulate Phase ${phase}`}
+                      : `Confirm · Simulate Phase ${phase}`}
                 </PixelButton>
               </div>
             </div>
           </div>
         )}
-
-        {step === 'scenario' && pendingScenarios[0] && (() => {
-          const sc = pendingScenarios[0];
-          const resolvedThisPhase = allPhaseScenarios.length - pendingScenarios.length;
-          return (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-start gap-3">
-                <MascotAvatar mood="warning" size={66} />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="eyebrow eyebrow-sm text-info">
-                      Key Scenario {allPhaseScenarios.length > 1 ? `${resolvedThisPhase + 1}/${allPhaseScenarios.length}` : ''}
-                    </span>
-                  </div>
-                  <h3 className="h3 uppercase text-ink-900 mb-1">{sc.title}</h3>
-                  <p className="body-sm text-text leading-relaxed">{sc.body}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {sc.options.map((o) => {
-                  const affordable = currentEnergy >= o.energy;
-                  return (
-                    <button
-                      key={o.id}
-                      disabled={!affordable}
-                      onClick={() => { playSfx(affordable ? 'confirm' : 'fail'); onScenarioPick(o.id); }}
-                      className={
-                        'text-left px-3 py-2.5 border-2 transition-all active:scale-[0.98] ' +
-                        (affordable ? 'border-border-soft bg-surface hover:border-primary' : 'border-border-soft bg-surface-2 opacity-50 cursor-not-allowed')
-                      }
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="item-name text-text"><span className="text-primary">{o.id}.</span> {o.label}</span>
-                        <span
-                          className={clsx(
-                            'shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 border num-xs',
-                            o.energy > 0 ? 'border-warning/50 bg-warning-soft/40 text-warning' : 'border-success/50 bg-success-soft/40 text-success',
-                          )}
-                        >
-                          {o.energy > 0 ? <EnergyValue amount={o.energy} /> : 'FREE'}
-                        </span>
-                      </div>
-                      <div className="body-xs text-text-2 leading-tight mt-0.5">{o.detail}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="body-xs text-text-3 text-right inline-flex items-baseline gap-1 justify-end w-full"><EnergyValue amount={currentEnergy} /> energy available</div>
-            </div>
-          );
-        })()}
 
         {step === 'simulating' && (
           <SimulatingShow
@@ -632,24 +504,6 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
             toDay={phaseEndDay(phaseAtOpen)}
             phase={phaseAtOpen}
           />
-        )}
-
-        {step === 'event' && ev && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-start gap-3">
-              <MascotAvatar mood={ev.mascotMood} size={66} />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <PixelBadge tone="warn">Day {day} · Event</PixelBadge>
-                  <span className="stat-label">
-                    {ev.title}
-                  </span>
-                </div>
-                <p className="body-sm text-text leading-snug">{ev.body}</p>
-              </div>
-            </div>
-            <EventOptions ev={ev} cash={cash} onPick={onEventChoice} />
-          </div>
         )}
 
         {/* BEFORE the submit, not after — see the note on `Step`. The question
@@ -665,15 +519,6 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
               onPick={setInsightAnswer}
               onSubmit={onSubmitInsight}
               onContinue={onInsightContinue}
-            />
-          </div>
-        )}
-
-        {step === 'evaluation' && (
-          <div className="flex flex-col gap-3">
-            <EvaluationStep
-              phase={(pendingEvalPhase ?? phaseAtOpen) as Phase}
-              onContinue={onContinueFromEval}
             />
           </div>
         )}
@@ -741,73 +586,6 @@ function Stat({
       <div className="flex items-baseline gap-1.5 flex-wrap">
         <span className="num-md text-text">{value}</span>
         {sub && <span className="stat-label">{sub}</span>}
-      </div>
-    </div>
-  );
-}
-
-/* Event options grid - each option is a clickable card. Disabled state comes
-   from cost-too-high (informational; we still allow the click but show
-   a warning chip). */
-function EventOptions({
-  ev,
-  cash,
-  onPick,
-}: {
-  ev: typeof EVENTS[number];
-  cash: number;
-  onPick: (id: 'A' | 'B' | 'C' | 'D') => void;
-}) {
-  const [picked, setPicked] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="grid md:grid-cols-2 gap-2">
-        {ev.options.map((o) => {
-          const tooExpensive = o.cost.cash !== undefined && o.cost.cash > cash;
-          const isPicked = picked === o.id;
-          return (
-            <button
-              key={o.id}
-              onClick={() => { playSfx('click-soft'); setPicked(o.id); }}
-              className={clsx(
-                'text-left p-2.5 border-2 transition-all cursor-pointer',
-                // Selected - dark walnut plate + cream text, matching the
-                // insight-check picks so every multi-option selection is
-                // consistent.
-                isPicked
-                  ? 'border-primary bg-[#221710] shadow-[2px_2px_0_0_var(--c-shadow)] -translate-y-0.5'
-                  : 'border-border-soft bg-surface hover:border-border hover:-translate-y-px hover:shadow-[1px_1px_0_0_var(--c-shadow)]',
-              )}
-            >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className={clsx('eyebrow eyebrow-sm', isPicked ? 'text-primary' : 'text-text-3')}>{o.id}.</span>
-                <span className={clsx('item-name', isPicked ? 'text-[#FAF7E8]' : 'text-text')}>{o.label}</span>
-              </div>
-              <div className={clsx('body-xs leading-snug', isPicked ? 'text-[#FAF7E8]/85' : 'text-text-2')}>{o.description}</div>
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                <PixelBadge tone="warn">E−{o.cost.energy}</PixelBadge>
-                {o.cost.cash !== undefined && o.cost.cash > 0 && (
-                  <PixelBadge tone={tooExpensive ? 'error' : 'neutral'}>
-                    {fmt$(-o.cost.cash)}
-                  </PixelBadge>
-                )}
-                {o.effects.slice(0, 2).map((e, i) => (
-                  <PixelBadge key={i} tone="neutral">{e}</PixelBadge>
-                ))}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex justify-end">
-        <PixelButton
-          variant="primary"
-          size="md"
-          disabled={!picked}
-          onClick={() => { if (picked) { playSfx('confirm'); onPick(picked); } }}
-        >
-          {picked ? `Confirm - Choose ${picked}` : 'Pick an option'}
-        </PixelButton>
       </div>
     </div>
   );
@@ -903,50 +681,6 @@ function InsightCheck({
             Continue
           </PixelButton>
         )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Evaluation step — the phase summary.
- *
- * The insight question USED to live here. It moved to `InsightCheck`, ahead of
- * the submit, so its answer could be posted with the decision. What is left is
- * what genuinely needs the round to have run.
- */
-function EvaluationStep({
-  phase,
-  onContinue,
-}: {
-  phase: Phase;
-  onContinue: () => void;
-}) {
-  const summary = useGame((s) => selectEvaluationSummary(s as any, phase));
-  const goodPhase = summary.opProfit >= 0;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-start gap-3">
-        <MascotAvatar mood={goodPhase ? 'happy' : 'thinking_side'} size={66} />
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <PixelBadge tone={goodPhase ? 'success' : 'warn'}>
-              Phase {phase} review
-            </PixelBadge>
-          </div>
-          <p className="body-xs text-text-2 leading-snug">
-            {goodPhase
-              ? 'Your decisions paid off this phase.'
-              : 'Profit dipped this phase — check the cost mix before the next one.'}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <PixelButton variant="primary" onClick={onContinue}>
-          Continue
-        </PixelButton>
       </div>
     </div>
   );
