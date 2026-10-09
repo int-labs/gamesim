@@ -48,7 +48,7 @@ import {
 
 export type PixelIconKind =
   | 'cash' | 'profit' | 'revenue' | 'stock' | 'demand' | 'fit' | 'energy'
-  | 'phase' | 'audience' | 'operations' | 'inventory' | 'sales'
+  | 'phase' | 'customers' | 'operations' | 'inventory' | 'sales'
   | 'product' | 'business' | 'results'
   | 'help' | 'close' | 'check' | 'warning' | 'info'
   | 'pen' | 'sparkle' | 'tag' | 'gear' | 'megaphone' | 'box'
