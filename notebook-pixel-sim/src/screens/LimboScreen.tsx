@@ -197,32 +197,15 @@ function DebriefBody({
           Renders nothing when the facilitator wrote no notes. */}
       <RoundNotesCard roundNumber={roundNumber} />
 
-      {/* ── Story opener: effort and money ─────────────────────────────── */}
+      {/* ── Story opener: effort ───────────────────────────────────────── */}
+      {/* "Cash utilization" (opening vs closing balance, with a delta label)
+          was removed here 2026-10-09 — owner's call, no longer useful. It was
+          the only caller of PixelBarChart's `delta` and `fadeLead` props. */}
       <Section title="Total energy consumption" note="Energy spent on levers — hiring, vendors, channels, marketing.">
         <PixelBarChart
           groups={['This round']}
           series={perTeam((t) => figure(t, 'energy'))}
           yLabel="Energy"
-        />
-      </Section>
-
-      <Section title="Cash utilization" note="Opening balance and where it closed.">
-        <PixelBarChart
-          groups={teams.map((t) => t.teamName)}
-          series={[
-            {
-              id: 'open', label: 'Start', color: SERIES_COLORS[0],
-              values: teams.map((t) => figure(t.teamId, 'cashOpening')),
-            },
-            {
-              id: 'close', label: 'End', color: SERIES_COLORS[0],
-              values: teams.map((t) => figure(t.teamId, 'cashClosing')),
-            },
-          ]}
-          delta
-          fadeLead
-          format={shortMoney}
-          yLabel="Cash ($)"
         />
       </Section>
 
@@ -340,38 +323,6 @@ function DebriefBody({
         pick={(bp) => bp?.netProfit ?? null}
       />
 
-      {/* ── Across rounds ──────────────────────────────────────────────────
-          THE ONLY SECTION THAT IS NOT ABOUT THIS ROUND. Every figure above
-          reads `here`; these read all of `rounds`, so they are grouped rather
-          than sat beside their own bar chart — alternating bar/line per metric
-          made the page read as six charts of the same thing.
-
-          Colour is by TEAM here, so the names come from the page legend, not
-          the axis — the opposite of the sign-coloured profit bars above. */}
-      <Section
-        title="Across rounds"
-        note="How each team has moved round to round. Everything else on this page is this round only."
-      >
-        <PixelLineChart
-          points={roundLabels}
-          series={overRounds((t, r) => r.teams[t]?.revenue ?? null)}
-          format={shortMoney}
-          yLabel="Revenue ($)"
-        />
-        <PixelLineChart
-          points={roundLabels}
-          series={overRounds((t, r) => r.teams[t]?.grossProfit ?? null)}
-          format={shortMoney}
-          yLabel="Gross profit ($)"
-        />
-        <PixelLineChart
-          points={roundLabels}
-          series={overRounds((t, r) => r.teams[t]?.netProfit ?? null)}
-          format={shortMoney}
-          yLabel="Net profit ($)"
-        />
-      </Section>
-
       {/* ── 3. Cost ────────────────────────────────────────────────────── */}
       <Section title="Total cost" note="COGS plus operating expenses.">
         <PixelBarChart
@@ -423,6 +374,42 @@ function DebriefBody({
       {products.map((p) => (
         <VocSection key={p.productId} data={data} here={here} product={p} palette={palette} />
       ))}
+
+      {/* ── 7. Across rounds — the wrapper ─────────────────────────────────
+          LAST ON PURPOSE. Everything above answers "what happened this
+          round"; this closes the page by putting those answers back into the
+          run, so the team leaves on the trend rather than on one round's VoC.
+
+          THE ONLY SECTION THAT IS NOT ABOUT THIS ROUND — every figure above
+          reads `here`, these read all of `rounds`. Grouped rather than sat
+          beside each metric's own bar chart: alternating bar/line per metric
+          made the page read as six charts of the same thing.
+
+          Colour is by TEAM here, so the names come from the page legend, not
+          the axis — the opposite of the sign-coloured profit bars above. */}
+      <Section
+        title="Across rounds"
+        note="How each team has moved round to round. Everything else on this page is this round only."
+      >
+        <PixelLineChart
+          points={roundLabels}
+          series={overRounds((t, r) => r.teams[t]?.revenue ?? null)}
+          format={shortMoney}
+          yLabel="Revenue ($)"
+        />
+        <PixelLineChart
+          points={roundLabels}
+          series={overRounds((t, r) => r.teams[t]?.grossProfit ?? null)}
+          format={shortMoney}
+          yLabel="Gross profit ($)"
+        />
+        <PixelLineChart
+          points={roundLabels}
+          series={overRounds((t, r) => r.teams[t]?.netProfit ?? null)}
+          format={shortMoney}
+          yLabel="Net profit ($)"
+        />
+      </Section>
 
       {onContinue && (
         <div className="flex justify-end pt-2 pb-4">
