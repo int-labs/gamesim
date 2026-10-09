@@ -28,10 +28,11 @@ export interface GenreDef {
   /** Display name — the operator's `Product.productName`, or a PlayerConfig override. */
   name: string;
   /**
-   * Total addressable market per phase, from `baseData` `yearlyData[0..3].marketSize`.
+   * Total addressable market, from `baseData` `yearlyData[].marketSize`.
    *
-   * Year `-1` is NOT read. It exists for a printed edition of the copy and has
-   * no meaning on the web, where `p0` is the pre-play baseline.
+   * `p0` IS year `-1` — the pre-play baseline. The playable rounds follow the
+   * server's 0-based `roundNumber`, so `p1..p3` read keys `0,1,2`. See
+   * PHASE_KEYS for the one place that mapping is written.
    */
   demand: { p0: number; p1: number; p2: number; p3: number };
   /** One line on who buys it. */
@@ -56,11 +57,23 @@ export interface GenreDef {
  */
 export const GENRES: GenreDef[] = [];
 
+// THE CHART'S COLUMN → `yearlyData` KEY MAPPING. One table, nowhere else.
+//
+// `yearlyData` runs `-1, 0, 1, 2, 3`: year −1 is the pre-play baseline and the
+// rest are the server's 0-BASED `roundNumber`. Client phases are 1-based, so
+// round 0 is Phase 1.
+//
+// This used to read `0,1,2,3` and label key `'0'` as "Pre", which drew round 0
+// as the pre-play market and shifted every other column down a phase. Verified
+// against the DB 2026-10-08: −1 is the smallest figure in every product row.
+//
+// Key `'3'` is authored but unread — every live simulation has `totalRounds: 3`
+// (rounds 0,1,2). A 4-round simulation would need a fifth column here.
 const PHASE_KEYS = [
-  ['p0', '0'],
-  ['p1', '1'],
-  ['p2', '2'],
-  ['p3', '3'],
+  ['p0', '-1'],
+  ['p1', '0'],
+  ['p2', '1'],
+  ['p3', '2'],
 ] as const;
 
 /** `baseData` market curve for one product, zeroed when the operator has none. */

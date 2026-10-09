@@ -46,10 +46,9 @@ import { PixelBadge } from '@/components/primitives';
 // `driverAxes` for what that broke. Hints come from the operator too, via
 // PlayerConfig's `drivers` section.
 
-// `p0` is labelled "Pre" — it is the market BEFORE the run starts, which is what
-// the player is reading it as. There used to be a fifth column ahead of it for
-// the sheet's year −1; that column belongs to a printed edition of the copy and
-// said nothing here, so two adjacent columns both read as "before we began".
+// `p0` is "Pre", the market BEFORE the run starts. It reads `yearlyData['-1']`
+// — NOT key '0', which is round 0, i.e. Phase 1. The key mapping lives in
+// PHASE_KEYS in genres.ts; these are only the labels.
 const PHASES = [
   { key: 'p0', label: 'Pre' },
   { key: 'p1', label: 'P1' },
