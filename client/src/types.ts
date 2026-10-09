@@ -224,7 +224,18 @@ export interface DebriefTeamProductDto {
   marketFit: number | null;
   /** `customersObtained / Σ customersObtained` — share of customers WON. */
   marketShare: number | null;
+  /** Per-notebook profit. These SUM to the team-level `grossProfit` /
+   *  `netProfit` — the server derives those from exactly these keys, so a
+   *  breakdown column always totals to its bar. */
+  grossProfit: number | null;
+  netProfit: number | null;
+  /** The server's 0..1 pricing score. ⚠ NOT what the player is shown as
+   *  "product score" — that is `dynamicPrice` below. */
   productScore: number | null;
+  /** The UNNORMALISED product score: what the spec decisions are WORTH, and
+   *  the centre the pricing curve pivots on. Runs 0..12.5, so the player
+   *  client shows it ×8 for a 0..100 reading. */
+  dynamicPrice: number | null;
   sellingPrice: number | null;
   fieldValues: Record<string, number>;
 }

@@ -404,8 +404,17 @@ export interface DebriefTeamProductDto {
   inventoryQty: number | null;
   closingStock: number | null;
   marketShare: number | null;
+  /** Per-notebook profit. These SUM to the team-level `grossProfit` /
+   *  `netProfit` — the server derives those from exactly these keys, so a
+   *  breakdown column always totals to its bar. */
+  grossProfit: number | null;
+  netProfit: number | null;
   /** The server's 0..1 pricing score — already normalised, read as-is. */
   productScore: number | null;
+  /** The UNNORMALISED product score — what the spec decisions are worth, and
+   *  what the HUD chip shows ×8. Run it through
+   *  `productScoreFromDynamicPrice`, never a local `* 8`. */
+  dynamicPrice: number | null;
   sellingPrice: number | null;
   /** fieldId → raw submitted value. */
   fieldValues: Record<string, number>;

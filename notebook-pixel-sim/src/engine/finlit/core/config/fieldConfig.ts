@@ -263,6 +263,36 @@ export const priceSensitivityFromBounds = (
   };
 };
 
+/**
+ * PRODUCT SCORE, as the player is shown it: `dynamicPrice × 8`, out of 100.
+ *
+ * `dynamicPrice` IS the unnormalised product score — `calcFinancials` builds it
+ * as `Σ (resolved × bellFactor × direction)` over the priced spec fields, and
+ * `Σ productScoreBreakdown === dynamicPrice` by construction. It runs 0..12.5,
+ * so ×8 reads it out of 100.
+ *
+ * The owner's note on the scale, kept verbatim from its first home in
+ * `CanvasStatusStrip`:
+ *   value is multiplied by 2^3 as 2^3 only reverts resulting product score
+ *   from the /4 derived from the sigma value.
+ *   actual x4 means it's 2^3 as opposed to 2^2
+ *
+ * ONE definition, two surfaces — the HUD chip while the player designs, and the
+ * round debrief afterwards. They must read the same number or "product score"
+ * names two different things across one run.
+ *
+ * ⚠ NOT the server's `productScore` field, which is 0..1 and measures how the
+ * asking price sits against `dynamicPrice` as its centre.
+ */
+export const PRODUCT_SCORE_SCALE = 8;
+
+export const productScoreFromDynamicPrice = (
+  dynamicPrice: number | null | undefined,
+): number | null =>
+  typeof dynamicPrice === 'number' && Number.isFinite(dynamicPrice)
+    ? dynamicPrice * PRODUCT_SCORE_SCALE
+    : null;
+
 /** By GENRE ID — not a product name. `fieldCfg` misses on a product name and
  *  returns defaults silently, which type-checks and is wrong. */
 export const priceSensitivity = (genre: string): PriceSensitivity => {

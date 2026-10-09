@@ -96,9 +96,20 @@ export interface DebriefTeamProduct {
   marketFit:         number | null;
   /** `customersObtained / Σ customersObtained` — the share of customers WON. */
   marketShare:       number | null;
+  /** Per-notebook profit, the breakdown of the team-level figures above: these
+   *  sum to `DebriefTeamRound.grossProfit` / `.netProfit` by construction, both
+   *  being `sumScored` over exactly these keys. `netProfit` is the scored
+   *  `operatingProfit`, renamed to match the team-level name. */
+  grossProfit:       number | null;
+  netProfit:         number | null;
   /** The server's 0..1 pricing score. Already normalised, so it is READ, not
    *  recomputed — it is what drives `customersObtained`. */
   productScore:      number | null;
+  /** What the spec decisions are WORTH: `Σ (resolved × bellFactor × direction)`
+   *  over the priced fields, and the centre the pricing curve pivots on.
+   *  ⚠ This — not `productScore` — is what the player is shown as "product
+   *  score", scaled ×8 for a 0..100 reading. The two are different numbers. */
+  dynamicPrice:      number | null;
   sellingPrice:      number | null;
   /** fieldId → the team's submitted value. The client normalises it against
    *  the matching `DebriefField` bounds; see the header. */
@@ -231,7 +242,10 @@ function productBlock(
     closingStock:      sc ? num(sc.closingStock) : null,
     marketFit:         sc ? num(sc.marketFit) : null,
     marketShare:       sc ? num(sc.marketShare) : null,
+    grossProfit:       sc ? num(sc.grossProfit) : null,
+    netProfit:         sc ? num(sc.operatingProfit) : null,
     productScore:      sc ? num(sc.productScore) : null,
+    dynamicPrice:      sc ? num(sc.dynamicPrice) : null,
     sellingPrice:      sc ? num(sc.sellingPrice) : null,
     fieldValues,
   };

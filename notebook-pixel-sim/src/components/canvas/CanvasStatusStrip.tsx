@@ -2,6 +2,7 @@ import { useGame } from '@/state/store';
 import { fmt$, fmtInt } from '@/utils/format';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import { computeUserProjection } from '@/gamesim/computeUserProjection';
+import { productScoreFromDynamicPrice } from '@/engine/finlit/core/config/fieldConfig';
 import type { ServerProjectionResult } from '@/gamesim/sync';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Tooltip } from '@/components/primitives/Tooltip';
@@ -54,10 +55,9 @@ export function CanvasStatusStrip({ liveProjection }: { liveProjection: ServerPr
   const activeProductId = (lines.find((l) => l.id === activeLineId) ?? lines[0])?.productId;
   const dynamicPrice = liveProjection?.byProduct
     ?.find((p) => p.productId === activeProductId)?.dynamicPrice;
-  // ×4 is the owner's presentation scale — no model term multiplies by 4.
-  // value is multiplied by 2^3 as 2^3 only reverts resulting product score from the /4 derived from the sigma value. 
-  // actual x4 means it's 2^3 as opposed to 2^2
-  const productScore = dynamicPrice == null ? null : dynamicPrice * 8;
+  // The scale lives with the formula now — the round debrief shows this same
+  // figure, and two copies of `* 8` is how they would come to disagree.
+  const productScore = productScoreFromDynamicPrice(dynamicPrice);
 
   return (
     // `gap-2`, matching the Energy/Cash group in TopHUD — these are the same

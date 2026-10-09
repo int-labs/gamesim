@@ -23,6 +23,11 @@ export interface BarSeries {
   /** One value per group, index-aligned to `groups`. `null` = no figure, which
    *  draws NOTHING rather than a zero-height bar sitting on the axis. */
   values: (number | null)[];
+  /** Optional per-bar colour, index-aligned to `values`, falling back to
+   *  `color`. For charts that colour by the VALUE — a profit sign — rather than
+   *  by series identity. A series using this is not colour-coding teams, so its
+   *  caller must name them on the axis. */
+  colors?: (string | null)[];
 }
 
 interface Props {
@@ -114,14 +119,17 @@ export function PixelBarChart({
               const top = Math.min(y(v), zeroY);
               const h = Math.abs(y(v) - zeroY);
               const faded = fadeLead && si < series.length - 1;
+              // The label takes the BAR's colour, not the series', or a
+              // sign-coloured chart would print a loss in the positive hue.
+              const fill = s.colors?.[gi] ?? s.color;
               return (
                 <g key={s.id}>
                   <rect x={x} y={top} width={barW} height={Math.max(1, h)}
-                        fill={s.color} fillOpacity={faded ? 0.4 : 1}
+                        fill={fill} fillOpacity={faded ? 0.4 : 1}
                         stroke={CHART_INK.paper} strokeWidth={1} />
                   {!delta && (
                     <text x={x + barW / 2} y={v >= 0 ? top - 3 : top + h + 8}
-                          textAnchor="middle" className="chart-label" fill={s.color}>
+                          textAnchor="middle" className="chart-label" fill={fill}>
                       {format(v)}
                     </text>
                   )}

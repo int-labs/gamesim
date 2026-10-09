@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getRoundDebrief, getStoredSession, GamesimApiError } from '@/gamesim/client';
-import type { RoundDebriefDto } from '@/gamesim/types';
+import type { DebriefTeamProductDto, RoundDebriefDto } from '@/gamesim/types';
 import { PixelPanel } from '@/components/primitives';
 import { ChartLegend, type LegendEntry } from '@/components/charts/ChartLegend';
 import { PixelBarChart, type BarSeries } from '@/components/charts/PixelBarChart';
@@ -10,11 +10,16 @@ import { PixelBubbleChart, type Bubble } from '@/components/charts/PixelBubbleCh
 import { PixelVocPlot, type VocRow } from '@/components/charts/PixelVocPlot';
 import {
   SERIES_COLORS,
+  SIGN_COLORS,
   buildTeamPalette,
   colorFor,
   shortMoney,
 } from '@/components/charts/chartTheme';
-import { priceSensitivityFromBounds } from '@/engine/finlit/core/config/fieldConfig';
+import {
+  priceSensitivityFromBounds,
+  productScoreFromDynamicPrice,
+} from '@/engine/finlit/core/config/fieldConfig';
+import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
 
 /**
@@ -186,6 +191,12 @@ function DebriefBody({
 
       <LearningPoint roundNumber={roundNumber} />
 
+      {/* Moved here 2026-10-08 from the deleted "Phase N complete" step, which
+          was its only call site. Takes the DEBRIEF's round explicitly — the
+          default reads `bootstrap.round`, which by now is the NEXT round.
+          Renders nothing when the facilitator wrote no notes. */}
+      <RoundNotesCard roundNumber={roundNumber} />
+
       {/* ── Story opener: effort and money ─────────────────────────────── */}
       <Section title="Total energy consumption" note="Energy spent on levers — hiring, vendors, channels, marketing.">
         <PixelBarChart
@@ -216,10 +227,13 @@ function DebriefBody({
       </Section>
 
       {/* ── 1. Revenue ─────────────────────────────────────────────────── */}
-      <Section title="Total revenue">
-        <PixelLineChart
-          points={roundLabels}
-          series={overRounds((t, r) => r.teams[t]?.revenue ?? null)}
+      {/* PER ROUND, one bar per team — not the across-rounds line it was until
+          2026-10-09. Team identity is colour plus the header legend, which is
+          how "Total energy consumption" above already reads. */}
+      <Section title="Total revenue" note="What each team took in this round.">
+        <PixelBarChart
+          groups={['This round']}
+          series={perTeam((t) => figure(t, 'revenue'))}
           format={shortMoney}
           yLabel="Revenue ($)"
         />
@@ -242,17 +256,114 @@ function DebriefBody({
         }))} />
       </Section>
 
+      {/* THE SAME NUMBER THE HUD CHIP SHOWED while the player was designing —
+          `dynamicPrice` through `productScoreFromDynamicPrice`, out of 100.
+          Reading the server's `productScore` here instead would put a second,
+          unrelated 0..1 figure under the same word. */}
+      <Section
+        title="Product score by notebook"
+        note="Out of 100 per notebook, the same score shown while designing. A team that made several notebooks stacks several scores."
+      >
+        <PixelColumnStack
+          columns={teams.map((t) => t.teamName)}
+          slices={products.map((p, i) => ({
+            id: p.productId,
+            label: p.productName,
+            color: SERIES_COLORS[i % SERIES_COLORS.length],
+            values: teams.map((t) =>
+              productScoreFromDynamicPrice(
+                here?.teams[t.teamId]?.byProduct[p.productId]?.dynamicPrice,
+              ),
+            ),
+          }))}
+          format={(n) => n.toFixed(1)}
+          yLabel="Product score (/100)"
+        />
+        <ChartLegend entries={products.map((p, i) => ({
+          id: p.productId, label: p.productName, color: SERIES_COLORS[i % SERIES_COLORS.length],
+        }))} />
+      </Section>
+
       {/* ── 2. Profit ──────────────────────────────────────────────────── */}
-      <Section title="Gross profit">
+      {/* COLOURED BY SIGN, not by team — so the teams are named on the axis
+          here. The page legend maps team → colour and would be wrong for this
+          chart. Gross profit; net profit belongs to the profit breakdown. */}
+      <Section title="Total profit" note="Gross profit this round. A loss is drawn in red.">
+        <PixelBarChart
+          groups={teams.map((t) => t.teamName)}
+          series={[{
+            id: 'grossProfit',
+            label: 'Gross profit',
+            color: SIGN_COLORS.positive,
+            values: teams.map((t) => figure(t.teamId, 'grossProfit')),
+            colors: teams.map((t) => {
+              const v = figure(t.teamId, 'grossProfit');
+              return v == null ? null : v >= 0 ? SIGN_COLORS.positive : SIGN_COLORS.negative;
+            }),
+          }]}
+          format={shortMoney}
+          yLabel="Gross profit ($)"
+        />
+      </Section>
+
+      <ProfitBreakdown
+        title="Gross profit by notebook"
+        teams={teams}
+        products={products}
+        here={here}
+        pick={(bp) => bp?.grossProfit ?? null}
+      />
+
+      <Section title="Total net profit" note="After operating expenses. A loss is drawn in red.">
+        <PixelBarChart
+          groups={teams.map((t) => t.teamName)}
+          series={[{
+            id: 'netProfit',
+            label: 'Net profit',
+            color: SIGN_COLORS.positive,
+            values: teams.map((t) => figure(t.teamId, 'netProfit')),
+            colors: teams.map((t) => {
+              const v = figure(t.teamId, 'netProfit');
+              return v == null ? null : v >= 0 ? SIGN_COLORS.positive : SIGN_COLORS.negative;
+            }),
+          }]}
+          format={shortMoney}
+          yLabel="Net profit ($)"
+        />
+      </Section>
+
+      <ProfitBreakdown
+        title="Net profit by notebook"
+        teams={teams}
+        products={products}
+        here={here}
+        pick={(bp) => bp?.netProfit ?? null}
+      />
+
+      {/* ── Across rounds ──────────────────────────────────────────────────
+          THE ONLY SECTION THAT IS NOT ABOUT THIS ROUND. Every figure above
+          reads `here`; these read all of `rounds`, so they are grouped rather
+          than sat beside their own bar chart — alternating bar/line per metric
+          made the page read as six charts of the same thing.
+
+          Colour is by TEAM here, so the names come from the page legend, not
+          the axis — the opposite of the sign-coloured profit bars above. */}
+      <Section
+        title="Across rounds"
+        note="How each team has moved round to round. Everything else on this page is this round only."
+      >
+        <PixelLineChart
+          points={roundLabels}
+          series={overRounds((t, r) => r.teams[t]?.revenue ?? null)}
+          format={shortMoney}
+          yLabel="Revenue ($)"
+        />
         <PixelLineChart
           points={roundLabels}
           series={overRounds((t, r) => r.teams[t]?.grossProfit ?? null)}
           format={shortMoney}
           yLabel="Gross profit ($)"
         />
-      </Section>
-
-      <Section title="Net profit">
         <PixelLineChart
           points={roundLabels}
           series={overRounds((t, r) => r.teams[t]?.netProfit ?? null)}
@@ -306,7 +417,7 @@ function DebriefBody({
       </Section>
 
       {/* ── 5. TnO ─────────────────────────────────────────────────────── */}
-      <TnOBreakdown data={data} here={here} palette={palette} />
+      <TnOBreakdown data={data} here={here} />
 
       {/* ── 6. Voice of Customer ───────────────────────────────────────── */}
       {products.map((p) => (
@@ -357,6 +468,44 @@ function LearningPoint({ roundNumber }: { roundNumber: number }) {
 
 /* ── Sections that need their own derivation ─────────────────────────── */
 
+/**
+ * A profit breakdown stacked by notebook — gross and net take the same shape,
+ * differing only in which figure they pick, so they share one component rather
+ * than two near-identical blocks that could drift apart.
+ *
+ * Losses stack DOWNWARD from zero on their own running base; `PixelColumnStack`
+ * keeps `basePos`/`baseNeg` separately for exactly this, so a loss-making
+ * notebook draws below the line instead of punching a gap in the column.
+ */
+function ProfitBreakdown({
+  title, teams, products, here, pick,
+}: {
+  title: string;
+  teams: RoundDebriefDto['teams'];
+  products: RoundDebriefDto['products'];
+  here: RoundDebriefDto['rounds'][number] | null;
+  pick: (bp: DebriefTeamProductDto | undefined) => number | null;
+}) {
+  const slices: StackSlice[] = products.map((p, i) => ({
+    id: p.productId,
+    label: p.productName,
+    color: SERIES_COLORS[i % SERIES_COLORS.length],
+    values: teams.map((t) => pick(here?.teams[t.teamId]?.byProduct[p.productId])),
+  }));
+
+  return (
+    <Section title={title} note="Each team's profit split across the notebooks they made.">
+      <PixelColumnStack
+        columns={teams.map((t) => t.teamName)}
+        slices={slices}
+        format={shortMoney}
+        yLabel="Profit ($)"
+      />
+      <ChartLegend entries={slices.map((s) => ({ id: s.id, label: s.label, color: s.color }))} />
+    </Section>
+  );
+}
+
 /** Cost categories are OPERATOR FREE TEXT — collected from the data, never a
  *  hardcoded list, or renaming a row on the console silently drops a band. */
 function CostBreakdown({
@@ -380,26 +529,33 @@ function CostBreakdown({
   }));
 
   return (
-    <Section title="Total cost breakdown" note="Cost rows as the facilitator named them.">
+    <Section title="Money allocation" note="This round's expenses, in the rows the facilitator named them.">
       <PixelColumnStack
         columns={data.teams.map((t) => t.teamName)}
         slices={slices}
         format={shortMoney}
-        yLabel="Cost ($)"
+        yLabel="Expenses ($)"
       />
       <ChartLegend entries={slices.map((s) => ({ id: s.id, label: s.label, color: s.color }))} />
     </Section>
   );
 }
 
-/** Lever investment, one chart per container — hiring, vendors, marketing and
- *  channels each get their own, as the operator asked. */
+/**
+ * ENERGY ALLOCATION — the twin of the money allocation above, deliberately the
+ * same shape: one column per team, stacked by lever container.
+ *
+ * It was grouped bars with LEVERS on the axis until 2026-10-09. That answered
+ * "who spent most on hiring"; stacking answers "where did each team's energy
+ * go", which is the question the money chart next to it asks of cash. Lever
+ * names are the container as snapshotted on the decision, so they are operator
+ * free text — collected from the data, never hardcoded.
+ */
 function TnOBreakdown({
-  data, here, palette,
+  data, here,
 }: {
   data: RoundDebriefDto;
   here: RoundDebriefDto['rounds'][number] | null;
-  palette: Map<string, string>;
 }) {
   const levers = useMemo(() => {
     const seen = new Set<string>();
@@ -411,18 +567,21 @@ function TnOBreakdown({
 
   if (levers.length === 0) return null;
 
+  const slices: StackSlice[] = levers.map((l, i) => ({
+    id: l,
+    label: l,
+    color: SERIES_COLORS[i % SERIES_COLORS.length],
+    values: data.teams.map((t) => here?.teams[t.teamId]?.energyByLever[l] ?? null),
+  }));
+
   return (
-    <Section title="Investment level of operations" note="Energy committed to each kind of lever.">
-      <PixelBarChart
-        groups={levers}
-        series={data.teams.map((t) => ({
-          id: t.teamId,
-          label: t.teamName,
-          color: colorFor(palette, t.teamId),
-          values: levers.map((l) => here?.teams[t.teamId]?.energyByLever[l] ?? null),
-        }))}
+    <Section title="Energy allocation" note="Energy committed to each kind of lever this round.">
+      <PixelColumnStack
+        columns={data.teams.map((t) => t.teamName)}
+        slices={slices}
         yLabel="Energy"
       />
+      <ChartLegend entries={slices.map((s) => ({ id: s.id, label: s.label, color: s.color }))} />
     </Section>
   );
 }
@@ -499,6 +658,15 @@ function VocSection({
 
     return { id: f.fieldId, label: f.label, weight, dots };
   });
+
+  // WEIGHT DESCENDING — the heaviest driver is most of the answer, matching the
+  // competitor report's rule in `reportMatrix.ts`. `sort` is stable and the wire
+  // already arrives in the operator's authored `order`, so ties hold it.
+  //
+  // Sorted on the EFFECTIVE weight, not raw `direction`: `selling_price` carries
+  // direction 0 and takes its tick from `priceSensitivityFromBounds`, so sorting
+  // the raw field would bury the one spec whose weight was substituted.
+  rows.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
 
   if (rows.length === 0) return null;
 

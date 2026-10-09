@@ -16,7 +16,6 @@ import { PixelModal } from '@/components/primitives/PixelModal';
 import { PixelButton, PixelBadge } from '@/components/primitives';
 import { CostTiles, type CostTile } from '@/components/primitives/CostTiles';
 import { MascotAvatar } from '@/components/mascot/MascotAvatar';
-import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { PixelIcon, PixelIconKind } from '@/components/icons/PixelIcon';
 import clsx from 'clsx';
 import {
@@ -51,7 +50,7 @@ const phaseEndDay = (phase: number) => phase * DAYS_PER_PHASE;
  * decision had already been posted, so persisting it needed a second endpoint
  * and left a window where a round existed with no insight attached.
  */
-type Step = 'preview' | 'insight' | 'simulating' | 'result';
+type Step = 'preview' | 'insight' | 'simulating';
 
 interface Props {
   open: boolean;
@@ -68,11 +67,12 @@ interface Props {
 /**
  * Phase Sequence Modal — single coordinated flow that handles:
  *
- *   preview → insight → simulating → result
+ *   preview → insight → simulating → (closes straight into the limbo debrief)
  *
- * EVENTS, KEY SCENARIOS AND THE PHASE-REVIEW SLIDE WERE REMOVED (2026-10-08,
- * QA's call) — the branching options taught nothing the rest of the game
- * builds on.
+ * EVENTS, KEY SCENARIOS, THE PHASE-REVIEW SLIDE AND THE "PHASE N COMPLETE"
+ * STEP WERE REMOVED (2026-10-08, QA's call) — the branching options taught
+ * nothing the rest of the game builds on, and the completion step announced a
+ * cash delta behind one button that the limbo debrief reports properly.
  *
  * The event step was already unreachable: nothing in the codebase ever assigns
  * `meta.pendingEventId` a non-null value — `applyEventChoice` only clears it.
@@ -285,7 +285,15 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
         : ['#CB6356', '#DDA655', '#8A765D'],
       ticks: 200,
     });
-    setStep('result');
+    // STRAIGHT TO THE DEBRIEF. There is no "Phase N complete" step any more —
+    // it announced a cash delta and offered one button, and the limbo debrief
+    // is the screen that actually reports the round.
+    //
+    // `meta.ended` is the end-of-run signal, set by `advanceFinlitPhase` on
+    // `phase >= totalRounds` a moment ago. This used to test `phaseAtOpen === 3`,
+    // which disagrees with the engine on any run that is not three rounds long.
+    onClose();
+    setScreen(useGame.getState().meta.ended ? 'final' : 'limbo');
   };
 
   // ─── Evaluation ─────────────────────────────────────────────────────────
@@ -331,30 +339,12 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     setInsightRevealed(true);
   };
 
-  const onResultContinue = () => {
-    playSfx('whoosh');
-    const wasFinalPhase = phaseAtOpen === 3;
-    if (wasFinalPhase) {
-      apply((s) => { s.meta.ended = true; });
-      onClose();
-      setScreen('final');
-    } else {
-      // LIMBO, not straight to the next phase. The round's decisions are in and
-      // the team now reads its debrief; `LimboScreen`'s Continue is what reaches
-      // `phase_intro`. A round the operator has not calculated yet renders as
-      // "waiting" there rather than blocking here.
-      onClose();
-      setScreen('limbo');
-    }
-  };
-
   // ─── Render ─────────────────────────────────────────────────────────────
 
   const stepIndex =
     step === 'preview' ? 1 :
     step === 'insight' ? 2 :
-    step === 'simulating' ? 3 :
-    4;
+    3;
 
   return (
     <PixelModal
@@ -366,7 +356,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
           <span>Phase {phaseAtOpen} simulation</span>
           <span className="text-text-3 font-normal">·</span>
           <span className="body-xs text-text-3">
-            Step {stepIndex} of 4
+            Step {stepIndex} of 3
           </span>
         </span>
       }
@@ -523,18 +513,6 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
           </div>
         )}
 
-        {step === 'result' && (
-          <div className="flex flex-col gap-3">
-            <ResultStep
-              phaseJustFinished={phaseAtOpen}
-              cashStart={cashAtOpen}
-              onContinue={onResultContinue}
-            />
-            {/* Anything the facilitator wrote for this round. Renders nothing
-                when there are no notes, so the phase result is unchanged. */}
-            <RoundNotesCard />
-          </div>
-        )}
       </motion.div>
     </PixelModal>
   );
@@ -681,59 +659,6 @@ function InsightCheck({
             Continue
           </PixelButton>
         )}
-      </div>
-    </div>
-  );
-}
-
-/* Result step - phase summary + continue. */
-function ResultStep({
-  phaseJustFinished,
-  cashStart,
-  onContinue,
-}: {
-  phaseJustFinished: Phase;
-  cashStart: number;
-  onContinue: () => void;
-}) {
-  const cashNow = useGame((s) => s.player.cash);
-  const cashDelta = cashNow - cashStart;
-  const ended = useGame((s) => s.meta.ended) || phaseJustFinished === 3;
-  const positive = cashDelta >= 0;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-start gap-3">
-        <MascotAvatar mood={positive ? 'excited_big' : 'concerned_soft'} size={76} />
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <PixelBadge tone={positive ? 'success' : 'warn'}>
-              Phase {phaseJustFinished} complete
-            </PixelBadge>
-          </div>
-          <p className="body-sm text-text leading-snug">
-            {positive
-              ? `Nice run. Cash went up ${fmt$(cashDelta)} this phase.`
-              : `Cash dipped ${fmt$(Math.abs(cashDelta))} this phase - open the P&L below to diagnose.`}
-            {!ended && ` Ready for Phase ${phaseJustFinished + 1}?`}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Stat icon="cash" label="Cash now" value={fmt$(cashNow)} tone="cash" />
-        <Stat
-          icon="profit"
-          label="Phase change"
-          value={`${cashDelta >= 0 ? '+' : ''}${fmt$(cashDelta)}`}
-          tone={positive ? 'cash' : 'warn'}
-        />
-      </div>
-
-      <div className="flex justify-end pt-1">
-        <PixelButton variant="primary" size="lg" onClick={onContinue}>
-          {ended ? 'See final results' : `Continue to Phase ${phaseJustFinished + 1}`}
-        </PixelButton>
       </div>
     </div>
   );

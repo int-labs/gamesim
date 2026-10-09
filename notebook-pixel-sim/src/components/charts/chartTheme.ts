@@ -55,6 +55,21 @@ export function buildTeamPalette(teamIds: readonly string[]): Map<string, string
   return out;
 }
 
+/**
+ * Colour by the SIGN of the value, for charts where a loss must read as a loss.
+ *
+ * Drawn from the series palette rather than the app's success/danger greens:
+ * every other mark on the debrief sheet is in these colours, and a lone green
+ * bar would read as a different KIND of thing rather than a positive one.
+ *
+ * A chart using these is no longer colouring by team, so it must name its teams
+ * on the axis instead of relying on the page legend.
+ */
+export const SIGN_COLORS = {
+  positive: SERIES_COLORS[0],
+  negative: SERIES_COLORS[3],
+} as const;
+
 /** A colour for a team that the palette has never seen — a defensive fallback,
  *  not a normal path. Grey reads as "unassigned" rather than as a rival. */
 export const UNKNOWN_SERIES = '#8C8C8C';
