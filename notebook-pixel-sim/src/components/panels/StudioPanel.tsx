@@ -15,7 +15,7 @@ import {
   vendorStep, vendorQuality, vendorCoversProduct, VENDOR_IMAGE,
 } from '@/engine/finlit/core/config/vendors';
 import type { GlobalInputItemDto } from '@/gamesim/types';
-import { impactFor, stepControlFor, stepIndexForSpend } from '@/gamesim/impacts';
+import { impactFor, INVESTMENT_LEVELS, investmentLevelLabel } from '@/gamesim/impacts';
 import { canSpend, selectCashBalance } from '@/engine/selectors';
 import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 import { fmt$, fmtPct } from '@/utils/format';
@@ -26,6 +26,7 @@ import { PixelModal } from '@/components/primitives/PixelModal';
 import { CostTiles, ImpactList, type CostTile } from '@/components/primitives/CostTiles';
 import { PixelButton } from '@/components/primitives';
 import { SafeImage } from '@/components/primitives/SafeImage';
+import type { PixelIconKind } from '@/components/icons/PixelIcon';
 import { A } from '@/assets';
 import { studyFor, type CaseStudy } from '@/content/finlitCaseStudies';
 import { OpsSection, StatChip } from './OperationsKit';
@@ -171,7 +172,9 @@ export function StudioPanel({
   // server's pairing, not by portfolio order.
   const activeProj =
     liveProjection?.byProduct.find((p) => p.productId === activeLine?.productId) ?? null;
-  const projDynamicCost = activeProj?.dynamicCost ?? null;
+  // `projDynamicCost` was read here for the R&D breakeven chip — "units to sell
+  // for the cost saving to cover the wage". That chip went with the roster card
+  // on 2026-10-15; the lever carries three chips and no fourth.
   // The cash gate needs every line's ceiling and unit cost — the build is part
   // of what the round has already committed.
   const cashByProduct = liveProjection?.byProduct ?? null;
@@ -203,6 +206,10 @@ export function StudioPanel({
   const vendorGI  = availableGlobalInputs.find((g) => g.key === 'supply_chain');
   const channelMaxSelections = channelGI?.maxSelections ?? 1;
   const hiringMaxSelections  = hiringGI?.maxSelections ?? 3;
+  // How many investments are FUNDED, for the selection cap. A selection whose
+  // step is the off step is not one, so this counts live selections rather than
+  // the length of `hireSelections`.
+  const hiringActiveCount = hireSelections.filter((sel) => sel.selectedStepKey != null).length;
   // ── Marketing budget ────────────────────────────────────────────────────
   //
   // The lever's domain is the ITEM'S OWN `options` keys. It used to be a raw
@@ -246,9 +253,9 @@ export function StudioPanel({
   const marketingActiveCount = marketingLevers.filter((l) => l.active).length;
 
   const [pending, setPending] = useState<Pending | null>(null);
-  // Raw text per candidate so the field can be empty mid-typing; it is parsed
-  // and clamped before anything reaches the engine.
-  const [levelDraft, setLevelDraft] = useState<Record<string, string>>({});
+  // `levelDraft` held the raw text of the typed level/investment field so it
+  // could be empty mid-typing. Deleted 2026-10-15 with the field: a slider has
+  // no intermediate state to hold.
   /* `detailOpen` / `detailTab` and the `closeAllPopups` that cleared them went
      with the details sheet on 2026-10-05. The case-study gate (`pending`) is
      the only popup this panel owns now, so it is closed directly — if a second
@@ -306,10 +313,12 @@ export function StudioPanel({
     const nextKey = next && next.multiplier !== 0 ? next.stepKey : null;
     if (nextKey === curKey) return;
 
+    // NO `recalc` IN HERE. This runs per slider tick; the projection fires once
+    // from the lever's `onCommit` when the pointer is released, which is the
+    // "interaction END" rule every other decision control follows.
     if (nextKey == null) {
       apply((s) => clearFinlitHire(s, item));
       playSfx('click-soft');
-      recalc?.(`hire released · ${item.key}`);
       return;
     }
 
@@ -339,8 +348,9 @@ export function StudioPanel({
         };
       }
     });
-    playSfx(ok ? 'confirm' : 'fail');
-    if (ok) recalc?.(`hire committed · ${item.key}`);
+    // 'tick' per step, like the marketing lever — 'confirm' on every notch of a
+    // drag is a fanfare for a continuous control.
+    playSfx(ok ? 'tick' : 'fail');
   };
 
   const commit = () => {
@@ -623,21 +633,19 @@ export function StudioPanel({
       {shows('hiring') && (
       <OpsSection
         icon={SECTION_ICON.hiring}
-        title="Hiring"
+        title="Investment Level"
         hint={
           // Two things the per-phase figures do not say on their own, and both
           // change what the number means:
-          //   1. a hire is NOT one-off — nothing clears `finlit.hire` at phase
-          //      rollover, so a Phase 1 hire keeps charging through 2 and 3.
-          //      "$150" read as one-time understates the commitment 3x.
-          //   2. the figures assume a whole 30-day phase. Hire on day 25 and
+          //   1. an investment is NOT one-off — nothing clears `finlit.hire` at
+          //      phase rollover, so a Phase 1 commitment keeps charging through
+          //      2 and 3. "$150" read as one-time understates it 3x.
+          //   2. the figures assume a whole 30-day phase. Commit on day 25 and
           //      you buy 6 days of it, so surface the shortfall rather than
           //      quietly overstating what the money buys.
-          // Kept short: the section header scrolls under the floating
-          // PRODUCT/BUSINESS nav, which clips a long second line.
           daysLeftInPhase < DAYS_PER_PHASE
             ? `Costs are per phase and recur while engaged - ${daysLeftInPhase}d left, figures show a full phase.`
-            : 'One at a time. Costs are per phase and recur while engaged.'
+            : 'Costs are per phase and recur while engaged. Slide back to (none) to stop and refund the energy.'
         }
       >
         {/* Two columns from xl. Four candidates stacked full-width left each
@@ -653,8 +661,7 @@ export function StudioPanel({
             const itemId = String(item._id);
             const steps = hireSteps(item);
             const engagedSel = hireSelections.find((sel) => sel.inputId === itemId);
-            const engaged = engagedSel != null;
-            const engagedIdx = engaged
+            const engagedIdx = engagedSel
               ? steps.findIndex((s) => s.stepKey === engagedSel.selectedStepKey)
               : -1;
             // 0-BASED, like the marketing lever. `options` now carries a `"0"`
@@ -662,33 +669,17 @@ export function StudioPanel({
             // ladder runs 0..n rather than starting at the first paid tier.
             // There is no separate "off" state to model any more — the
             // configuration expresses it.
-            const curIdx = engagedIdx >= 0 ? engagedIdx : 0;
-            const maxIdx = Math.max(0, steps.length - 1);
-            // WHAT THE PLAYER TYPES. Read off the item's impact, never its key
-            // — `dynamic_cost` is bought by spending, so R&D's handle is the
-            // COST and the tier is the consequence; everything else keeps the
-            // level. See IMPACT_PRESENTATION.stepControl.
-            const control = stepControlFor(item);
-            const costs = steps.map((s) => s.cost);
-            // MONEY IS SHOWN AT 2dp AND NEVER ROUNDED UP. `cost` is
-            // `item.cost × multiplier`, so a multiplier like 1.06 gives
-            // 5.300000000000001 — the raw float belongs in the arithmetic, not
-            // in a field the player reads or types into. `toFixed(2)` for
-            // DISPLAY only; `commitHire` still prices the delta off the raw
-            // value, and `Math.ceil` must never touch a cost.
-            const money2 = (n: number) => n.toFixed(2);
-            const draftRaw =
-              levelDraft[itemId] ??
-              (control === 'cost' ? money2(costs[curIdx] ?? 0) : String(curIdx));
-            const parsed = Number(draftRaw);
-            const idx =
-              control === 'cost'
-                ? stepIndexForSpend(costs, parsed)
-                : Number.isFinite(parsed)
-                ? Math.min(maxIdx, Math.max(0, Math.trunc(parsed)))
-                : 0;
-            const lv = steps[idx] ?? null;
-            // Index 0 is the OFF step — nothing to buy, so nothing to commit.
+            // THE LADDER STOPS AT THE LAST NAMED LEVEL. Both items configure a
+            // seventh step (`options["6"]`) the owner chose not to offer, so
+            // the ceiling is whichever runs out first: the operator's steps or
+            // the names in INVESTMENT_LEVELS. Naming a sixth level opens it.
+            const maxIdx = Math.min(INVESTMENT_LEVELS.length - 1, Math.max(0, steps.length - 1));
+            // Clamped for DISPLAY only. A selection sitting above the offered
+            // ceiling still reads as the top rung rather than running off the
+            // slider; nothing here rewrites what the team actually submitted.
+            const curIdx = Math.min(maxIdx, engagedIdx >= 0 ? engagedIdx : 0);
+            const lv = steps[curIdx] ?? null;
+            // Index 0 is the OFF step — nothing bought, nothing to commit.
             const atZero = (lv?.multiplier ?? 0) === 0;
             // ENERGY PREVIEWS THE NEXT STEP WHEN THIS ONE IS FREE, exactly as
             // the marketing lever does: at a zero step `energy × 0` would
@@ -696,220 +687,52 @@ export function StudioPanel({
             // actually moved to.
             const energyMult = !atZero
               ? lv?.multiplier ?? 0
-              : steps[idx + 1]?.multiplier ?? 0;
+              : steps[curIdx + 1]?.multiplier ?? 0;
             const energyShown = Math.ceil((item.energy ?? 0) * energyMult);
-            // Presentation only. Name and blurb are the backend's label and
-            // description; the portrait comes from PlayerConfig via
-            // configHydrator, falling back to the bundled mark.
-            const c = {
-              id: itemId,
-              name: item.label,
-              blurb: item.description ?? '',
-              img: CANDIDATE_IMAGE[item.key] ?? CANDIDATE_ICON[item.key],
-            };
+            // ONE IMPACT PER ITEM — Production carries `inventory`, R&D carries
+            // `dynamic_cost`. The chip describes whichever it is, so the two
+            // cards hold the same three chips without either reading "—".
+            const effect = lv?.effects[0] ?? null;
+            // At the selection cap, only items already funded stay editable, so
+            // a player can always wind one back down to free a slot. Same rule
+            // as the marketing levers.
+            const atCap = hiringActiveCount >= hiringMaxSelections && atZero;
             return (
-              // A roster CARD. The controls are the level input and the
-              // hire button inside it; the card itself is never clickable.
-              //
-              // Layout: the portrait used to be `self-center` in a flex ROW
-              // with everything else, so on a tall card it floated at mid
-              // height while the text started at the top, and because each
-              // candidate's art has its own aspect ratio the text columns
-              // started at a different x in every card. Header row first
-              // (art + name + blurb), then controls and figures full width,
-              // so all four cards align down the same edge.
-              <div key={c.id} className="readout p-3 flex flex-col gap-3 bg-surface">
-                <div className="flex items-start gap-3">
-                  <SafeImage
-                    src={c.img}
-                    alt=""
-                    className={clsx('shrink-0 w-24 h-24 object-contain', !engaged && 'grayscale-[45%] opacity-80')}
-                    fallbackIcon="hire"
-                    fallbackSize={44}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="h3 uppercase text-ink-900">{c.name}</span>
-                      {engaged && (
-                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-[2px] border-2 border-primary-strong bg-primary-strong text-cream-50">
-                          <span aria-hidden className="btn-label-sm leading-none">✓</span>
-                          {/* The operator's own step KEY, not a derived
-                              ordinal — `options` names the steps and that name
-                              is what gets submitted. */}
-                          <span className="eyebrow eyebrow-sm text-inherit">Level {steps[curIdx]?.stepKey ?? curIdx}</span>
-                        </span>
-                      )}
-                    </div>
-                    <p className="body-xs text-text-2 mt-1 measure">{c.blurb}</p>
-                  </div>
-                </div>
-
-                {/* LEVEL — typed, not picked from a fixed row of tiers. The value
-                    is a 1-based INDEX into the item's `options` steps, so the
-                    ceiling is whatever the operator configured and adding a step
-                    in the backend widens this input with no code change. It is
-                    clamped to that range, and the step's own key — never the
-                    typed number — is what gets submitted. */}
-                {/* One line, baseline-aligned. This was four boxes of three
-                    different heights jammed together with `items-end` — an
-                    input, two tinted chips and a button — which read as
-                    clutter rather than a control. The cost and energy are
-                    consequences of the level you type, not things you pick,
-                    so they are inline figures now; only the input and the
-                    button are boxed, and the button is pushed to the far end
-                    where an action belongs. */}
-                {/* Cost and energy are READOUTS and wear the chip tray. The
-                    level is the one thing in this row you can change, and it
-                    is deliberately NOT a chip: it used to be an input nested
-                    inside a tray, so a tray said "number to read" while the
-                    input's own frame said "control", one inside the other, and
-                    the caption and the field read as the same object. A
-                    control here is a bare framed field on the card surface —
-                    the same 2px frame + resting shadow as every button — so
-                    the contrast with the two trays beside it IS the signal. */}
-                {/* THE DECISION, on its own line: pick a level, press Hire.
-                    Those two were previously strung through a row of readouts,
-                    so the one control and the one commit were separated by the
-                    facts about them and the row read as four unrelated boxes.
-                    They are one block now, above the numbers they produce. */}
-                <div className="flex items-end gap-2 border-t border-border-soft pt-2.5">
-                  {/* <label> wraps both parts, so the caption is a click target
-                      for the field rather than decoration beside it. */}
-                  <label className="min-w-0 flex-1 flex flex-col cursor-pointer">
-                    {/* The caption names what the FIELD holds. On a
-                        cost-driven lever it also states the base, because the
-                        tiers are multiples of it — `options` scales
-                        `item.cost`, so the base is the unit the steps are
-                        counted in. */}
-                    <span className="stat-label truncate">
-                      {control === 'cost'
-                        ? `Investment · up to ${fmt$(costs[costs.length - 1] ?? 0)}`
-                        : `Level · 0 to ${maxIdx}`}
-                    </span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      // BOTH start at 0 — the `"0"` option is the off step.
-                      min={0}
-                      max={control === 'cost' ? money2(costs[costs.length - 1] ?? 0) : maxIdx}
-                      // Cents are typeable — the tiers are multiples of a base
-                      // and need not land on whole dollars.
-                      step={control === 'cost' ? '0.01' : 1}
-                      value={draftRaw}
-                      onChange={(e) => setLevelDraft((d) => ({ ...d, [c.id]: e.target.value }))}
-                      // ARROWS MOVE A TIER, not a dollar. The native ±1 cannot
-                      // walk this ladder: the tiers are 5 / 6 / 8 / 12, so from
-                      // $8 an arrow-up types 9, which still resolves to $8 and
-                      // the control appears stuck. Stepping by INDEX is what
-                      // "every increase is based on the multiplier" means.
-                      // Typing is untouched and snaps on blur.
-                      onKeyDown={
-                        control === 'cost'
-                          ? (e) => {
-                              if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-                              e.preventDefault();
-                              const next = Math.min(
-                                maxIdx,
-                                Math.max(0, idx + (e.key === 'ArrowUp' ? 1 : -1)),
-                              );
-                              setLevelDraft((d) => ({ ...d, [c.id]: money2(steps[next]?.cost ?? 0) }));
-                            }
-                          : undefined
-                      }
-                      // Snap on blur. A cost-driven field is typed freely and
-                      // then resolved to the nearest CONFIGURED tier — the
-                      // tiers are multiples of the base (5 / 6 / 8 / 12), not
-                      // an even ladder, so the field cannot carry a fixed
-                      // `step` and land on them.
-                      // BLUR IS THE COMMIT. Snap the field to the resolved step
-                      // and apply it in the same handler — leaving focus is the
-                      // interaction end for a typed field, the same rule the
-                      // sliders follow with `onPointerUp`.
-                      onBlur={() => {
-                        setLevelDraft((d) => ({
-                          ...d,
-                          [c.id]: control === 'cost' ? money2(lv?.cost ?? 0) : String(idx),
-                        }));
-                        commitHire(item, steps, idx);
-                      }}
-                      aria-label={
-                        control === 'cost'
-                          ? `${c.name} investment, 0 to ${fmt$(costs[costs.length - 1] ?? 0)}`
-                          : `${c.name} level, 0 to ${maxIdx}`
-                      }
-                      // w-full, so the field spans its caption instead of
-                      // floating as a 58px box inside a wider container.
-                      className="w-full mt-1 bg-cream-50 border-2 border-border text-text num-sm text-center outline-none focus:border-primary shadow-[2px_2px_0_0_var(--c-shadow)] px-1.5 py-1 cursor-text"
-                    />
-                  </label>
-                  {/* NO Hire BUTTON AND NO Release BUTTON (2026-10-06). The
-                      field IS the decision: blur commits it, and winding it
-                      back to 0 — the off step — is what Release did. A button
-                      beside a field that already applies itself is a second
-                      way to do one thing, and the two would disagree the
-                      moment one of them grew a guard the other lacked. */}
-                </div>
-
-                {/* What it COSTS, then what it GIVES - and every figure
-                    resolves to the level TYPED, not an L1→L4 range, which made
-                    you interpolate to find what you were actually buying. One
-                    six-column grid so the two rows share gutters: costs take
-                    halves, outcomes take thirds. */}
-                <div className="grid grid-cols-6 gap-2">
-                  {/* No COST chip when cost IS the input — it would restate the
-                      field directly above it. On a level-driven lever the cost
-                      is a consequence the player has not typed, so it stays. */}
-                  {control !== 'cost' && (
-                    <StatChip className="col-span-3" label="Cost" value={fmt$(lv.cost)} tone="money" />
-                  )}
-                  {/* "Running on" once paid for, "To activate" at the off step
-                      — where the figure is the NEXT step's, not this one's
-                      zero. Same rule and same wording as the marketing lever. */}
-                  <StatChip
-                    className="col-span-3"
-                    label={atZero ? 'To activate' : 'Running on'}
-                    value={<EnergyValue amount={energyShown} size={13} />}
-                    tone="energy"
-                  />
-                  {/* ONE CHIP PER IMPACT THIS HIRE ACTUALLY CARRIES.
-                      It was two fixed chips — "Capacity Increase" and "Cost
-                      reduction" — so every hire showed both and one of them
-                      always read "—". Production carries `inventory`, R&D
-                      carries `dynamic_cost`, and each now describes itself.
-                      The sign comes from the registry's `format` and the tone
-                      from `betterWhen`, which is why R&D's cut renders as
-                      "-15%" and still reads as good. */}
-                  {lv.effects.map((e) => (
-                    <StatChip
-                      key={e.key}
-                      className="col-span-3"
-                      label={e.presentation.label}
-                      value={e.contribution !== 0 ? e.presentation.format(e.contribution) : '—'}
-                      // `ChipTone` has no adverse hue — one colour per meaning,
-                      // and nothing in this panel has needed "this is working
-                      // against you" yet. `muted` until the chip system gets
-                      // one; no hiring impact is currently `bad`.
-                      tone={e.tone === 'good' ? 'good' : 'muted'}
-                    />
-                  ))}
-                  {/* Units to sell for the cost saving to cover the wage:
-                      `lv.cost / (dynamicCost × costReduction)`, on the server's
-                      own `dynamicCost`.
-
-                      RENDERED ONLY WHEN THIS HIRE CUTS COST. It is specific to
-                      `dynamic_cost` — there is no breakeven to state for a
-                      capacity hire — so it is gated on the IMPACT being
-                      present, not on the item being R&D. A hire that does not
-                      carry `dynamic_cost` simply does not get the chip,
-                      instead of getting one that reads "—". */}
-                </div>
-              </div>
+              // THE SAME LEVER AS MARKETING, not a roster card. Until
+              // 2026-10-15 this was a portrait, a typed level/investment field
+              // and a chip tray whose contents differed per item — Production
+              // showed a Cost chip, R&D showed none because cost WAS its input.
+              // One control, one chip tray, both items identical.
+              <BudgetLever
+                key={itemId}
+                img={CANDIDATE_IMAGE[item.key] ?? CANDIDATE_ICON[item.key]}
+                fallbackIcon="hire"
+                label={item.label ?? 'Investment'}
+                hint={item.description ?? ''}
+                value={curIdx}
+                max={maxIdx}
+                // Already `item.cost × multiplier` — `hireSteps` scales it the
+                // same way the marketing lever does, so the Spend chip moves
+                // with the slider instead of restating a flat fee.
+                spend={lv?.cost ?? 0}
+                energy={energyShown}
+                stepLabel={investmentLevelLabel(curIdx)}
+                effectLabel={effect?.presentation.label ?? 'Effect'}
+                effect={
+                  effect && effect.contribution !== 0
+                    ? effect.presentation.format(effect.contribution)
+                    : '—'
+                }
+                canActivate={steps.length > 0 && !atCap}
+                // THE MUTATOR RUNS PER TICK, THE PROJECTION ON RELEASE. Same
+                // split as marketing: `commitHire` charges the delta for the
+                // step moved to, and `recalc` fires once from `onCommit` —
+                // dragging through five levels must not post five projections.
+                onChange={(i) => commitHire(item, steps, i)}
+                onCommit={() => recalc?.(`investment level released · ${item.key}`)}
+              />
             );
           })}
-          {/* The separate "Clear hire" button is gone. Undo now lives on the
-              engaged tier itself — click the lit L1-L4 again to release it —
-              so making and unmaking the decision are the same control in the
-              same place, instead of a second button parked below the roster. */}
         </div>
       </OpsSection>
       )}
@@ -921,7 +744,7 @@ export function StudioPanel({
       {shows('vendor') && (
       <OpsSection
         icon={SECTION_ICON.vendor}
-        title="Vendor"
+        title="Vendors"
         hint={
           activeLine
             ? `Company-wide. Figures shown for ${activeLine.name} — some vendors only supply certain notebooks.`
@@ -1133,6 +956,8 @@ function BudgetLever({
   energy,
   effectLabel,
   effect,
+  stepLabel,
+  fallbackIcon = 'megaphone',
   canActivate,
   onChange,
   onCommit,
@@ -1142,6 +967,17 @@ function BudgetLever({
   img?: string;
   label: string;
   hint: string;
+  /**
+   * The step's NAME, badged beside the title once the lever is funded.
+   *
+   * Exists because the numeric step index was removed (2026-10-15): a slider
+   * position is not a word, and "Level 3" was the number the investment levels
+   * replaced. Omit it and no badge renders, which is the marketing lever —
+   * its steps are dollar budgets and name themselves.
+   */
+  stepLabel?: string;
+  /** Icon when `img` is missing. Marketing's megaphone by default. */
+  fallbackIcon?: PixelIconKind;
   /** INDEX into the backend item's configured option steps — not a dollar amount. */
   value: number;
   /** Highest valid index, i.e. `options` key count − 1. */
@@ -1173,11 +1009,20 @@ function BudgetLever({
           src={img}
           alt=""
           className={clsx('shrink-0 w-16 h-16 object-contain', !active && 'grayscale-[45%] opacity-80')}
-          fallbackIcon="megaphone"
+          fallbackIcon={fallbackIcon}
           fallbackSize={32}
         />
         <div className="min-w-0 flex-1">
-          <div className="h3 uppercase text-ink-900">{label}</div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="h3 uppercase text-ink-900">{label}</span>
+            {/* Only once funded: at the off step the badge would name a level
+                the player is not on and has not paid for. */}
+            {active && stepLabel && (
+              <span className="shrink-0 inline-flex items-center px-2 py-[2px] border-2 border-primary-strong bg-primary-strong text-cream-50">
+                <span className="eyebrow eyebrow-sm text-inherit">{stepLabel}</span>
+              </span>
+            )}
+          </div>
           <p className="body-xs text-text-2 mt-1">{hint}</p>
         </div>
       </div>

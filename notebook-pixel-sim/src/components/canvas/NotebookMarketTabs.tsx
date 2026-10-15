@@ -125,20 +125,24 @@ function MarketCard({ genre }: { genre: GenreDef }) {
             bundled `data/segments.ts` table, for a segment `GENRE_TO_SEGMENT`
             may only have guessed at — neither exists now. */}
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="Market now" value={fmt(genre.demand.p0)} note="units of demand" delay={0} />
+          {/* NOTES ARE TWO WORDS AT MOST. The tile is one third of a rail
+              capped at 40vw, and `Stat` truncates — a note that needs a
+              sentence will clip at every window size, which is what
+              "how much price matters" did. */}
+          <Stat label="Market Now" value={fmt(genre.demand.p0)} note="demand" delay={0} />
           <Stat
-            label="Price anchor"
+            label="Price Anchor"
             value={fmt$(priceAnchorCost(genre.id))}
-            note="market avg price"
+            note="avg price"
             delay={0.05}
           />
           {/* No figure here on purpose — whether a market tolerates a price
               change is the whole decision; a "±$X" would invite arithmetic
               against a curve that pivots on a server-side `dynamicPrice`. */}
           <Stat
-            label="Price sens."
+            label="Price Sens."
             value={priceSensitivity(genre.id).label}
-            note="how much price matters"
+            note="price tolerance"
             delay={0.1}
           />
         </div>

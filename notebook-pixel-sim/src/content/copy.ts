@@ -293,13 +293,20 @@ export const TOAST = {
   notebookFirst: 'Add at least one notebook product before simulating.',
 };
 
+// NAME THE MISSING THING, NOTHING ELSE. These render in a chip beside the
+// confirm button with "Tap to fix" on a second line, which already says what to
+// do — so the copy only has to say what is absent. The long instructional
+// versions truncated in that chip.
 export const VALIDATION = {
-  noNotebook: 'Add at least one notebook to continue.',
+  noNotebook: 'No notebook',
   // A round with no channel is unsellable: `calcFinancials` zeroes
   // `customersObtained` outright when the total channel weight is 0, so the
   // team builds its stock, pays the COGS and sells none of it.
-  noChannel: 'Pick a sales channel — you have nowhere to sell.',
+  noChannel: 'No sales channel',
+  // Not a missing-thing block, so it keeps a sentence: there is nothing to tap
+  // to fix, and the player needs to be told where to go.
   runEnded: 'This run is finished. Start a new game from Home.',
-  pendingEvent: 'Resolve the event before confirming the next phase.',
-  pendingEval: 'Finish the phase evaluation before continuing.',
+  // `pendingEvent` and `pendingEval` were DELETED here 2026-10-13. Nothing
+  // assigns `meta.pendingEventId`, and the only assignment to
+  // `meta.pendingEvalPhase` went with the phase-review slide in 6b199a4.
 };

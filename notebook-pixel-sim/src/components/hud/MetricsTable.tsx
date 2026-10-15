@@ -386,7 +386,7 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
 
   const demandRow: KVRow = {
     key: 'demand',
-    label: 'Projected demand',
+    label: 'Proj. Demand',
     num: demandEst,
     format: fmtInt,
     tone: demandEst === 0 ? 'warn' : 'neutral',
@@ -400,12 +400,12 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
   // two stories about the same round. Profit is the OPERATING profit — the
   // server's bottom line, not the gross-profit midpoint.
   const projRows: KVRow[] = proj ? [
-    { key: 'revenue',  label: 'Projected revenue', num: Math.round(projRevenue), format: fmt$, tone: 'revenue',
+    { key: 'revenue',  label: 'Proj. Revenue', num: Math.round(projRevenue), format: fmt$, tone: 'revenue',
       sub: cappedByCapacity
         ? `capacity caps this at ${Math.round(sellableUnits).toLocaleString()} × ${fmt$(price)}`
         : `${Math.round(sellableUnits).toLocaleString()} × ${fmt$(price)}` },
     demandRow,
-    { key: 'gprofit', label: 'Projected profit', num: Math.round(projProfit ?? 0), format: fmt$,
+    { key: 'gprofit', label: 'Proj. Profit', num: Math.round(projProfit ?? 0), format: fmt$,
       tone: (projProfit ?? 0) >= 0 ? 'profit' : 'danger',
       emphasis: 'highlight', sub: 'revenue − COGS on the same units' },
   ] : [
@@ -426,10 +426,10 @@ function NotebookMetrics({ liveProjection }: { liveProjection: ServerProjectionR
         // line the player is editing, which is the figure that average is made
         // of and the one the design choices actually move.
         ...(unitCost != null
-          ? [{ key: 'ucost', label: 'Unit cost', num: unitCost, format: fmt$, tone: 'cost' as Tone, sub: 'per notebook, from this spec' } as KVRow]
+          ? [{ key: 'ucost', label: 'Unit Cost', num: unitCost, format: fmt$, tone: 'cost' as Tone, sub: 'per notebook, from this spec' } as KVRow]
           : []),
         ...(marginPct != null ? [{ key: 'margin', label: 'Margin', value: `${marginPct}%`, tone: marginTone } as KVRow] : []),
-        { key: 'channels', label: 'Channels active', value: `${channelCount}/${channelMax}`,        tone: channelCount === 0 ? 'warn' : 'neutral' },
+        { key: 'channels', label: 'Channels Active', value: `${channelCount}/${channelMax}`,        tone: channelCount === 0 ? 'warn' : 'neutral' },
       ],
     },
     {
@@ -940,8 +940,8 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
       totalTone: 'neutral',
       rows: [
         { key: 'count',  label: 'Notebooks',      num: lines.length, format: fmtInt, tone: 'neutral' },
-        { key: 'genres', label: 'Genres in play',  value: `${genresInPlay}/${GENRES.length}`, tone: genresInPlay > 1 ? 'success' : 'neutral', sub: genresInPlay === 1 ? 'All lines in one market' : 'Spread across markets' },
-        ...(avgCost != null ? [{ key: 'avg', label: 'Avg unit cost', num: avgCost, format: fmt$, tone: 'neutral' as Tone }] : []),
+        { key: 'genres', label: 'Genres in Play',  value: `${genresInPlay}/${GENRES.length}`, tone: genresInPlay > 1 ? 'success' : 'neutral', sub: genresInPlay === 1 ? 'All lines in one market' : 'Spread across markets' },
+        ...(avgCost != null ? [{ key: 'avg', label: 'Avg Unit Cost', num: avgCost, format: fmt$, tone: 'neutral' as Tone }] : []),
       ],
     },
     {
@@ -952,8 +952,8 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
       // so they stand on their own. A server projection only sharpens them, by
       // supplying each line's capacity ceiling and its modified selling price.
       rows: [
-        { key: 'revenue',   label: 'Est. revenue',   num: Math.round(totalRevenue),   format: fmt$,   tone: 'revenue' as Tone },
-        { key: 'customers', label: 'Est. customers', num: Math.round(totalCustomers), format: fmtInt, tone: totalCustomers === 0 ? 'warn' : 'neutral' as Tone,
+        { key: 'revenue',   label: 'Proj. Revenue',   num: Math.round(totalRevenue),   format: fmt$,   tone: 'revenue' as Tone },
+        { key: 'customers', label: 'Proj. Demand', num: Math.round(totalCustomers), format: fmtInt, tone: totalCustomers === 0 ? 'warn' : 'neutral' as Tone,
           sub: totalCustomers === 0 ? 'no demand estimates set yet' : 'sum of your per-line estimates' },
       ],
     },
@@ -963,9 +963,9 @@ export function PortfolioMetrics({ liveProjection }: { liveProjection?: ServerPr
       title: 'Inventory',
       rows: [
         finished == null
-          ? { key: 'stock', label: 'Stock on hand', value: '–', tone: 'neutral' as Tone,
+          ? { key: 'stock', label: 'Stock on Hand', value: '–', tone: 'neutral' as Tone,
               sub: 'waiting for server projection' }
-          : { key: 'stock', label: 'Stock on hand', num: finished, format: fmtInt,
+          : { key: 'stock', label: 'Stock on Hand', num: finished, format: fmtInt,
               tone: finished === 0 ? 'danger' : 'neutral' as Tone,
               sub: finished === 0 ? 'nothing carried into the next phase' : 'unsold units carried forward' },
       ],

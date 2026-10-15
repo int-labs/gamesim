@@ -176,7 +176,7 @@ function PageRail({
           {/* No `onClose`: it is optional and only fires after "Switch to …",
               which still applies. This is a tab, not an overlay — there is
               nothing to close it back to. */}
-          <ArchetypeDetailModal fill open />
+          <ArchetypeDetailModal />
         </div>
       </div>
     );
@@ -237,7 +237,7 @@ function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) 
     { id: 'financial' as const, label: 'Financial', icon: ReceiptText },
     { id: 'notebook' as const, label: 'Notebook', icon: BookOpen },
     { id: 'inventory' as const, label: 'Inventory & Production', icon: Boxes },
-    { id: 'capacity' as const, label: 'Capacity & RnD', icon: Factory },
+    { id: 'capacity' as const, label: 'Capacity & R&D', icon: Factory },
     { id: 'sales' as const, label: 'Sales & Marketing', icon: Megaphone },
   ];
   return (

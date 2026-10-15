@@ -5,7 +5,6 @@ import { currentAddOns, placeAddOn, removeAddOn, archetypeLabel } from '@/engine
 import { addOnById } from '@/data/addOns';
 import { playSfx } from '@/audio/audioManager';
 import { NotebookCanvas } from '@/components/canvas/NotebookCanvas';
-import { NotebookGallery } from '@/components/canvas/NotebookGallery';
 import { AddOnGallery } from '@/components/panels/ProductPanel';
 import { TopHUD } from '@/components/hud/TopHUD';
 import type { LiveProjectionState } from '@/gamesim/useLiveProjection';
@@ -40,7 +39,6 @@ export function ProductStage({
   isExpand?: boolean;
   onToggleExpand?: () => void;
 }) {
-  const viewMode = useGame((s) => s.ui.viewMode);
   const apply = useGame((s) => s.apply);
   const showToast = useGame((s) => s.showToast);
 
@@ -61,14 +59,10 @@ export function ProductStage({
         const overId = ev.over?.id;
         setActiveDrag(null);
         if (!defId) return;
-        if (overId !== 'notebook-canvas') {
-          // Shelf view has no canvas droppable — say so rather than letting the
-          // drag silently evaporate.
-          if (viewMode === 'gallery') {
-            showToast({ kind: 'warning', text: 'Switch to Focus view to place add-ons on the notebook', ms: 2000 });
-          }
-          return;
-        }
+        // A "Switch to Focus view" toast sat here for the Shelf view, which had
+        // no canvas droppable. Shelf is gone (2026-10-13) — the canvas is the
+        // only view, so a drop outside it is simply a miss.
+        if (overId !== 'notebook-canvas') return;
         // Dropping ANYWHERE on the notebook lands the add-on at its category
         // default, not the pixel drop point: the add-on layer is the notebook's
         // own footprint — small, and it bobs — so aiming at a moving target was
@@ -116,9 +110,7 @@ export function ProductStage({
         <TopHUD liveProjectionState={liveProjectionState} />
         <StageHeader isExpand={isExpand} onToggleExpand={onToggleExpand} />
         <div className="flex-1 min-h-0 flex flex-col">
-          {viewMode === 'gallery'
-            ? <NotebookGallery />
-            : <NotebookCanvas recalc={liveProjectionState?.recalc} />}
+          <NotebookCanvas recalc={liveProjectionState?.recalc} />
         </div>
         {/* ADD-ON STRIP — the drag source, directly under the notebook it
             decorates. `shrink-0` so a long catalogue scrolls SIDEWAYS rather

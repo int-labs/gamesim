@@ -32,8 +32,6 @@ export function PhaseActionBar({
   const phase = useGame((s) => s.meta.phase);
   const totalRounds = useTotalRounds();
   const ended = useGame((s) => s.meta.ended);
-  const pendingEvent = useGame((s) => s.meta.pendingEventId);
-  const pendingEval = useGame((s) => s.meta.pendingEvalPhase);
   const lineCount = useGame((s) => s.portfolio.productLines.length);
   // A COUNT, not the array: `finlitCompanyChannels` builds a new array every
   // call, so subscribing to it directly would re-render this bar on every
@@ -58,8 +56,10 @@ export function PhaseActionBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Game-state blocks (engine forces resolution before continuing)
-  const stateBlocked = ended || !!pendingEvent || pendingEval !== null;
+  // Game-state block. `pendingEventId` and `pendingEvalPhase` were also tested
+  // here until 2026-10-13: nothing assigns either any more, so they could only
+  // ever block with no reason to show beside the button.
+  const stateBlocked = ended;
   // Validation blocks (player needs to make a required decision)
   const needsAnyNotebook = lineCount === 0;
   // NO CHANNEL, NO SALE — the same rule `calcFinancials` enforces by zeroing
@@ -76,10 +76,6 @@ export function PhaseActionBar({
 
   const blockReason = ended
     ? VALIDATION.runEnded
-    : pendingEvent
-    ? VALIDATION.pendingEvent
-    : pendingEval !== null
-    ? VALIDATION.pendingEval
     : needsAnyNotebook
     ? VALIDATION.noNotebook
     : needsAnyChannel
@@ -226,9 +222,15 @@ export function PhaseActionBar({
               aria-label={`${blockReason} Tap to fix.`}
             >
               <PixelIcon kind="warning" size={11} color="var(--c-warning)" />
-              <span className="truncate">{blockReason}</span>
-              <span className="ml-1 hidden sm:inline-flex items-center eyebrow eyebrow-sm opacity-75">
-                Tap to fix
+              {/* TWO LINES: the reason names what is missing, "Tap to fix"
+                  says what to do about it. Side by side they competed for one
+                  truncating row and the reason lost. No `truncate` on the
+                  reason now — the copy is short enough to fit, and clipping
+                  the one word that identifies the problem is the failure this
+                  layout is avoiding. */}
+              <span className="flex flex-col items-start leading-tight text-left">
+                <span>{blockReason}</span>
+                <span className="eyebrow eyebrow-sm opacity-75">Tap to fix</span>
               </span>
               <PixelIcon kind="arrow-right" size={10} color="var(--c-warning)" />
             </button>
@@ -242,7 +244,9 @@ export function PhaseActionBar({
               role="alert"
             >
               <PixelIcon kind="warning" size={11} color="var(--c-warning)" />
-              <span className="truncate">{blockReason}</span>
+              {/* The un-tappable branch: `runEnded` keeps its sentence, so this
+                  one wraps rather than clipping. */}
+              <span className="text-left leading-tight">{blockReason}</span>
             </span>
           )
         )}

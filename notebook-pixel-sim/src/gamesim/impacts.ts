@@ -255,3 +255,30 @@ export function impactsProduct(
   if (impacted.length === 0) return true;
   return productId != null && impacted.includes(String(productId));
 }
+
+/**
+ * INVESTMENT LEVEL NAMES, by option INDEX.
+ *
+ * The backend names its hiring steps `"0"`..`"6"` and nothing more, so the
+ * ladder of words is the client's. Index 0 is the off step — `options["0"]` is
+ * multiplier 0 — and 1..5 are the funded levels. A level's multiplier scales
+ * the item's impact, so "Very Low" is the base impact applied once (×1.0), not
+ * an absence of one.
+ *
+ * ⚠ KEY "6" IS DELIBERATELY UNNAMED. Both hiring items carry a seventh step
+ * the owner chose not to offer (2026-10-15). A control sized off this array's
+ * length stops at Very High and can never reach it; adding a sixth name here is
+ * what opens it, with no other change.
+ *
+ * Presentation, and hardcoded like the rest of the player-facing vocabulary —
+ * if these should become operator copy, they belong in a PlayerConfig section
+ * alongside the others, not in a second table here.
+ */
+export const INVESTMENT_LEVELS = [
+  '(none)', 'Very Low', 'Low', 'Medium', 'High', 'Very High',
+] as const;
+
+/** The name for an option index, clamped — an index past the ladder reads as
+ *  its top rung rather than `undefined`. */
+export const investmentLevelLabel = (idx: number): string =>
+  INVESTMENT_LEVELS[idx] ?? INVESTMENT_LEVELS[INVESTMENT_LEVELS.length - 1];
