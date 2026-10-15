@@ -803,6 +803,46 @@ function emitNotebookAnalysis(
     })),
   });
 
+  /**
+   * ONE GROUP PER CONTAINER for a metric, not one group for the metric.
+   *
+   * `leverGroup` collects by IMPACT alone, so every item carrying `marketing`
+   * landed under one "Marketing" heading — and the VENDORS container carries
+   * `marketing` alongside `inventory`, so vendors were filed under Marketing.
+   * Observed in the competitor report 2026-10-15.
+   *
+   * Detected from the containers, like the Capacity block above: a container
+   * supplies its own heading (`supply_chain` is labelled "Vendors", `marketing`
+   * "Marketing"), so an operator adding a third demand container gets its own
+   * section with no code change.
+   *
+   * ⚠ THE ROW SET IS UNCHANGED — the union across these groups is exactly what
+   * the single group held, each item once. `grandScore` sums every row of every
+   * group, so the Market Fit denominator and the total row are untouched by the
+   * split. Filing an item under two groups would double-count it.
+   */
+  const leverGroupsByContainer = (metric: string): DriverGroup[] =>
+    containers
+      .map((gi) => ({
+        gi,
+        items: (gi.inputs ?? []).filter((item) => item.impacts?.[metric]),
+      }))
+      .filter(({ items }) => items.length > 0)
+      // The container that IS the metric leads; the rest follow in the order the
+      // operator configured them, rather than whatever order Mongo returned.
+      .sort((a, b) =>
+        Number(String(b.gi.key ?? b.gi.category ?? "") === metric) -
+        Number(String(a.gi.key ?? a.gi.category ?? "") === metric))
+      .map(({ gi, items }) => ({
+        label: gi.label ?? gi.category ?? gi.key ?? "",
+        rows: items.map((item) => ({
+          label:  item.label ?? item.key ?? "",
+          weight: configWeightOf(item, metric, p._id),
+          choice: (dec: ReportDecision | null) => leverChoiceFor(dec, id(item._id)),
+          score:  (dec: ReportDecision | null) => leverScoreFor(dec, id(item._id), metric),
+        })),
+      }));
+
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
@@ -832,7 +872,11 @@ function emitNotebookAnalysis(
             scoreTermFor(dec, p._id, String(f.key ?? "")),
         })),
     },
-    leverGroup("Marketing",     "marketing"),
+    // Marketing and Vendors each get their own heading — see the note on
+    // `leverGroupsByContainer`. Sales Channel stays a metric group: exactly one
+    // container carries `sales_channel`, so splitting it would only rename the
+    // heading to that container's label.
+    ...leverGroupsByContainer("marketing"),
     leverGroup("Sales Channel", "sales_channel"),
   ].filter((g) => g.rows.length > 0);
 
