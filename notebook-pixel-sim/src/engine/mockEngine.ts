@@ -36,6 +36,7 @@ import {
   axisForAddOnCategory,
   scenarioById as finlitScenarioById,
   GENRES,
+  PRICE_MAX,
 } from '@/data/finlit';
 import { clamp, phaseOf } from '@/utils/format';
 import type {
@@ -411,7 +412,11 @@ export const setProductField = <K extends keyof ProductLine>(
 export const setPrice = (s: GameState, n: number, lineId?: string) => {
   console.log('[decision] setPrice', n);
   const line = lineId ? getLineOrThrow(s, lineId) : getActiveLine(s);
-  line.price = clamp(finite(n, line.price), 1, 30);
+  // `PRICE_MAX`, not a literal. The ceiling was hardcoded 30 here AND in the
+  // slider, so widening one without the other let the control reach a price the
+  // mutator silently snapped back. It is also the divisor in
+  // `priceSensitivityFromBounds` — one constant, three readers.
+  line.price = clamp(finite(n, line.price), 1, PRICE_MAX);
 };
 
 // ── V3 (FinLit) decision mutators ─────────────────────────────────────────
@@ -693,7 +698,7 @@ export const applyEventChoice = (s: GameState, eventId: string, opt: 'A' | 'B' |
   if (res.immediate.debtAdd) s.player.debt += res.immediate.debtAdd;
   if (res.immediate.priceSet !== undefined) {
     // Apply price reset to every line.
-    for (const l of s.portfolio.productLines) l.price = clamp(res.immediate.priceSet, 1, 30);
+    for (const l of s.portfolio.productLines) l.price = clamp(res.immediate.priceSet, 1, PRICE_MAX);
   }
   if (res.immediate.inventorySell) {
     // Liquidate proportionally across all lines, at each line's price.
