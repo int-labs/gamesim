@@ -633,7 +633,7 @@ export function StudioPanel({
       {shows('hiring') && (
       <OpsSection
         icon={SECTION_ICON.hiring}
-        title="Investment Level"
+        title="Hiring"
         hint={
           // Two things the per-phase figures do not say on their own, and both
           // change what the number means:

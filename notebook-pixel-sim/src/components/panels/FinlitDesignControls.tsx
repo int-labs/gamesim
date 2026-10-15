@@ -1,7 +1,7 @@
 import { useGame } from '@/state/store';
 import { setFinlitAxis, setPrice } from '@/engine/mockEngine';
 import {
-  CONFIG_TABLES, CHANNEL_META,
+  CONFIG_TABLES, CHANNEL_META, PRICE_MAX,
   type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
 } from '@/data/finlit';
 import { optionUnitCost } from '@/engine/finlit/core/config/fieldConfig';
@@ -151,7 +151,7 @@ export function FinlitDesignControls({
            business decisions and live on the Business page. ── */}
       <Section title="Price" hint="What you charge. Margin is price minus unit cost.">
         <Slider
-          label="Price" value={line.price} min={1} max={30} step={1}
+          label="Price" value={line.price} min={1} max={PRICE_MAX} step={1}
           fmt={(v) => fmt$(v)} onChange={(v) => apply((s) => setPrice(s, v))}
           onCommit={() => recalc?.('price slider released')}
         />

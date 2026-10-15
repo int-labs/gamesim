@@ -1,4 +1,5 @@
 import type { ProductDto } from '@/gamesim/types';
+import { PRICE_MAX } from './constants';
 import {
   CONFIG_TABLES,
   optionScore,
@@ -172,65 +173,56 @@ export const priceAnchorCost = (genre: string): number =>
   specUnitCost(genre, priceAnchorSpec(genre));
 
 /**
- * How PICKY a market is about price — the VoC weight for `selling_price`, which
- * cannot come from `direction` because that is 0 on every product.
+ * How TOLERANT a market is about price — the VoC weight for `selling_price`,
+ * which cannot come from `direction` because that is 0 on every product.
  *
- *     weight = min / (min + max)
+ *     weight = (max − min) / PRICE_MAX
  *
- * How high the floor sits relative to the whole scale: a market that will not
- * accept a cheap notebook is one where price is tightly constrained. Bounded
- * [0, 0.5) for any `min < max`, which is what lets it share the VoC axis with
- * the authored `direction` weights (live 0.03..0.15) instead of towering over
- * them.
+ * The share of the whole price universe this market will accept. A notebook
+ * priced anywhere from $10 to $40 against a $40 ceiling takes 0.75 of it and is
+ * tolerant; one confined to $5–$20 takes 0.375 and is not.
+ *
+ * ⚠ THE RATIO VERSION COULD NOT TELL $5–$20 FROM $10–$40. `min / (min + max)`
+ * is scale-invariant — both are 1:4, both scored exactly 0.2000, and all four
+ * live products came out "Tolerant". Any measure built only from the two bounds
+ * has that flaw; separating them needs an ABSOLUTE divisor, which is what
+ * `PRICE_MAX` is. Owner, 2026-10-15.
+ *
+ * Bounded [0, 1]: a span cannot exceed the ceiling it is measured against, and
+ * the slider is capped at the same constant.
  *
  * ONE DEFINITION, TWO READERS — the market tab's label and the debrief's VoC
  * tick. They were separate, and a notebook could read "Tolerant" on one and
  * carry a high price weight on the other.
- *
- * NOT a band WIDTH. This replaced `maxValue − minValue`, which measured
- * something else: equal widths at different heights (5/25 vs 40/60) score 0.167
- * against 0.400 here. Old thresholds of 23.5/13.5 were dollars and do not
- * convert.
  */
 export interface PriceSensitivity {
-  /** `min / (min + max)` on the market's `selling_price` field, [0, 0.5). */
+  /** `(max − min) / PRICE_MAX` on the market's `selling_price` field, [0, 1].
+   *  HIGH means tolerant — the opposite of the ratio version it replaced. */
   weight: number;
   label: 'Tolerant' | 'Moderate' | 'Picky' | 'Very picky';
 }
 
 /**
- * FOUR bands, each `1/40` (0.025) wide from 0.250. Owner-set 2026-09-30.
+ * EVEN QUARTERS of [0, 1]. Owner-set 2026-10-15.
  *
- * TUNED TO THE LIVE SPREAD, which is narrow. The four authored notebooks weigh
- * 0.219 / 0.250 / 0.259 / 0.278 — a span of 0.06 — so bands sized against the
- * formula's theoretical [0, 0.5) put three of them in one bucket:
+ * They can be even now because the weight uses the whole range: it is a share
+ * of `PRICE_MAX`, so 0 and 1 are both real values rather than asymptotes. The
+ * previous bands were four 0.025-wide slivers crowded at 0.250 — hand-tuned to
+ * separate four products whose ratio-based weights spanned 0.06 in total, which
+ * stopped separating anything the moment the bounds were re-authored.
  *
- *     Anime 7/25 = 0.219   Cutesy 6/18 = 0.250
- *     Indie 7/20 = 0.259   Minimalist 5/13 = 0.278
+ * The cuts are `<=`, so a span landing exactly on a quarter takes the LOWER
+ * band. Exact fractions rather than decimals: a $10–$40 span against a $40
+ * ceiling is 0.75 precisely, and `0.75 <= 0.75` must not hinge on the last bit.
  *
- * Two earlier attempts, both wrong and worth not repeating:
- *   • equal THIRDS of [0, 0.5) — assumed the whole range is reachable. With a
- *     max of 30 the floor is `5/35 = 0.143`, so the bottom third admitted only
- *     `min` 5 and 6 and everything else piled into Moderate and above.
- *   • equal FOURTHS of the authored `min` — assumes `max` is a product's real
- *     ceiling. It is not: past some price a notebook loses every prospect, so
- *     the top of the range is not a band an operator meaningfully splits.
- *
- * The run STARTS at 0.250 because that is the only 0.025 spacing that puts
- * Indie in Moderate and Minimalist in Picky, which is where the owner placed
- * them by eye.
- *
- * Exact fractions, not rounded decimals: Cutesy sits ON the first cut at
- * exactly 1/4, and `weight < 0.25` against a decimal literal is a coin flip at
- * the last bit. `1/4` makes it land in Moderate deterministically.
- *
- * VERY PICKY IS CURRENTLY UNREACHED — nothing authored gets to 0.300. That is
- * the band for a market someone deliberately narrows later, not a gap.
+ * Live, at PRICE_MAX 40:
+ *     Anime 10–40 = 0.750 Tolerant    Cutesy 6–25 = 0.475 Moderate
+ *     Indie 10–40 = 0.750 Tolerant    Minimalist 5–20 = 0.375 Moderate
  */
 const PICKY_BANDS = {
-  tolerant: 1 / 4,    // 0.250
-  moderate: 11 / 40,  // 0.275
-  picky:    3 / 10,   // 0.300
+  veryPicky: 1 / 4,   // 0.25 — span is a quarter of the universe or less
+  picky:     1 / 2,   // 0.50
+  moderate:  3 / 4,   // 0.75 — above this the market takes almost any price
 } as const;
 
 /**
@@ -247,19 +239,22 @@ export const priceSensitivityFromBounds = (
 ): PriceSensitivity => {
   const lo = Number(minValue) || 0;
   const hi = Number(maxValue) || 0;
-  const span = lo + hi;
-  // Both bounds at 0 is an unauthored field, not a tolerant market — 0 keeps it
-  // off the VoC axis rather than ranking it as the most price-tolerant one.
-  const weight = span > 0 ? Math.max(0, lo) / span : 0;
+  // An unauthored field (both bounds 0) is NOT the most tolerant market — it is
+  // no market at all, so it scores 0 and sits at the bottom of the axis rather
+  // than the top. `PRICE_MAX` is read at call time, never captured at module
+  // scope: it is `export let` and the operator's config can rebind it.
+  const span = Math.max(0, hi - lo);
+  const weight = PRICE_MAX > 0 ? Math.min(1, span / PRICE_MAX) : 0;
   return {
-    // INVERTED against the old delta version: a HIGH weight is picky, where a
-    // wide band used to be tolerant.
+    // HIGH IS TOLERANT — a wide span means the market accepts most prices. The
+    // ratio version this replaced read the other way round, so the bands were
+    // inverted with it.
     weight,
     label:
-      weight < PICKY_BANDS.tolerant ? 'Tolerant'
-      : weight < PICKY_BANDS.moderate ? 'Moderate'
-      : weight < PICKY_BANDS.picky ? 'Picky'
-      : 'Very picky',
+      weight <= PICKY_BANDS.veryPicky ? 'Very picky'
+      : weight <= PICKY_BANDS.picky ? 'Picky'
+      : weight <= PICKY_BANDS.moderate ? 'Moderate'
+      : 'Tolerant',
   };
 };
 

@@ -63,6 +63,23 @@ export let HOLDING_RATE_PER_DAY = 0.015;
  * Both charge their $/day to opex and a flat energy to activate (refunded when
  * set back to 0). Tunable.
  */
+/**
+ * THE PRICE CEILING — the highest a notebook can be priced, anywhere.
+ *
+ * One constant, two readers that must agree:
+ *   • the price slider's upper bound (`FinlitDesignControls`)
+ *   • the divisor in `priceSensitivityFromBounds`
+ *
+ * It was a literal `30` in the slider and nothing at all in the sensitivity
+ * formula until 2026-10-15, so the control and the measure described different
+ * universes: a product authored up to $40 could not be priced past $30, and a
+ * span was scored against no ceiling at all.
+ *
+ * ⚠ It is NOT a per-product bound. Each product's `selling_price` field carries
+ * its own `minValue`/`maxValue`; this is the outer limit they all sit inside,
+ * and what a span is measured as a fraction OF.
+ */
+export let PRICE_MAX = 40;                // $ cap on any selling price
 export let BUDGET_MAX = 40;               // $/day cap per lever
 export let BUDGET_LEVER_ENERGY = 4;       // flat ⚡ to activate a budget lever
 export let MARKETING_DEMAND_RATE = 0.005; // +demand fraction per $/day
@@ -115,6 +132,7 @@ const SCALAR_SETTERS: Record<string, (v: number) => void> = {
   UNIT_CONTRIBUTION: (v) => { UNIT_CONTRIBUTION = v; },
   DEMAND_SCALE: (v) => { DEMAND_SCALE = v; },
   HOLDING_RATE_PER_DAY: (v) => { HOLDING_RATE_PER_DAY = v; },
+  PRICE_MAX: (v) => { PRICE_MAX = v; },
   BUDGET_MAX: (v) => { BUDGET_MAX = v; },
   BUDGET_LEVER_ENERGY: (v) => { BUDGET_LEVER_ENERGY = v; },
   MARKETING_DEMAND_RATE: (v) => { MARKETING_DEMAND_RATE = v; },
