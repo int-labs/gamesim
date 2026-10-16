@@ -898,17 +898,12 @@ function emitNotebookAnalysis(
    *  resolved per row. */
   const leverGroup = (label: string, metric: string, anchorKey: string): DriverGroup => {
     const items = leverItemsOf(containers, [metric]);
-    const scale = scalerFor(
-      CONTAINER_ANCHOR[anchorKey],
-      tops.byContainer[anchorKey] ?? 0,
-      items.length,
-    );
-    // SAME scaler as the weight, `items.length` included — so a team on the top
-    // step scores exactly the weight shown beside it.
+    const scale = scalerFor(CONTAINER_ANCHOR[anchorKey], tops.byContainer[anchorKey] ?? 0);
+    // SAME scaler as the weight — so a team on the top step scores exactly the
+    // weight shown beside it.
     const scaleScore = scoreScalerFor(
       CONTAINER_ANCHOR[anchorKey],
       tops.byContainer[anchorKey] ?? 0,
-      items.length,
     );
     return {
       label,
@@ -956,17 +951,9 @@ function emitNotebookAnalysis(
         // the same `marketing` impact but computes it its own way — is left
         // exactly as configured, having no entry in CONTAINER_ANCHOR.
         const key = String(gi.key ?? gi.category ?? "");
-        const scale = scalerFor(
-          CONTAINER_ANCHOR[key],
-          tops.byContainer[key] ?? 0,
-          items.length,
-        );
-        // SAME scaler as the weight — see the note on `scoreScalerFor`.
-        const scaleScore = scoreScalerFor(
-          CONTAINER_ANCHOR[key],
-          tops.byContainer[key] ?? 0,
-          items.length,
-        );
+        const scale = scalerFor(CONTAINER_ANCHOR[key], tops.byContainer[key] ?? 0);
+        // SAME scaler as the weight — see the note on `scalerFor`.
+        const scaleScore = scoreScalerFor(CONTAINER_ANCHOR[key], tops.byContainer[key] ?? 0);
         return {
           label: gi.label ?? gi.category ?? gi.key ?? "",
           rows: items.map((item) => ({
@@ -1006,29 +993,31 @@ function emitNotebookAnalysis(
    * whole analysis with it.
    */
   /**
-   * THE WEIGHT SCALE: `anchor / catalogue-wide top × the family's SIZE`.
+   * THE WEIGHT SCALE: `anchor / catalogue-wide top`. NO SIZE MULTIPLIER.
    *
-   *   design    0.95 × 8 drivers
-   *   Marketing 0.77 × 3
-   *   Channels  0.75 × 3
-   *   Vendors   —      their own metric; left exactly as configured
+   *   design    0.95
+   *   Marketing 0.77
+   *   Channels  0.75
+   *   Vendors   —     their own metric; left exactly as configured
    *
-   * SIZE is the number of drivers in the family, not a fixed multiplier. The
-   * `× 8` that was here is the DESIGN family's count — eight spec fields — and
-   * reading it as a constant gave Marketing and Channels an eight-fold scale
-   * for three decisions. Owner, 2026-10-16.
+   * ⚠ EVERY FAMILY LANDS IN 0..1 AND STAYS THERE. Owner, 2026-10-16: the raw
+   * weights are already normalised — each notebook's `direction` values sum to
+   * 1 — so a multiplier only breaks that and makes the families incomparable.
+   * A `× SIZE` (the family's driver count) sat here and pushed design to a 27.2
+   * total against the levers' 3, which is the asymmetry this removes.
    *
-   * The divisor is global (see `weightTopsOf`), so a family's total is the same
-   * figure on every notebook while each notebook's own best driver lands
-   * wherever its weights put it.
+   * The divisor is global (see `weightTopsOf`): exactly one driver in the
+   * catalogue reaches its family's anchor, and every other row is read against
+   * it. The debrief's VoC axis uses the same numbers, so the chart and the
+   * report finally plot the same figure.
    *
    * THE SCORE CELLS TAKE THE SAME SCALE AS THEIR WEIGHT. Owner, 2026-10-16:
    * *"the function doesn't change, what needs to change is the visibility in
    * the report"* — this file only READS `productScoreBreakdown`, so scaling
-   * here changes what a reader sees and nothing the model computes. Without it
-   * the two columns sit in different units: a driver weighted 7.6 scoring 0.4,
-   * because the raw breakdown terms sum to `dynamicPrice` (0..12.5) while the
-   * weights now run to 27.2.
+   * here changes what a reader sees and nothing the model computes.
+   *
+   * With one scale for both columns, a lever on its top step scores exactly its
+   * weight: `SCORED_WEIGHT === MAX WEIGHT` at the optimum.
    *
    * ⚠ APPLIED AT THE ROW, never inside `grandScore`. That function sums every
    * row of every group into one number serving both the Weighted Score Total
@@ -1037,37 +1026,60 @@ function emitNotebookAnalysis(
    * against a comment promising 100%. Scaled per row, the parts and the total
    * stay in one unit and the section still closes at 100%.
    */
-  const scalerFor = (anchor: number | undefined, top: number, size: number) =>
+  const scalerFor = (anchor: number | undefined, top: number) =>
     anchor == null
       ? (w: number) => w
-      : (w: number) => w * (top > 0 ? anchor / top : 1) * size;
+      : (w: number) => w * (top > 0 ? anchor / top : 1);
 
-  /**
-   * THE SCORE SCALER. Null-safe, because a missing score is unknown, not zero.
-   *
-   * ⚠ `size` IS 1 FOR DESIGN AND THE FAMILY'S ITEM COUNT FOR LEVERS, and the
-   * asymmetry is deliberate because the two score columns hold different KINDS
-   * of number:
-   *
-   *   • A LEVER's score is `impactValue × stepMultiplier` — the same quantity
-   *     its weight states, one row at a time. Both take `× SIZE`, so a team on
-   *     the top step scores exactly its weight. That identity is the point:
-   *     `SCORED_WEIGHT === MAX WEIGHT` at the optimum.
-   *   • A DESIGN field's score is `resolved × bellFactor × direction`, a term in
-   *     a sum that reaches `dynamicPrice` (~13.6). It is NOT one driver's share
-   *     of 1, so `× SIZE` counts the family twice — the report read ~300 that
-   *     way. It takes the MULT alone.
-   */
-  const scoreScalerFor = (anchor: number | undefined, top: number, size: number) =>
+  /** The same scale, null-safe — a missing score is unknown, not zero. */
+  const scoreScalerFor = (anchor: number | undefined, top: number) =>
     anchor == null
       ? (v: number | null): number | null => v
       : (v: number | null): number | null =>
-          v == null ? null : v * (top > 0 ? anchor / top : 1) * size;
+          v == null ? null : v * (top > 0 ? anchor / top : 1);
 
-  const scaleWeight = scalerFor(DESIGN_ANCHOR, tops.design, filterByMoney.length);
-  // `1`, NOT `filterByMoney.length` — a design score is a term summing to
-  // `dynamicPrice`, not one driver's share of 1. See `scoreScalerFor`.
-  const scaleDesignScore = scoreScalerFor(DESIGN_ANCHOR, tops.design, 1);
+  const scaleWeight = scalerFor(DESIGN_ANCHOR, tops.design);
+
+  /**
+   * WHAT A DESIGN FIELD PAYS AT ITS OPTIMUM: `max × PEAK × direction`.
+   *
+   * The returns curve peaks at `maxValue` and returns `2 − e⁻²` there, so this
+   * is the largest contribution the field can make. A degenerate range
+   * (`max <= min`) makes the curve return 1 everywhere, and this matches it.
+   *
+   * ⚠ COUPLED TO `calcDiminishingReturnsCostFactor`. If that curve's peak or
+   * its centre moves, this number is wrong and every design score cell shifts
+   * with it.
+   */
+  const PEAK_FACTOR = 2 - Math.exp(-2);
+  const maxAttainable = (f: ReportProductField): number => {
+    const max = Number(f.maxValue) || 0;
+    const min = Number(f.minValue) || 0;
+    const peak = max > min ? PEAK_FACTOR : 1;
+    return max * peak * (Number(f.direction) || 0);
+  };
+
+  /**
+   * A DESIGN SCORE AS A SHARE OF WHAT WAS THERE, expressed on the weight scale.
+   *
+   *     displayed = (actual / maxAttainable) × the row's weight
+   *
+   * So a field played at its optimum reads exactly its own weight — the same
+   * identity the levers have at their top step — and the two columns answer one
+   * question: how much of this driver did you capture.
+   *
+   * ⚠ IT IS NOT `score × MULT`. `direction` is a SHARE of 1 while
+   * `resolved × bellFactor × direction` is a MAGNITUDE summing to
+   * `dynamicPrice`, so no common multiplier makes them meet — scaled that way
+   * the design column totalled 39.5 against weights totalling 3.4. Dividing by
+   * what was attainable is what converts the magnitude into a share.
+   */
+  const designScoreFor = (f: ReportProductField) => {
+    const weight = scaleWeight(Number(f.direction) || 0);
+    const attainable = maxAttainable(f);
+    return (v: number | null): number | null =>
+      v == null || attainable <= 0 ? null : (v / attainable) * weight;
+  };
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
@@ -1088,7 +1100,7 @@ function emitNotebookAnalysis(
             return hit.name ? String(hit.name) : String(hit.value);
           },
           score: (dec: ReportDecision | null) =>
-            scaleDesignScore(scoreTermFor(dec, p._id, String(f.key ?? ""))),
+            designScoreFor(f)(scoreTermFor(dec, p._id, String(f.key ?? ""))),
         })),
     },
     // Marketing and Vendors each get their own heading — see the note on
