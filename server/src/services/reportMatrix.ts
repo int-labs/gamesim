@@ -81,6 +81,9 @@ export interface ReportGlobalInputItem {
   key?:     string;
   label?:   string;
   impacts?: Record<string, unknown>;
+  /** stepKey → multiplier. Absent on a BINARY lever, which has no ladder.
+   *  Read for the top rung, which is a lever's optimum. */
+  options?: Record<string, number>;
 }
 
 export interface ReportContainer {
@@ -563,14 +566,40 @@ export function weightTopsOf(
     for (const item of gi.inputs ?? [])
       for (const metric of DEMAND_METRICS)
         if (item.impacts?.[metric])
-          // THROUGH `configWeightOf`, so the per-product `selections` overrides
-          // are included. The base impacts look flat; the real ceilings are not.
+          // THROUGH `leverMaxWeight`, so the per-product `selections` overrides
+          // AND the top step are both included — the divisor must measure the
+          // same quantity the weight column shows, or the anchor lands on the
+          // wrong row. The base impacts look flat; the real ceilings are not.
           for (const p of products)
-            top = Math.max(top, configWeightOf(item, metric, p._id));
+            top = Math.max(top, leverMaxWeight(item, metric, p._id));
     byContainer[key] = top;
   }
 
   return { design, byContainer };
+}
+
+/**
+ * A lever's weight AT ITS TOP STEP — what the market pays if you max it.
+ *
+ * `configWeightOf` alone is the impact value with the step multiplier
+ * deliberately absent, which is right for a per-step figure and wrong for a
+ * WEIGHT. The weight column states what the driver is worth; a team that picks
+ * the top rung then scores `impactValue × topMultiplier` and appeared to
+ * out-deliver its own weight by the whole ladder — Web Marketing on Anime
+ * weighed 0.2587 while a maxed team scored 0.4269.
+ *
+ * A lever's optimum IS its top step (the ladders are authored monotonic), so
+ * the top rung is the right thing to measure against. A binary lever has no
+ * `options` and multiplies by 1.
+ */
+function leverMaxWeight(
+  item: ReportGlobalInputItem,
+  metricKey: string,
+  productId: unknown,
+): number {
+  const steps = Object.values(item.options ?? {}).map(Number).filter(Number.isFinite);
+  const topMultiplier = steps.length > 0 ? Math.max(...steps) : 1;
+  return configWeightOf(item, metricKey, productId) * topMultiplier;
 }
 
 /** One row of the driver cascade: a decision, its weight, and what it scored. */
@@ -874,15 +903,18 @@ function emitNotebookAnalysis(
       tops.byContainer[anchorKey] ?? 0,
       items.length,
     );
+    // SAME scaler as the weight, `items.length` included — so a team on the top
+    // step scores exactly the weight shown beside it.
     const scaleScore = scoreScalerFor(
       CONTAINER_ANCHOR[anchorKey],
       tops.byContainer[anchorKey] ?? 0,
+      items.length,
     );
     return {
       label,
       rows: items.map((item) => ({
         label:  item.label,
-        weight: scale(configWeightOf(item.item, metric, p._id)),
+        weight: scale(leverMaxWeight(item.item, metric, p._id)),
         choice: (dec) => leverChoiceFor(dec, item.id),
         score:  (dec) => scaleScore(leverScoreFor(dec, item.id, metric)),
       })),
@@ -929,15 +961,17 @@ function emitNotebookAnalysis(
           tops.byContainer[key] ?? 0,
           items.length,
         );
+        // SAME scaler as the weight — see the note on `scoreScalerFor`.
         const scaleScore = scoreScalerFor(
           CONTAINER_ANCHOR[key],
           tops.byContainer[key] ?? 0,
+          items.length,
         );
         return {
           label: gi.label ?? gi.category ?? gi.key ?? "",
           rows: items.map((item) => ({
             label:  item.label ?? item.key ?? "",
-            weight: scale(configWeightOf(item, metric, p._id)),
+            weight: scale(leverMaxWeight(item, metric, p._id)),
             choice: (dec: ReportDecision | null) => leverChoiceFor(dec, id(item._id)),
             score:  (dec: ReportDecision | null) =>
               scaleScore(leverScoreFor(dec, id(item._id), metric)),
@@ -1009,24 +1043,31 @@ function emitNotebookAnalysis(
       : (w: number) => w * (top > 0 ? anchor / top : 1) * size;
 
   /**
-   * THE SAME MULT, WITHOUT THE SIZE — and null-safe, because a missing score is
-   * unknown rather than zero.
+   * THE SCORE SCALER. Null-safe, because a missing score is unknown, not zero.
    *
-   * ⚠ `SIZE` BELONGS TO THE WEIGHT COLUMN ALONE. A weight is one driver's share
-   * and the shares sum to 1, so `× SIZE` is what spreads them to the family's
-   * 27.2 total. A score cell is already a term in a sum ACROSS those drivers —
-   * the terms add up to `dynamicPrice` — so multiplying it by the driver count
-   * counts the family size twice. It read ~300 in the report: `dynamicPrice`
-   * tops out at 12.5 and 12.5 × 3.405 × 8 = 340.
+   * ⚠ `size` IS 1 FOR DESIGN AND THE FAMILY'S ITEM COUNT FOR LEVERS, and the
+   * asymmetry is deliberate because the two score columns hold different KINDS
+   * of number:
+   *
+   *   • A LEVER's score is `impactValue × stepMultiplier` — the same quantity
+   *     its weight states, one row at a time. Both take `× SIZE`, so a team on
+   *     the top step scores exactly its weight. That identity is the point:
+   *     `SCORED_WEIGHT === MAX WEIGHT` at the optimum.
+   *   • A DESIGN field's score is `resolved × bellFactor × direction`, a term in
+   *     a sum that reaches `dynamicPrice` (~13.6). It is NOT one driver's share
+   *     of 1, so `× SIZE` counts the family twice — the report read ~300 that
+   *     way. It takes the MULT alone.
    */
-  const scoreScalerFor = (anchor: number | undefined, top: number) =>
+  const scoreScalerFor = (anchor: number | undefined, top: number, size: number) =>
     anchor == null
       ? (v: number | null): number | null => v
       : (v: number | null): number | null =>
-          v == null ? null : v * (top > 0 ? anchor / top : 1);
+          v == null ? null : v * (top > 0 ? anchor / top : 1) * size;
 
   const scaleWeight = scalerFor(DESIGN_ANCHOR, tops.design, filterByMoney.length);
-  const scaleDesignScore = scoreScalerFor(DESIGN_ANCHOR, tops.design);
+  // `1`, NOT `filterByMoney.length` — a design score is a term summing to
+  // `dynamicPrice`, not one driver's share of 1. See `scoreScalerFor`.
+  const scaleDesignScore = scoreScalerFor(DESIGN_ANCHOR, tops.design, 1);
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
