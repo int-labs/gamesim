@@ -504,6 +504,21 @@ function configWeightOf(
     : base + Number(override);
 }
 
+/**
+ * THE WEIGHT ANCHORS, one per family. See the note where they are applied.
+ *
+ * `0.95` is 95% of customers — what a notebook's heaviest SPEC driver accounts
+ * for. The lever families top out lower and are anchored where they actually
+ * max out, keyed by the CONTAINER so an operator renaming a label does not move
+ * a scale. A container with no entry here — Vendors — is left unscaled: its
+ * metric is computed its own way and has no ceiling to normalise against.
+ */
+const DESIGN_ANCHOR = 0.95;
+const CONTAINER_ANCHOR: Record<string, number> = {
+  marketing: 0.75,
+  channel:   0.77,
+};
+
 /** One row of the driver cascade: a decision, its weight, and what it scored. */
 interface DriverRow {
   label:  string;
@@ -793,15 +808,25 @@ function emitNotebookAnalysis(
       : "Yes";
   };
 
-  const leverGroup = (label: string, metric: string): DriverGroup => ({
-    label,
-    rows: leverItemsOf(containers, [metric]).map((item) => ({
-      label:  item.label,
-      weight: configWeightOf(item.item, metric, p._id),
-      choice: (dec) => leverChoiceFor(dec, item.id),
-      score:  (dec) => leverScoreFor(dec, item.id, metric),
-    })),
-  });
+  /** A metric group that spans containers. Only `sales_channel` uses this, and
+   *  exactly one container carries it — so the anchor is named here rather than
+   *  resolved per row. */
+  const leverGroup = (label: string, metric: string, anchorKey: string): DriverGroup => {
+    const items = leverItemsOf(containers, [metric]);
+    const scale = scalerFor(
+      CONTAINER_ANCHOR[anchorKey],
+      topLeverWeight(items.map((i) => i.item), metric),
+    );
+    return {
+      label,
+      rows: items.map((item) => ({
+        label:  item.label,
+        weight: scale(configWeightOf(item.item, metric, p._id)),
+        choice: (dec) => leverChoiceFor(dec, item.id),
+        score:  (dec) => leverScoreFor(dec, item.id, metric),
+      })),
+    };
+  };
 
   /**
    * ONE GROUP PER CONTAINER for a metric, not one group for the metric.
@@ -833,26 +858,89 @@ function emitNotebookAnalysis(
       .sort((a, b) =>
         Number(String(b.gi.key ?? b.gi.category ?? "") === metric) -
         Number(String(a.gi.key ?? a.gi.category ?? "") === metric))
-      .map(({ gi, items }) => ({
-        label: gi.label ?? gi.category ?? gi.key ?? "",
-        rows: items.map((item) => ({
-          label:  item.label ?? item.key ?? "",
-          weight: configWeightOf(item, metric, p._id),
-          choice: (dec: ReportDecision | null) => leverChoiceFor(dec, id(item._id)),
-          score:  (dec: ReportDecision | null) => leverScoreFor(dec, id(item._id), metric),
-        })),
-      }));
+      .map(({ gi, items }) => {
+        // PER CONTAINER, so Marketing is anchored at 0.75 while Vendors — which
+        // carries the same `marketing` impact but computes it its own way — is
+        // left exactly as configured.
+        const scale = scalerFor(
+          CONTAINER_ANCHOR[String(gi.key ?? gi.category ?? "")],
+          topLeverWeight(items, metric),
+        );
+        return {
+          label: gi.label ?? gi.category ?? gi.key ?? "",
+          rows: items.map((item) => ({
+            label:  item.label ?? item.key ?? "",
+            weight: scale(configWeightOf(item, metric, p._id)),
+            choice: (dec: ReportDecision | null) => leverChoiceFor(dec, id(item._id)),
+            score:  (dec: ReportDecision | null) => leverScoreFor(dec, id(item._id), metric),
+          })),
+        };
+      });
 
-  const filterByMoney = fields
-    .filter(
-      (f) =>
-        f.type === "money" &&
-        (Number(f.direction) || 0) > 0 &&
-        String(f.key) !== SELLING_PRICE_KEY,
-    )
-	
-  const topWeight = Number(filterByMoney[0]?.direction) || 0;
-  const factor = 0.95 / topWeight;
+  const filterByMoney = fields.filter(
+    (f) =>
+      f.type === "money" &&
+      (Number(f.direction) || 0) > 0 &&
+      String(f.key) !== SELLING_PRICE_KEY,
+  );
+
+  /**
+   * THE WEIGHT SCALE, and it is PER NOTEBOOK — every archetype gets its own
+   * divisor.
+   *
+   * `0.95` is 95% of customers, and the notebook's heaviest design driver is
+   * what earns it; every other weight and score on this notebook is then
+   * expressed against that same anchor, so a reader can compare a spec row to a
+   * lever row without converting between two scales.
+   *
+   * `Math.max` rather than `filterByMoney[0]`: the array is sorted by direction
+   * descending two statements above, so the first element IS the max today —
+   * but that is an invisible coupling, and re-sorting by `order` would silently
+   * make the divisor "whichever field happens to be first".
+   *
+   * The `topWeight > 0` guard is not theoretical. A product with no weighted
+   * money field divides by zero, and `factor` is applied to EVERY group below,
+   * so an Infinity would not stay in the Design section — it would take the
+   * whole analysis with it.
+   */
+  const topWeight = Math.max(0, ...filterByMoney.map((f) => Number(f.direction) || 0));
+
+  /**
+   * ONE ANCHOR PER WEIGHT FAMILY, because the families are computed differently
+   * and do not share a ceiling. Owner, 2026-10-16.
+   *
+   *   design    0.95   the heaviest spec driver, = 95% of customers
+   *   Marketing 0.75
+   *   Channels  0.77
+   *   Vendors   —      their own metric; left exactly as configured
+   *
+   * Each family's divisor is its OWN heaviest weight ON THIS NOTEBOOK, taken
+   * through `configWeightOf` so the per-product `selections` overrides are
+   * included. Two notebooks therefore get two divisors for the same lever, and
+   * that is the point — a weight is read against the market it belongs to.
+   *
+   * SCORES ARE NOT SCALED, in any family. `grandScore` sums every row of every
+   * group into one number that is both the Weighted Score Total and the Market
+   * Fit denominator, so scaling some rows and not others would put two units in
+   * one sum. Scaling inside `grandScore` breaks it the other way: the parts
+   * stay raw while the total moves, which measured 3.67% against a comment
+   * promising 100% on the Anime book. The scale is a PRESENTATION of the weight
+   * column; the score columns stay in the units the model computed them in.
+   */
+  const WEIGHT_MULT = 8;
+
+  /** `anchor / top`, or identity when the family has no anchor. */
+  const scalerFor = (anchor: number | undefined, top: number) =>
+    anchor == null
+      ? (w: number) => w
+      : (w: number) => w * (top > 0 ? anchor / top : 1) * WEIGHT_MULT;
+
+  const scaleWeight = scalerFor(DESIGN_ANCHOR, topWeight);
+
+  /** The heaviest weight a metric reaches on this notebook, overrides applied.
+   *  `items` is passed in so a container-scoped group measures only its own. */
+  const topLeverWeight = (items: ReportGlobalInputItem[], metric: string) =>
+    Math.max(0, ...items.map((i) => configWeightOf(i, metric, p._id)));
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
@@ -862,7 +950,7 @@ function emitNotebookAnalysis(
       rows: filterByMoney
         .map((f) => ({
           label:  f.label ?? f.key ?? "",
-          weight: Number(f.direction) * factor * 8 || 0,
+          weight: scaleWeight(Number(f.direction) || 0),
           choice: (dec: ReportDecision | null) => {
             const inp = inputFor(dec);
             if (!inp) return BLANK;
@@ -881,7 +969,7 @@ function emitNotebookAnalysis(
     // container carries `sales_channel`, so splitting it would only rename the
     // heading to that container's label.
     ...leverGroupsByContainer("marketing"),
-    leverGroup("Sales Channel", "sales_channel"),
+    leverGroup("Sales Channel", "sales_channel", "channel"),
   ].filter((g) => g.rows.length > 0);
 
   /** Σ of every row in every group, for one team. The Market Fit denominator
@@ -893,12 +981,14 @@ function emitNotebookAnalysis(
       for (const r of g.rows) {
         const v = r.score(dec);
         if (v == null) continue;
-        sum += v * factor * 8;
+        // RAW, like every score cell above it — see the note on `scaleWeight`.
+        // A `× factor × 8` here scaled the total while the parts stayed raw.
+        sum += v;
         any = true;
       }
     return any ? sum : null;
   };
-  
+
   const grandWeight = groups.reduce((a, g) => a + groupWeight(g), 0);
 
   // Selling price sits OUTSIDE the cascade: `direction` is 0 on it, so it
