@@ -29,7 +29,7 @@ export const TYPE_OPTIONS: ConfigOption[] = [];
  * `minValue` (also 15, and not a coincidence). Kept so the axis still reports a
  * score to anything that asks.
  */
-const TYPE_SCORE = 15;
+const TYPE_SCORE = 6;
 
 /** Refill the type axis in place from the backend catalogue. */
 export function hydrateTypeOptions(rows: Array<{ id: string; name: string }>): void {
@@ -38,24 +38,24 @@ export function hydrateTypeOptions(rows: Array<{ id: string; name: string }>): v
 }
 
 export const PAPER_OPTIONS: ConfigOption[] = [
-  { id: 'recycled', name: 'Recycled Paper', score: 6 },
-  { id: 'cream', name: 'Cream Paper', score: 7 },
-  { id: 'black', name: 'Black Paper', score: 8 },
-  { id: 'fountain', name: 'Fountain Pen Paper', score: 9 },
+  { id: 'recycled', name: 'Recycled Paper', score: 2 },
+  { id: 'cream', name: 'HVS Paper', score: 4 },
+  { id: 'black', name: 'Black Paper', score: 6 },
+  { id: 'fountain', name: 'Art Paper', score: 8 },
 ];
 
 export const SIZE_OPTIONS: ConfigOption[] = [
-  { id: 'a5', name: 'Small', score: 6 },
-  { id: 'b5', name: 'Medium', score: 8 },
-  { id: 'b4', name: 'Large', score: 10 },
+  { id: 'a5', name: 'Small', score: 4 },
+  { id: 'b5', name: 'Medium', score: 6 },
+  { id: 'b4', name: 'Large', score: 8 },
 ];
 
 export const PAGE_DESIGN_OPTIONS: ConfigOption[] = [
-  { id: 'blank', name: 'Blank', score: 5 },
-  { id: 'lined', name: 'Lined', score: 8 },
-  { id: 'grid', name: 'Grid', score: 10 },
-  { id: 'numbered', name: 'Numbered', score: 12 },
-  { id: 'storyboarding', name: 'Storyboarding', score: 14 },
+  { id: 'blank', name: 'Blank', score: 4 },
+  { id: 'lined', name: 'Lined', score: 6 },
+  { id: 'numbered', name: 'Numbered', score: 7 },
+  { id: 'grid', name: 'Grid', score: 7 },
+  { id: 'storyboarding', name: 'Storyboarding', score: 8 },
 ];
 
 // ADDON_OPTIONS and the `addon` axis were DELETED 2026-09-23. "Add-ons" is a
@@ -68,9 +68,9 @@ export const PAGE_DESIGN_OPTIONS: ConfigOption[] = [
 // verified against the live documents. Do not re-add either half alone.
 
 export const COVER_OPTIONS: ConfigOption[] = [
-  { id: 'plastic', name: 'Plastic Covers', score: 8 },
-  { id: 'hard', name: 'Hard Cover', score: 10 },
-  { id: 'holographic', name: 'Holographic Covers', score: 12 },
+  { id: 'plastic', name: 'Plastic Covers', score: 4 },
+  { id: 'hard', name: 'Hard Cover', score: 6 },
+  { id: 'holographic', name: 'Holographic Covers', score: 8 },
 ];
 
 // ── The canvas add-on axes ───────────────────────────────────────────────────
@@ -90,9 +90,9 @@ export const COVER_OPTIONS: ConfigOption[] = [
 // ever created and lift the price anchor with it.
 
 export const CHARM_OPTIONS: ConfigOption[] = [
-  { id: 'charm_bear', name: 'Bear Charm', score: 2 },
-  { id: 'charm_cat', name: 'Cat Charm', score: 3.5 },
-  { id: 'charm_penguin', name: 'Penguin Charm', score: 5 },
+  { id: 'charm_bear', name: 'Bear Charm', score: 4 },
+  { id: 'charm_cat', name: 'Cat Charm', score: 6.5 },
+  { id: 'charm_penguin', name: 'Penguin Charm', score: 4 },
 ];
 
 export const RIBBON_OPTIONS: ConfigOption[] = [
@@ -101,15 +101,15 @@ export const RIBBON_OPTIONS: ConfigOption[] = [
 ];
 
 export const STICKER_OPTIONS: ConfigOption[] = [
-  { id: 'sticker_name', name: 'Name Sticker', score: 2 },
-  { id: 'sticker_basic', name: 'Sticker Pack', score: 3.5 },
-  { id: 'sticker_cute', name: 'Cute Sticker Pack', score: 5.5 },
+  { id: 'sticker_name', name: 'Name Sticker', score: 4 },
+  { id: 'sticker_basic', name: 'Sticker Pack', score: 6 },
+  { id: 'sticker_cute', name: 'Cute Sticker Pack', score: 8 },
 ];
 
 export const FUNCTIONAL_OPTIONS: ConfigOption[] = [
-  { id: 'bookmark', name: 'Bookmark Ribbon', score: 2 },
-  { id: 'band', name: 'Elastic Band', score: 3 },
-  { id: 'closure', name: 'Magnetic Closure', score: 4 },
+  { id: 'bookmark', name: 'Bookmark Ribbon', score: 6 },
+  { id: 'band', name: 'Elastic Band', score: 4 },
+  { id: 'closure', name: 'Magnetic Closure', score: 8 },
 ];
 
 /**
@@ -228,11 +228,12 @@ export const PRICE_ANCHOR: Record<string, Omit<ProductionSpec, 'type'>> = {
   // Values are OPTION IDS, not display names — `configOption` throws on an
   // unknown id rather than scoring 0, so a name here crashes the market card.
   '6a43956f9833d0924dd7e991': { // Anime book
-    paper: 'fountain', size: 'b5', pageDesign: 'storyboarding', cover: 'holographic',
+    paper: 'fountain', size: 'b4', pageDesign: 'storyboarding', cover: 'holographic',
     charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
   },
   '6a66f4e596e2931bcd3a0cb1': { // Minimalist Notebook
     paper: 'fountain', size: 'b4', pageDesign: 'numbered', cover: 'hard',
+	charms: 'charm_cat',
     // No charm, ribbon or sticker: an OMITTED axis scores 0 through
     // `optionScore`, which is what a minimalist anchor should be.
     functional: 'closure',
@@ -240,11 +241,12 @@ export const PRICE_ANCHOR: Record<string, Omit<ProductionSpec, 'type'>> = {
   '6a66f4f796e2931bcd3a0cbd': { // Indie Notebook
     // `a4` was specified and does not exist — SIZE_OPTIONS is a5 / b4 / b5, and
     // `configOption` THROWS on an unknown id. `a5` is the only A size.
-    paper: 'cream', size: 'a5', pageDesign: 'numbered', cover: 'hard',
-    functional: 'band',
+    paper: 'cream', size: 'b4', pageDesign: 'numbered', cover: 'hard',
+    charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
   },
+  
   '6a66f56596e2931bcd3a0cf2': { // Cutesy Notebook
-    paper: 'fountain', size: 'b5', pageDesign: 'storyboarding', cover: 'holographic',
+    paper: 'fountain', size: 'b4', pageDesign: 'storyboarding', cover: 'holographic',
     charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
   },
 };
