@@ -843,22 +843,26 @@ function emitNotebookAnalysis(
         })),
       }));
 
+  const filterByMoney = fields
+    .filter(
+      (f) =>
+        f.type === "money" &&
+        (Number(f.direction) || 0) > 0 &&
+        String(f.key) !== SELLING_PRICE_KEY,
+    )
+	
+  const topWeight = Number(filterByMoney[0]?.direction) || 0;
+  const factor = 0.95 / topWeight;
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
       // direction > 0, not the selling price) — exactly the set
       // `productScoreBreakdown` holds, so no row here can be permanently blank.
       label: "Design Notebook",
-      rows: fields
-        .filter(
-          (f) =>
-            f.type === "money" &&
-            (Number(f.direction) || 0) > 0 &&
-            String(f.key) !== SELLING_PRICE_KEY,
-        )
+      rows: filterByMoney
         .map((f) => ({
           label:  f.label ?? f.key ?? "",
-          weight: Number(f.direction) || 0,
+          weight: Number(f.direction) * factor * 8 || 0,
           choice: (dec: ReportDecision | null) => {
             const inp = inputFor(dec);
             if (!inp) return BLANK;
@@ -889,11 +893,12 @@ function emitNotebookAnalysis(
       for (const r of g.rows) {
         const v = r.score(dec);
         if (v == null) continue;
-        sum += v;
+        sum += v * factor * 8;
         any = true;
       }
     return any ? sum : null;
   };
+  
   const grandWeight = groups.reduce((a, g) => a + groupWeight(g), 0);
 
   // Selling price sits OUTSIDE the cascade: `direction` is 0 on it, so it

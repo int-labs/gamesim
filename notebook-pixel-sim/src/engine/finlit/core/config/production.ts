@@ -45,9 +45,9 @@ export const PAPER_OPTIONS: ConfigOption[] = [
 ];
 
 export const SIZE_OPTIONS: ConfigOption[] = [
-  { id: 'a5', name: 'A5', score: 6 },
-  { id: 'b4', name: 'B4', score: 8 },
-  { id: 'b5', name: 'B5', score: 10 },
+  { id: 'a5', name: 'Small', score: 6 },
+  { id: 'b5', name: 'Medium', score: 8 },
+  { id: 'b4', name: 'Large', score: 10 },
 ];
 
 export const PAGE_DESIGN_OPTIONS: ConfigOption[] = [
