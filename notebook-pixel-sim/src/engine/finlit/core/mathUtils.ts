@@ -26,14 +26,24 @@ export const bellCurveScore = (
   return Math.exp(-(z * z) / 2);
 };
 
+/**
+ * MIRRORS `server/src/utils/calcDiminishingReturnsCostFactor.ts`. A true bell
+ * centred on `max` — the ceiling IS the optimum, and spending past it decays.
+ *
+ * Changed 2026-10-16 with the server's. It was `2 − exp(−z²/2)` about the
+ * MIDPOINT, which rewarded either bound and could never punish an overshoot.
+ * If one of these two moves without the other, this preview stops agreeing with
+ * the score the player is actually given.
+ */
+const PEAK = 2 - Math.exp(-2); // 1.8647 — the old curve's value at a bound
+
 export const diminishingReturnsFactor = (
   quantity: number,
   min: number | null,
   max: number | null,
 ): number => {
   if (min === null || max === null || max <= min) return 1;
-  const meanMode = (min + max) / 2;
   const stdDev = (max - min) / 4;
-  const z = (quantity - meanMode) / stdDev;
-  return 2 - Math.exp(-(z * z) / 2);
+  const z = (quantity - max) / stdDev;
+  return PEAK * Math.exp(-(z * z) / 2);
 };

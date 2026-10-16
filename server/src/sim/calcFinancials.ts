@@ -328,13 +328,20 @@ const resolveFieldValue = (
   }
 
   const numeric = Number(raw ?? 0);
-  const clamped = clamp(numeric, field.minValue, field.maxValue);
+  // LOWER BOUND ONLY. The upper clamp was removed 2026-10-16: it capped every
+  // submission at `maxValue` BEFORE the returns curve saw it, so overshooting
+  // was free on the score while the cost path charged the raw figure in full.
+  // The curve now peaks at `max` and decays past it, which it cannot do if the
+  // input never exceeds `max`. The floor stays — a value under `min` is not
+  // something the option ladders produce, and `page_design`'s floor carries the
+  // notebook type's charge.
+  const floored = field.minValue == null ? numeric : Math.max(numeric, field.minValue);
 
   if (field.type === "percentage") {
-    return clamped / 100;
+    return floored / 100;
   }
 
-  return clamped;
+  return floored;
 };
 
 // ── Updated getDecisionInput to use resolveFieldValue ───────────────────────
