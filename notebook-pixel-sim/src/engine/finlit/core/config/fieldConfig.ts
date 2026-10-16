@@ -259,6 +259,38 @@ export const priceSensitivityFromBounds = (
 };
 
 /**
+ * THE WEIGHT SCALE — 95% of customers, earned by a notebook's heaviest driver.
+ *
+ * ⚠ PER NOTEBOOK. Each archetype has its own divisor: its own top `direction`.
+ * Owner, 2026-10-16. Two notebooks with different spec weightings therefore
+ * produce different factors, and that is the point — a weight is read against
+ * the market it belongs to, not against the catalogue.
+ *
+ * ONE DEFINITION, TWO SURFACES: the competitor report's Weight column
+ * (`reportMatrix.ts`, where it is additionally ×8 for the 100-point product
+ * score presentation) and the debrief's VoC axis (0..1, no multiplier — ×8
+ * would run straight off the plot). The NORMALISATION is shared; the display
+ * multiplier belongs to each surface.
+ */
+export const TOP_DRIVER_SHARE = 0.95;
+
+/**
+ * The divisor for one notebook, from its own `direction` weights.
+ *
+ * Takes the MAX rather than the first element. The report's field list happens
+ * to be sorted by direction descending, so `fields[0]` is the max there today —
+ * but that is invisible coupling, and the debrief's wire order is the
+ * operator's `order`, where it would simply be wrong.
+ *
+ * Returns 1 for a notebook with no weighted driver: dividing by zero would send
+ * every weight on that notebook to Infinity.
+ */
+export const weightScaleFor = (directions: readonly (number | null | undefined)[]): number => {
+  const top = Math.max(0, ...directions.map((d) => Number(d) || 0));
+  return top > 0 ? TOP_DRIVER_SHARE / top : 1;
+};
+
+/**
  * PRODUCT SCORE, as the player is shown it: `dynamicPrice × 8`, out of 100.
  *
  * `dynamicPrice` IS the unnormalised product score — `calcFinancials` builds it

@@ -18,6 +18,8 @@ import {
 import {
   priceSensitivityFromBounds,
   productScoreFromDynamicPrice,
+  weightScaleFor,
+  TOP_DRIVER_SHARE,
 } from '@/engine/finlit/core/config/fieldConfig';
 import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
@@ -619,6 +621,14 @@ function VocSection({
   product: RoundDebriefDto['products'][number];
   palette: Map<string, string>;
 }) {
+  // THIS NOTEBOOK'S WEIGHT SCALE, the same normalisation the competitor report
+  // applies to its Weight column: the heaviest driver becomes 0.95, everything
+  // else is read against it. `selling_price` is excluded from the max — it
+  // carries direction 0 and would only drag the divisor down.
+  const scale = weightScaleFor(
+    product.fields.filter((f) => f.key !== 'selling_price').map((f) => f.direction),
+  );
+
   const rows: VocRow[] = product.fields.map((f) => {
     const span = (f.maxValue ?? 0) - (f.minValue ?? 0);
     const position = (v: number) =>
@@ -630,9 +640,16 @@ function VocSection({
     // FROM THE WIRE'S BOUNDS, not `priceSensitivity(genre)` — the genre id is
     // not the product name, and that lookup would miss and return defaults
     // while still type-checking.
+    //
+    // BOTH ARRIVE AT THE SAME CEILING, by different routes, because they are
+    // different quantities. A `direction` is scaled by this notebook's divisor
+    // so the top driver lands on 0.95. Price sensitivity is ALREADY a 0..1
+    // share of the price universe, so it takes the 0.95 anchor directly —
+    // running it through a direction-derived divisor would be dimensionally
+    // meaningless and would throw it off the axis (0.75 × 3.4 = 2.55).
     const weight = f.key === 'selling_price'
-      ? priceSensitivityFromBounds(f.minValue, f.maxValue).weight
-      : f.direction;
+      ? priceSensitivityFromBounds(f.minValue, f.maxValue).weight * TOP_DRIVER_SHARE
+      : (f.direction ?? 0) * scale;
 
     const dots: VocRow['dots'] = [];
     for (const t of data.teams) {
