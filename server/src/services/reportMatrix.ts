@@ -874,7 +874,10 @@ function emitNotebookAnalysis(
       tops.byContainer[anchorKey] ?? 0,
       items.length,
     );
-    const scaleScore = scoreScalerFor(scale);
+    const scaleScore = scoreScalerFor(
+      CONTAINER_ANCHOR[anchorKey],
+      tops.byContainer[anchorKey] ?? 0,
+    );
     return {
       label,
       rows: items.map((item) => ({
@@ -926,7 +929,10 @@ function emitNotebookAnalysis(
           tops.byContainer[key] ?? 0,
           items.length,
         );
-        const scaleScore = scoreScalerFor(scale);
+        const scaleScore = scoreScalerFor(
+          CONTAINER_ANCHOR[key],
+          tops.byContainer[key] ?? 0,
+        );
         return {
           label: gi.label ?? gi.category ?? gi.key ?? "",
           rows: items.map((item) => ({
@@ -1002,12 +1008,25 @@ function emitNotebookAnalysis(
       ? (w: number) => w
       : (w: number) => w * (top > 0 ? anchor / top : 1) * size;
 
-  /** The same scale, null-safe — a missing score is unknown, not zero. */
-  const scoreScalerFor = (scale: (w: number) => number) =>
-    (v: number | null): number | null => (v == null ? null : scale(v));
+  /**
+   * THE SAME MULT, WITHOUT THE SIZE — and null-safe, because a missing score is
+   * unknown rather than zero.
+   *
+   * ⚠ `SIZE` BELONGS TO THE WEIGHT COLUMN ALONE. A weight is one driver's share
+   * and the shares sum to 1, so `× SIZE` is what spreads them to the family's
+   * 27.2 total. A score cell is already a term in a sum ACROSS those drivers —
+   * the terms add up to `dynamicPrice` — so multiplying it by the driver count
+   * counts the family size twice. It read ~300 in the report: `dynamicPrice`
+   * tops out at 12.5 and 12.5 × 3.405 × 8 = 340.
+   */
+  const scoreScalerFor = (anchor: number | undefined, top: number) =>
+    anchor == null
+      ? (v: number | null): number | null => v
+      : (v: number | null): number | null =>
+          v == null ? null : v * (top > 0 ? anchor / top : 1);
 
   const scaleWeight = scalerFor(DESIGN_ANCHOR, tops.design, filterByMoney.length);
-  const scaleDesignScore = scoreScalerFor(scaleWeight);
+  const scaleDesignScore = scoreScalerFor(DESIGN_ANCHOR, tops.design);
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
