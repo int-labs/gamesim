@@ -874,13 +874,14 @@ function emitNotebookAnalysis(
       tops.byContainer[anchorKey] ?? 0,
       items.length,
     );
+    const scaleScore = scoreScalerFor(scale);
     return {
       label,
       rows: items.map((item) => ({
         label:  item.label,
         weight: scale(configWeightOf(item.item, metric, p._id)),
         choice: (dec) => leverChoiceFor(dec, item.id),
-        score:  (dec) => leverScoreFor(dec, item.id, metric),
+        score:  (dec) => scaleScore(leverScoreFor(dec, item.id, metric)),
       })),
     };
   };
@@ -925,13 +926,15 @@ function emitNotebookAnalysis(
           tops.byContainer[key] ?? 0,
           items.length,
         );
+        const scaleScore = scoreScalerFor(scale);
         return {
           label: gi.label ?? gi.category ?? gi.key ?? "",
           rows: items.map((item) => ({
             label:  item.label ?? item.key ?? "",
             weight: scale(configWeightOf(item, metric, p._id)),
             choice: (dec: ReportDecision | null) => leverChoiceFor(dec, id(item._id)),
-            score:  (dec: ReportDecision | null) => leverScoreFor(dec, id(item._id), metric),
+            score:  (dec: ReportDecision | null) =>
+              scaleScore(leverScoreFor(dec, id(item._id), metric)),
           })),
         };
       });
@@ -979,20 +982,32 @@ function emitNotebookAnalysis(
    * figure on every notebook while each notebook's own best driver lands
    * wherever its weights put it.
    *
-   * SCORES ARE NOT SCALED, in any family. `grandScore` sums every row of every
-   * group into one number that is both the Weighted Score Total and the Market
-   * Fit denominator, so scaling some rows and not others would put two units in
-   * one sum. Scaling inside `grandScore` breaks it the other way: the parts
-   * stay raw while the total moves, which measured 3.67% against a comment
-   * promising 100% on the Anime book. The scale is a PRESENTATION of the weight
-   * column; the score columns stay in the units the model computed them in.
+   * THE SCORE CELLS TAKE THE SAME SCALE AS THEIR WEIGHT. Owner, 2026-10-16:
+   * *"the function doesn't change, what needs to change is the visibility in
+   * the report"* — this file only READS `productScoreBreakdown`, so scaling
+   * here changes what a reader sees and nothing the model computes. Without it
+   * the two columns sit in different units: a driver weighted 7.6 scoring 0.4,
+   * because the raw breakdown terms sum to `dynamicPrice` (0..12.5) while the
+   * weights now run to 27.2.
+   *
+   * ⚠ APPLIED AT THE ROW, never inside `grandScore`. That function sums every
+   * row of every group into one number serving both the Weighted Score Total
+   * and the Market Fit denominator. Scaling there leaves the parts raw while
+   * the total moves — measured on the Anime book, Market Fit summed to 3.67%
+   * against a comment promising 100%. Scaled per row, the parts and the total
+   * stay in one unit and the section still closes at 100%.
    */
   const scalerFor = (anchor: number | undefined, top: number, size: number) =>
     anchor == null
       ? (w: number) => w
       : (w: number) => w * (top > 0 ? anchor / top : 1) * size;
 
+  /** The same scale, null-safe — a missing score is unknown, not zero. */
+  const scoreScalerFor = (scale: (w: number) => number) =>
+    (v: number | null): number | null => (v == null ? null : scale(v));
+
   const scaleWeight = scalerFor(DESIGN_ANCHOR, tops.design, filterByMoney.length);
+  const scaleDesignScore = scoreScalerFor(scaleWeight);
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
@@ -1013,7 +1028,7 @@ function emitNotebookAnalysis(
             return hit.name ? String(hit.name) : String(hit.value);
           },
           score: (dec: ReportDecision | null) =>
-            scoreTermFor(dec, p._id, String(f.key ?? "")),
+            scaleDesignScore(scoreTermFor(dec, p._id, String(f.key ?? ""))),
         })),
     },
     // Marketing and Vendors each get their own heading — see the note on
@@ -1033,8 +1048,9 @@ function emitNotebookAnalysis(
       for (const r of g.rows) {
         const v = r.score(dec);
         if (v == null) continue;
-        // RAW, like every score cell above it — see the note on `scaleWeight`.
-        // A `× factor × 8` here scaled the total while the parts stayed raw.
+        // Already scaled BY ITS OWN ROW, each with its family's factor — see
+        // the note on `scalerFor`. Scaling again here would move the total away
+        // from the parts, which is what broke Market Fit before.
         sum += v;
         any = true;
       }
