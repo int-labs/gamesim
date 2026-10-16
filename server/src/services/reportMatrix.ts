@@ -505,19 +505,73 @@ function configWeightOf(
 }
 
 /**
- * THE WEIGHT ANCHORS, one per family. See the note where they are applied.
+ * THE WEIGHT ANCHORS, one per family.
  *
- * `0.95` is 95% of customers — what a notebook's heaviest SPEC driver accounts
- * for. The lever families top out lower and are anchored where they actually
- * max out, keyed by the CONTAINER so an operator renaming a label does not move
- * a scale. A container with no entry here — Vendors — is left unscaled: its
- * metric is computed its own way and has no ceiling to normalise against.
+ * `0.95` is 95% of customers — what the single heaviest SPEC driver IN THE
+ * WHOLE CATALOGUE accounts for. Exactly one driver reaches it; every other
+ * notebook's best spec lands lower, and that is the point — each archetype
+ * yields a different driver factor and demands different planning.
+ *
+ * The lever families top out lower and are anchored where they actually max
+ * out. Keyed by CONTAINER, so an operator renaming a label does not move a
+ * scale, and so Vendors — which carries the same `marketing` impact but
+ * computes it its own way — is left unscaled by having no entry here.
  */
 const DESIGN_ANCHOR = 0.95;
 const CONTAINER_ANCHOR: Record<string, number> = {
-  marketing: 0.75,
-  channel:   0.77,
+  marketing: 0.77,
+  channel:   0.75,
 };
+
+/**
+ * The heaviest weight each family reaches ACROSS EVERY NOTEBOOK.
+ *
+ * ⚠ GLOBAL, NOT PER NOTEBOOK. Owner, 2026-10-16: only one thing can be the 0.95
+ * driver. A per-notebook divisor pins every notebook's own top at the anchor
+ * instead, which flattens exactly the difference the report exists to show —
+ * and, because each notebook's directions already sum to 1, it also makes the
+ * family totals differ per notebook rather than landing on one figure.
+ *
+ * Computed ONCE by the caller and passed down: `emitNotebookAnalysis` runs per
+ * product and cannot see the others.
+ */
+export interface WeightTops {
+  design: number;
+  /** container key → its heaviest configured weight, over all notebooks. */
+  byContainer: Record<string, number>;
+}
+
+export function weightTopsOf(
+  products: ReportProduct[],
+  containers: ReportContainer[],
+): WeightTops {
+  let design = 0;
+  for (const p of products)
+    for (const f of p.fields ?? [])
+      if (
+        f.type === "money" &&
+        (Number(f.direction) || 0) > 0 &&
+        String(f.key) !== SELLING_PRICE_KEY
+      )
+        design = Math.max(design, Number(f.direction) || 0);
+
+  const byContainer: Record<string, number> = {};
+  for (const gi of containers) {
+    const key = String(gi.key ?? gi.category ?? "");
+    if (CONTAINER_ANCHOR[key] == null) continue; // unanchored family — Vendors
+    let top = 0;
+    for (const item of gi.inputs ?? [])
+      for (const metric of DEMAND_METRICS)
+        if (item.impacts?.[metric])
+          // THROUGH `configWeightOf`, so the per-product `selections` overrides
+          // are included. The base impacts look flat; the real ceilings are not.
+          for (const p of products)
+            top = Math.max(top, configWeightOf(item, metric, p._id));
+    byContainer[key] = top;
+  }
+
+  return { design, byContainer };
+}
 
 /** One row of the driver cascade: a decision, its weight, and what it scored. */
 interface DriverRow {
@@ -680,6 +734,8 @@ function emitNotebookAnalysis(
   ctx: Ctx,
   p: ReportProduct,
   containers: ReportContainer[],
+  /** Catalogue-wide divisors — see `weightTopsOf`. */
+  tops: WeightTops,
   opening: OpeningStock | null,
   /** ANALYSIS ONLY: the Weighted Score / Total Weighted Score / Market Effect
    *  sections. The competitor report takes the same block in the same order
@@ -815,7 +871,8 @@ function emitNotebookAnalysis(
     const items = leverItemsOf(containers, [metric]);
     const scale = scalerFor(
       CONTAINER_ANCHOR[anchorKey],
-      topLeverWeight(items.map((i) => i.item), metric),
+      tops.byContainer[anchorKey] ?? 0,
+      items.length,
     );
     return {
       label,
@@ -859,12 +916,14 @@ function emitNotebookAnalysis(
         Number(String(b.gi.key ?? b.gi.category ?? "") === metric) -
         Number(String(a.gi.key ?? a.gi.category ?? "") === metric))
       .map(({ gi, items }) => {
-        // PER CONTAINER, so Marketing is anchored at 0.75 while Vendors — which
-        // carries the same `marketing` impact but computes it its own way — is
-        // left exactly as configured.
+        // PER CONTAINER, so Marketing is anchored while Vendors — which carries
+        // the same `marketing` impact but computes it its own way — is left
+        // exactly as configured, having no entry in CONTAINER_ANCHOR.
+        const key = String(gi.key ?? gi.category ?? "");
         const scale = scalerFor(
-          CONTAINER_ANCHOR[String(gi.key ?? gi.category ?? "")],
-          topLeverWeight(items, metric),
+          CONTAINER_ANCHOR[key],
+          tops.byContainer[key] ?? 0,
+          items.length,
         );
         return {
           label: gi.label ?? gi.category ?? gi.key ?? "",
@@ -903,21 +962,22 @@ function emitNotebookAnalysis(
    * so an Infinity would not stay in the Design section — it would take the
    * whole analysis with it.
    */
-  const topWeight = Math.max(0, ...filterByMoney.map((f) => Number(f.direction) || 0));
-
   /**
-   * ONE ANCHOR PER WEIGHT FAMILY, because the families are computed differently
-   * and do not share a ceiling. Owner, 2026-10-16.
+   * THE WEIGHT SCALE: `anchor / catalogue-wide top × the family's SIZE`.
    *
-   *   design    0.95   the heaviest spec driver, = 95% of customers
-   *   Marketing 0.75
-   *   Channels  0.77
+   *   design    0.95 × 8 drivers
+   *   Marketing 0.77 × 3
+   *   Channels  0.75 × 3
    *   Vendors   —      their own metric; left exactly as configured
    *
-   * Each family's divisor is its OWN heaviest weight ON THIS NOTEBOOK, taken
-   * through `configWeightOf` so the per-product `selections` overrides are
-   * included. Two notebooks therefore get two divisors for the same lever, and
-   * that is the point — a weight is read against the market it belongs to.
+   * SIZE is the number of drivers in the family, not a fixed multiplier. The
+   * `× 8` that was here is the DESIGN family's count — eight spec fields — and
+   * reading it as a constant gave Marketing and Channels an eight-fold scale
+   * for three decisions. Owner, 2026-10-16.
+   *
+   * The divisor is global (see `weightTopsOf`), so a family's total is the same
+   * figure on every notebook while each notebook's own best driver lands
+   * wherever its weights put it.
    *
    * SCORES ARE NOT SCALED, in any family. `grandScore` sums every row of every
    * group into one number that is both the Weighted Score Total and the Market
@@ -927,20 +987,12 @@ function emitNotebookAnalysis(
    * promising 100% on the Anime book. The scale is a PRESENTATION of the weight
    * column; the score columns stay in the units the model computed them in.
    */
-  const WEIGHT_MULT = 8;
-
-  /** `anchor / top`, or identity when the family has no anchor. */
-  const scalerFor = (anchor: number | undefined, top: number) =>
+  const scalerFor = (anchor: number | undefined, top: number, size: number) =>
     anchor == null
       ? (w: number) => w
-      : (w: number) => w * (top > 0 ? anchor / top : 1) * WEIGHT_MULT;
+      : (w: number) => w * (top > 0 ? anchor / top : 1) * size;
 
-  const scaleWeight = scalerFor(DESIGN_ANCHOR, topWeight);
-
-  /** The heaviest weight a metric reaches on this notebook, overrides applied.
-   *  `items` is passed in so a container-scoped group measures only its own. */
-  const topLeverWeight = (items: ReportGlobalInputItem[], metric: string) =>
-    Math.max(0, ...items.map((i) => configWeightOf(i, metric, p._id)));
+  const scaleWeight = scalerFor(DESIGN_ANCHOR, tops.design, filterByMoney.length);
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
@@ -1290,7 +1342,9 @@ export function buildCompetitorMatrix(
   // for one figure (Revenue / Demand / Customers Fulfilled / Market fit /
   // Market share by notebook). The same figures are all here, grouped under the
   // notebook they belong to instead of scattered across five blocks.
-  for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, opening, false);
+  // ONCE, before the loop: the weight divisors span the whole catalogue.
+  const tops = weightTopsOf(ordered, containers);
+  for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, tops, opening, false);
 
   // Any lever group the notebook blocks did not already account for.
   const accounted = new Set(
@@ -1342,7 +1396,9 @@ export function buildDecisionMatrix(
   emitCashRows(ctx, cash);
 
   // ── PER NOTEBOOK: capacity, production, demand, share, fulfilment ─────────
-  for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, opening);
+  // ONCE, before the loop: the weight divisors span the whole catalogue.
+  const tops = weightTopsOf(ordered, containers);
+  for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, tops, opening);
 
   // Any lever group the notebook blocks did NOT already account for. Channels,
   // marketing and the capacity levers are shown there; a container carrying
