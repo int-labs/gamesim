@@ -259,18 +259,20 @@ export const priceSensitivityFromBounds = (
 };
 
 /**
- * THE WEIGHT SCALE — 95% of customers, earned by a notebook's heaviest driver.
+ * THE WEIGHT SCALE — 95% of customers, earned by the heaviest driver IN THE
+ * WHOLE CATALOGUE.
  *
- * ⚠ PER NOTEBOOK. Each archetype has its own divisor: its own top `direction`.
- * Owner, 2026-10-16. Two notebooks with different spec weightings therefore
- * produce different factors, and that is the point — a weight is read against
- * the market it belongs to, not against the catalogue.
+ * ⚠ FEED IT EVERY NOTEBOOK'S DIRECTIONS, not one product's. Owner, 2026-10-16:
+ * only ONE thing can be the 0.95 driver. Scaled per notebook, every archetype's
+ * best spec reads 0.95 and the comparison the chart exists for disappears — and
+ * it would disagree with `reportMatrix`, which divides by the catalogue max.
+ * The same driver would tell two stories: Cutesy's `charms` at 0.95 on the
+ * chart, 0.64 of the anchor in the report.
  *
  * ONE DEFINITION, TWO SURFACES: the competitor report's Weight column
- * (`reportMatrix.ts`, where it is additionally ×8 for the 100-point product
- * score presentation) and the debrief's VoC axis (0..1, no multiplier — ×8
- * would run straight off the plot). The NORMALISATION is shared; the display
- * multiplier belongs to each surface.
+ * (`reportMatrix.ts`, where it additionally takes the family's SIZE) and the
+ * debrief's VoC axis (0..1, no SIZE — it would run straight off the plot). The
+ * NORMALISATION is shared; the display multiplier belongs to each surface.
  */
 export const TOP_DRIVER_SHARE = 0.95;
 

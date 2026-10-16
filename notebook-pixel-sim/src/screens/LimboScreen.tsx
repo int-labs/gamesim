@@ -621,12 +621,22 @@ function VocSection({
   product: RoundDebriefDto['products'][number];
   palette: Map<string, string>;
 }) {
-  // THIS NOTEBOOK'S WEIGHT SCALE, the same normalisation the competitor report
-  // applies to its Weight column: the heaviest driver becomes 0.95, everything
-  // else is read against it. `selling_price` is excluded from the max — it
-  // carries direction 0 and would only drag the divisor down.
+  // ⚠ THE DIVISOR SPANS EVERY NOTEBOOK, not this one.
+  //
+  // The same normalisation `reportMatrix` applies to its Weight column, and it
+  // has to be the same SET or the two surfaces disagree: only ONE driver in the
+  // catalogue reaches 0.95, and every other notebook's best spec lands below it.
+  // Scaled per notebook this read 0.95 on every chart — Cutesy's `charms` would
+  // sit at the top here while the report put it at 0.64 of the anchor, the same
+  // driver telling two stories.
+  //
+  // `data.products` is the whole catalogue, already on the wire, so no fetch is
+  // needed. `selling_price` is excluded: it carries direction 0 and would only
+  // drag the divisor down.
   const scale = weightScaleFor(
-    product.fields.filter((f) => f.key !== 'selling_price').map((f) => f.direction),
+    data.products.flatMap((p) =>
+      p.fields.filter((f) => f.key !== 'selling_price').map((f) => f.direction),
+    ),
   );
 
   const rows: VocRow[] = product.fields.map((f) => {
