@@ -21,6 +21,7 @@ import {
   weightScaleFor,
   TOP_DRIVER_SHARE,
 } from '@/engine/finlit/core/config/fieldConfig';
+import { diminishingReturnsFactor } from '@/engine/finlit/core/mathUtils';
 import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
 
@@ -640,10 +641,6 @@ function VocSection({
   );
 
   const rows: VocRow[] = product.fields.map((f) => {
-    const span = (f.maxValue ?? 0) - (f.minValue ?? 0);
-    const position = (v: number) =>
-      span > 0 ? Math.max(0, Math.min(1, (v - (f.minValue ?? 0)) / span)) : null;
-
     // `selling_price` carries direction 0 and takes its weight from the shared
     // helper; every other spec uses the operator's authored `direction`.
     //
@@ -661,13 +658,34 @@ function VocSection({
       ? priceSensitivityFromBounds(f.minValue, f.maxValue).weight * TOP_DRIVER_SHARE
       : (f.direction ?? 0) * scale;
 
+    // THE BUBBLE IS THE TEAM'S WEIGHTED VALUE, on the weight's own scale —
+    // `(captured / attainable) × weight`, the same normalisation the analysis
+    // report applies to its design rows. `direction` cancels out of that ratio,
+    // which is why this works for `selling_price` too, whose direction is 0.
+    //
+    // ⚠ MIRRORS THE SERVER. `diminishingReturnsFactor` is the client's copy of
+    // `calcDiminishingReturnsCostFactor`, and `PEAK` must stay its value at the
+    // optimum. If that curve moves and this does not, every bubble lands at the
+    // wrong height while still looking plausible.
+    const min = f.minValue ?? 0;
+    const max = f.maxValue ?? 0;
+    const PEAK = diminishingReturnsFactor(max, min, max);
+    const attainable = max * PEAK;
+
     const dots: VocRow['dots'] = [];
     for (const t of data.teams) {
       const raw = here?.teams[t.teamId]?.byProduct[product.productId]?.fieldValues[f.fieldId];
-      if (raw == null) continue;
-      const p = position(raw);
-      if (p == null) continue;
-      dots.push({ teamId: t.teamId, label: t.teamName, color: colorFor(palette, t.teamId), value: p });
+      if (raw == null || attainable <= 0 || weight == null) continue;
+      // Floor only — the curve is meant to SEE an overshoot and decay past the
+      // ceiling, which is the whole point of it being centred on `max`.
+      const resolved = Math.max(raw, min);
+      const captured = resolved * diminishingReturnsFactor(resolved, min, max);
+      dots.push({
+        teamId: t.teamId,
+        label: t.teamName,
+        color: colorFor(palette, t.teamId),
+        value: (captured / attainable) * weight,
+      });
     }
 
     return { id: f.fieldId, label: f.label, weight, dots };
