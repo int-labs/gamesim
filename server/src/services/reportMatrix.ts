@@ -527,6 +527,16 @@ const CONTAINER_ANCHOR: Record<string, number> = {
 };
 
 /**
+ * The spec group's heading — and the one group whose WEIGHTS are not shown.
+ *
+ * Owner, 2026-10-19: the design rows do not need their weights any more, the
+ * weighted score alone carries it. The weight still DRIVES the score (it is
+ * the row's scale), it is simply not a column the reader needs.
+ */
+const DESIGN_GROUP = "Design Notebook";
+const showsWeight = (g: DriverGroup) => g.label !== DESIGN_GROUP;
+
+/**
  * The heaviest weight each family reaches ACROSS EVERY NOTEBOOK.
  *
  * ⚠ GLOBAL, NOT PER NOTEBOOK. Owner, 2026-10-16: only one thing can be the 0.95
@@ -1085,7 +1095,7 @@ function emitNotebookAnalysis(
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
       // direction > 0, not the selling price) — exactly the set
       // `productScoreBreakdown` holds, so no row here can be permanently blank.
-      label: "Design Notebook",
+      label: DESIGN_GROUP,
       rows: filterByMoney
         .map((f) => ({
           label:  f.label ?? f.key ?? "",
@@ -1129,7 +1139,11 @@ function emitNotebookAnalysis(
     return any ? sum : null;
   };
 
-  const grandWeight = groups.reduce((a, g) => a + groupWeight(g), 0);
+  // `grandWeight` was here and is GONE (owner, 2026-10-19). With the design
+  // group's weights hidden, a Total summing every group described a column the
+  // reader could no longer add up — and a Total over only the visible groups is
+  // a number nothing else in the report uses. The Total rows keep their VALUE
+  // cells; they simply carry no weight.
 
   // Selling price sits OUTSIDE the cascade: `direction` is 0 on it, so it
   // carries no weight and scores nothing, but it is still the decision a reader
@@ -1145,11 +1159,14 @@ function emitNotebookAnalysis(
       return hit?.value == null || hit.value === "" ? BLANK : money(Number(hit.value));
     });
   }
+  // NO WEIGHT COLUMN IN THIS SECTION AT ALL (owner, 2026-10-19). Decisions
+  // answers WHAT each team chose; the weight belongs beside the score it
+  // produced, one section down, not beside the choice.
   for (const g of groups) {
-    ctx.emit("Decisions", g.label, () => "", groupWeight(g));
-    for (const r of g.rows) ctx.emit("Decisions", `  ${r.label}`, r.choice, r.weight);
+    ctx.emit("Decisions", g.label, () => "");
+    for (const r of g.rows) ctx.emit("Decisions", `  ${r.label}`, r.choice);
   }
-  ctx.emit("Decisions", "Total", () => "", grandWeight);
+  ctx.emit("Decisions", "Total", () => "");
   ctx.rows.push([]);
 
   if (withScoring) {
@@ -1165,18 +1182,20 @@ function emitNotebookAnalysis(
           any = true;
         }
         return any ? plain(sum) : BLANK;
-      }, groupWeight(g));
+        // `showsWeight` — the design group's weights are omitted; the levers
+        // keep theirs, where a weight and its score meet at the top step.
+      }, showsWeight(g) ? groupWeight(g) : undefined);
       for (const r of g.rows) {
         ctx.emit("Weighted Score", `  ${r.label}`, (dec) => {
           const v = r.score(dec);
           return v == null ? BLANK : plain(v);
-        }, r.weight);
+        }, showsWeight(g) ? r.weight : undefined);
       }
     }
     ctx.emit("Weighted Score", "Total", (dec) => {
       const v = grandScore(dec);
       return v == null ? BLANK : plain(v);
-    }, grandWeight);
+    });
     ctx.rows.push([]);
 
     // ── Market Fit ─────────────────────────────────────────────────────────
@@ -1200,12 +1219,16 @@ function emitNotebookAnalysis(
           any = true;
         }
         return fitOf(dec, any ? sum : null);
-      }, groupWeight(g));
+      }, showsWeight(g) ? groupWeight(g) : undefined);
       for (const r of g.rows) {
-        ctx.emit("Market Fit", `  ${r.label}`, (dec) => fitOf(dec, r.score(dec)), r.weight);
+        ctx.emit(
+          "Market Fit", `  ${r.label}`,
+          (dec) => fitOf(dec, r.score(dec)),
+          showsWeight(g) ? r.weight : undefined,
+        );
       }
     }
-    ctx.emit("Market Fit", "Total", (dec) => fitOf(dec, grandScore(dec)), grandWeight);
+    ctx.emit("Market Fit", "Total", (dec) => fitOf(dec, grandScore(dec)));
     ctx.rows.push([]);
   }
 
