@@ -33,7 +33,13 @@ export const calcDiminishingReturnsCostFactor = (
 ): number => {
   if (min === null || max === null || max <= min) return 1;
 
-  const stdDev = (max - min) / 4;
+  // /3, NOT /4. Owner, 2026-10-19: at /4 the range spans four standard
+  // deviations and the cheapest option scores ~10% of the best — a ladder
+  // whose bottom rung is barely worth stepping on. /3 widens it to 23%.
+  // This divisor is the ONLY knob for how steep the ladder is, in both
+  // directions: it sets what a cheaper option loses AND what an overshoot
+  // costs, because the curve is symmetric about `max`.
+  const stdDev = (max - min) / 3;
   // CENTRED ON `max`, not on the midpoint. This is the whole change.
   const z = (quantity - max) / stdDev;
 

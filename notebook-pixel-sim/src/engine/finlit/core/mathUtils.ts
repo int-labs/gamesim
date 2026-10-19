@@ -43,7 +43,8 @@ export const diminishingReturnsFactor = (
   max: number | null,
 ): number => {
   if (min === null || max === null || max <= min) return 1;
-  const stdDev = (max - min) / 4;
+  // /3 — must match the server's divisor exactly. See the note there.
+  const stdDev = (max - min) / 3;
   const z = (quantity - max) / stdDev;
   return PEAK * Math.exp(-(z * z) / 2);
 };
