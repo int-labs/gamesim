@@ -4,8 +4,9 @@ import { EmptyPlot } from './PixelBarChart';
 /**
  * Voice of Customer — one COLUMN per spec, on a shared vertical 0..1 axis.
  *
- * Each column carries a WEIGHT TICK (how much the market cares) and one DOT PER
- * TEAM (how far up that spec the team invested).
+ * One straight WEIGHT LINE crosses the columns (how much the market cares), and
+ * each column carries one BUBBLE PER TEAM (what that team actually captured,
+ * weighted) — above the line is over-capture, below is under.
  *
  * Pivoted from rows to columns on 2026-10-09 (owner's call). This used to be
  * horizontal on the argument that spec names "read flat on the left and would
@@ -16,12 +17,12 @@ import { EmptyPlot } from './PixelBarChart';
  * Both are 0..1 but they do NOT mean the same thing, and the legend has to say
  * so or the chart implies they are comparable:
  *
- *   weight  — `direction`, the operator's authored VoC weight (live 0.03..0.15).
- *             For `selling_price`, which carries direction 0, the caller
- *             substitutes `priceSensitivity().weight` — see fieldConfig.ts,
- *             which is the ONE definition of that number.
- *   dot     — investment position, `(resolved − min) / (max − min)`. More is
- *             simply more.
+ *   weight  — `direction × scale`, the operator's authored VoC weight against
+ *             the catalogue-wide top driver. For `selling_price`, which carries
+ *             direction 0, the caller substitutes `priceSensitivity().weight` —
+ *             see fieldConfig.ts, the ONE definition of that number.
+ *   bubble  — `(captured / attainable) × weight`. Same units as the weight, so
+ *             the gap to the line is readable; NOT "more is simply more".
  *
  * The caller does both conversions. This component places numbers; it does not
  * decide what they mean. See services/debriefSeries.ts on the server, which
@@ -143,18 +144,34 @@ export function PixelVocPlot({ rows, height = 300, colW = 86, youId = null }: Pr
                 carries it now — a tick on every column drew the same quantity
                 twice and competed with the bubbles for the same pixels. */}
 
+            {/* BUBBLES IN PixelBubbleChart's FORMAT — translucent fill, paper
+                ring, team initials inside. Overlapping dots are the normal case
+                here (several teams land near the same weight), and an opaque
+                disc hid whoever was drawn first. The initials also carry the
+                identity when two teams share a wrapped palette colour. */}
             {r.dots.map((d) => {
               const you = d.teamId === youId;
               return (
-                <circle
-                  key={d.teamId}
-                  cx={cx}
-                  cy={y(d.value)}
-                  r={you ? 6 : 4.5}
-                  fill={d.color}
-                  stroke={you ? CHART_INK.frame : CHART_INK.paper}
-                  strokeWidth={you ? 2 : 1}
-                />
+                <g key={d.teamId}>
+                  <circle
+                    cx={cx}
+                    cy={y(d.value)}
+                    r={you ? 13 : 11}
+                    fill={d.color}
+                    fillOpacity={0.7}
+                    stroke={you ? CHART_INK.frame : CHART_INK.paper}
+                    strokeWidth={you ? 2.5 : 1.5}
+                  />
+                  <text
+                    x={cx}
+                    y={y(d.value) + 3}
+                    textAnchor="middle"
+                    className="chart-label"
+                    fill={CHART_INK.paper}
+                  >
+                    {d.label.slice(0, 2).toUpperCase()}
+                  </text>
+                </g>
               );
             })}
           </g>

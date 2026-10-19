@@ -183,13 +183,19 @@ function DebriefBody({
     // over `AppBackground` and, because App's container is
     // `h-screen overflow-hidden`, a long debrief could not scroll either.
     <div className="absolute inset-0 z-10 overflow-y-auto bg-cream-100">
-      <div className="flex flex-col gap-4 p-3 sm:p-4 max-w-5xl mx-auto">
+      {/* 80vw, not a `max-w-*` step. The rail and the stage are both sized in
+          `vw` and this page was capped at `max-w-5xl` (1024px), so on a wide
+          screen it sat in a narrow column with the charts squeezed and the
+          prose hard to read. A viewport fraction scales with everything else. */}
+      <div className="flex flex-col gap-4 p-3 sm:p-4 w-[80vw] mx-auto">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="eyebrow eyebrow-sm text-ink-700">Round debrief</div>
           <h1 className="h2 leading-none">Round {roundNumber + 1}</h1>
         </div>
-        <ChartLegend entries={legend} youId={you} />
+        {/* The team legend moved OUT of here and into each chart — one roster
+            at the top meant scrolling back up to recall which colour was whom.
+            See `Section`, which renders it beneath every plot. */}
       </header>
 
       <LearningPoint roundNumber={roundNumber} />
@@ -204,7 +210,8 @@ function DebriefBody({
       {/* "Cash utilization" (opening vs closing balance, with a delta label)
           was removed here 2026-10-09 — owner's call, no longer useful. It was
           the only caller of PixelBarChart's `delta` and `fadeLead` props. */}
-      <Section title="Total energy consumption" note="Energy spent on levers — hiring, vendors, channels, marketing.">
+      <Section title="Total energy consumption" note="Energy spent on levers — hiring, vendors, channels, marketing."
+               legend={legend} youId={you}>
         <PixelBarChart
           groups={['This round']}
           series={perTeam((t) => figure(t, 'energy'))}
@@ -216,7 +223,8 @@ function DebriefBody({
       {/* PER ROUND, one bar per team — not the across-rounds line it was until
           2026-10-09. Team identity is colour plus the header legend, which is
           how "Total energy consumption" above already reads. */}
-      <Section title="Total revenue" note="What each team took in this round.">
+      <Section title="Total revenue" note="What each team took in this round."
+               legend={legend} youId={you}>
         <PixelBarChart
           groups={['This round']}
           series={perTeam((t) => figure(t, 'revenue'))}
@@ -366,7 +374,8 @@ function DebriefBody({
         ]} />
       </Section>
 
-      <Section title="Price vs units sold" note="Bubble area is units sold.">
+      <Section title="Price vs units sold" note="Bubble area is units sold."
+               legend={legend} youId={you}>
         <PriceVsUnits data={data} here={here} palette={palette} />
       </Section>
 
@@ -393,6 +402,8 @@ function DebriefBody({
       <Section
         title="Across rounds"
         note="How each team has moved round to round. Everything else on this page is this round only."
+        legend={legend}
+        youId={you}
       >
         <PixelLineChart
           points={roundLabels}
@@ -451,7 +462,7 @@ function LearningPoint({ roundNumber }: { roundNumber: number }) {
     <div className="bg-cream-50 border-2 border-ink-900 px-3 py-2">
       <div className="eyebrow eyebrow-sm text-ink-700">Learning point</div>
       <div className="body-sm font-bold leading-tight">{lp.title}</div>
-      <div className="body-xs text-ink-800 leading-snug mt-1">{lp.blurb}</div>
+      <div className="body-sm text-ink-800 leading-snug mt-1">{lp.blurb}</div>
     </div>
   );
 }
@@ -608,8 +619,8 @@ function PriceVsUnits({
  * VoC for one notebook.
  *
  * THE TWO NORMALISATIONS LIVE HERE, and nowhere else:
- *   tick — `direction`, or `priceSensitivity().weight` for `selling_price`
- *   dot  — `(value − min) / (max − min)`
+ *   weight — `direction × scale`, or `priceSensitivity().weight` for `selling_price`
+ *   bubble — `(captured / attainable) × weight`, on the weight's own scale
  *
  * The server ships raw bounds precisely so `priceSensitivity()` stays the one
  * definition shared with the market tab.
@@ -705,7 +716,13 @@ function VocSection({
   return (
     <Section
       title={`Voice of customer · ${product.productName}`}
-      note="The tick is how much this market weighs each spec. The dots are how far up it each team invested — two different kinds of number on one axis."
+      note="The line is how much this market weighs each spec, heaviest first. A bubble sits above it where a team captured more than the market asked for, and below where it captured less."
+      legend={data.teams.map((t) => ({
+        id: t.teamId,
+        label: t.teamName,
+        color: colorFor(palette, t.teamId),
+      }))}
+      youId={data.you}
     >
       <PixelVocPlot rows={rows} youId={data.you} />
     </Section>
@@ -714,11 +731,27 @@ function VocSection({
 
 /* ── Shell ───────────────────────────────────────────────────────────── */
 
-function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+/**
+ * `legend` is the TEAM roster, and it rides with the chart rather than sitting
+ * once in the page header — a reader partway down the page was scrolling back
+ * up to recall which colour was whom. Sections whose marks are coloured by
+ * something else (products, cost categories, levers) pass none and render
+ * their own legend in `children` instead.
+ */
+function Section({
+  title, note, legend, youId, children,
+}: {
+  title: string;
+  note?: string;
+  legend?: LegendEntry[];
+  youId?: string | null;
+  children: React.ReactNode;
+}) {
   return (
     <PixelPanel title={title}>
-      {note && <div className="body-xs text-ink-700 leading-snug mb-2">{note}</div>}
+      {note && <div className="body text-ink-700 leading-snug mb-2">{note}</div>}
       <div className="flex flex-col gap-2">{children}</div>
+      {legend && legend.length > 0 && <ChartLegend entries={legend} youId={youId} />}
     </PixelPanel>
   );
 }
@@ -736,7 +769,7 @@ function Notice({
     // one most often seen, and it was the least visible.
     <div className="absolute inset-0 z-10 flex items-center justify-center p-4 bg-cream-100">
       <PixelPanel title={title}>
-        <div className="body-xs text-ink-800 leading-relaxed max-w-prose">{body}</div>
+        <div className="body text-ink-800 leading-relaxed max-w-prose">{body}</div>
         {detail && (
           <div className="chart-label text-ink-700 mt-2 max-w-prose">{detail}</div>
         )}
