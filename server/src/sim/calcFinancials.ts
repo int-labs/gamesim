@@ -310,12 +310,10 @@ export interface CalcFinancialsOutput {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const clamp = (value: number, min: number | null, max: number | null): number => {
-  let v = value;
-  if (min !== null) v = Math.max(v, min);
-  if (max !== null) v = Math.min(v, max);
-  return v;
-};
+// `clamp` lived here and is GONE (2026-10-19). Its last caller was
+// `resolveFieldValue`, where bounding a submission was the defect: `maxValue`
+// is the returns curve's PEAK and `minValue` is a base to add, so neither is a
+// limit to clip a value against.
 
 // ── Resolve the effective numeric value for any field type ──────────────────
 const resolveFieldValue = (
@@ -327,21 +325,25 @@ const resolveFieldValue = (
     return field.options?.[key] ?? 0;
   }
 
+  // THE SUBMISSION IS TAKEN AS IT ARRIVES. No floor, no ceiling, no base.
+  //
+  // The client already sends what the player bought: `toDecisionFields` adds
+  // the field's own base to the chosen option's score, so `page_design` arrives
+  // as `6 + 8 = 14` rather than 8. Adding it again here would double it.
+  //
+  // ⚠ IT USED TO CLAMP to [min, max], and both halves were wrong. The ceiling
+  // stopped the returns curve ever seeing an overshoot — the curve peaks AT
+  // `max` and decays past it, which it cannot do if the input is capped first.
+  // The floor scored the top page-design option as 8 against a ceiling of 14,
+  // 1.71σ short of the peak: both live round-0 teams picked Storyboarding and
+  // scored 0.0060 against a weight of 0.9500.
   const numeric = Number(raw ?? 0);
-  // LOWER BOUND ONLY. The upper clamp was removed 2026-10-16: it capped every
-  // submission at `maxValue` BEFORE the returns curve saw it, so overshooting
-  // was free on the score while the cost path charged the raw figure in full.
-  // The curve now peaks at `max` and decays past it, which it cannot do if the
-  // input never exceeds `max`. The floor stays — a value under `min` is not
-  // something the option ladders produce, and `page_design`'s floor carries the
-  // notebook type's charge.
-  const floored = field.minValue == null ? numeric : Math.max(numeric, field.minValue);
 
   if (field.type === "percentage") {
-    return floored / 100;
+    return numeric / 100;
   }
 
-  return floored;
+  return numeric;
 };
 
 // ── Updated getDecisionInput to use resolveFieldValue ───────────────────────
@@ -354,7 +356,8 @@ const getDecisionInput = (
   const productInput = decision.inputs.find((inp) => inp.productId.equals(productId));
   const fieldEntry   = productInput?.fields.find((f) => f.fieldId.equals(productField._id));
 
-  // resolveFieldValue handles enum lookup and numeric clamping
+  // resolveFieldValue handles enum lookup and adds the field's base. It does
+  // NOT clamp — see the note there.
   const resolved = resolveFieldValue(fieldEntry?.value ?? null, productField);
 
   // bell curve only applies to numeric/money/percentage/currency types —
@@ -500,9 +503,15 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
           ?.fields.find(f => f.fieldId.equals(field._id))?.value ?? 0
       );
 
-      // cost starts at minValue (baseline), team's input adds on top
-      const effectiveValue   = (field.minValue ?? 0) + raw;
-      const costContribution = effectiveValue * (field.unitCost ?? 0);
+      // THE BASE IS ALREADY IN `raw`. `toDecisionFields` adds the field's own
+      // base to the chosen option's score before submitting, so `page_design`
+      // arrives as `6 + 8 = 14`. This line used to add `minValue` a second
+      // time, which would now charge 20.
+      //
+      // Both halves of this file read the submission the same way as a result:
+      // cost and score see one number, and the base is applied once, where the
+      // decision is made.
+      const costContribution = raw * (field.unitCost ?? 0);
       dynamicCost           += costContribution;
 
       productCostBreakdown.push({

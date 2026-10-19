@@ -95,9 +95,25 @@ export function toDecisionFields(
       // `valueKey` is the AXIS name for every spec field, which is exactly the
       // key `CONFIG_TABLES` and the spec are both keyed by.
       const axis = valueKey as ConfigAxis;
-      const chosen = axis in CONFIG_TABLES ? spec[axis] : undefined;
+      const isSpecAxis = axis in CONFIG_TABLES;
+      const chosen = isSpecAxis ? spec[axis] : undefined;
       const name = chosen ? CONFIG_TABLES[axis].options.find((o) => o.id === chosen)?.name : undefined;
-      return [{ fieldId: field._id, value: values[valueKey], ...(name ? { name } : {}) }];
+
+      // THE FIELD'S BASE RIDES WITH THE SUBMISSION. `minValue` is what the
+      // notebook costs before a single choice — `page_design` carries the
+      // TYPE's charge there, which is why `TYPE_SCORE` and its `minValue` are
+      // the same number — and the option ladder is built on top of it:
+      // Storyboarding scores 8, and `6 + 8 = 14` is exactly `maxValue`, the
+      // peak of the server's returns curve.
+      //
+      // SPEC AXES ONLY. `sellingPrice` and `projectedMarketShare` are not
+      // built from an option ladder, and their `minValue` is a genuine range
+      // bound — adding it would turn a $21 price into $26.
+      //
+      // The server takes the submission as it arrives and adds nothing, so the
+      // base is applied once, here, where the decision is made.
+      const base = isSpecAxis ? field.minValue ?? 0 : 0;
+      return [{ fieldId: field._id, value: values[valueKey] + base, ...(name ? { name } : {}) }];
     });
 }
 
