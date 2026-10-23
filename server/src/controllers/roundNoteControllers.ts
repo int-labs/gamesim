@@ -17,6 +17,9 @@ const noteSchema = z.object({
   simulationId: objectId,
   roundNumber: z.number().int().min(0).max(999),
   teamId: objectId.nullish(),
+  // Free string, not an enum of DEBRIEF_CHARTS: a note must survive a slide
+  // being renamed out from under it rather than 400 on save.
+  chartId: z.string().trim().max(64).nullish(),
   title: z.string().trim().min(1, "A note needs a title.").max(120),
   body: z.string().max(5000).default(""),
   imageAssetId: objectId.nullish(),
@@ -78,6 +81,7 @@ export const createRoundNote = async (req: Request, res: Response): Promise<void
     const note = await RoundNote.create({
       ...parsed.data,
       teamId: parsed.data.teamId ?? null,
+      chartId: parsed.data.chartId ?? null,
       imageAssetId: parsed.data.imageAssetId ?? null,
       authorUserId: (req as any).user?._id ?? (req as any).user?.userId ?? null,
     });

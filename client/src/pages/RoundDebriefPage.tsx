@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { getRoundDebrief } from "../api";
-import type { RoundDebrief, DebriefRoundDto } from "../types";
+import {
+  createRoundNote, deleteRoundNote, getRoundDebrief, getRoundNotes, updateRoundNote,
+} from "../api";
+import type { DebriefChart, RoundDebrief, DebriefRoundDto, RoundNote } from "../types";
 
 /**
  * The operator's view of a round's debrief — the same figures the player sees
@@ -19,6 +21,12 @@ import type { RoundDebrief, DebriefRoundDto } from "../types";
  * tokens there, MUI/recharts here — and `recharts` was already a dependency of
  * this app with no importers. What must NOT be duplicated is arithmetic, and
  * there is none: the server ships finished numbers.
+ *
+ * ── THE ONE THING HERE THAT IS NOT READ-ONLY ────────────────────────────────
+ * `ChartDescriptions` writes the copy the PLAYER's slide renders. A chart with
+ * no description is `resolved: false` and the player does not see it at all —
+ * so this editor decides which charts exist on their screen, not merely what
+ * they read. A round with nothing written here is a blank debrief.
  *
  * ── WHAT IS DELIBERATELY MISSING ────────────────────────────────────────────
  * The VoC dot plot. It is the one chart needing a 0..1 normalisation, and that
@@ -69,8 +77,9 @@ export default function RoundDebriefPage() {
     <div style={{ padding: 16 }}>
       <h2>Round Debrief</h2>
       <p style={{ maxWidth: 680, color: "#555" }}>
-        What the teams see on their limbo screen after a round is closed. Read-only —
-        this changes nothing and does not require the round to be visible to players.
+        What the teams see on their limbo screen after a round is closed. The charts
+        below are read-only; the descriptions above them are not — a chart with no
+        description is hidden from the players entirely.
       </p>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "12px 0" }}>
@@ -92,7 +101,151 @@ export default function RoundDebriefPage() {
       </div>
 
       {error && <div style={{ color: "#b00", marginBottom: 12 }}>{error}</div>}
+      {data && (
+        <ChartDescriptions
+          simulationId={filterSim}
+          roundNumber={Number(filterRound)}
+          charts={data.charts ?? []}
+          onSaved={load}
+        />
+      )}
       {data && <DebriefCharts data={data} />}
+    </div>
+  );
+}
+
+/**
+ * The descriptions that decide which charts a team sees.
+ *
+ * ── WHY IT READS `/round-notes` WHEN THE DEBRIEF ALREADY CARRIES THE COPY ───
+ * `charts[].description` is the resolved text, and that is all a reader needs.
+ * Editing needs the note's `_id` to PATCH or DELETE, and the debrief does not
+ * emit one — it joins the body and drops the row. So the debrief stays the read
+ * path and this fetch is the write path's own.
+ *
+ * Both paths target the same rows, so after a save the DEBRIEF is reloaded
+ * rather than this component patching its own copy: the server decides what
+ * `resolved` means, and a local guess at it is how the editor and the player
+ * come to disagree about which charts a round has.
+ *
+ * Notes written here are GENERAL (`teamId: null`). The model supports a
+ * per-team description and `/round-debrief` prefers it over the general one,
+ * but nothing authors one yet.
+ */
+function ChartDescriptions({
+  simulationId, roundNumber, charts, onSaved,
+}: {
+  simulationId: string;
+  roundNumber:  number;
+  charts:       DebriefChart[];
+  onSaved:      () => void;
+}) {
+  const [notes, setNotes]   = useState<RoundNote[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy]     = useState<string | null>(null);
+  const [error, setError]   = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getRoundNotes(simulationId, roundNumber)
+      .then((n) => { if (!cancelled) setNotes(n.filter((x) => x.chartId)); })
+      .catch(() => { if (!cancelled) setNotes([]); });
+    return () => { cancelled = true; };
+  }, [simulationId, roundNumber, charts]);
+
+  // chart `name` → the note holding its description. Keyed by name because that
+  // is what `chartId` stores; `id` is a sort ordinal and renumbering it must
+  // not re-point anything.
+  const byChart = useMemo(() => {
+    const m = new Map<string, RoundNote>();
+    for (const n of notes) if (n.chartId) m.set(n.chartId, n);
+    return m;
+  }, [notes]);
+
+  // SORT A COPY. `charts` is the array off the payload and `.sort()` is
+  // in-place, so sorting it directly would reorder what the charts below read.
+  const ordered = useMemo(() => [...charts].sort((a, b) => a.id - b.id), [charts]);
+
+  const textFor = (c: DebriefChart) =>
+    drafts[c.name] ?? byChart.get(c.name)?.body ?? c.description ?? "";
+
+  const save = async (c: DebriefChart) => {
+    const body = textFor(c).trim();
+    const existing = byChart.get(c.name);
+    setBusy(c.name); setError("");
+    try {
+      if (!body) {
+        // EMPTY MEANS REMOVE, not "save an empty description": a blank body
+        // would leave the chart resolved and draw it with no reading at all.
+        if (existing) await deleteRoundNote(existing._id);
+      } else if (existing) {
+        await updateRoundNote(existing._id, { body, title: c.label });
+      } else {
+        // `title` is required by the model and never rendered for a chart —
+        // the label is the heading — so it is filled rather than asked for.
+        await createRoundNote({
+          simulationId, roundNumber, chartId: c.name, title: c.label, body,
+        });
+      }
+      setDrafts((d) => { const next = { ...d }; delete next[c.name]; return next; });
+      onSaved();
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? "Failed to save the description.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  let lastCategory = "";
+
+  return (
+    <div style={{ border: "1px solid #ddd", padding: 12, marginBottom: 28 }}>
+      <strong>Chart descriptions</strong>
+      <div style={{ color: "#666", fontSize: 12, margin: "4px 0 12px" }}>
+        A chart with no description is hidden from the players. Clearing a box and
+        saving removes that chart from their debrief.
+      </div>
+
+      {error && <div style={{ color: "#b00", marginBottom: 8 }}>{error}</div>}
+
+      {ordered.map((c) => {
+        // Grouped by `category`, which arrives with the chart — a heading per
+        // run rather than a hardcoded list, so a new category needs no edit here.
+        const heading = c.category !== lastCategory ? c.category : null;
+        lastCategory = c.category;
+        const dirty = drafts[c.name] !== undefined;
+
+        return (
+          <div key={c.name}>
+            {heading && (
+              <div style={{
+                textTransform: "uppercase", fontSize: 11, color: "#888",
+                borderBottom: "1px solid #eee", margin: "14px 0 6px", paddingBottom: 2,
+              }}>
+                {heading}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "6px 0" }}>
+              <div style={{ width: 230, paddingTop: 4 }}>
+                <div style={{ fontSize: 13 }}>{c.label}</div>
+                <div style={{ fontSize: 11, color: c.resolved ? "#2a7" : "#b00" }}>
+                  {c.resolved ? "shown to players" : "hidden"}
+                </div>
+              </div>
+              <textarea
+                value={textFor(c)}
+                onChange={(e) => setDrafts((d) => ({ ...d, [c.name]: e.target.value }))}
+                rows={2}
+                style={{ flex: 1, minWidth: 0 }}
+                placeholder={`What a team should take from "${c.label}"`}
+              />
+              <button onClick={() => save(c)} disabled={busy === c.name || !dirty}>
+                {busy === c.name ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

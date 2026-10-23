@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { RoundDebrief } from "./types";
+import type { RoundDebrief, RoundNote } from "./types";
 
 const api = axios.create({
   baseURL: (import.meta as any).env?.VITE_GAMESIM_API_URL ?? "http://localhost:5000/api",
@@ -306,3 +306,48 @@ export const getRoundDebrief = async (
   const res = await api.get("/round-debrief", { params: { simulationId, roundNumber } });
   return res.data as RoundDebrief;
 };
+
+// ── Round notes ────────────────────────────────────────────────
+/**
+ * Facilitator notes on a round, chart descriptions among them.
+ *
+ * ⚠ THESE ARE THE SAME ROWS `/round-debrief` JOINS ONTO ITS CHARTS. The debrief
+ * is the read path — it resolves a chart's description and decides whether the
+ * player sees that chart at all. This is the WRITE path, and it is the only
+ * reason to read notes directly: a description's `_id`, which the debrief
+ * payload does not carry.
+ *
+ * Writes are ROLES.ADMIN/OPERATOR server-side; the player can only ever GET.
+ */
+export const getRoundNotes = async (
+  simulationId: string,
+  roundNumber?: number,
+): Promise<RoundNote[]> => {
+  const res = await api.get("/round-notes", { params: { simulationId, roundNumber } });
+  return (Array.isArray(res.data) ? res.data : []) as RoundNote[];
+};
+
+/**
+ * `title` is required by the model. A chart description never renders it — the
+ * chart's label is the heading — so pass that label rather than prompting for
+ * one. `chartId` is the chart's `name`, NEVER its `id`: the ordinal is a sort
+ * key and renumbering it would re-point the note.
+ */
+export const createRoundNote = (data: {
+  simulationId: string;
+  roundNumber:  number;
+  title:        string;
+  body:         string;
+  chartId?:     string | null;
+  teamId?:      string | null;
+  pinned?:      boolean;
+}) => api.post("/round-notes", data);
+
+export const updateRoundNote = (
+  id: string,
+  data: Partial<{ title: string; body: string; chartId: string | null; teamId: string | null; pinned: boolean }>,
+) => api.patch(`/round-notes/${id}`, data);
+
+/** Deleting a chart's description UNRESOLVES that chart — the player stops
+ *  seeing it entirely, not just its copy. */
+export const deleteRoundNote = (id: string) => api.delete(`/round-notes/${id}`);

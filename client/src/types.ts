@@ -262,6 +262,42 @@ export interface DebriefRoundDto {
   teams: Record<string, DebriefTeamRoundDto>;
 }
 
+/**
+ * A facilitator note on a round.
+ *
+ * `chartId` is a debrief chart's `name` when the note IS that chart's
+ * description, and null for a free-standing note the player sees in its own
+ * panel. `title` is required by the server but never rendered for a chart
+ * description — the chart's own label is the heading — so the editor fills it
+ * with that label rather than asking for one.
+ */
+export interface RoundNote {
+  _id: string;
+  simulationId: string;
+  roundNumber: number;
+  teamId: string | null;
+  chartId: string | null;
+  title: string;
+  body: string;
+  pinned: boolean;
+}
+
+/**
+ * A chart slot with the round's copy joined on. MIRRORS
+ * `server/src/constants/debriefCharts.ts`, which owns the list — `name` is the
+ * stable join key a RoundNote's `chartId` stores, `id` is a sort ordinal and
+ * nothing is keyed by it. `resolved` false = no description written, which the
+ * player slide hides.
+ */
+export interface DebriefChart {
+  id: number;
+  category: string;
+  name: string;
+  label: string;
+  description: string | null;
+  resolved: boolean;
+}
+
 export interface RoundDebrief {
   simulationId: string;
   roundNumber: number;
@@ -270,4 +306,6 @@ export interface RoundDebrief {
   teams: DebriefTeamRef[];
   products: DebriefProductDto[];
   rounds: DebriefRoundDto[];
+  /** The slide's slots, for the description editor. Sort a copy. */
+  charts: DebriefChart[];
 }

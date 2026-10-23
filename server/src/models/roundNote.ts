@@ -18,6 +18,13 @@ export interface RoundNoteInterface extends Document {
   simulationId: Types.ObjectId;
   roundNumber: number;
   teamId: Types.ObjectId | null;
+  /**
+   * Which debrief chart this note describes — a `DEBRIEF_CHARTS` **name**, not
+   * its `id`; see constants/debriefCharts.ts for why the ordinal is not a join
+   * key. `null` is the free-standing facilitator note, which renders in its own
+   * panel rather than against a chart.
+   */
+  chartId: string | null;
   title: string;
   /** Markdown. Rendered as plain text until a renderer is wired in. */
   body: string;
@@ -39,6 +46,9 @@ const roundNoteSchema = new Schema<RoundNoteInterface>(
     },
     roundNumber: { type: Number, required: true },
     teamId: { type: Schema.Types.ObjectId, ref: "Team", default: null },
+    // NOT an enum: the catalogue lives in constants/debriefCharts.ts and an
+    // enum here would mean a migration every time a slide is added.
+    chartId: { type: String, default: null, trim: true, maxlength: 64 },
     title: { type: String, required: true, trim: true, maxlength: 120 },
     body: { type: String, default: "", maxlength: 5000 },
     imageAssetId: { type: Schema.Types.ObjectId, ref: "ImageAsset", default: null },

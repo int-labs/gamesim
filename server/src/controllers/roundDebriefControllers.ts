@@ -20,10 +20,12 @@ import mongoose from "mongoose";
 import Team from "../models/teams";
 import Product from "../models/products";
 import Decision from "../models/decisions";
+import RoundNote from "../models/roundNote";
 import Simulation from "../models/simulations";
 import PlayerConfig from "../models/playerConfig";
 import { ROLES } from "../constants/roles";
-import { buildDebriefSeries } from "../services/debriefSeries";
+import { DEBRIEF_CHARTS, type DebriefChart } from "../constants/debriefCharts";
+import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
 
 interface TokenUser {
@@ -31,6 +33,56 @@ interface TokenUser {
   role?:   string;
   teamId?: string;
 }
+
+/**
+ * The wire shape: the numbers, plus the round's RESOLVED charts.
+ *
+ * `charts` is assembled HERE rather than inside `buildDebriefSeries`, which is
+ * pure and emits nothing but figures. Mirrored by hand into both clients'
+ * `types.ts`.
+ */
+interface RoundDebriefResponse extends DebriefPayload {
+  charts: DebriefChart[];
+}
+
+/**
+ * Join this round's descriptions onto the slots.
+ *
+ * ⚠ THE TEAM FILTER IS RE-APPLIED HERE. `getRoundNotes` narrows a team token to
+ * the general notes plus its own, and none of that comes along with a query
+ * written in this file — without the same rule, a description targeted at one
+ * team is served to every team on the simulation.
+ *
+ * A team-targeted note WINS over a general one for the same chart: the find is
+ * sorted `teamId: 1`, which puts `null` first in BSON order, so the specific
+ * row overwrites the general one as the map is filled.
+ */
+const resolveCharts = async (
+  simulationId: string,
+  roundNumber: number,
+  teamId: string | null,
+): Promise<DebriefChart[]> => {
+  const filter: Record<string, unknown> = {
+    simulationId,
+    roundNumber,
+    chartId: { $ne: null },
+  };
+  // null teamId = staff, who read every note. A team reads general + its own.
+  if (teamId) filter.$or = [{ teamId: null }, { teamId }];
+
+  const notes = await RoundNote.find(filter).sort({ teamId: 1 }).lean();
+
+  const byChart = new Map<string, string>();
+  for (const n of notes) {
+    if (n.chartId) byChart.set(n.chartId, n.body ?? "");
+  }
+
+  return DEBRIEF_CHARTS.map((slot) => {
+    // JOINED ON `name`, never `id` — the ordinal is free to be renumbered.
+    const description = byChart.get(slot.name) ?? null;
+    return { ...slot, description, resolved: description !== null };
+  });
+};
 
 export const getRoundDebrief = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -124,7 +176,14 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
       cashSeed:     openingCashFrom(playerConfig),
     });
 
-    res.status(200).json(payload);
+    const charts = await resolveCharts(
+      String(simulationId),
+      round,
+      isTeam ? String(user.teamId) : null,
+    );
+
+    const body: RoundDebriefResponse = { ...payload, charts };
+    res.status(200).json(body);
   } catch (err: unknown) {
     res.status(500).json({
       message: (err as { message?: string })?.message ?? "Failed to build the round debrief.",

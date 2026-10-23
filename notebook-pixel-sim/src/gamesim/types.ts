@@ -444,6 +444,28 @@ export interface DebriefRoundDto {
   teams: Record<string, DebriefTeamRoundDto>;
 }
 
+/**
+ * A chart slot with this round's copy joined on. MIRRORS
+ * `server/src/constants/debriefCharts.ts`:
+ *
+ *   id        sort ordinal, spaced by 10, renumber freely
+ *   category  grouping
+ *   name      THE STABLE JOIN KEY a RoundNote's `chartId` stores
+ *   label     display, reword freely
+ *
+ * ⚠ `resolved` false means the operator wrote no description, and the slide
+ * HIDES that chart — a slot without a reading is not a slide. Read the flag,
+ * never re-derive it from `description == null`.
+ */
+export interface DebriefChartDto {
+  id: number;
+  category: string;
+  name: string;
+  label: string;
+  description: string | null;
+  resolved: boolean;
+}
+
 export interface RoundDebriefDto {
   simulationId: Id;
   roundNumber: number;
@@ -453,4 +475,6 @@ export interface RoundDebriefDto {
   products: DebriefProductDto[];
   /** Round 0 .. the reported round, ascending. */
   rounds: DebriefRoundDto[];
+  /** The slide's own slots, server-owned. Sort a copy — `[...charts].sort()`. */
+  charts: DebriefChartDto[];
 }

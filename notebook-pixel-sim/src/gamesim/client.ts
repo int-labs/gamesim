@@ -286,6 +286,11 @@ export interface RoundNoteDto {
   _id: Id;
   roundNumber: number;
   teamId: Id | null;
+  /** A debrief chart's `name` when this note is that chart's description, else
+   *  null for a free-standing facilitator note. Chart notes are ALSO served
+   *  here — `/round-debrief` joins them onto its charts, so a reader of this
+   *  endpoint must exclude them or they render twice. */
+  chartId: string | null;
   title: string;
   body: string;
   pinned: boolean;

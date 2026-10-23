@@ -34,6 +34,10 @@ function Prose({ text }: { text: string }) {
  * Notes the facilitator attached to a round — general ones plus any addressed
  * to this team. The server does that filtering; a team token cannot read
  * another team's note whatever it asks for.
+ *
+ * ⚠ FREE-STANDING NOTES ONLY. A note carrying a `chartId` is a debrief chart's
+ * description, and `/round-debrief` already joins it onto that chart — showing
+ * it here as well renders the same copy twice on the same screen.
  */
 export function RoundNotesCard({ roundNumber }: { roundNumber?: number } = {}) {
   const { bootstrap } = useGamesimSession();
@@ -47,7 +51,9 @@ export function RoundNotesCard({ roundNumber }: { roundNumber?: number } = {}) {
     if (!simulationId) return undefined;
     let cancelled = false;
     getRoundNotes({ simulationId, ...(round !== undefined ? { roundNumber: round } : {}) })
-      .then((n) => !cancelled && setNotes(Array.isArray(n) ? n : []))
+      // Filtered HERE, not at the endpoint: the admin console reads the same
+      // route and needs the chart notes it is editing.
+      .then((n) => !cancelled && setNotes(Array.isArray(n) ? n.filter((x) => !x.chartId) : []))
       .catch(() => undefined); // no notes route, no notes, offline — all mean "show nothing"
     return () => {
       cancelled = true;
