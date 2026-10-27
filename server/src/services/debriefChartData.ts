@@ -282,22 +282,30 @@ export interface ChartInstanceRef {
  * WHAT A STORED CHART FANS OUT TO — the one definition of `scope`.
  *
  * ⚠ BOTH THE PREVIEW AND THE REAL SLIDE CALL THIS. They did not, and the
- * preview quietly rendered the summary alone for a `scope: "each"` chart — so
- * an operator approved one chart and the team was shown N + 1. A second
+ * preview quietly rendered one chart where the slide shipped several. A second
  * reading of what "each" means is exactly the bug this guards.
  *
- * The summary ALWAYS exists: for `overall` it is the only instance, for `each`
- * it is the all-notebooks chart that sits alongside the per-notebook ones.
+ *   overall  ONE chart over every notebook at once.
+ *   each     ONE PER NOTEBOOK. N, not N + 1 — there is no summary.
+ *
+ * ⚠ `each` CARRIED A SUMMARY UNTIL 2026-10-27. Owner's ruling: a section that
+ * wants both an overall figure and a per-notebook breakdown is TWO ENTRIES,
+ * not one chart with a special extra instance. The two answer different
+ * questions, they want different copy, and an operator who wants only the
+ * breakdown should not have to leave a summary deliberately unwritten to hide
+ * it.
+ *
+ * The consequence to know: a description written against the old summary
+ * instance of an `each` chart (`productId: null`) no longer has a row that
+ * reaches it. Nothing deletes it; it is simply unreachable.
  */
 export const chartInstances = (
   scope: "overall" | "each",
   products: readonly { productId: string; productName: string }[],
-): ChartInstanceRef[] => [
-  { productId: null, productName: null },
-  ...(scope === "each"
+): ChartInstanceRef[] =>
+  scope === "each"
     ? products.map((p) => ({ productId: p.productId, productName: p.productName }))
-    : []),
-];
+    : [{ productId: null, productName: null }];
 
 /**
  * The round's figures, for the preview — LOADED ONCE.

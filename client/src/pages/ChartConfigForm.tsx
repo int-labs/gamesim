@@ -256,7 +256,7 @@ export function ChartConfigFields({
       <select
         value={draft.scope}
         onChange={(e) => set({ scope: e.target.value as "overall" | "each" })}
-        title="each = one chart per notebook plus an all-notebooks summary, each needing its own description"
+        title="each = one chart per notebook, each needing its own description. A summary is a separate chart with scope overall."
       >
         <option value="overall">overall</option>
         <option value="each">each notebook</option>

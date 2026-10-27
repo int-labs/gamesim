@@ -95,7 +95,7 @@ function Preview({ draft }: { draft: ChartDraft }) {
         )}
         {instances.length > 1 && (
           <span style={{ fontSize: 11, color: "#888" }}>
-            {instances.length} charts — the summary plus one per notebook
+            {instances.length} charts — one per notebook
           </span>
         )}
       </div>
@@ -105,9 +105,9 @@ function Preview({ draft }: { draft: ChartDraft }) {
       {instances.map((inst) => (
         <div key={inst.productId ?? "summary"} style={{ marginTop: 10 }}>
           <div style={{ fontSize: 11, color: "#888" }}>
-            {/* Named even when there is only one: "all notebooks" is a claim
-                about what the numbers mean, not a heading. */}
-            {inst.productName ?? (draft.scope === "each" ? "All notebooks" : "Overall")}
+            {/* Named even when there is only one: "every notebook at once" is
+                a claim about what the numbers mean, not a heading. */}
+            {inst.productName ?? "Overall — every notebook at once"}
             {" · "}
             {/* ROW COUNT IS THE DIAGNOSTIC, and it is PER INSTANCE. One
                 notebook matching no data while its siblings draw is the exact
@@ -241,7 +241,7 @@ export default function DebriefChartsPage() {
                     <td style={td}>{c.name}</td>
                     <td style={td}>
                       {c.scope === "each"
-                        ? <span title="one chart per notebook, plus an all-notebooks summary">each + summary</span>
+                        ? <span title="one chart per notebook; a summary is a separate chart">per notebook</span>
                         : "overall"}
                     </td>
                     <td style={td}>

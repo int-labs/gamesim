@@ -449,8 +449,8 @@ export const previewDebriefChart = async (data: {
   xAxis?:       string | null;
   yAxis?:       string[] | null;
   grouping?:    string | null;
-  /** `each` previews N + 1 instances — the summary plus one per notebook —
-   *  which is exactly what the slide will emit. */
+  /** `each` previews ONE PER NOTEBOOK, which is exactly what the slide will
+   *  emit. There is no summary instance — a summary is its own `overall` row. */
   scope?:       "overall" | "each";
 }): Promise<{ instances: PreviewInstance[] }> => {
   const res = await api.post("/debrief-charts/preview", data);
@@ -458,7 +458,7 @@ export const previewDebriefChart = async (data: {
 };
 
 export interface PreviewInstance {
-  /** null = the all-notebooks summary, and an `overall` chart's only entry. */
+  /** null = an `overall` chart, which reads every notebook at once. */
   productId:   string | null;
   productName: string | null;
   svg:         string;

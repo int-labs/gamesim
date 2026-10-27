@@ -125,9 +125,16 @@ export interface ChartLabels {
  * otherwise a reader gets bars with no statement of what is being measured,
  * which is exactly as useful as no chart.
  *
- * FILLED ONLY WHERE THE KEY IS ABSENT. A shape that sets `"title": null` on an
- * axis is saying "this one needs no label" — a bare count, a category everyone
- * can read off the ticks — and that is an authoring decision, not an omission.
+ * ⚠ THE BINDING WINS over whatever the shape says, for the axes. This deferred
+ * to a shape's own `title` at first and that was wrong: a shape carrying
+ * `"title": null` — as every one of ours did, and as any copy of one still
+ * does — silently produced an unlabelled chart, and the operator who saw it
+ * could not fix it without editing the gallery, which is a developer surface.
+ * A generic shape has no business naming an axis it cannot know the meaning
+ * of.
+ *
+ * The TITLE still defers: a shape may legitimately carry its own, and the
+ * caller passes none for surfaces that draw a heading themselves.
  *
  * Reaches the top-level encoding and each `layer[]`, which is every shape we
  * ship. A deeper nesting (facet, concat) keeps whatever it declares.
@@ -148,8 +155,10 @@ function applyLabels(node: any, labels: ChartLabels): any {
     const next = { ...encoding };
     for (const channel of ["x", "y"] as const) {
       const enc = next[channel];
-      if (!enc || typeof enc !== "object" || "title" in enc) continue;
+      if (!enc || typeof enc !== "object") continue;
       const text = titleFor(enc);
+      // Only when we HAVE a name for it — an unbound axis keeps the shape's
+      // own choice rather than being blanked.
       if (text) next[channel] = { ...enc, title: text };
     }
     return next;

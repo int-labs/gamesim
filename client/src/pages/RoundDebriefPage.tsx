@@ -336,6 +336,7 @@ function ChartDescriptions({
   };
 
   let lastCategory = "";
+  let lastChartId = "";
 
   return (
     <div style={{ border: "1px solid #ddd", padding: 12, marginBottom: 28 }}>
@@ -356,8 +357,12 @@ function ChartDescriptions({
         lastCategory = c.category;
         const k = keyOf(c);
         const dirty = drafts[k] !== undefined;
-        // A per-notebook instance is indented under its summary, so N + 1 rows
-        // read as one chart broken down rather than N + 1 unrelated charts.
+        // ⚠ KEYED ON THE CHART, NOT ON `productId`. A `scope: "each"` chart has
+        // no summary instance any more, so its FIRST notebook is the row that
+        // carries the chart's name and its Edit button; the rest nest under it
+        // and read as one chart broken down rather than N unrelated charts.
+        const firstOfChart = c._id !== lastChartId;
+        lastChartId = c._id;
         const isBreakdown = c.productId !== null;
 
         return (
@@ -372,26 +377,30 @@ function ChartDescriptions({
             )}
             <div style={{
               display: "flex", gap: 8, alignItems: "flex-start", margin: "6px 0",
-              ...(isBreakdown ? { marginLeft: 18, borderLeft: "2px solid #eee", paddingLeft: 10 } : {}),
+              ...(firstOfChart ? {} : { marginLeft: 18, borderLeft: "2px solid #eee", paddingLeft: 10 }),
             }}>
               <div style={{ width: 230, paddingTop: 4 }}>
                 <div style={{ fontSize: 13 }}>
-                  {c.name}
+                  {firstOfChart && c.name}
                   {isBreakdown && (
-                    <span style={{ color: "#666" }}> · {c.productName ?? "notebook"}</span>
+                    <span style={{ color: "#666" }}>
+                      {firstOfChart ? " · " : ""}{c.productName ?? "notebook"}
+                    </span>
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: "#888" }}>
-                  {c.chartStyle ? c.chartStyle.name : "no shape chosen"}
-                  {c.scope === "each" && !isBreakdown ? " · all notebooks" : ""}
+                  {c.clientChart
+                    ? "drawn by the player"
+                    : c.chartStyle ? c.chartStyle.name : "no shape chosen"}
+                  {c.scope === "overall" ? " · every notebook at once" : ""}
                 </div>
                 <div style={{ fontSize: 11, color: c.resolved ? "#2a7" : "#b00" }}>
                   {c.resolved ? "shown to players" : "hidden"}
                 </div>
-                {/* ONLY ON THE SUMMARY ROW. A breakdown row is the same stored
-                    document, so N + 1 edit buttons would all mutate one chart
-                    while looking like they edited a notebook's own. */}
-                {!isBreakdown && (
+                {/* ONCE PER CHART. Every instance is the same stored document,
+                    so a button on each would all mutate one chart while
+                    looking like they edited that notebook's own. */}
+                {firstOfChart && (
                   <button
                     onClick={() => (editing === c._id ? closeEditor() : openEditor(c))}
                     style={{
@@ -442,7 +451,7 @@ function ChartDescriptions({
                 )}
             </div>
 
-            {editing === c._id && draft && !isBreakdown && (
+            {editing === c._id && draft && firstOfChart && (
               <div style={{
                 display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap",
                 background: "#fafafa", border: "1px solid #eee",
@@ -459,16 +468,19 @@ function ChartDescriptions({
                 </button>
                 <button onClick={closeEditor}>Cancel</button>
 
-                {/* ⚠ THE ONE CHANGE THAT STRANDS COPY. Dropping `each` stops the
-                    server emitting the per-notebook instances, and their
-                    descriptions stay in the database with no row that can reach
-                    or delete them. Nothing cascades — only deleting the chart
-                    does that. */}
-                {c.scope === "each" && draft.scope === "overall" && (
+                {/* ⚠ THE CHANGE THAT STRANDS COPY, IN EITHER DIRECTION. The two
+                    scopes emit disjoint instances — `overall` only the
+                    all-notebooks one, `each` only the per-notebook ones — so
+                    flipping leaves every existing description with no row that
+                    can reach or delete it. Nothing cascades; only deleting the
+                    chart does that. */}
+                {c.scope !== draft.scope && (
                   <div style={{ color: "#b00", fontSize: 11, flexBasis: "100%" }}>
-                    Switching to “overall” hides the per-notebook rows. Their
-                    descriptions are kept but become unreachable — switch back to
-                    edit or clear them.
+                    {draft.scope === "overall"
+                      ? "Switching to “overall” drops the per-notebook rows."
+                      : "Switching to “each notebook” drops the overall row."}
+                    {" "}Their descriptions are kept but become unreachable — switch
+                    back to edit or clear them first.
                   </div>
                 )}
                 {styles.length === 0 && (

@@ -56,12 +56,19 @@ interface LegacyChart {
  * out in the sequence the operator's story was written in.
  */
 const LEGACY: LegacyChart[] = [
-  // ⚠ FIRST, AND THE SLIDE ENFORCES IT. `order: 0` says so here, but the
-  // player hoists client-drawn segments to the top regardless — renumbering
-  // this cannot move it. `scope: "each"` gives the all-notebooks summary plus
-  // one instance per notebook, and the summary is not optional: it is the
-  // chart that opens the debrief.
-  { order:   0, category: "Voice of customer", name: "Voice of customer",
+  // ⚠ FIRST, AND THE SLIDE ENFORCES IT. `order` says so here, but the player
+  // hoists client-drawn segments to the top regardless — renumbering these
+  // cannot move them.
+  //
+  // TWO ENTRIES, because `each` no longer carries a summary and the owner's
+  // rule is that there is ALWAYS an all-notebooks VoC. The `overall` row is
+  // that summary — `VocSection` merges every notebook by spec key when its
+  // instance has no notebook — and the `each` row is the breakdown. They are
+  // separate charts with separate copy, which is the point.
+  { order:   0, category: "Voice of customer", name: "Voice of customer — all notebooks",
+    scope: "overall", shape: null, clientChart: "voc",
+    xAxis: null, yAxis: [], grouping: null },
+  { order:   1, category: "Voice of customer", name: "Voice of customer",
     scope: "each", shape: null, clientChart: "voc",
     xAxis: null, yAxis: [], grouping: null },
 
@@ -110,9 +117,8 @@ const LEGACY: LegacyChart[] = [
   // ⚠ `scope: "each"` IS WHAT MAKES THIS THE OLD CHART. Both axes are
   // measures, so nothing expands along them — the per-notebook instance is
   // what narrows each point to one notebook, leaving one point per team with
-  // the team as the series. On the all-notebooks summary the two measures sum
-  // across notebooks, which is meaningless for a price: leave that instance
-  // without a description and the players never see it.
+  // the team as the series. No summary, which suits it: summing a price
+  // across notebooks means nothing.
   { order: 115, category: "capacity", name: "Price vs units sold",
     scope: "each", shape: "scatter", xAxis: "byProduct.unitsSold",
     yAxis: ["byProduct.sellingPrice"], grouping: "team" },

@@ -339,7 +339,7 @@ export interface DebriefChartConfig {
   category: string;
   order: number;
   /** `each` fans this row out to N + 1 instances — one per notebook plus an
-   *  all-notebooks summary — each needing its own description. */
+   *  needing its own description. A summary is a separate `overall` row. */
   scope: "overall" | "each";
   chartStyle: DebriefChartStyle | null;
   /** Set = the PLAYER draws it, and the shape and bindings are ignored. */
