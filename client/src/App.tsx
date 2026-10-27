@@ -14,6 +14,7 @@ import ProjectionsPage from "./pages/ProjectionsPage";
 import ResultsPage from "./pages/ResultsPage";
 import RoundDebriefPage from "./pages/RoundDebriefPage";
 import DebriefChartsPage from "./pages/DebriefChartsPage";
+import ChartGalleryPage from "./pages/ChartGalleryPage";
 import BaseDataPage from "./pages/BaseDataPage";
 import ImageAssetsPage from "./pages/ImageAssetsPage";
 import ProductFieldsPage from "./pages/ProductFieldsPage";
@@ -44,7 +45,8 @@ type View =
   | "player-config"
   | "leaderboard-config"
   | "round-debrief"
-  | "debrief-charts";
+  | "debrief-charts"
+  | "chart-gallery";
 
 const NAV: { label: string; view: View }[] = [
   { label: "Simulations", view: "simulations" },
@@ -62,8 +64,10 @@ const NAV: { label: string; view: View }[] = [
   { label: "Param List", view: "param-list" },
   { label: "Projections", view: "projections" },
   { label: "Results", view: "results" },
-  // Configuration above the thing it configures: which charts a type shows,
-  // then the per-round view where their descriptions are written.
+  // Narrowest audience first: the gallery is a DEVELOPER surface (authoring a
+  // shape means writing one), then the operator picks from it, then the
+  // facilitator writes each chart's copy per round.
+  { label: "Chart Gallery", view: "chart-gallery" },
   { label: "Debrief Charts", view: "debrief-charts" },
   { label: "Round Debrief", view: "round-debrief" },
   { label: "Base Data", view: "base-data" },
@@ -91,6 +95,7 @@ export default function App() {
       case "param-list": return <ParamListPage />;
       case "projections": return <ProjectionsPage />;
       case "results": return <ResultsPage />;
+      case "chart-gallery": return <ChartGalleryPage />;
       case "debrief-charts": return <DebriefChartsPage />;
       case "round-debrief": return <RoundDebriefPage />;
       case "base-data": return <BaseDataPage />;
