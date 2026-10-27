@@ -12,6 +12,7 @@
     "tsgen": "ts-node scripts/tsgen.ts",
     "cleanup-db": "ts-node scripts/cleanup.ts",
     "seed-db": "ts-node scripts/seed.ts",
+    "import-debrief-charts": "ts-node scripts/importLegacyDebriefCharts.ts",
     "test-csat": "ts-node src/sim/testCalcCSAT.ts",
     "randomize-market-size": "ts-node scripts/randomizeMarketSize.ts",
     "sync-sim-type": "ts-node scripts/sync-simulation.ts",

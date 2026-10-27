@@ -111,6 +111,8 @@ const resolveCharts = async (
   teamId: string | null,
   products: { _id: unknown; productName?: string }[],
   payload: DebriefPayload,
+  /** Staff: draw every chart, resolved or not. See the note at the render. */
+  drawAll: boolean,
 ): Promise<DebriefChartDto[]> => {
   const filter: Record<string, unknown> = {
     simulationId,
@@ -187,10 +189,15 @@ const resolveCharts = async (
       };
       out.push(dto);
 
-      // AN UNRESOLVED CHART IS NEVER DRAWN. The slide hides it, so rendering it
-      // would be a Vega compile and an SVG serialisation per team per round for
-      // a picture nobody sees — and a debrief has many instances.
-      if (!dto.resolved || spec === null) return;
+      // A PLAYER NEVER GETS AN UNRESOLVED CHART'S PICTURE. The slide hides it,
+      // so drawing it would be a Vega compile and an SVG serialisation per team
+      // per round for something nobody sees.
+      //
+      // ⚠ STAFF GET IT ANYWAY. The console draws these beside the description
+      // box, and an operator deciding what to WRITE about a chart is looking at
+      // one that is unresolved by definition — withholding it there means the
+      // copy gets written blind.
+      if ((!dto.resolved && !drawAll) || spec === null) return;
 
       // ⚠ THE SAME ROW BUILDER THE PREVIEW USES. That is the whole guarantee
       // behind the preview: what the operator approved is what the team reads.
@@ -333,6 +340,7 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
       isTeam ? String(user.teamId) : null,
       products as never,
       payload,
+      !isTeam,
     );
 
     const body: RoundDebriefResponse = { ...payload, charts };

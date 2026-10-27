@@ -41,18 +41,36 @@ export interface BuildRowsArgs {
   productId: string | null;
 }
 
-/** `byProduct.revenue` → `revenue`; everything else is returned unchanged. */
-const productField = (field: string): string | null =>
-  field.startsWith("byProduct.") ? field.slice("byProduct.".length) : null;
-
 const num = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
 
+const sum = (vals: (number | null)[]): number | null => {
+  const hit = vals.filter((v): v is number => v !== null);
+  return hit.length ? hit.reduce((a, b) => a + b, 0) : null;
+};
+
 /**
- * Read one measure for one team, honouring the `byProduct.` prefix and the
- * dotted map paths (`energyByLever.marketing`).
+ * WHICH SLICE OF A TEAM'S ROUND a row is reading.
+ *
+ * Filled in by whichever dimensions `xAxis` and `grouping` name. It is what
+ * makes a dimension a PIVOT rather than a label: binding x to `lever` does not
+ * merely write lever names along the axis, it reads the measure AT that lever.
+ */
+interface Slice {
+  productId?: string;
+  lever?:     string;
+  spec?:      string;
+}
+
+/**
+ * Read one measure for one team, through a slice.
+ *
+ * ⚠ THE SLICE OVERRIDES THE MEASURE'S OWN KEY. `energyByLever.marketing` on a
+ * chart whose x is `lever` reads each lever in turn, not marketing — the suffix
+ * is what the field means when nothing is pivoting on it. Without that rule
+ * "Energy allocation" could only ever be authored as one chart per lever.
  *
  * Returns null rather than 0 for anything missing: a team that did not play a
  * round is a GAP, and zero would draw as a real value at the floor.
@@ -60,81 +78,140 @@ const num = (v: unknown): number | null => {
 function measure(
   teamBlock: any,
   field: string,
-  productId: string | null,
+  slice: Slice,
+  products: DebriefPayload["products"],
 ): number | null {
   if (!teamBlock) return null;
 
-  const perProduct = productField(field);
+  const at = (prefix: string) =>
+    field.startsWith(prefix) ? field.slice(prefix.length) : null;
+
+  const perProduct = at("byProduct.");
   if (perProduct) {
-    if (!productId) {
-      // An `overall` chart bound to a per-notebook measure sums the notebooks.
-      // That is the only sensible reading, and it is what the old
-      // "Revenue by notebook" totals did.
+    // An `overall` chart bound to a per-notebook measure SUMS the notebooks.
+    // That is what the old "Revenue by notebook" totals did.
+    if (!slice.productId) {
       const blocks = Object.values(teamBlock.byProduct ?? {}) as any[];
-      const vals = blocks.map((b) => num(b?.[perProduct])).filter((v): v is number => v !== null);
-      return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+      return sum(blocks.map((b) => num(b?.[perProduct])));
     }
-    return num(teamBlock.byProduct?.[productId]?.[perProduct]);
+    return num(teamBlock.byProduct?.[slice.productId]?.[perProduct]);
   }
 
-  // Dotted paths into the operator-keyed maps.
-  if (field.includes(".")) {
-    const [head, ...rest] = field.split(".");
-    return num((teamBlock as any)[head]?.[rest.join(".")]);
+  const lever = at("energyByLever.");
+  if (lever !== null) return num(teamBlock.energyByLever?.[slice.lever ?? lever]);
+
+  const cost = at("costByCategory.");
+  if (cost !== null) return num(teamBlock.costByCategory?.[slice.lever ?? cost]);
+
+  const spec = at("spec.");
+  if (spec !== null) {
+    // Spec values are stored by `fieldId`, and a chart binds by `key` — the
+    // same axis carries a different fieldId on every notebook.
+    const key = slice.spec ?? spec;
+    const wanted = slice.productId
+      ? products.filter((p) => p.productId === slice.productId)
+      : products;
+    return sum(wanted.map((p) => {
+      const f = p.fields.find((x) => x.key === key);
+      return f ? num(teamBlock.byProduct?.[p.productId]?.fieldValues?.[f.fieldId]) : null;
+    }));
   }
 
   return num(teamBlock[field]);
 }
 
+/** One value a dimension expands to: what to print, and what it pivots on. */
+interface DimValue { label: string; slice: Slice }
+
+const ONE = (label: string): DimValue[] => [{ label, slice: {} }];
+
+/** The operator-keyed map a measure reads, so a `lever` axis offers that map's
+ *  own keys rather than the union of two unrelated ones. */
+const mapForMeasure = (yAxis: string): "costByCategory" | "energyByLever" =>
+  yAxis.startsWith("costByCategory.") ? "costByCategory" : "energyByLever";
+
 /**
  * Rows for one chart.
  *
- * `x` and `grouping` are CATEGORICAL — team, round or notebook — and `y` is the
- * measure. An unbound slot falls back to something sensible rather than
- * refusing: a half-configured chart is meant to render as-is.
+ * `x` and `grouping` are CATEGORICAL and `y` is the measure. Both categorical
+ * slots expand, so a chart is the cross of whatever they name — and an unbound
+ * slot falls back to the team rather than refusing, because a half-configured
+ * chart is meant to render as-is.
+ *
+ * ⚠ TEAMS ARE ALWAYS ITERATED. The debrief is a cross-team comparison; a chart
+ * that named neither team nor round would otherwise collapse every team into
+ * one row and quietly show the first one's figures.
  */
 export function buildChartRows({
   payload, xAxis, yAxis, grouping, productId,
 }: BuildRowsArgs): ChartRow[] {
-  const here = payload.rounds.find((r) => r.roundNumber === payload.roundNumber) ?? null;
-  const productName = new Map(payload.products.map((p) => [p.productId, p.productName]));
   const rows: ChartRow[] = [];
-
   if (!yAxis) return rows;
+
+  const here = payload.rounds.find((r) => r.roundNumber === payload.roundNumber) ?? null;
 
   // ROUND on an axis means every round, not just this one — it is the only
   // binding that reads the whole run.
   const overRounds = xAxis === "round" || grouping === "round";
   const scope = overRounds ? payload.rounds : here ? [here] : [];
 
+  // Lever and spec keys are OPERATOR FREE TEXT, collected from the payload
+  // rather than from a list — the same rule the old breakdowns followed, or
+  // renaming one on the console silently drops a whole band.
+  const whichMap = mapForMeasure(yAxis);
+  const leverKeys: string[] = [];
+  for (const r of scope) {
+    for (const t of payload.teams) {
+      for (const k of Object.keys((r.teams[t.teamId] as any)?.[whichMap] ?? {})) {
+        if (!leverKeys.includes(k)) leverKeys.push(k);
+      }
+    }
+  }
+
+  const specKeys = new Map<string, string>();
+  for (const p of payload.products) {
+    for (const f of p.fields) if (!specKeys.has(f.key)) specKeys.set(f.key, f.label);
+  }
+
   for (const round of scope) {
     for (const team of payload.teams) {
       const block = round.teams[team.teamId];
 
-      const label = (dim: string | null): string => {
-        if (dim === "round")   return `Round ${round.roundNumber + 1}`;
-        if (dim === "product") return productId ? (productName.get(productId) ?? "—") : "All";
-        return team.teamName; // `team`, and the default for an unbound slot
+      const expand = (dim: string | null): DimValue[] => {
+        if (dim === "round")   return ONE(`Round ${round.roundNumber + 1}`);
+        if (dim === "lever")   return leverKeys.map((k) => ({ label: k, slice: { lever: k } }));
+        if (dim === "spec")    return [...specKeys].map(([k, l]) => ({ label: l, slice: { spec: k } }));
+        if (dim === "product") {
+          // A per-notebook INSTANCE is already narrowed to one notebook, so the
+          // axis names that one rather than fanning out again.
+          if (productId) {
+            const p = payload.products.find((x) => x.productId === productId);
+            return [{ label: p?.productName ?? "—", slice: { productId } }];
+          }
+          return payload.products.map((p) => ({
+            label: p.productName,
+            slice: { productId: p.productId },
+          }));
+        }
+        return ONE(team.teamName); // `team`, and the default for an unbound slot
       };
 
-      if (xAxis === "product" && !productId) {
-        // One row per notebook — the breakdown an `overall` chart bound to the
-        // notebook axis is asking for.
-        for (const p of payload.products) {
+      for (const xv of expand(xAxis)) {
+        for (const gv of expand(grouping)) {
           rows.push({
-            x: p.productName,
-            y: measure(block, yAxis, p.productId),
-            series: label(grouping),
+            x: xv.label,
+            // The instance's own notebook is the floor: a dimension may narrow
+            // further, never widen past it.
+            y: measure(
+              block,
+              yAxis,
+              { productId: productId ?? undefined, ...xv.slice, ...gv.slice },
+              payload.products,
+            ),
+            series: gv.label,
           });
         }
-        continue;
       }
-
-      rows.push({
-        x: label(xAxis),
-        y: measure(block, yAxis, productId),
-        series: label(grouping),
-      });
     }
   }
 
