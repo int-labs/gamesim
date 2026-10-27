@@ -4,6 +4,7 @@ import Decision from "../models/decisions";
 import Simulation from "../models/simulations";
 import PlayerConfig from "../models/playerConfig";
 import { buildDebriefSeries, type DebriefPayload } from "./debriefSeries";
+import { measureLabel } from "./debriefDimensions";
 import { groupByRound, openingCashFrom } from "./roundReport";
 
 /**
@@ -35,11 +36,25 @@ export interface ChartDatasets {
 export interface BuildRowsArgs {
   payload:   DebriefPayload;
   xAxis:     string | null;
-  yAxis:     string | null;
+  /** One or more measures. See `toMeasures` for why the type is this wide. */
+  yAxis:     string | string[] | null;
   grouping:  string | null;
   /** Narrows every row to one notebook — the `each` instances. */
   productId: string | null;
 }
+
+/**
+ * The measures a chart plots, however they were stored.
+ *
+ * ⚠ THE ONLY PLACE `yAxis`'s SHAPE IS INTERPRETED. It was a single string until
+ * 2026-10-27 and documents written before that still hold one, so every reader
+ * comes through here rather than each deciding for itself what a bare string
+ * means.
+ */
+export const toMeasures = (yAxis: string | string[] | null | undefined): string[] => {
+  if (Array.isArray(yAxis)) return yAxis.filter((m): m is string => !!m);
+  return yAxis ? [yAxis] : [];
+};
 
 const num = (v: unknown): number | null => {
   const n = Number(v);
@@ -62,6 +77,9 @@ interface Slice {
   productId?: string;
   lever?:     string;
   spec?:      string;
+  /** Which of the chart's measures this row reads. Only meaningful once more
+   *  than one is bound. */
+  measure?:   string;
 }
 
 /**
@@ -146,19 +164,27 @@ export function buildChartRows({
   payload, xAxis, yAxis, grouping, productId,
 }: BuildRowsArgs): ChartRow[] {
   const rows: ChartRow[] = [];
-  if (!yAxis) return rows;
+  const measures = toMeasures(yAxis);
+  if (measures.length === 0) return rows;
+
+  // ⚠ SEVERAL MEASURES AND NOTHING NAMING THEM would draw them on top of one
+  // another at the same x, with the same series — indistinguishable, and the
+  // operator would read it as a broken chart rather than an unfinished one. The
+  // series becomes the measure instead, which is the only reading that shows
+  // every value the chart was bound to.
+  const group = grouping ?? (measures.length > 1 ? "measure" : null);
 
   const here = payload.rounds.find((r) => r.roundNumber === payload.roundNumber) ?? null;
 
   // ROUND on an axis means every round, not just this one — it is the only
   // binding that reads the whole run.
-  const overRounds = xAxis === "round" || grouping === "round";
+  const overRounds = xAxis === "round" || group === "round";
   const scope = overRounds ? payload.rounds : here ? [here] : [];
 
   // Lever and spec keys are OPERATOR FREE TEXT, collected from the payload
   // rather than from a list — the same rule the old breakdowns followed, or
   // renaming one on the console silently drops a whole band.
-  const whichMap = mapForMeasure(yAxis);
+  const whichMap = mapForMeasure(measures[0]);
   const leverKeys: string[] = [];
   for (const r of scope) {
     for (const t of payload.teams) {
@@ -181,6 +207,9 @@ export function buildChartRows({
         if (dim === "round")   return ONE(`Round ${round.roundNumber + 1}`);
         if (dim === "lever")   return leverKeys.map((k) => ({ label: k, slice: { lever: k } }));
         if (dim === "spec")    return [...specKeys].map(([k, l]) => ({ label: l, slice: { spec: k } }));
+        if (dim === "measure") {
+          return measures.map((m) => ({ label: measureLabel(m), slice: { measure: m } }));
+        }
         if (dim === "product") {
           // A per-notebook INSTANCE is already narrowed to one notebook, so the
           // axis names that one rather than fanning out again.
@@ -197,17 +226,17 @@ export function buildChartRows({
       };
 
       for (const xv of expand(xAxis)) {
-        for (const gv of expand(grouping)) {
+        for (const gv of expand(group)) {
+          // The instance's own notebook is the floor: a dimension may narrow
+          // further, never widen past it.
+          const slice: Slice = {
+            productId: productId ?? undefined,
+            ...xv.slice,
+            ...gv.slice,
+          };
           rows.push({
             x: xv.label,
-            // The instance's own notebook is the floor: a dimension may narrow
-            // further, never widen past it.
-            y: measure(
-              block,
-              yAxis,
-              { productId: productId ?? undefined, ...xv.slice, ...gv.slice },
-              payload.products,
-            ),
+            y: measure(block, slice.measure ?? measures[0], slice, payload.products),
             series: gv.label,
           });
         }
@@ -230,7 +259,7 @@ export async function buildPreviewDatasets(args: {
   simulationId: string;
   roundNumber:  number;
   xAxis:        string | null;
-  yAxis:        string | null;
+  yAxis:        string | string[] | null;
   grouping:     string | null;
   productId:    string | null;
 }): Promise<ChartDatasets> {

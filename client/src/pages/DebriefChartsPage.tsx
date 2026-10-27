@@ -63,7 +63,7 @@ function Preview({ draft }: { draft: ChartDraft }) {
         simulationId,
         roundNumber: Number(roundNumber),
         xAxis: draft.xAxis || null,
-        yAxis: draft.yAxis || null,
+        yAxis: draft.yAxis,
         grouping: draft.grouping || null,
       });
       setSvg(res.svg);
@@ -234,7 +234,18 @@ export default function DebriefChartsPage() {
                         : <span style={{ color: "#b00" }}>none</span>}
                     </td>
                     <td style={td}>{dimLabel(dims, c.xAxis)}</td>
-                    <td style={td}>{dimLabel(dims, c.yAxis)}</td>
+                    {/* Every measure, comma-separated — a column showing only
+                        the first would hide half of what the chart plots. */}
+                    <td style={td}>
+                      {c.yAxis.length === 0
+                        ? dimLabel(dims, null)
+                        : c.yAxis.map((m, i) => (
+                            <span key={m}>
+                              {i > 0 && ", "}
+                              {dimLabel(dims, m)}
+                            </span>
+                          ))}
+                    </td>
                     <td style={td}>{dimLabel(dims, c.grouping)}</td>
                     <td style={td}>
                       <button

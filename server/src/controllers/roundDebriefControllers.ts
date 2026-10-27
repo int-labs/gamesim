@@ -26,7 +26,7 @@ import PlayerConfig from "../models/playerConfig";
 import { ROLES } from "../constants/roles";
 import DebriefChartModel from "../models/debriefChart";
 import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
-import { buildChartRows } from "../services/debriefChartData";
+import { buildChartRows, toMeasures } from "../services/debriefChartData";
 import { renderChartToSvg } from "../services/chartRenderer";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
 
@@ -64,7 +64,8 @@ interface DebriefChartDto {
    */
   chartStyle: { _id: string; name: string; category: string } | null;
   xAxis:      string | null;
-  yAxis:      string | null;
+  /** ALWAYS AN ARRAY on the wire, however the document stores it. */
+  yAxis:      string[];
   grouping:   string | null;
   description: string | null;
   resolved:    boolean;
@@ -173,7 +174,9 @@ const resolveCharts = async (
           }
         : null,
       xAxis:    c.xAxis ?? null,
-      yAxis:    c.yAxis ?? null,
+      // Normalised ONCE, here, so neither client has to know that older
+      // documents hold a bare string.
+      yAxis:    toMeasures(c.yAxis),
       grouping: c.grouping ?? null,
     };
 

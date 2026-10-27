@@ -429,7 +429,7 @@ export const createDebriefChart = (data: {
   scope?:      "overall" | "each";
   chartStyle?: string | null;
   xAxis?:      string | null;
-  yAxis?:      string | null;
+  yAxis?:      string[] | null;
   grouping?:   string | null;
 }) => api.post("/debrief-charts", data);
 
@@ -445,7 +445,7 @@ export const previewDebriefChart = async (data: {
   simulationId: string;
   roundNumber:  number;
   xAxis?:       string | null;
-  yAxis?:       string | null;
+  yAxis?:       string[] | null;
   grouping?:    string | null;
   productId?:   string | null;
 }): Promise<{ svg: string; rows: number }> => {
@@ -458,7 +458,7 @@ export const updateDebriefChart = (
   data: Partial<{
     name: string; category: string; order: number; scope: "overall" | "each";
     chartStyle: string | null;
-    xAxis: string | null; yAxis: string | null; grouping: string | null;
+    xAxis: string | null; yAxis: string[]; grouping: string | null;
   }>,
 ) => api.patch(`/debrief-charts/${id}`, data);
 

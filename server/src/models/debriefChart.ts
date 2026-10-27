@@ -43,7 +43,20 @@ export interface DebriefChartInterface extends Document {
   chartStyle: Types.ObjectId | null;
   /** The bindings. Nullable BY DESIGN — see the note above. */
   xAxis: string | null;
-  yAxis: string | null;
+  /**
+   * The measures plotted — ONE CHART MAY DRAW SEVERAL.
+   *
+   * "Units sold vs customers obtained" is two measures on one scale, not two
+   * charts; so is a cash walk. With more than one bound, the series is the
+   * MEASURE rather than a team or a notebook — `measure` is a categorical the
+   * registry offers, and the row builder falls back to it rather than drawing
+   * two measures on top of each other.
+   *
+   * ⚠ WAS A SINGLE STRING until 2026-10-27, and documents written before that
+   * still hold one. Everything that reads this goes through `toMeasures()` in
+   * `services/debriefChartData.ts`; never index it directly.
+   */
+  yAxis: string[];
   grouping: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -69,7 +82,9 @@ const debriefChartSchema = new Schema<DebriefChartInterface>(
     },
 
     xAxis:    { type: String, default: null, trim: true, maxlength: 64 },
-    yAxis:    { type: String, default: null, trim: true, maxlength: 64 },
+    // No `default: null` — an array path defaults to [], and a null here would
+    // have to be unwrapped by every reader on top of the string case.
+    yAxis:    { type: [String], default: undefined },
     grouping: { type: String, default: null, trim: true, maxlength: 64 },
   },
   { timestamps: true }

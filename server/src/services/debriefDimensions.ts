@@ -28,7 +28,7 @@ export interface DebriefDimension {
   /** Which slot it can fill. `categorical` divides, `measure` is plotted. */
   kind: "categorical" | "measure";
   /** Where the value lives, so the expander knows which rows to build. */
-  source: "team" | "round" | "product" | "lever" | "cost" | "spec";
+  source: "team" | "round" | "product" | "lever" | "cost" | "spec" | "measure";
 }
 
 /** Fixed by the model — the team-level figures on `DebriefTeamRound`. */
@@ -70,7 +70,34 @@ const CATEGORICALS: DebriefDimension[] = [
   { field: "team",    label: "Team",     kind: "categorical", source: "team" },
   { field: "round",   label: "Round",    kind: "categorical", source: "round" },
   { field: "product", label: "Notebook", kind: "categorical", source: "product" },
+  // The chart's OWN measures as an axis — "units sold vs customers obtained" is
+  // one chart divided by measure, not two charts. Offered always: with a single
+  // measure bound it is a one-value dimension, which is harmless.
+  { field: "measure", label: "Measure",  kind: "categorical", source: "measure" },
 ];
+
+/** Every fixed measure's display name, by field. The lever, cost and spec
+ *  measures are not here — their labels come from the operator's own keys, so
+ *  `measureLabel` falls back to the key after the dot. */
+const STATIC_LABELS = new Map(
+  [...TEAM_MEASURES, ...PRODUCT_MEASURES].map((d) => [d.field, d.label] as const),
+);
+
+/**
+ * A measure's display name — what a chart prints when the SERIES is the
+ * measure.
+ *
+ * Synchronous and registry-free on purpose: `buildChartRows` is pure and has
+ * only the payload, and a label is not worth making it async for. The fallback
+ * is the key after the dot, which is what an operator named the lever or spec
+ * anyway.
+ */
+export const measureLabel = (field: string): string => {
+  const hit = STATIC_LABELS.get(field);
+  if (hit) return hit;
+  const dot = field.indexOf(".");
+  return dot >= 0 ? field.slice(dot + 1) : field;
+};
 
 export interface DebriefDimensions {
   categorical: DebriefDimension[];

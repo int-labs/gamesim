@@ -484,7 +484,8 @@ export interface DebriefChartDto {
   scope: 'overall' | 'each';
   chartStyle: DebriefChartStyleDto | null;
   xAxis: string | null;
-  yAxis: string | null;
+  /** The measures plotted — several means the series is the measure. */
+  yAxis: string[];
   grouping: string | null;
   description: string | null;
   resolved: boolean;

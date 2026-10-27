@@ -28,7 +28,13 @@ const chartSchema = z.object({
   scope:      z.enum(["overall", "each"]).default("overall"),
   chartStyle: objectId.nullish(),
   xAxis:      z.string().trim().max(64).nullish(),
-  yAxis:      z.string().trim().max(64).nullish(),
+  // ⚠ ACCEPTS A BARE STRING and wraps it. Charts written before 2026-10-27
+  // hold one, and so does anything patching this endpoint from before the
+  // change — rejecting those would turn a widening into a breaking change.
+  yAxis:      z.union([
+                z.string().trim().max(64),
+                z.array(z.string().trim().min(1).max(64)).max(12),
+              ]).nullish().transform((v) => (v == null ? [] : Array.isArray(v) ? v : [v])),
   grouping:   z.string().trim().max(64).nullish(),
 });
 
@@ -75,7 +81,8 @@ export const createDebriefChart = async (req: Request, res: Response): Promise<v
       // rather than absent so a later PATCH has something to overwrite.
       chartStyle: parsed.data.chartStyle ?? null,
       xAxis:      parsed.data.xAxis ?? null,
-      yAxis:      parsed.data.yAxis ?? null,
+      // Already an array — the schema's transform normalises it.
+      yAxis:      parsed.data.yAxis,
       grouping:   parsed.data.grouping ?? null,
     });
 
@@ -112,7 +119,10 @@ const previewSchema = z.object({
   simulationId: objectId,
   roundNumber:  z.number().int().min(0).max(999),
   xAxis:    z.string().trim().max(64).nullish(),
-  yAxis:    z.string().trim().max(64).nullish(),
+  yAxis:    z.union([
+              z.string().trim().max(64),
+              z.array(z.string().trim().min(1).max(64)).max(12),
+            ]).nullish(),
   grouping: z.string().trim().max(64).nullish(),
   productId: objectId.nullish(),
 });

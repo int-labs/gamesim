@@ -16,17 +16,15 @@
  * which is why it prints what it changed.
  *
  * ── WHAT IT CANNOT CARRY ACROSS ─────────────────────────────────────────────
- * Three of the fifteen are not expressible as one `{x, y, series}` binding and
- * are SKIPPED rather than approximated:
+ * Two, and neither is approximated:
  *
- *   unitsVsDemand  two measures on one chart (customers obtained AND units
- *                  sold). A chart has one `yAxis`.
- *   priceVsUnits   a scatter: both axes quantitative. `x` is a label.
- *   voc            needs the 0..1 weight normalisation that lives in the player
- *                  client as the single definition shared with its market tab.
+ *   priceVsUnits  a scatter — both axes quantitative, and `ChartRow.x` is a
+ *                 label. Needs a numeric x and a scatter shape in the gallery.
+ *   voc           needs the 0..1 weight normalisation that lives in the player
+ *                 client as the single definition shared with its market tab.
  *
- * They stay unconfigured, and the debrief is poorer by exactly those three
- * until the row builder can express them.
+ * `unitsVsDemand` and the cash walk DO come across: they are two measures on
+ * one scale with the series naming which, not two charts.
  */
 
 import connectToDatabase from "../src/db/db";
@@ -50,7 +48,7 @@ interface LegacyChart {
   scope:    "overall" | "each";
   shape:    keyof typeof SHAPES;
   xAxis:    string | null;
-  yAxis:    string;
+  yAxis:    string[];
   grouping: string | null;
 }
 
@@ -61,49 +59,61 @@ interface LegacyChart {
  */
 const LEGACY: LegacyChart[] = [
   { order:  10, category: "effort", name: "Total energy consumption",
-    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: "energy", grouping: "team" },
+    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["energy"], grouping: "team" },
 
   { order:  20, category: "revenue", name: "Total revenue",
-    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: "revenue", grouping: "team" },
+    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["revenue"], grouping: "team" },
   { order:  30, category: "revenue", name: "Revenue by notebook",
-    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: "byProduct.revenue", grouping: "product" },
+    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["byProduct.revenue"], grouping: "product" },
   // ⚠ `dynamicPrice`, not `productScore`. The player showed dynamicPrice under
   // the words "product score"; the 0..1 `productScore` is a different number.
   { order:  40, category: "revenue", name: "Product score by notebook",
-    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: "byProduct.dynamicPrice", grouping: "product" },
+    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["byProduct.dynamicPrice"], grouping: "product" },
 
   { order:  50, category: "profit", name: "Total profit",
-    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: "grossProfit", grouping: "team" },
+    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["grossProfit"], grouping: "team" },
   { order:  60, category: "profit", name: "Gross profit by notebook",
-    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: "byProduct.grossProfit", grouping: "product" },
+    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["byProduct.grossProfit"], grouping: "product" },
   { order:  70, category: "profit", name: "Total net profit",
-    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: "netProfit", grouping: "team" },
+    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["netProfit"], grouping: "team" },
   { order:  80, category: "profit", name: "Net profit by notebook",
-    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: "byProduct.netProfit", grouping: "product" },
+    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["byProduct.netProfit"], grouping: "product" },
 
   // The old chart was COGS + operating expenses added together. A chart has one
   // measure, so this is COGS and the opex half is its own row below — which is
   // arguably the better reading anyway, since the two sit on opposite sides of
   // the gross profit line.
   { order:  90, category: "cost", name: "Cost of goods sold",
-    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: "cogs", grouping: "team" },
+    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["cogs"], grouping: "team" },
   { order:  95, category: "cost", name: "Operating expenses",
-    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: "operatingExpenses", grouping: "team" },
+    scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["operatingExpenses"], grouping: "team" },
+
+  // TWO MEASURES ON ONE SCALE, with the series naming which — both are unit
+  // counts, so this is one chart about capacity, never two.
+  { order: 100, category: "capacity", name: "Units sold vs demand",
+    scope: "overall", shape: "groupedBar", xAxis: "team",
+    yAxis: ["customersObtained", "unitsSold"], grouping: "measure" },
+
+  // The cash walk, restored the same way. It was dropped from the PLAYER's
+  // slide in 2026-10-09 as no longer useful; it stays on the operator's.
+  { order: 110, category: "capacity", name: "Cash utilization",
+    scope: "overall", shape: "groupedBar", xAxis: "team",
+    yAxis: ["cashOpening", "cashClosing"], grouping: "measure" },
 
   // ⚠ THE SUFFIX IS A PLACEHOLDER. `lever` on an axis pivots the measure, so
   // the key after the dot is only what the field would mean with nothing
   // pivoting on it. See `measure()` in services/debriefChartData.ts.
   { order: 120, category: "tno", name: "Money allocation",
-    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: "costByCategory.*", grouping: "lever" },
+    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["costByCategory.*"], grouping: "lever" },
   { order: 130, category: "tno", name: "Energy allocation",
-    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: "energyByLever.*", grouping: "lever" },
+    scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["energyByLever.*"], grouping: "lever" },
 
   { order: 150, category: "trend", name: "Revenue across rounds",
-    scope: "overall", shape: "line", xAxis: "round", yAxis: "revenue", grouping: "team" },
+    scope: "overall", shape: "line", xAxis: "round", yAxis: ["revenue"], grouping: "team" },
   { order: 160, category: "trend", name: "Gross profit across rounds",
-    scope: "overall", shape: "line", xAxis: "round", yAxis: "grossProfit", grouping: "team" },
+    scope: "overall", shape: "line", xAxis: "round", yAxis: ["grossProfit"], grouping: "team" },
   { order: 170, category: "trend", name: "Net profit across rounds",
-    scope: "overall", shape: "line", xAxis: "round", yAxis: "netProfit", grouping: "team" },
+    scope: "overall", shape: "line", xAxis: "round", yAxis: ["netProfit"], grouping: "team" },
 ];
 
 async function run(): Promise<void> {
@@ -168,9 +178,8 @@ async function run(): Promise<void> {
       `${LEGACY.length - added - changed} already current.`,
     );
     console.log(
-      "⚠ Not imported — not expressible as one {x, y, series} binding:\n" +
-      "   unitsVsDemand (two measures), priceVsUnits (scatter), voc (needs the\n" +
-      "   player's weight normalisation).",
+      "⚠ Not imported: priceVsUnits (needs a quantitative x and a scatter\n" +
+      "   shape) and voc (needs the player's weight normalisation).",
     );
     console.log(
       "\nEvery chart is HIDDEN from players until a description is written for\n" +

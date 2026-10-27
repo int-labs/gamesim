@@ -334,7 +334,11 @@ export interface DebriefChartConfig {
   scope: "overall" | "each";
   chartStyle: DebriefChartStyle | null;
   xAxis: string | null;
-  yAxis: string | null;
+  /** ONE CHART MAY PLOT SEVERAL. With more than one bound, the series is the
+   *  MEASURE — "units sold vs customers obtained" is one chart, not two.
+   *  ⚠ Documents written before 2026-10-27 hold a bare string; the server
+   *  normalises on read, so anything off the API is already an array. */
+  yAxis: string[];
   grouping: string | null;
 }
 

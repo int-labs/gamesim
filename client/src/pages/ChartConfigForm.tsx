@@ -24,13 +24,15 @@ export interface ChartDraft {
   scope:      "overall" | "each";
   chartStyle: string;
   xAxis:      string;
-  yAxis:      string;
+  /** The measures plotted. Several means the series is the MEASURE — picking a
+   *  second one is how "units sold vs customers obtained" is authored. */
+  yAxis:      string[];
   grouping:   string;
 }
 
 export const EMPTY_CHART: ChartDraft = {
   name: "", category: "", order: 0, scope: "overall",
-  chartStyle: "", xAxis: "", yAxis: "", grouping: "",
+  chartStyle: "", xAxis: "", yAxis: [], grouping: "",
 };
 
 /** Anything carrying a chart's configuration — the stored document, or one of
@@ -43,7 +45,9 @@ export interface ChartConfigLike {
   scope?:   "overall" | "each";
   chartStyle: { _id: string } | null;
   xAxis:    string | null;
-  yAxis:    string | null;
+  /** Tolerates the pre-2026-10-27 bare string, so a document the server has
+   *  not normalised still opens in the editor. */
+  yAxis:    string[] | string | null;
   grouping: string | null;
 }
 
@@ -54,7 +58,7 @@ export const draftFromChart = (c: ChartConfigLike): ChartDraft => ({
   scope:      c.scope ?? "overall",
   chartStyle: c.chartStyle?._id ?? "",
   xAxis:      c.xAxis ?? "",
-  yAxis:      c.yAxis ?? "",
+  yAxis:      Array.isArray(c.yAxis) ? c.yAxis : c.yAxis ? [c.yAxis] : [],
   grouping:   c.grouping ?? "",
 });
 
@@ -72,7 +76,9 @@ export const chartPayload = (d: ChartDraft) => ({
   scope:      d.scope,
   chartStyle: d.chartStyle || null,
   xAxis:      d.xAxis || null,
-  yAxis:      d.yAxis || null,
+  // An ARRAY even when empty — "no measures" is a valid half-configured chart,
+  // and null would reintroduce the two-shapes-for-one-field problem.
+  yAxis:      d.yAxis,
   grouping:   d.grouping || null,
 });
 
@@ -116,6 +122,80 @@ export function DimensionSelect({
         <option key={o.field} value={o.field}>{o.label}</option>
       ))}
     </select>
+  );
+}
+
+/**
+ * The measures, as an add-one-at-a-time list.
+ *
+ * ⚠ THE SELECT NEVER HOLDS A VALUE. It is an ADD control, not a binding —
+ * picking resets it to the placeholder and appends a chip. A select showing
+ * "Revenue" while three measures are bound would be lying about which one it
+ * meant, and it is the chips that say what the chart plots.
+ *
+ * Order is the pick order, and it is load-bearing: with several measures the
+ * first is what a half-bound chart falls back to, and the series legend reads
+ * in this sequence.
+ */
+function MeasureList({
+  options, value, onChange,
+}: {
+  options: DebriefDimension[];
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const labelFor = (field: string) =>
+    options.find((o) => o.field === field)?.label ?? field;
+
+  // Already-picked measures leave the dropdown: the same measure twice draws
+  // two identical series on top of each other.
+  const remaining = options.filter((o) => !value.includes(o.field));
+
+  return (
+    <span style={{ display: "inline-flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+      {value.map((field) => {
+        const known = options.some((o) => o.field === field);
+        return (
+          <span
+            key={field}
+            title={known ? field : `"${field}" is not offered by this type any more`}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              border: `1px solid ${known ? "#ccd" : "#b00"}`,
+              background: known ? "#eef2f8" : "#fdeaea",
+              color: known ? "#334" : "#b00",
+              borderRadius: 10, padding: "1px 4px 1px 8px", fontSize: 12,
+            }}
+          >
+            {/* ⚠ A MEASURE THE REGISTRY NO LONGER OFFERS IS KEPT AND MARKED,
+                never dropped on open — otherwise it looks like it was never
+                set, and the next save removes it for real. */}
+            {known ? labelFor(field) : `${field} (missing)`}
+            <button
+              onClick={() => onChange(value.filter((f) => f !== field))}
+              title="remove this measure"
+              style={{
+                border: "none", background: "none", cursor: "pointer",
+                fontSize: 13, lineHeight: 1, padding: "0 2px", color: "inherit",
+              }}
+            >
+              ×
+            </button>
+          </span>
+        );
+      })}
+      <select
+        value=""
+        onChange={(e) => { if (e.target.value) onChange([...value, e.target.value]); }}
+        disabled={remaining.length === 0}
+        style={{ maxWidth: 190 }}
+      >
+        <option value="">{value.length ? "-- add y --" : "-- y --"}</option>
+        {remaining.map((o) => (
+          <option key={o.field} value={o.field}>{o.label}</option>
+        ))}
+      </select>
+    </span>
   );
 }
 
@@ -170,8 +250,8 @@ export function ChartConfigFields({
           existed, and a typo then saved fine and silently never resolved. */}
       <DimensionSelect label="x" options={dims.categorical}
                        value={draft.xAxis} onChange={(v) => set({ xAxis: v })} />
-      <DimensionSelect label="y" options={dims.measures}
-                       value={draft.yAxis} onChange={(v) => set({ yAxis: v })} />
+      <MeasureList options={dims.measures}
+                   value={draft.yAxis} onChange={(v) => set({ yAxis: v })} />
       <DimensionSelect label="grouping" options={dims.categorical}
                        value={draft.grouping} onChange={(v) => set({ grouping: v })} />
     </>
