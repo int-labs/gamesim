@@ -16,15 +16,9 @@
  * which is why it prints what it changed.
  *
  * ── WHAT IT CANNOT CARRY ACROSS ─────────────────────────────────────────────
- * Two, and neither is approximated:
- *
- *   priceVsUnits  a scatter — both axes quantitative, and `ChartRow.x` is a
- *                 label. Needs a numeric x and a scatter shape in the gallery.
- *   voc           needs the 0..1 weight normalisation that lives in the player
- *                 client as the single definition shared with its market tab.
- *
- * `unitsVsDemand` and the cash walk DO come across: they are two measures on
- * one scale with the series naming which, not two charts.
+ * One: `voc`. It needs the 0..1 weight normalisation that lives in the player
+ * client as the single definition shared with its market tab, and emitting a
+ * normalised value from the server would make a second one.
  */
 
 import connectToDatabase from "../src/db/db";
@@ -37,6 +31,7 @@ const SHAPES = {
   groupedBar:  { category: "bar chart",  name: "Grouped bar" },
   stackedBar:  { category: "bar chart",  name: "Stacked bar" },
   line:        { category: "line chart", name: "Line with points" },
+  scatter:     { category: "2D chart",   name: "Scatter" },
 } as const;
 
 interface LegacyChart {
@@ -99,6 +94,16 @@ const LEGACY: LegacyChart[] = [
   { order: 110, category: "capacity", name: "Cash utilization",
     scope: "overall", shape: "groupedBar", xAxis: "team",
     yAxis: ["cashOpening", "cashClosing"], grouping: "measure" },
+
+  // ⚠ `scope: "each"` IS WHAT MAKES THIS THE OLD CHART. Both axes are
+  // measures, so nothing expands along them — the per-notebook instance is
+  // what narrows each point to one notebook, leaving one point per team with
+  // the team as the series. On the all-notebooks summary the two measures sum
+  // across notebooks, which is meaningless for a price: leave that instance
+  // without a description and the players never see it.
+  { order: 115, category: "capacity", name: "Price vs units sold",
+    scope: "each", shape: "scatter", xAxis: "byProduct.unitsSold",
+    yAxis: ["byProduct.sellingPrice"], grouping: "team" },
 
   // ⚠ THE SUFFIX IS A PLACEHOLDER. `lever` on an axis pivots the measure, so
   // the key after the dot is only what the field would mean with nothing
@@ -178,8 +183,7 @@ async function run(): Promise<void> {
       `${LEGACY.length - added - changed} already current.`,
     );
     console.log(
-      "⚠ Not imported: priceVsUnits (needs a quantitative x and a scatter\n" +
-      "   shape) and voc (needs the player's weight normalisation).",
+      "⚠ Not imported: voc — it needs the player client's weight normalisation.",
     );
     console.log(
       "\nEvery chart is HIDDEN from players until a description is written for\n" +

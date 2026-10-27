@@ -92,7 +92,7 @@ const BAR = { type: "bar", stroke: INK.frame, strokeWidth: 1 };
  * per-row weights, a quantitative x) cannot be added here until the row builder
  * can express it.
  */
-const STYLES: { _id: string; category: string; name: string; spec: object }[] = [
+export const STYLES: { _id: string; category: string; name: string; spec: object }[] = [
   {
     _id: "a11ca11c0000000000000001",
     category: "bar chart",
@@ -159,6 +159,28 @@ const STYLES: { _id: string; category: string; name: string; spec: object }[] = 
     },
   },
   {
+    _id: "a11ca11c0000000000000006",
+    category: "2D chart",
+    name: "Scatter",
+    spec: {
+      ...BASE,
+      mark: { type: "point", filled: true, size: 110, stroke: INK.frame, strokeWidth: 1 },
+      encoding: {
+        // ⚠ THE ONLY SHAPE WITH A QUANTITATIVE X, and the reason `ChartRow.x`
+        // is `string | number`. Bind x to a MEASURE — a categorical there puts
+        // labels on a numeric scale and every point lands on NaN.
+        //
+        // `zero: false` on BOTH axes, unlike every bar shape here. A bar is
+        // read by length so its scale must start at zero; a point is read by
+        // position, and forcing the origin in pushes a cluster of prices
+        // between 18 and 28 into the bottom inch of the plot.
+        x: { field: "x", type: "quantitative", title: null, scale: { zero: false } },
+        y: qty({ scale: { zero: false } }),
+        color: SERIES_ENC,
+      },
+    },
+  },
+  {
     _id: "a11ca11c0000000000000005",
     category: "area chart",
     name: "Stacked area",
@@ -172,6 +194,15 @@ const STYLES: { _id: string; category: string; name: string; spec: object }[] = 
       },
     },
   },
+];
+
+/** A scatter's rows: x is a MEASURE, so it arrives as a number. One point per
+ *  team per notebook, which is what `priceVsUnits` draws. */
+const SCATTER_ROWS = [
+  { x: 420, y: 18.5, series: "Studio A" },
+  { x: 260, y: 24.0, series: "Studio A" },
+  { x: 310, y: 21.0, series: "Studio B" },
+  { x: 180, y: 27.5, series: "Studio B" },
 ];
 
 /** What `buildChartRows` actually emits, including a gap — a team that did not
@@ -193,12 +224,14 @@ const SAMPLE_ROWS = [
  * valid. This is the same renderer `/round-debrief` uses, so a pass here is the
  * real thing passing.
  */
-async function verify(): Promise<void> {
+export async function verify(): Promise<void> {
   for (const s of STYLES) {
-    const svg = await renderChartToSvg({
-      spec: s.spec,
-      datasets: { rows: SAMPLE_ROWS },
-    });
+    // A shape's x encoding decides which sample it can draw: labels on a
+    // quantitative scale all resolve to NaN and the chart comes out empty.
+    const xType = (s.spec as any)?.encoding?.x?.type;
+    const rows = xType === "quantitative" ? SCATTER_ROWS : SAMPLE_ROWS;
+
+    const svg = await renderChartToSvg({ spec: s.spec, datasets: { rows } });
     // Furniture alone — axes and labels with no marks — means the encoding
     // never bound to the rows, which renders as a blank frame rather than an
     // error.
@@ -258,7 +291,11 @@ async function seed(): Promise<void> {
   }
 }
 
-seed().catch((err) => {
-  console.error("❌ Seeding failed:", err);
-  process.exit(1);
-});
+// Only when RUN, not when imported: `STYLES` and `verify` are worth reading
+// from a probe, and a module that connects to Mongo on import cannot be.
+if (require.main === module) {
+  seed().catch((err) => {
+    console.error("❌ Seeding failed:", err);
+    process.exit(1);
+  });
+}

@@ -101,14 +101,17 @@ export function dimLabel(dims: DebriefDimensions, field: string | null) {
  * never set one — then overwrite it on the next save.
  */
 export function DimensionSelect({
-  label, options, value, onChange,
+  label, options, measures = [], value, onChange,
 }: {
   label: string;
   options: DebriefDimension[];
+  /** Offered under their own heading — x accepts one, which is what makes a
+   *  scatter possible. Grouping passes none: a series is always a category. */
+  measures?: DebriefDimension[];
   value: string;
   onChange: (v: string) => void;
 }) {
-  const known = options.some((o) => o.field === value);
+  const known = [...options, ...measures].some((o) => o.field === value);
   return (
     <select
       value={value}
@@ -121,6 +124,16 @@ export function DimensionSelect({
       {options.map((o) => (
         <option key={o.field} value={o.field}>{o.label}</option>
       ))}
+      {measures.length > 0 && (
+        // Grouped, because picking one here changes what KIND of chart this is:
+        // a measure on x makes the axis numeric, which only a scatter-ish shape
+        // draws sensibly.
+        <optgroup label="— as a value (scatter) —">
+          {measures.map((o) => (
+            <option key={o.field} value={o.field}>{o.label}</option>
+          ))}
+        </optgroup>
+      )}
     </select>
   );
 }
@@ -248,7 +261,7 @@ export function ChartConfigFields({
       {/* X and GROUPING divide, Y is plotted — so they are drawn from different
           halves of the registry. These were free text until the registry
           existed, and a typo then saved fine and silently never resolved. */}
-      <DimensionSelect label="x" options={dims.categorical}
+      <DimensionSelect label="x" options={dims.categorical} measures={dims.measures}
                        value={draft.xAxis} onChange={(v) => set({ xAxis: v })} />
       <MeasureList options={dims.measures}
                    value={draft.yAxis} onChange={(v) => set({ yAxis: v })} />

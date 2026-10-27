@@ -23,7 +23,14 @@ import { groupByRound, openingCashFrom } from "./roundReport";
  */
 
 export interface ChartRow {
-  x: string;
+  /**
+   * A LABEL, or a NUMBER when `xAxis` is bound to a measure.
+   *
+   * A scatter needs both axes quantitative — "price vs units sold" has no
+   * categorical axis at all. Which one a shape expects is the shape's business:
+   * it declares `"type": "nominal"` or `"quantitative"` on the x encoding.
+   */
+  x: string | number | null;
   y: number | null;
   series: string;
 }
@@ -143,6 +150,13 @@ interface DimValue { label: string; slice: Slice }
 
 const ONE = (label: string): DimValue[] => [{ label, slice: {} }];
 
+/**
+ * The dimension names. Anything else in `xAxis` or `grouping` is a MEASURE
+ * field, which is how a quantitative axis is told from a categorical one — the
+ * registry hands out these six names and nothing else that is categorical.
+ */
+const DIMENSIONS = new Set(["team", "round", "product", "lever", "spec", "measure"]);
+
 /** The operator-keyed map a measure reads, so a `lever` axis offers that map's
  *  own keys rather than the union of two unrelated ones. */
 const mapForMeasure = (yAxis: string): "costByCategory" | "energyByLever" =>
@@ -173,6 +187,11 @@ export function buildChartRows({
   // series becomes the measure instead, which is the only reading that shows
   // every value the chart was bound to.
   const group = grouping ?? (measures.length > 1 ? "measure" : null);
+
+  // X BOUND TO A MEASURE makes this a scatter: the axis carries a number, not
+  // a label, and nothing expands along it — one point per row the other
+  // dimensions produce.
+  const xIsMeasure = !!xAxis && !DIMENSIONS.has(xAxis);
 
   const here = payload.rounds.find((r) => r.roundNumber === payload.roundNumber) ?? null;
 
@@ -225,7 +244,10 @@ export function buildChartRows({
         return ONE(team.teamName); // `team`, and the default for an unbound slot
       };
 
-      for (const xv of expand(xAxis)) {
+      // A measure-bound x does not expand — it is read per row, like y.
+      const xValues: DimValue[] = xIsMeasure ? [{ label: "", slice: {} }] : expand(xAxis);
+
+      for (const xv of xValues) {
         for (const gv of expand(group)) {
           // The instance's own notebook is the floor: a dimension may narrow
           // further, never widen past it.
@@ -235,7 +257,9 @@ export function buildChartRows({
             ...gv.slice,
           };
           rows.push({
-            x: xv.label,
+            x: xIsMeasure
+              ? measure(block, xAxis as string, slice, payload.products)
+              : xv.label,
             y: measure(block, slice.measure ?? measures[0], slice, payload.products),
             series: gv.label,
           });
