@@ -41,6 +41,29 @@ export interface DebriefChartInterface extends Document {
   /** Which gallery shape draws it. An ObjectId, not the style's name, so
    *  renaming a gallery entry costs nothing here. */
   chartStyle: Types.ObjectId | null;
+  /**
+   * THE ESCAPE HATCH: a chart the PLAYER CLIENT draws itself.
+   *
+   * Set, and the server renders nothing — `chartStyle` and the bindings are
+   * ignored and `svg` comes out null. The slide looks the key up among its own
+   * components and draws it.
+   *
+   * ⚠ IT IS NOT A LOOPHOLE FOR CHARTS THAT ARE MERELY AWKWARD. A configured
+   * chart binds to figures the server has already derived. This exists for the
+   * one case where the chart's CONTENT IS a derivation that only this
+   * simulation has — the VoC plot, whose weights come out of
+   * `diminishingReturnsFactor`, a calculation layer that means something
+   * different in the next sim. Binding it would mean the server owning a
+   * formula that cannot be generalised.
+   *
+   * Everything else about the row still applies: order, slide group, name,
+   * scope, and the description that decides whether players see it at all.
+   *
+   * ⚠ `order` DOES NOT PLACE IT. The slide draws client-drawn segments first,
+   * whatever they are numbered — owner's rule, see `toSegments` in the player's
+   * LimboScreen.
+   */
+  clientChart: string | null;
   /** The bindings. Nullable BY DESIGN — see the note above. */
   xAxis: string | null;
   /**
@@ -80,6 +103,8 @@ const debriefChartSchema = new Schema<DebriefChartInterface>(
       ref: "DebriefChartStyle",
       default: null,
     },
+
+    clientChart: { type: String, default: null, trim: true, maxlength: 40 },
 
     xAxis:    { type: String, default: null, trim: true, maxlength: 64 },
     // No `default: null` — an array path defaults to [], and a null here would

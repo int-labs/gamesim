@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { getRoundDebrief, getStoredSession, GamesimApiError } from '@/gamesim/client';
 import type { DebriefChartDto, RoundDebriefDto } from '@/gamesim/types';
 import { PixelPanel } from '@/components/primitives';
+import { ChartLegend, type LegendEntry } from '@/components/charts/ChartLegend';
+import { PixelVocPlot, type VocRow } from '@/components/charts/PixelVocPlot';
+import { buildTeamPalette, colorFor } from '@/components/charts/chartTheme';
+import {
+  priceSensitivityFromBounds,
+  weightScaleFor,
+  TOP_DRIVER_SHARE,
+} from '@/engine/finlit/core/config/fieldConfig';
+import { diminishingReturnsFactor } from '@/engine/finlit/core/mathUtils';
 import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
 
@@ -19,10 +28,17 @@ import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
  * slide that could only ever describe ONE simulation. Story order is now the
  * operator's `order`, and which segment a chart sits in is their `category`.
  *
- * ⚠ ONE THING WENT WITH THEM. The old VoC plot normalised weights in the
- * browser (`priceSensitivityFromBounds`, `diminishingReturnsFactor`), and the
- * server's row builder emits `{x, y, series}` only — so that chart cannot be
- * expressed as a binding yet. See the handover note.
+ * ── EXCEPT THE VoC PLOT, AND PERMANENTLY ───────────────────────────────────
+ * It is still drawn here, and it is not pending work. A configured chart binds
+ * to figures the server already derived; the VoC plot's CONTENT is a
+ * derivation — `diminishingReturnsFactor` is this simulation's calculation
+ * layer, and it means something different in the next one. Owner's ruling:
+ * the shape of this chart changes per simulation, so the server owns the SLOT
+ * and this file owns the drawing.
+ *
+ * It is still an ordinary `DebriefChart` row — ordered, named, grouped, and
+ * hidden until a description is written. It carries `clientChart: "voc"` and
+ * no shape, and `CLIENT_CHARTS` below maps that key to the component.
  */
 
 type Load =
@@ -145,7 +161,15 @@ function toSegments(charts: DebriefChartDto[]): Segment[] {
     if (tail && tail.category === category) tail.charts.push(chart);
     else segments.push({ category, charts: [chart] });
   }
-  return segments;
+
+  // ⚠ CLIENT-DRAWN SEGMENTS COME FIRST, whatever their `order`. Owner's rule:
+  // the VoC category always opens the debrief. `order` still decides the rest,
+  // and the relative order WITHIN each group is kept — this is a partition,
+  // not a re-sort.
+  return [
+    ...segments.filter((s) => s.charts.some((c) => c.clientChart)),
+    ...segments.filter((s) => !s.charts.some((c) => c.clientChart)),
+  ];
 }
 
 function DebriefBody({
@@ -197,10 +221,10 @@ function DebriefBody({
           segments.map((s, i) =>
             s.category ? (
               <CollapsibleSegment key={`${s.category}:${i}`} title={s.category}>
-                {s.charts.map((c) => <ChartSlide key={instanceKey(c)} chart={c} />)}
+                {s.charts.map((c) => <ChartSlide key={instanceKey(c)} chart={c} data={data} />)}
               </CollapsibleSegment>
             ) : (
-              s.charts.map((c) => <ChartSlide key={instanceKey(c)} chart={c} />)
+              s.charts.map((c) => <ChartSlide key={instanceKey(c)} chart={c} data={data} />)
             ),
           )
         )}
@@ -266,14 +290,20 @@ function CollapsibleSegment({
  * illustrates it, and a shape that failed to compile should not take the
  * facilitator's writing down with it.
  */
-function ChartSlide({ chart }: { chart: DebriefChartDto }) {
+function ChartSlide({ chart, data }: { chart: DebriefChartDto; data: RoundDebriefDto }) {
   const title = chart.productName ? `${chart.name} · ${chart.productName}` : chart.name;
+
+  // THE ESCAPE HATCH. A key with no component here renders as copy with no
+  // figure — the same as a chart whose spec would not compile, and visible
+  // rather than silent.
+  const Client = chart.clientChart ? CLIENT_CHARTS[chart.clientChart] : undefined;
 
   return (
     <PixelPanel title={title}>
       {chart.description && (
         <div className="body text-ink-700 leading-snug mb-2">{chart.description}</div>
       )}
+      {Client && <Client chart={chart} data={data} />}
       {chart.svg && (
         // Vega writes fixed `width`/`height` onto the root `<svg>`, so it is
         // capped to the panel here rather than left to overflow the 80vw column.
@@ -285,6 +315,191 @@ function ChartSlide({ chart }: { chart: DebriefChartDto }) {
     </PixelPanel>
   );
 }
+
+/* ── The charts this client draws itself ─────────────────────────────── */
+
+type ClientChartProps = { chart: DebriefChartDto; data: RoundDebriefDto };
+
+/** One computed VoC row before it becomes a `VocRow` — keyed by the spec's
+ *  `key` rather than its `fieldId`, because the same axis carries a different
+ *  fieldId on every notebook and the summary has to merge across them. */
+interface VocComputed {
+  key: string;
+  label: string;
+  weight: number;
+  dots: VocRow['dots'];
+}
+
+/**
+ * VoC rows for ONE notebook.
+ *
+ * THE TWO NORMALISATIONS LIVE HERE, and nowhere else:
+ *   weight — `direction × scale`, or `priceSensitivity().weight` for `selling_price`
+ *   bubble — `(captured / attainable) × weight`, on the weight's own scale
+ *
+ * The server ships raw bounds precisely so `priceSensitivity()` stays the one
+ * definition shared with the market tab.
+ */
+function vocRowsFor(
+  data: RoundDebriefDto,
+  here: RoundDebriefDto['rounds'][number] | null,
+  product: RoundDebriefDto['products'][number],
+  palette: Map<string, string>,
+  scale: number,
+): VocComputed[] {
+  return product.fields.map((f) => {
+    // `selling_price` carries direction 0 and takes its weight from the shared
+    // helper; every other spec uses the operator's authored `direction`.
+    //
+    // BOTH ARRIVE AT THE SAME CEILING by different routes, because they are
+    // different quantities. A `direction` is scaled by the catalogue's divisor
+    // so the top driver lands on 0.95. Price sensitivity is ALREADY a 0..1
+    // share of the price universe, so it takes the anchor directly.
+    const weight = f.key === 'selling_price'
+      ? priceSensitivityFromBounds(f.minValue, f.maxValue).weight * TOP_DRIVER_SHARE
+      : (f.direction ?? 0) * scale;
+
+    // ⚠ MIRRORS THE SERVER. `diminishingReturnsFactor` is the client's copy of
+    // `calcDiminishingReturnsCostFactor`, and `PEAK` must stay its value at the
+    // optimum. If that curve moves and this does not, every bubble lands at the
+    // wrong height while still looking plausible.
+    const min = f.minValue ?? 0;
+    const max = f.maxValue ?? 0;
+    const PEAK = diminishingReturnsFactor(max, min, max);
+    const attainable = max * PEAK;
+
+    const dots: VocRow['dots'] = [];
+    for (const t of data.teams) {
+      const raw = here?.teams[t.teamId]?.byProduct[product.productId]?.fieldValues[f.fieldId];
+      if (raw == null || attainable <= 0 || weight == null) continue;
+      // Floor only — the curve is meant to SEE an overshoot and decay past the
+      // ceiling, which is the whole point of it being centred on `max`.
+      const resolved = Math.max(raw, min);
+      const captured = resolved * diminishingReturnsFactor(resolved, min, max);
+      dots.push({
+        teamId: t.teamId,
+        label: t.teamName,
+        color: colorFor(palette, t.teamId),
+        value: (captured / attainable) * weight,
+      });
+    }
+
+    return { key: f.key, label: f.label, weight, dots };
+  });
+}
+
+/**
+ * Every notebook's rows, merged into one — THE SUMMARY.
+ *
+ * Merged BY SPEC KEY and AVERAGED. A spec means the same thing on every
+ * notebook that declares it, so the summary answers "where does each team sit
+ * on this driver across its whole portfolio". Summing instead would make a
+ * team look stronger for making more notebooks, which is a different question
+ * and not the one the axis is labelled with.
+ *
+ * A key only some notebooks carry is averaged over the ones that do — the
+ * others have no position on it to dilute.
+ */
+function mergeVoc(perProduct: VocComputed[][]): VocComputed[] {
+  const byKey = new Map<string, VocComputed[]>();
+  for (const rows of perProduct) {
+    for (const r of rows) {
+      const hit = byKey.get(r.key);
+      if (hit) hit.push(r);
+      else byKey.set(r.key, [r]);
+    }
+  }
+
+  const mean = (ns: number[]) => ns.reduce((a, b) => a + b, 0) / ns.length;
+
+  return [...byKey.values()].map((group) => {
+    const dotsByTeam = new Map<string, VocRow['dots'][number][]>();
+    for (const r of group) {
+      for (const d of r.dots) {
+        const hit = dotsByTeam.get(d.teamId);
+        if (hit) hit.push(d);
+        else dotsByTeam.set(d.teamId, [d]);
+      }
+    }
+    return {
+      key:    group[0].key,
+      label:  group[0].label,
+      weight: mean(group.map((r) => r.weight)),
+      dots:   [...dotsByTeam.values()].map((ds) => ({
+        ...ds[0],
+        value: mean(ds.map((d) => d.value)),
+      })),
+    };
+  });
+}
+
+/**
+ * VOICE OF CUSTOMER — the one chart this client draws.
+ *
+ * A `scope: "each"` row, so it arrives as the all-notebooks summary plus one
+ * instance per notebook. ⚠ THE SUMMARY ALWAYS EXISTS — it is not an optional
+ * extra, it is the chart that opens the debrief.
+ */
+function VocSection({ chart, data }: ClientChartProps) {
+  const here = data.rounds.find((r) => r.roundNumber === data.roundNumber) ?? null;
+  const palette = useMemo(
+    () => buildTeamPalette(data.teams.map((t) => t.teamId)),
+    [data.teams],
+  );
+
+  // ⚠ THE DIVISOR SPANS EVERY NOTEBOOK, not one.
+  //
+  // The same normalisation `reportMatrix` applies to its Weight column, and it
+  // has to be the same SET or the two surfaces disagree: only ONE driver in the
+  // catalogue reaches 0.95, and every other notebook's best spec lands below
+  // it. Scaled per notebook, every chart would read 0.95 at the top.
+  //
+  // `selling_price` is excluded: it carries direction 0 and would only drag the
+  // divisor down.
+  const scale = weightScaleFor(
+    data.products.flatMap((p) =>
+      p.fields.filter((f) => f.key !== 'selling_price').map((f) => f.direction),
+    ),
+  );
+
+  const rows: VocRow[] = useMemo(() => {
+    const wanted = chart.productId
+      ? data.products.filter((p) => p.productId === chart.productId)
+      : data.products;
+    const perProduct = wanted.map((p) => vocRowsFor(data, here, p, palette, scale));
+    const computed = chart.productId ? perProduct[0] ?? [] : mergeVoc(perProduct);
+
+    // WEIGHT DESCENDING — the heaviest driver is most of the answer, matching
+    // the competitor report's rule in `reportMatrix.ts`. Sorted on the
+    // EFFECTIVE weight, not raw `direction`: `selling_price` carries 0 and took
+    // its tick from `priceSensitivityFromBounds`.
+    return [...computed]
+      .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+      .map((r) => ({ id: r.key, label: r.label, weight: r.weight, dots: r.dots }));
+  }, [chart.productId, data, here, palette, scale]);
+
+  const legend: LegendEntry[] = data.teams.map((t) => ({
+    id: t.teamId,
+    label: t.teamName,
+    color: colorFor(palette, t.teamId),
+  }));
+
+  if (rows.length === 0) return null;
+
+  return (
+    <>
+      <PixelVocPlot rows={rows} youId={data.you} />
+      <ChartLegend entries={legend} youId={data.you} />
+    </>
+  );
+}
+
+/** key → component. ⚠ MIRRORS `server/src/constants/clientCharts.ts`; a key
+ *  there with no entry here is a chart that configures, describes and renders
+ *  nothing. */
+const CLIENT_CHARTS: Record<string, (p: ClientChartProps) => React.ReactNode> = {
+  voc: VocSection,
+};
 
 /**
  * The phase's learning point, as the header of its own debrief.

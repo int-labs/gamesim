@@ -63,6 +63,13 @@ interface DebriefChartDto {
    * thing the server exists to resolve on their behalf.
    */
   chartStyle: { _id: string; name: string; category: string } | null;
+  /**
+   * Set, and THE CLIENT DRAWS THIS ONE. `svg` is null and the bindings mean
+   * nothing — the slide looks this key up among its own components.
+   *
+   * ⚠ The slide also puts client-drawn segments FIRST, whatever their `order`.
+   */
+  clientChart: string | null;
   xAxis:      string | null;
   /** ALWAYS AN ARRAY on the wire, however the document stores it. */
   yAxis:      string[];
@@ -156,7 +163,10 @@ const resolveCharts = async (
     // an authoring fault the preview already shows; here it just means no
     // picture.
     let spec: unknown = null;
-    if (style?.shape) {
+    // A client-drawn chart is never compiled here even if somebody also picked
+    // a shape for it — the client's component is the drawing, and a stray SVG
+    // underneath it would be a second chart nobody asked for.
+    if (style?.shape && !c.clientChart) {
       try { spec = JSON.parse(style.shape); } catch { spec = null; }
     }
 
@@ -173,6 +183,7 @@ const resolveCharts = async (
             category: style.category,
           }
         : null,
+      clientChart: c.clientChart ?? null,
       xAxis:    c.xAxis ?? null,
       // Normalised ONCE, here, so neither client has to know that older
       // documents hold a bare string.

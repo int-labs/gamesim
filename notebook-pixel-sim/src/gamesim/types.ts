@@ -483,6 +483,14 @@ export interface DebriefChartDto {
   /** `each` means the server emitted N + 1 of these from one stored row. */
   scope: 'overall' | 'each';
   chartStyle: DebriefChartStyleDto | null;
+  /**
+   * Set, and THIS CLIENT DRAWS IT. `svg` is null and the bindings mean nothing.
+   *
+   * The one case the configured-chart system deliberately does not cover: a
+   * chart whose content is a derivation belonging to this simulation, not a
+   * figure the server already has. `LimboScreen` maps the key to a component.
+   */
+  clientChart: string | null;
   xAxis: string | null;
   /** The measures plotted — several means the series is the measure. */
   yAxis: string[];

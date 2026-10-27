@@ -57,7 +57,7 @@ export default function RoundDebriefPage() {
   // the simulation TYPE, which is why the editor below is only reachable once
   // one is chosen.
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
-  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [] });
+  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [] });
 
   useEffect(() => {
     getSimulationTypes()
@@ -71,7 +71,7 @@ export default function RoundDebriefPage() {
   // PER TYPE. The notebooks, lever keys and cost bands differ by type, and
   // offering another type's dimensions would be worse than offering none.
   useEffect(() => {
-    if (!selectedSimType) { setDims({ categorical: [], measures: [] }); return; }
+    if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [] }); return; }
     getDebriefDimensions(selectedSimType)
       .then(setDims)
       .catch((e: any) => setError(e.message));

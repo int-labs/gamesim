@@ -23,6 +23,10 @@ export interface ChartDraft {
   order:      number;
   scope:      "overall" | "each";
   chartStyle: string;
+  /** A chart the player draws. Set, and the shape and bindings below are
+   *  inert — the form disables them rather than leaving them to be filled in
+   *  and silently ignored. */
+  clientChart: string;
   xAxis:      string;
   /** The measures plotted. Several means the series is the MEASURE — picking a
    *  second one is how "units sold vs customers obtained" is authored. */
@@ -32,7 +36,7 @@ export interface ChartDraft {
 
 export const EMPTY_CHART: ChartDraft = {
   name: "", category: "", order: 0, scope: "overall",
-  chartStyle: "", xAxis: "", yAxis: [], grouping: "",
+  chartStyle: "", clientChart: "", xAxis: "", yAxis: [], grouping: "",
 };
 
 /** Anything carrying a chart's configuration — the stored document, or one of
@@ -44,6 +48,7 @@ export interface ChartConfigLike {
   order:    number;
   scope?:   "overall" | "each";
   chartStyle: { _id: string } | null;
+  clientChart?: string | null;
   xAxis:    string | null;
   /** Tolerates the pre-2026-10-27 bare string, so a document the server has
    *  not normalised still opens in the editor. */
@@ -56,7 +61,8 @@ export const draftFromChart = (c: ChartConfigLike): ChartDraft => ({
   category:   c.category,
   order:      c.order,
   scope:      c.scope ?? "overall",
-  chartStyle: c.chartStyle?._id ?? "",
+  chartStyle:  c.chartStyle?._id ?? "",
+  clientChart: c.clientChart ?? "",
   xAxis:      c.xAxis ?? "",
   yAxis:      Array.isArray(c.yAxis) ? c.yAxis : c.yAxis ? [c.yAxis] : [],
   grouping:   c.grouping ?? "",
@@ -74,7 +80,8 @@ export const chartPayload = (d: ChartDraft) => ({
   category:   d.category,
   order:      Number(d.order) || 0,
   scope:      d.scope,
-  chartStyle: d.chartStyle || null,
+  chartStyle:  d.chartStyle || null,
+  clientChart: d.clientChart || null,
   xAxis:      d.xAxis || null,
   // An ARRAY even when empty — "no measures" is a valid half-configured chart,
   // and null would reintroduce the two-shapes-for-one-field problem.
@@ -222,6 +229,13 @@ export function ChartConfigFields({
 }) {
   const set = (patch: Partial<ChartDraft>) => onChange({ ...draft, ...patch });
 
+  // ⚠ DISABLED, NOT HIDDEN. A client-drawn chart ignores the shape and the
+  // bindings, and controls that silently do nothing are how an operator spends
+  // ten minutes picking axes that were never going to be read. Greyed out with
+  // the reason stated is the honest version.
+  const drawnByClient = draft.clientChart !== "";
+  const chosen = dims.clientCharts?.find((c) => c.key === draft.clientChart);
+
   return (
     <>
       <input
@@ -248,8 +262,20 @@ export function ChartConfigFields({
         <option value="each">each notebook</option>
       </select>
       <select
+        value={draft.clientChart}
+        onChange={(e) => set({ clientChart: e.target.value })}
+        title="charts the player draws itself — they take no shape and no axes"
+      >
+        <option value="">-- server-drawn --</option>
+        {(dims.clientCharts ?? []).map((c) => (
+          <option key={c.key} value={c.key}>{c.label} (player-drawn)</option>
+        ))}
+      </select>
+
+      <select
         value={draft.chartStyle}
         onChange={(e) => set({ chartStyle: e.target.value })}
+        disabled={drawnByClient}
       >
         <option value="">-- shape --</option>
         {styles.map((s) => (
@@ -261,12 +287,20 @@ export function ChartConfigFields({
       {/* X and GROUPING divide, Y is plotted — so they are drawn from different
           halves of the registry. These were free text until the registry
           existed, and a typo then saved fine and silently never resolved. */}
-      <DimensionSelect label="x" options={dims.categorical} measures={dims.measures}
-                       value={draft.xAxis} onChange={(v) => set({ xAxis: v })} />
-      <MeasureList options={dims.measures}
-                   value={draft.yAxis} onChange={(v) => set({ yAxis: v })} />
-      <DimensionSelect label="grouping" options={dims.categorical}
-                       value={draft.grouping} onChange={(v) => set({ grouping: v })} />
+      {drawnByClient ? (
+        <span style={{ fontSize: 11, color: "#666", maxWidth: 420 }}>
+          {chosen?.note ?? "Drawn by the player; it takes no shape and no axes."}
+        </span>
+      ) : (
+        <>
+          <DimensionSelect label="x" options={dims.categorical} measures={dims.measures}
+                           value={draft.xAxis} onChange={(v) => set({ xAxis: v })} />
+          <MeasureList options={dims.measures}
+                       value={draft.yAxis} onChange={(v) => set({ yAxis: v })} />
+          <DimensionSelect label="grouping" options={dims.categorical}
+                           value={draft.grouping} onChange={(v) => set({ grouping: v })} />
+        </>
+      )}
     </>
   );
 }

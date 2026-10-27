@@ -300,9 +300,18 @@ export interface DebriefDimension {
   source: "team" | "round" | "product" | "lever" | "cost" | "spec";
 }
 
+/** A chart the PLAYER draws itself — the slot is configured here, the drawing
+ *  is not. Served by `/debrief-dimensions` so this list is never hardcoded. */
+export interface ClientChart {
+  key: string;
+  label: string;
+  note: string;
+}
+
 export interface DebriefDimensions {
   categorical: DebriefDimension[];
   measures: DebriefDimension[];
+  clientCharts: ClientChart[];
 }
 
 /** The gallery shape that draws a chart. MIRRORS `models/debriefChartStyle.ts`
@@ -333,6 +342,8 @@ export interface DebriefChartConfig {
    *  all-notebooks summary — each needing its own description. */
   scope: "overall" | "each";
   chartStyle: DebriefChartStyle | null;
+  /** Set = the PLAYER draws it, and the shape and bindings are ignored. */
+  clientChart: string | null;
   xAxis: string | null;
   /** ONE CHART MAY PLOT SEVERAL. With more than one bound, the series is the
    *  MEASURE — "units sold vs customers obtained" is one chart, not two.

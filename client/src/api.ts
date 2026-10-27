@@ -403,7 +403,7 @@ export const getDebriefDimensions = async (
   simulationTypeId: string,
 ): Promise<DebriefDimensions> => {
   const res = await api.get("/debrief-dimensions", { params: { simulationTypeId } });
-  return (res.data ?? { categorical: [], measures: [] }) as DebriefDimensions;
+  return (res.data ?? { categorical: [], measures: [], clientCharts: [] }) as DebriefDimensions;
 };
 
 // ── Debrief charts (per simulation type) ───────────────────────
@@ -457,7 +457,7 @@ export const updateDebriefChart = (
   id: string,
   data: Partial<{
     name: string; category: string; order: number; scope: "overall" | "each";
-    chartStyle: string | null;
+    chartStyle: string | null; clientChart: string | null;
     xAxis: string | null; yAxis: string[]; grouping: string | null;
   }>,
 ) => api.patch(`/debrief-charts/${id}`, data);

@@ -113,7 +113,7 @@ export default function DebriefChartsPage() {
   const [selectedSimType, setSelectedSimType] = useState("");
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
   const [charts, setCharts] = useState<DebriefChartConfig[]>([]);
-  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [] });
+  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [] });
   const [form, setForm] = useState<ChartDraft>({ ...EMPTY_CHART });
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -141,7 +141,7 @@ export default function DebriefChartsPage() {
   // bands differ by type, and offering another type's would be worse than
   // offering none.
   useEffect(() => {
-    if (!selectedSimType) { setDims({ categorical: [], measures: [] }); return; }
+    if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [] }); return; }
     getDebriefDimensions(selectedSimType)
       .then(setDims)
       .catch((e: any) => setError(e.message));
@@ -229,9 +229,11 @@ export default function DebriefChartsPage() {
                         : "overall"}
                     </td>
                     <td style={td}>
-                      {c.chartStyle
-                        ? c.chartStyle.name
-                        : <span style={{ color: "#b00" }}>none</span>}
+                      {c.clientChart
+                        ? <span title="the player draws this one; it takes no shape">player-drawn</span>
+                        : c.chartStyle
+                          ? c.chartStyle.name
+                          : <span style={{ color: "#b00" }}>none</span>}
                     </td>
                     <td style={td}>{dimLabel(dims, c.xAxis)}</td>
                     {/* Every measure, comma-separated — a column showing only

@@ -37,11 +37,14 @@ const SHAPES = {
 interface LegacyChart {
   order:    number;
   category: string;
+  /** Set = the PLAYER draws it; shape and bindings are ignored. */
+  clientChart?: string;
   /** The old catalogue's stable key — kept as the chart's name so a RoundNote
    *  written before the move can still be recognised by a human reading it. */
   name:     string;
   scope:    "overall" | "each";
-  shape:    keyof typeof SHAPES;
+  /** Null for a client-drawn chart — there is no server shape to pick. */
+  shape:    keyof typeof SHAPES | null;
   xAxis:    string | null;
   yAxis:    string[];
   grouping: string | null;
@@ -53,6 +56,15 @@ interface LegacyChart {
  * out in the sequence the operator's story was written in.
  */
 const LEGACY: LegacyChart[] = [
+  // ⚠ FIRST, AND THE SLIDE ENFORCES IT. `order: 0` says so here, but the
+  // player hoists client-drawn segments to the top regardless — renumbering
+  // this cannot move it. `scope: "each"` gives the all-notebooks summary plus
+  // one instance per notebook, and the summary is not optional: it is the
+  // chart that opens the debrief.
+  { order:   0, category: "Voice of customer", name: "Voice of customer",
+    scope: "each", shape: null, clientChart: "voc",
+    xAxis: null, yAxis: [], grouping: null },
+
   { order:  10, category: "effort", name: "Total energy consumption",
     scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["energy"], grouping: "team" },
 
@@ -165,9 +177,10 @@ async function run(): Promise<void> {
           $set: {
             category:   c.category,
             order:      c.order,
-            scope:      c.scope,
-            chartStyle: shapeId(c.shape),
-            xAxis:      c.xAxis,
+            scope:       c.scope,
+            chartStyle:  c.shape ? shapeId(c.shape) : null,
+            clientChart: c.clientChart ?? null,
+            xAxis:       c.xAxis,
             yAxis:      c.yAxis,
             grouping:   c.grouping,
           },

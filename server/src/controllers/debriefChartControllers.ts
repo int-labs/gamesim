@@ -5,6 +5,7 @@ import DebriefChart from "../models/debriefChart";
 import DebriefChartStyle from "../models/debriefChartStyle";
 import RoundNote from "../models/roundNote";
 import { renderChartToSvg, UnsafeSpecError } from "../services/chartRenderer";
+import { CLIENT_CHART_KEYS } from "../constants/clientCharts";
 
 /**
  * A simulation type's configured charts.
@@ -27,6 +28,9 @@ const chartSchema = z.object({
   // `each` fans this one row out to N + 1 instances at render time.
   scope:      z.enum(["overall", "each"]).default("overall"),
   chartStyle: objectId.nullish(),
+  // An ENUM, not free text: a typo here produces a chart that is configured,
+  // described and permanently blank, with nothing to say why.
+  clientChart: z.enum(CLIENT_CHART_KEYS as [string, ...string[]]).nullish(),
   xAxis:      z.string().trim().max(64).nullish(),
   // ⚠ ACCEPTS A BARE STRING and wraps it. Charts written before 2026-10-27
   // hold one, and so does anything patching this endpoint from before the
@@ -79,8 +83,9 @@ export const createDebriefChart = async (req: Request, res: Response): Promise<v
       ...parsed.data,
       // `.nullish()` lets `undefined` through, and these four must land as null
       // rather than absent so a later PATCH has something to overwrite.
-      chartStyle: parsed.data.chartStyle ?? null,
-      xAxis:      parsed.data.xAxis ?? null,
+      chartStyle:  parsed.data.chartStyle ?? null,
+      clientChart: parsed.data.clientChart ?? null,
+      xAxis:       parsed.data.xAxis ?? null,
       // Already an array — the schema's transform normalises it.
       yAxis:      parsed.data.yAxis,
       grouping:   parsed.data.grouping ?? null,

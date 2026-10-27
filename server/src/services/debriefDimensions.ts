@@ -1,5 +1,6 @@
 import Product from "../models/products";
 import GlobalInput from "../models/globalInputs";
+import { CLIENT_CHARTS, type ClientChart } from "../constants/clientCharts";
 
 /**
  * WHAT A CHART MAY PLOT, for one simulation type.
@@ -102,6 +103,9 @@ export const measureLabel = (field: string): string => {
 export interface DebriefDimensions {
   categorical: DebriefDimension[];
   measures:    DebriefDimension[];
+  /** The charts the player draws itself. Served rather than hardcoded in the
+   *  console, so the two cannot drift into offering different keys. */
+  clientCharts: ClientChart[];
 }
 
 /**
@@ -170,5 +174,5 @@ export const buildDebriefDimensions = async (
       : []),
   ];
 
-  return { categorical, measures };
+  return { categorical, measures, clientCharts: CLIENT_CHARTS };
 };
