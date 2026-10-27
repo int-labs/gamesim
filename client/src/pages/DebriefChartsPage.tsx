@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   createDebriefChart, deleteDebriefChart,
   getDebriefCharts, getDebriefChartStyles, getDebriefDimensions, getSimulationTypes,
-  previewDebriefChart, updateDebriefChart,
+  previewDebriefChart, updateDebriefChart, type PreviewInstance,
 } from "../api";
 import type { DebriefChartConfig, DebriefChartStyle, DebriefDimensions } from "../types";
 import {
@@ -48,15 +48,14 @@ const td  = { padding: "3px 6px", verticalAlign: "top" as const };
 function Preview({ draft }: { draft: ChartDraft }) {
   const [simulationId, setSimulationId] = useState("");
   const [roundNumber, setRoundNumber] = useState("");
-  const [svg, setSvg] = useState("");
-  const [rows, setRows] = useState<number | null>(null);
+  const [instances, setInstances] = useState<PreviewInstance[]>([]);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
   const canRender = draft.chartStyle !== "" && simulationId !== "" && roundNumber !== "";
 
   const render = async () => {
-    setBusy(true); setErr(""); setSvg(""); setRows(null);
+    setBusy(true); setErr(""); setInstances([]);
     try {
       const res = await previewDebriefChart({
         chartStyle: draft.chartStyle,
@@ -68,9 +67,11 @@ function Preview({ draft }: { draft: ChartDraft }) {
         xAxis: draft.xAxis || null,
         yAxis: draft.yAxis,
         grouping: draft.grouping || null,
+        // ⚠ WITHOUT THIS the preview shows the summary alone while the slide
+        // ships N + 1. The point of previewing is that they match.
+        scope: draft.scope,
       });
-      setSvg(res.svg);
-      setRows(res.rows);
+      setInstances(res.instances);
     } catch (e: any) {
       setErr(e?.response?.data?.message ?? e?.message ?? "Preview failed.");
     } finally {
@@ -92,21 +93,33 @@ function Preview({ draft }: { draft: ChartDraft }) {
         {!draft.chartStyle && (
           <span style={{ fontSize: 11, color: "#888" }}>pick a shape first</span>
         )}
-        {/* ROW COUNT IS THE DIAGNOSTIC. An empty chart with 0 rows is a binding
-            that resolved to nothing; an empty chart with rows is a shape
-            problem. Without this they look identical. */}
-        {rows !== null && (
-          <span style={{ fontSize: 11, color: rows === 0 ? "#b00" : "#888" }}>
-            {rows} row(s){rows === 0 ? " — the bindings matched no data" : ""}
+        {instances.length > 1 && (
+          <span style={{ fontSize: 11, color: "#888" }}>
+            {instances.length} charts — the summary plus one per notebook
           </span>
         )}
       </div>
 
       {err && <div style={{ color: "#b00", fontSize: 12, marginTop: 6 }}>{err}</div>}
-      {svg && (
-        <div style={{ marginTop: 8, overflowX: "auto" }}
-             dangerouslySetInnerHTML={{ __html: svg }} />
-      )}
+
+      {instances.map((inst) => (
+        <div key={inst.productId ?? "summary"} style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, color: "#888" }}>
+            {/* Named even when there is only one: "all notebooks" is a claim
+                about what the numbers mean, not a heading. */}
+            {inst.productName ?? (draft.scope === "each" ? "All notebooks" : "Overall")}
+            {" · "}
+            {/* ROW COUNT IS THE DIAGNOSTIC, and it is PER INSTANCE. One
+                notebook matching no data while its siblings draw is the exact
+                failure a single count used to hide. */}
+            <span style={{ color: inst.rows === 0 ? "#b00" : "#888" }}>
+              {inst.rows} row(s){inst.rows === 0 ? " — the bindings matched no data" : ""}
+            </span>
+          </div>
+          <div style={{ overflowX: "auto" }}
+               dangerouslySetInnerHTML={{ __html: inst.svg }} />
+        </div>
+      ))}
     </div>
   );
 }

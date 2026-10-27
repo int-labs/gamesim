@@ -26,7 +26,7 @@ import PlayerConfig from "../models/playerConfig";
 import { ROLES } from "../constants/roles";
 import DebriefChartModel from "../models/debriefChart";
 import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
-import { buildChartRows, toMeasures } from "../services/debriefChartData";
+import { buildChartRows, chartInstances, toMeasures } from "../services/debriefChartData";
 import { renderChartToSvg } from "../services/chartRenderer";
 import { axisLabel, measureLabel } from "../services/debriefDimensions";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
@@ -118,7 +118,8 @@ const resolveCharts = async (
   simulationTypeId: unknown,
   roundNumber: number,
   teamId: string | null,
-  products: { _id: unknown; productName?: string }[],
+  /** The notebooks come off `payload.products` — the same list the preview
+   *  fans out over, so the two cannot disagree about what `each` produces. */
   payload: DebriefPayload,
   /** Staff: draw every chart, resolved or not. See the note at the render. */
   drawAll: boolean,
@@ -247,15 +248,11 @@ const resolveCharts = async (
       );
     };
 
-    // THE SUMMARY ALWAYS EXISTS, for both scopes — for `overall` it is the only
-    // instance, for `each` it is the all-notebooks chart that sits alongside
-    // the per-notebook ones.
-    instance(null, null);
-
-    if (base.scope === "each") {
-      for (const p of products) {
-        instance(String(p._id), p.productName ?? null);
-      }
+    // ⚠ THE SAME FAN-OUT THE PREVIEW USES, over the same notebook list. This
+    // was spelled out here and the preview had no equivalent at all, so an
+    // `each` chart previewed as one chart and shipped as N + 1.
+    for (const inst of chartInstances(base.scope, payload.products)) {
+      instance(inst.productId, inst.productName);
     }
   }
 
@@ -364,7 +361,6 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
       simulationTypeId,
       round,
       isTeam ? String(user.teamId) : null,
-      products as never,
       payload,
       !isTeam,
     );

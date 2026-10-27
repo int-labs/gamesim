@@ -134,7 +134,10 @@ const previewSchema = z.object({
               z.array(z.string().trim().min(1).max(64)).max(12),
             ]).nullish(),
   grouping: z.string().trim().max(64).nullish(),
-  productId: objectId.nullish(),
+  // ⚠ THE PREVIEW FANS OUT TOO. Without this it rendered the summary alone for
+  // an `each` chart, so the operator approved one chart and the team was shown
+  // N + 1 — the opposite of what the preview exists for.
+  scope:    z.enum(["overall", "each"]).default("overall"),
 });
 
 // POST /debrief-charts/preview
@@ -177,27 +180,45 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const { buildPreviewDatasets } = await import("../services/debriefChartData");
-    const datasets = await buildPreviewDatasets({
+    const { buildChartRows, chartInstances, loadPreviewPayload } =
+      await import("../services/debriefChartData");
+
+    // ONE LOAD for every instance — they all read the same round.
+    const payload = await loadPreviewPayload({
       simulationId: parsed.data.simulationId,
       roundNumber:  parsed.data.roundNumber,
-      xAxis:        parsed.data.xAxis ?? null,
-      yAxis:        parsed.data.yAxis ?? null,
-      grouping:     parsed.data.grouping ?? null,
-      productId:    parsed.data.productId ?? null,
     });
 
     const measures = toMeasures(parsed.data.yAxis);
-    const svg = await renderChartToSvg({
-      spec,
-      datasets,
-      labels: {
-        title: parsed.data.name || null,
-        x: axisLabel(parsed.data.xAxis),
-        y: measures.map(measureLabel).join(" · ") || null,
-      },
-    });
-    res.status(200).json({ svg, rows: datasets.rows?.length ?? 0 });
+    const labels = {
+      title: parsed.data.name || null,
+      x: axisLabel(parsed.data.xAxis),
+      y: measures.map(measureLabel).join(" · ") || null,
+    };
+
+    const instances = await Promise.all(
+      chartInstances(parsed.data.scope, payload.products).map(async (inst) => {
+        const rows = buildChartRows({
+          payload,
+          xAxis:     parsed.data.xAxis ?? null,
+          yAxis:     parsed.data.yAxis ?? null,
+          grouping:  parsed.data.grouping ?? null,
+          productId: inst.productId,
+        });
+        const svg = await renderChartToSvg({
+          spec,
+          datasets: { rows },
+          // The notebook's name rides on the title, so a column of previews
+          // says which is which without the console labelling them itself.
+          labels: inst.productName
+            ? { ...labels, title: `${labels.title ?? ""} · ${inst.productName}`.trim() }
+            : labels,
+        });
+        return { ...inst, svg, rows: rows.length };
+      }),
+    );
+
+    res.status(200).json({ instances });
   } catch (err: any) {
     // An unsafe or uncompilable spec is the AUTHOR's problem, not a 500 — and
     // saying which keeps the gallery author out of the server logs.

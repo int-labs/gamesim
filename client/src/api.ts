@@ -449,11 +449,21 @@ export const previewDebriefChart = async (data: {
   xAxis?:       string | null;
   yAxis?:       string[] | null;
   grouping?:    string | null;
-  productId?:   string | null;
-}): Promise<{ svg: string; rows: number }> => {
+  /** `each` previews N + 1 instances — the summary plus one per notebook —
+   *  which is exactly what the slide will emit. */
+  scope?:       "overall" | "each";
+}): Promise<{ instances: PreviewInstance[] }> => {
   const res = await api.post("/debrief-charts/preview", data);
-  return res.data as { svg: string; rows: number };
+  return res.data as { instances: PreviewInstance[] };
 };
+
+export interface PreviewInstance {
+  /** null = the all-notebooks summary, and an `overall` chart's only entry. */
+  productId:   string | null;
+  productName: string | null;
+  svg:         string;
+  rows:        number;
+}
 
 export const updateDebriefChart = (
   id: string,

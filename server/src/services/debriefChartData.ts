@@ -271,22 +271,50 @@ export function buildChartRows({
   return rows;
 }
 
+/** One drawable instance of a configured chart. */
+export interface ChartInstanceRef {
+  /** null = the all-notebooks summary, and an `overall` chart's only entry. */
+  productId:   string | null;
+  productName: string | null;
+}
+
 /**
- * Load a round and build its rows — the preview's entry point.
+ * WHAT A STORED CHART FANS OUT TO — the one definition of `scope`.
+ *
+ * ⚠ BOTH THE PREVIEW AND THE REAL SLIDE CALL THIS. They did not, and the
+ * preview quietly rendered the summary alone for a `scope: "each"` chart — so
+ * an operator approved one chart and the team was shown N + 1. A second
+ * reading of what "each" means is exactly the bug this guards.
+ *
+ * The summary ALWAYS exists: for `overall` it is the only instance, for `each`
+ * it is the all-notebooks chart that sits alongside the per-notebook ones.
+ */
+export const chartInstances = (
+  scope: "overall" | "each",
+  products: readonly { productId: string; productName: string }[],
+): ChartInstanceRef[] => [
+  { productId: null, productName: null },
+  ...(scope === "each"
+    ? products.map((p) => ({ productId: p.productId, productName: p.productName }))
+    : []),
+];
+
+/**
+ * The round's figures, for the preview — LOADED ONCE.
  *
  * Mirrors `roundDebriefControllers`' own load deliberately: the preview is an
  * ADMIN tool and carries no team gate, so it must not reuse the player's
  * controller, which refuses an uncalculated round. An operator configuring a
  * chart needs to see it before the round is scored.
+ *
+ * ⚠ IT RETURNS THE PAYLOAD, NOT ROWS. A `scope: "each"` chart previews N + 1
+ * instances and they all read the same round; building rows in here would
+ * re-query the database once per notebook.
  */
-export async function buildPreviewDatasets(args: {
+export async function loadPreviewPayload(args: {
   simulationId: string;
   roundNumber:  number;
-  xAxis:        string | null;
-  yAxis:        string | string[] | null;
-  grouping:     string | null;
-  productId:    string | null;
-}): Promise<ChartDatasets> {
+}): Promise<DebriefPayload> {
   const simulation = await Simulation.findById(args.simulationId).lean();
   if (!simulation) throw new Error("Simulation not found.");
   const simulationTypeId = (simulation as { simulationTypeId?: unknown }).simulationTypeId;
@@ -300,7 +328,7 @@ export async function buildPreviewDatasets(args: {
 
   if (teams.length === 0) throw new Error("No teams on this simulation.");
 
-  const payload = buildDebriefSeries({
+  return buildDebriefSeries({
     simulationId: String(args.simulationId),
     roundNumber:  args.roundNumber,
     you:          null,
@@ -309,6 +337,4 @@ export async function buildPreviewDatasets(args: {
     byRound:      groupByRound(decisions) as never,
     cashSeed:     openingCashFrom(playerConfig),
   });
-
-  return { rows: buildChartRows({ payload, ...args }) };
 }
