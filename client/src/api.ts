@@ -14,7 +14,10 @@ export const setAuthToken = (token: string) => {
 // authentication.ts does no DB lookup, so this works even with zero
 // users in the database. Remove once real login is wired in — see
 // the matching TODO(auth) comments on the locked-down routers.
-const DEV_ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3ODc3MjY1NjEsImV4cCI6MTc5Mjk3MjgwMH0.QMyTKUNzQPZkf9yQrgGvGe-oKVyomKX6lUcBWTrG05M";
+// Reissued 2026-10-27, expires 2027-10-27. `authenticate` 403s on ANY verify
+// failure, expiry included — so a blanket 403 across every route means this is
+// stale, not a permissions problem. Resign with the server's JWT_SECRET.
+const DEV_ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3OTMwNzE4MDQsImV4cCI6MTgyNDYwNzgwNH0.7mSs0dyq5rZwheofF1tjTuUB718sLDcdkv1LGEF2MV4";
 
 api.defaults.headers.common["Authorization"] = `Bearer ${DEV_ADMIN_TOKEN}`;
 
