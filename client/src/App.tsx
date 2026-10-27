@@ -13,6 +13,7 @@ import ParamListPage from "./pages/ParamListPage";
 import ProjectionsPage from "./pages/ProjectionsPage";
 import ResultsPage from "./pages/ResultsPage";
 import RoundDebriefPage from "./pages/RoundDebriefPage";
+import DebriefChartsPage from "./pages/DebriefChartsPage";
 import BaseDataPage from "./pages/BaseDataPage";
 import ImageAssetsPage from "./pages/ImageAssetsPage";
 import ProductFieldsPage from "./pages/ProductFieldsPage";
@@ -42,7 +43,8 @@ type View =
   | "image-assets"
   | "player-config"
   | "leaderboard-config"
-  | "round-debrief";
+  | "round-debrief"
+  | "debrief-charts";
 
 const NAV: { label: string; view: View }[] = [
   { label: "Simulations", view: "simulations" },
@@ -60,6 +62,9 @@ const NAV: { label: string; view: View }[] = [
   { label: "Param List", view: "param-list" },
   { label: "Projections", view: "projections" },
   { label: "Results", view: "results" },
+  // Configuration above the thing it configures: which charts a type shows,
+  // then the per-round view where their descriptions are written.
+  { label: "Debrief Charts", view: "debrief-charts" },
   { label: "Round Debrief", view: "round-debrief" },
   { label: "Base Data", view: "base-data" },
   { label: "Image Assets", view: "image-assets" },
@@ -86,6 +91,7 @@ export default function App() {
       case "param-list": return <ParamListPage />;
       case "projections": return <ProjectionsPage />;
       case "results": return <ResultsPage />;
+      case "debrief-charts": return <DebriefChartsPage />;
       case "round-debrief": return <RoundDebriefPage />;
       case "base-data": return <BaseDataPage />;
       case "image-assets": return <ImageAssetsPage />;
