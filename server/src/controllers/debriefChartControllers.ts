@@ -6,6 +6,8 @@ import DebriefChartStyle from "../models/debriefChartStyle";
 import RoundNote from "../models/roundNote";
 import { renderChartToSvg, UnsafeSpecError } from "../services/chartRenderer";
 import { CLIENT_CHART_KEYS } from "../constants/clientCharts";
+import { toMeasures } from "../services/debriefChartData";
+import { axisLabel, measureLabel } from "../services/debriefDimensions";
 
 /**
  * A simulation type's configured charts.
@@ -118,6 +120,9 @@ export const updateDebriefChart = async (req: Request, res: Response): Promise<v
 
 const previewSchema = z.object({
   chartStyle: objectId,
+  /** The draft's name, drawn as the chart's title. The preview has no panel
+   *  heading around it, unlike every surface that renders the real payload. */
+  name: z.string().trim().max(160).nullish(),
   // A real simulation and round, not samples. "Does this chart work" almost
   // always means "is it readable with this sim's numbers", and a synthetic
   // preview answers the wrong question.
@@ -182,7 +187,16 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
       productId:    parsed.data.productId ?? null,
     });
 
-    const svg = await renderChartToSvg({ spec, datasets });
+    const measures = toMeasures(parsed.data.yAxis);
+    const svg = await renderChartToSvg({
+      spec,
+      datasets,
+      labels: {
+        title: parsed.data.name || null,
+        x: axisLabel(parsed.data.xAxis),
+        y: measures.map(measureLabel).join(" · ") || null,
+      },
+    });
     res.status(200).json({ svg, rows: datasets.rows?.length ?? 0 });
   } catch (err: any) {
     // An unsafe or uncompilable spec is the AUTHOR's problem, not a 500 — and

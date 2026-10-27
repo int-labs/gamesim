@@ -28,6 +28,7 @@ import DebriefChartModel from "../models/debriefChart";
 import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
 import { buildChartRows, toMeasures } from "../services/debriefChartData";
 import { renderChartToSvg } from "../services/chartRenderer";
+import { axisLabel, measureLabel } from "../services/debriefDimensions";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
 
 interface TokenUser {
@@ -224,7 +225,18 @@ const resolveCharts = async (
       });
 
       drawing.push(
-        renderChartToSvg({ spec, datasets: { rows } })
+        renderChartToSvg({
+          spec,
+          datasets: { rows },
+          // AXES ONLY, NO TITLE. Every surface that renders this payload draws
+          // the chart's name as its own panel heading, so a title inside the
+          // SVG would print it twice. The preview passes one because it has no
+          // heading around it.
+          labels: {
+            x: axisLabel(base.xAxis),
+            y: base.yAxis.map(measureLabel).join(" · ") || null,
+          },
+        })
           .then((svg) => { dto.svg = svg; })
           // SWALLOWED ON PURPOSE. One unrenderable shape must not fail the
           // debrief for every team on the simulation — the slide degrades to

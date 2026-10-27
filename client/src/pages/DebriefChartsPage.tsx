@@ -60,6 +60,9 @@ function Preview({ draft }: { draft: ChartDraft }) {
     try {
       const res = await previewDebriefChart({
         chartStyle: draft.chartStyle,
+        // The preview is a bare SVG with no panel around it, so the chart has
+        // to say its own name here.
+        name: draft.name,
         simulationId,
         roundNumber: Number(roundNumber),
         xAxis: draft.xAxis || null,

@@ -100,6 +100,20 @@ export const measureLabel = (field: string): string => {
   return dot >= 0 ? field.slice(dot + 1) : field;
 };
 
+/**
+ * What to PRINT ON AN AXIS bound to this field — categorical or measure.
+ *
+ * ⚠ THE AXIS TITLE IS A PROPERTY OF THE BINDING, NOT OF THE SHAPE. A shape is
+ * reused by every chart that picks it and cannot know whether its x is teams
+ * or notebooks, which is why the gallery specs name no axes and the renderer
+ * fills them in per chart.
+ */
+export const axisLabel = (field: string | null | undefined): string | null => {
+  if (!field) return null;
+  const dim = CATEGORICALS.find((d) => d.field === field);
+  return dim ? dim.label : measureLabel(field);
+};
+
 export interface DebriefDimensions {
   categorical: DebriefDimension[];
   measures:    DebriefDimension[];

@@ -109,11 +109,68 @@ const refusingLoader = () =>
     file:   () => Promise.reject(new Error("Chart specs may not load external data.")),
   }) as unknown as vega.Loader;
 
+export interface ChartLabels {
+  /** The chart's own name, drawn as the title. */
+  title?: string | null;
+  x?: string | null;
+  y?: string | null;
+}
+
+/**
+ * Name the chart and its axes, from the CONFIGURATION rather than the shape.
+ *
+ * ⚠ A SHAPE CANNOT KNOW WHAT IT PLOTS. It is picked by every chart that wants
+ * that form, so "Stacked bar" has no idea whether its x is teams or notebooks.
+ * The gallery specs therefore name nothing and this fills them in per chart —
+ * otherwise a reader gets bars with no statement of what is being measured,
+ * which is exactly as useful as no chart.
+ *
+ * FILLED ONLY WHERE THE KEY IS ABSENT. A shape that sets `"title": null` on an
+ * axis is saying "this one needs no label" — a bare count, a category everyone
+ * can read off the ticks — and that is an authoring decision, not an omission.
+ *
+ * Reaches the top-level encoding and each `layer[]`, which is every shape we
+ * ship. A deeper nesting (facet, concat) keeps whatever it declares.
+ */
+function applyLabels(node: any, labels: ChartLabels): any {
+  if (!node || typeof node !== "object") return node;
+
+  const out = { ...node };
+  if (!("title" in out) && labels.title) out.title = labels.title;
+
+  // ⚠ KEYED ON THE ROW FIELD, NOT THE CHANNEL. "Horizontal bar" puts the
+  // categorical on the y channel and the measure on x, so labelling by channel
+  // would print the measure's name under the categories and vice versa.
+  const titleFor = (enc: any): string | null | undefined =>
+    enc?.field === "x" ? labels.x : enc?.field === "y" ? labels.y : null;
+
+  const label = (encoding: any) => {
+    const next = { ...encoding };
+    for (const channel of ["x", "y"] as const) {
+      const enc = next[channel];
+      if (!enc || typeof enc !== "object" || "title" in enc) continue;
+      const text = titleFor(enc);
+      if (text) next[channel] = { ...enc, title: text };
+    }
+    return next;
+  };
+
+  if (out.encoding) out.encoding = label(out.encoding);
+  if (Array.isArray(out.layer)) {
+    out.layer = out.layer.map((l: any) =>
+      l && typeof l === "object" && l.encoding ? { ...l, encoding: label(l.encoding) } : l,
+    );
+  }
+  return out;
+}
+
 export interface RenderChartArgs {
   /** The stored shape, parsed. */
   spec: unknown;
   /** `@name` → rows. */
   datasets?: Record<string, unknown[]>;
+  /** The chart's name and what its axes are bound to. */
+  labels?: ChartLabels;
 }
 
 /**
@@ -126,10 +183,14 @@ export interface RenderChartArgs {
 export async function renderChartToSvg({
   spec,
   datasets = {},
+  labels,
 }: RenderChartArgs): Promise<string> {
   assertSafeSpec(spec);
 
-  const bound = bindDatasets(spec, datasets);
+  // AFTER the safety check: labels are our own strings, and running them
+  // through `assertSafeSpec` would only invite someone to move the check
+  // later and let an unchecked spec past it.
+  const bound = applyLabels(bindDatasets(spec, datasets), labels ?? {});
 
   // Compile Vega-Lite → Vega, then render. `renderer: "none"` builds the scene
   // graph without a DOM; `toSVG` serialises it. No canvas is involved, which is

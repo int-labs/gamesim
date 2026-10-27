@@ -442,6 +442,8 @@ export const createDebriefChart = (data: {
  */
 export const previewDebriefChart = async (data: {
   chartStyle:   string;
+  /** Drawn as the chart's title — the preview has no panel heading. */
+  name?:        string | null;
   simulationId: string;
   roundNumber:  number;
   xAxis?:       string | null;

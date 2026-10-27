@@ -68,7 +68,7 @@ const cat = (field: string, extra: object = {}) =>
   ({ field, type: "nominal", sort: null, ...extra });
 
 const qty = (extra: object = {}) =>
-  ({ field: "y", type: "quantitative", title: null, ...extra });
+  ({ field: "y", type: "quantitative", ...extra });
 
 const SERIES_ENC = { field: "series", type: "nominal", title: null };
 
@@ -101,7 +101,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       ...BASE,
       mark: BAR,
       encoding: {
-        x: cat("x", { title: null, axis: { labelAngle: 0 } }),
+        x: cat("x", { axis: { labelAngle: 0 } }),
         xOffset: cat("series"),
         y: qty(),
         color: SERIES_ENC,
@@ -116,7 +116,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       ...BASE,
       mark: BAR,
       encoding: {
-        x: cat("x", { title: null, axis: { labelAngle: 0 } }),
+        x: cat("x", { axis: { labelAngle: 0 } }),
         // ⚠ `stack` IS AN ENCODING PROPERTY, not a transform. `assertSafeSpec`
         // denies `transform` outright, so a shape stacked the usual way would
         // pass review and never render.
@@ -133,9 +133,9 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       ...BASE,
       mark: BAR,
       encoding: {
-        y: cat("x", { title: null }),
+        y: cat("x"),
         yOffset: cat("series"),
-        x: { field: "y", type: "quantitative", title: null },
+        x: { field: "y", type: "quantitative" },
         color: SERIES_ENC,
       },
     },
@@ -152,7 +152,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
         point: { filled: true, size: 70, stroke: INK.frame, strokeWidth: 1 },
       },
       encoding: {
-        x: cat("x", { title: null, axis: { labelAngle: 0 } }),
+        x: cat("x", { axis: { labelAngle: 0 } }),
         y: qty(),
         color: SERIES_ENC,
       },
@@ -174,7 +174,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
         // read by length so its scale must start at zero; a point is read by
         // position, and forcing the origin in pushes a cluster of prices
         // between 18 and 28 into the bottom inch of the plot.
-        x: { field: "x", type: "quantitative", title: null, scale: { zero: false } },
+        x: { field: "x", type: "quantitative", scale: { zero: false } },
         y: qty({ scale: { zero: false } }),
         color: SERIES_ENC,
       },
@@ -188,7 +188,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       ...BASE,
       mark: { type: "area", line: true, opacity: 0.85 },
       encoding: {
-        x: cat("x", { title: null, axis: { labelAngle: 0 } }),
+        x: cat("x", { axis: { labelAngle: 0 } }),
         y: qty({ stack: "zero" }),
         color: SERIES_ENC,
       },
