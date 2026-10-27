@@ -12,6 +12,9 @@
     "cashflowconfigs": {
       "strategy": "replace"
     },
+    "debriefChartStyles": {
+      "strategy": "replace"
+    },
     "events": {
       "strategy": "replace"
     },

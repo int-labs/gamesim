@@ -1,0 +1,72 @@
+[
+  {
+    "_id": {
+      "$oid": "a11ca11c0000000000000001"
+    },
+    "name": "Grouped bar",
+    "category": "bar chart",
+    "shape": "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"width\":720,\"height\":360,\"data\":{\"values\":\"@rows\"},\"config\":{\"background\":null,\"view\":{\"stroke\":null},\"axis\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":14,\"domainColor\":\"#2a2017\",\"tickColor\":\"#2a2017\",\"gridColor\":\"#bfae90\",\"gridOpacity\":0.7},\"legend\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":13},\"range\":{\"category\":[\"#4C72B0\",\"#DD8452\",\"#55A868\",\"#C44E52\",\"#9B59B6\",\"#8C8C8C\",\"#CCB974\",\"#64B5CD\"]}},\"mark\":{\"type\":\"bar\",\"stroke\":\"#2a2017\",\"strokeWidth\":1},\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"nominal\",\"sort\":null,\"title\":null,\"axis\":{\"labelAngle\":0}},\"xOffset\":{\"field\":\"series\",\"type\":\"nominal\",\"sort\":null},\"y\":{\"field\":\"y\",\"type\":\"quantitative\",\"title\":null},\"color\":{\"field\":\"series\",\"type\":\"nominal\",\"title\":null}}}",
+    "createdAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "a11ca11c0000000000000002"
+    },
+    "name": "Stacked bar",
+    "category": "bar chart",
+    "shape": "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"width\":720,\"height\":360,\"data\":{\"values\":\"@rows\"},\"config\":{\"background\":null,\"view\":{\"stroke\":null},\"axis\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":14,\"domainColor\":\"#2a2017\",\"tickColor\":\"#2a2017\",\"gridColor\":\"#bfae90\",\"gridOpacity\":0.7},\"legend\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":13},\"range\":{\"category\":[\"#4C72B0\",\"#DD8452\",\"#55A868\",\"#C44E52\",\"#9B59B6\",\"#8C8C8C\",\"#CCB974\",\"#64B5CD\"]}},\"mark\":{\"type\":\"bar\",\"stroke\":\"#2a2017\",\"strokeWidth\":1},\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"nominal\",\"sort\":null,\"title\":null,\"axis\":{\"labelAngle\":0}},\"y\":{\"field\":\"y\",\"type\":\"quantitative\",\"title\":null,\"stack\":\"zero\"},\"color\":{\"field\":\"series\",\"type\":\"nominal\",\"title\":null}}}",
+    "createdAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "a11ca11c0000000000000003"
+    },
+    "name": "Horizontal bar",
+    "category": "bar chart",
+    "shape": "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"width\":720,\"height\":360,\"data\":{\"values\":\"@rows\"},\"config\":{\"background\":null,\"view\":{\"stroke\":null},\"axis\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":14,\"domainColor\":\"#2a2017\",\"tickColor\":\"#2a2017\",\"gridColor\":\"#bfae90\",\"gridOpacity\":0.7},\"legend\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":13},\"range\":{\"category\":[\"#4C72B0\",\"#DD8452\",\"#55A868\",\"#C44E52\",\"#9B59B6\",\"#8C8C8C\",\"#CCB974\",\"#64B5CD\"]}},\"mark\":{\"type\":\"bar\",\"stroke\":\"#2a2017\",\"strokeWidth\":1},\"encoding\":{\"y\":{\"field\":\"x\",\"type\":\"nominal\",\"sort\":null,\"title\":null},\"yOffset\":{\"field\":\"series\",\"type\":\"nominal\",\"sort\":null},\"x\":{\"field\":\"y\",\"type\":\"quantitative\",\"title\":null},\"color\":{\"field\":\"series\",\"type\":\"nominal\",\"title\":null}}}",
+    "createdAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "a11ca11c0000000000000004"
+    },
+    "name": "Line with points",
+    "category": "line chart",
+    "shape": "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"width\":720,\"height\":360,\"data\":{\"values\":\"@rows\"},\"config\":{\"background\":null,\"view\":{\"stroke\":null},\"axis\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":14,\"domainColor\":\"#2a2017\",\"tickColor\":\"#2a2017\",\"gridColor\":\"#bfae90\",\"gridOpacity\":0.7},\"legend\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":13},\"range\":{\"category\":[\"#4C72B0\",\"#DD8452\",\"#55A868\",\"#C44E52\",\"#9B59B6\",\"#8C8C8C\",\"#CCB974\",\"#64B5CD\"]}},\"mark\":{\"type\":\"line\",\"strokeWidth\":2,\"point\":{\"filled\":true,\"size\":70,\"stroke\":\"#2a2017\",\"strokeWidth\":1}},\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"nominal\",\"sort\":null,\"title\":null,\"axis\":{\"labelAngle\":0}},\"y\":{\"field\":\"y\",\"type\":\"quantitative\",\"title\":null},\"color\":{\"field\":\"series\",\"type\":\"nominal\",\"title\":null}}}",
+    "createdAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "a11ca11c0000000000000005"
+    },
+    "name": "Stacked area",
+    "category": "area chart",
+    "shape": "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"width\":720,\"height\":360,\"data\":{\"values\":\"@rows\"},\"config\":{\"background\":null,\"view\":{\"stroke\":null},\"axis\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":14,\"domainColor\":\"#2a2017\",\"tickColor\":\"#2a2017\",\"gridColor\":\"#bfae90\",\"gridOpacity\":0.7},\"legend\":{\"labelFont\":\"Pixelify Sans, ui-monospace, monospace\",\"titleFont\":\"Pixelify Sans, ui-monospace, monospace\",\"labelColor\":\"#5a4a37\",\"titleColor\":\"#5a4a37\",\"labelFontSize\":13,\"titleFontSize\":13},\"range\":{\"category\":[\"#4C72B0\",\"#DD8452\",\"#55A868\",\"#C44E52\",\"#9B59B6\",\"#8C8C8C\",\"#CCB974\",\"#64B5CD\"]}},\"mark\":{\"type\":\"area\",\"line\":true,\"opacity\":0.85},\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"nominal\",\"sort\":null,\"title\":null,\"axis\":{\"labelAngle\":0}},\"y\":{\"field\":\"y\",\"type\":\"quantitative\",\"title\":null,\"stack\":\"zero\"},\"color\":{\"field\":\"series\",\"type\":\"nominal\",\"title\":null}}}",
+    "createdAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2026-10-27T00:00:00.000Z"
+    }
+  }
+]
