@@ -4,10 +4,17 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  createRoundNote, deleteRoundNote, getRoundDebrief, getRoundNotes,
-  getSimulations, getSimulationTypes, updateRoundNote,
+  createRoundNote, deleteRoundNote, getDebriefChartStyles, getDebriefDimensions,
+  getRoundDebrief, getRoundNotes, getSimulations, getSimulationTypes,
+  updateDebriefChart, updateRoundNote,
 } from "../api";
-import type { DebriefChart, RoundDebrief, DebriefRoundDto, RoundNote } from "../types";
+import type {
+  DebriefChart, DebriefChartStyle, DebriefDimensions, RoundDebrief,
+  DebriefRoundDto, RoundNote,
+} from "../types";
+import {
+  ChartConfigFields, chartPayload, draftFromChart, type ChartDraft,
+} from "./ChartConfigForm";
 
 /**
  * The operator's view of a round's debrief — the same figures the player sees
@@ -66,11 +73,30 @@ export default function RoundDebriefPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // The two things a chart's configuration is edited AGAINST: the gallery it
+  // picks a shape from, and this type's own dimension registry. Both belong to
+  // the simulation TYPE, which is why the editor below is only reachable once
+  // one is chosen.
+  const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
+  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [] });
+
   useEffect(() => {
     getSimulationTypes()
       .then((res) => setSimulationTypes(res.data?.data ?? res.data))
       .catch((e: any) => setError(e.message));
+    // GLOBAL, so it is fetched once rather than per type — the gallery is the
+    // same list wherever a shape is picked.
+    getDebriefChartStyles().then(setStyles).catch((e: any) => setError(e.message));
   }, []);
+
+  // PER TYPE. The notebooks, lever keys and cost bands differ by type, and
+  // offering another type's dimensions would be worse than offering none.
+  useEffect(() => {
+    if (!selectedSimType) { setDims({ categorical: [], measures: [] }); return; }
+    getDebriefDimensions(selectedSimType)
+      .then(setDims)
+      .catch((e: any) => setError(e.message));
+  }, [selectedSimType]);
 
   // Narrowed in the browser, not by the endpoint: `GET /simulations` takes no
   // simulationTypeId filter and does not populate the field, so it arrives as
@@ -109,9 +135,10 @@ export default function RoundDebriefPage() {
     <div style={{ padding: 16 }}>
       <h2>Round Debrief</h2>
       <p style={{ maxWidth: 680, color: "#555" }}>
-        What the teams see on their limbo screen after a round is closed. The charts
-        below are read-only; the descriptions above them are not — a chart with no
-        description is hidden from the players entirely.
+        What the teams see on their limbo screen after a round is closed. The figures
+        below are read-only. The descriptions above them are not — a chart with no
+        description is hidden from the players entirely — and each chart's own
+        configuration can be corrected here without leaving the round.
       </p>
 
       <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "12px 0", flexWrap: "wrap" }}>
@@ -167,6 +194,8 @@ export default function RoundDebriefPage() {
           simulationId={filterSim}
           roundNumber={Number(filterRound)}
           charts={data.charts ?? []}
+          styles={styles}
+          dims={dims}
           onSaved={load}
         />
       )}
@@ -192,19 +221,37 @@ export default function RoundDebriefPage() {
  * Notes written here are GENERAL (`teamId: null`). The model supports a
  * per-team description and `/round-debrief` prefers it over the general one,
  * but nothing authors one yet.
+ *
+ * ── IT ALSO EDITS THE CHART ITSELF ──────────────────────────────────────────
+ * Writing the copy is when a chart's bindings are actually read, and that is
+ * when a wrong axis shows up. Sending the operator to another page to fix it —
+ * and back again to find their place in the round — is the kind of trip that
+ * ends in the copy being written around the mistake instead.
+ *
+ * ⚠ THE CHART IS NOT PER ROUND. It belongs to the simulation TYPE, so a change
+ * here lands on every round and every simulation under that type. The copy is
+ * the per-round half; the configuration is not.
  */
 function ChartDescriptions({
-  simulationId, roundNumber, charts, onSaved,
+  simulationId, roundNumber, charts, styles, dims, onSaved,
 }: {
   simulationId: string;
   roundNumber:  number;
   charts:       DebriefChart[];
+  styles:       DebriefChartStyle[];
+  dims:         DebriefDimensions;
   onSaved:      () => void;
 }) {
   const [notes, setNotes]   = useState<RoundNote[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy]     = useState<string | null>(null);
   const [error, setError]   = useState("");
+
+  // The chart whose configuration is open, by `_id` — NOT by instance key. A
+  // `scope: "each"` chart's N + 1 rows are one stored document, so only its
+  // summary row opens this and the edit applies to the whole fan-out.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft]     = useState<ChartDraft | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -274,6 +321,35 @@ function ChartDescriptions({
     }
   };
 
+  const openEditor = (c: DebriefChart) => {
+    setEditing(c._id);
+    setDraft(draftFromChart(c));
+  };
+
+  const closeEditor = () => { setEditing(null); setDraft(null); };
+
+  /**
+   * Save the chart's CONFIGURATION, not its copy.
+   *
+   * Reloads the whole debrief afterwards rather than patching the local copy:
+   * a `scope` change alters how many instances exist, and `resolved` is the
+   * server's decision. Guessing either here is how this editor and the player
+   * come to disagree about which charts a round has.
+   */
+  const saveChart = async (chartId: string) => {
+    if (!draft || !draft.name.trim()) return;
+    setBusy(`chart:${chartId}`); setError("");
+    try {
+      await updateDebriefChart(chartId, chartPayload(draft));
+      closeEditor();
+      onSaved();
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? "Failed to save the chart.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   let lastCategory = "";
 
   return (
@@ -281,7 +357,9 @@ function ChartDescriptions({
       <strong>Chart descriptions</strong>
       <div style={{ color: "#666", fontSize: 12, margin: "4px 0 12px" }}>
         A chart with no description is hidden from the players. Clearing a box and
-        saving removes that chart from their debrief.
+        saving removes that chart from their debrief. <em>Edit chart</em> changes the
+        chart for every round and every simulation of this type — only the
+        description is per round.
       </div>
 
       {error && <div style={{ color: "#b00", marginBottom: 8 }}>{error}</div>}
@@ -325,6 +403,20 @@ function ChartDescriptions({
                 <div style={{ fontSize: 11, color: c.resolved ? "#2a7" : "#b00" }}>
                   {c.resolved ? "shown to players" : "hidden"}
                 </div>
+                {/* ONLY ON THE SUMMARY ROW. A breakdown row is the same stored
+                    document, so N + 1 edit buttons would all mutate one chart
+                    while looking like they edited a notebook's own. */}
+                {!isBreakdown && (
+                  <button
+                    onClick={() => (editing === c._id ? closeEditor() : openEditor(c))}
+                    style={{
+                      fontSize: 11, marginTop: 3, padding: "1px 5px",
+                      background: "none", border: "1px solid #ddd", cursor: "pointer",
+                    }}
+                  >
+                    {editing === c._id ? "Close" : "Edit chart"}
+                  </button>
+                )}
               </div>
               <textarea
                 value={textFor(c)}
@@ -341,6 +433,43 @@ function ChartDescriptions({
                 {busy === k ? "Saving…" : "Save"}
               </button>
             </div>
+
+            {editing === c._id && draft && !isBreakdown && (
+              <div style={{
+                display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap",
+                background: "#fafafa", border: "1px solid #eee",
+                padding: 8, margin: "0 0 10px 18px",
+              }}>
+                <ChartConfigFields
+                  draft={draft} styles={styles} dims={dims} onChange={setDraft}
+                />
+                <button
+                  onClick={() => saveChart(c._id)}
+                  disabled={busy === `chart:${c._id}` || !draft.name.trim()}
+                >
+                  {busy === `chart:${c._id}` ? "Saving…" : "Save chart"}
+                </button>
+                <button onClick={closeEditor}>Cancel</button>
+
+                {/* ⚠ THE ONE CHANGE THAT STRANDS COPY. Dropping `each` stops the
+                    server emitting the per-notebook instances, and their
+                    descriptions stay in the database with no row that can reach
+                    or delete them. Nothing cascades — only deleting the chart
+                    does that. */}
+                {c.scope === "each" && draft.scope === "overall" && (
+                  <div style={{ color: "#b00", fontSize: 11, flexBasis: "100%" }}>
+                    Switching to “overall” hides the per-notebook rows. Their
+                    descriptions are kept but become unreachable — switch back to
+                    edit or clear them.
+                  </div>
+                )}
+                {styles.length === 0 && (
+                  <div style={{ color: "#b00", fontSize: 11, flexBasis: "100%" }}>
+                    The chart gallery is empty, so no shape can be picked.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

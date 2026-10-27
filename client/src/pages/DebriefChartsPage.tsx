@@ -4,9 +4,11 @@ import {
   getDebriefCharts, getDebriefChartStyles, getDebriefDimensions, getSimulationTypes,
   previewDebriefChart, updateDebriefChart,
 } from "../api";
-import type {
-  DebriefChartConfig, DebriefChartStyle, DebriefDimension, DebriefDimensions,
-} from "../types";
+import type { DebriefChartConfig, DebriefChartStyle, DebriefDimensions } from "../types";
+import {
+  ChartConfigFields, EMPTY_CHART, chartPayload, dimLabel, draftFromChart,
+  type ChartDraft,
+} from "./ChartConfigForm";
 
 /**
  * Which charts a simulation type's debrief shows, and where.
@@ -30,11 +32,6 @@ const box = { border: "1px solid #ddd", padding: 12, marginBottom: 24 };
 const th  = { textAlign: "left" as const, fontSize: 11, color: "#888", padding: "4px 6px" };
 const td  = { padding: "3px 6px", verticalAlign: "top" as const };
 
-const EMPTY = {
-  name: "", category: "", order: 0, scope: "overall" as "overall" | "each",
-  chartStyle: "", xAxis: "", yAxis: "", grouping: "",
-};
-
 /**
  * Render the draft binding against a real round.
  *
@@ -48,7 +45,7 @@ const EMPTY = {
  * on every keystroke would render a chart per character against real decision
  * data.
  */
-function Preview({ draft }: { draft: typeof EMPTY }) {
+function Preview({ draft }: { draft: ChartDraft }) {
   const [simulationId, setSimulationId] = useState("");
   const [roundNumber, setRoundNumber] = useState("");
   const [svg, setSvg] = useState("");
@@ -111,56 +108,13 @@ function Preview({ draft }: { draft: typeof EMPTY }) {
   );
 }
 
-/** A binding's human label, or the raw field marked when the registry no longer
- *  offers it — the same rule the select follows, so the table and the form
- *  cannot disagree about whether a chart is bound to something real. */
-function dimLabel(dims: DebriefDimensions, field: string | null) {
-  if (!field) return <span style={{ color: "#bbb" }}>—</span>;
-  const hit = [...dims.categorical, ...dims.measures].find((d) => d.field === field);
-  if (hit) return hit.label;
-  return <span style={{ color: "#b00" }}>{field} (missing)</span>;
-}
-
-/**
- * One binding slot.
- *
- * ⚠ A SAVED VALUE THE REGISTRY NO LONGER OFFERS IS KEPT AND MARKED, not dropped
- * silently. A lever renamed on the GlobalInputs page takes its dimension with
- * it, and a select that simply showed blank would look like the operator had
- * never set one — then overwrite it on the next save.
- */
-function DimensionSelect({
-  label, options, value, onChange,
-}: {
-  label: string;
-  options: DebriefDimension[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const known = options.some((o) => o.field === value);
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{ maxWidth: 190, ...(value && !known ? { color: "#b00" } : {}) }}
-      title={value && !known ? `"${value}" is not offered by this type any more` : undefined}
-    >
-      <option value="">-- {label} --</option>
-      {value && !known && <option value={value}>{value} (missing)</option>}
-      {options.map((o) => (
-        <option key={o.field} value={o.field}>{o.label}</option>
-      ))}
-    </select>
-  );
-}
-
 export default function DebriefChartsPage() {
   const [simulationTypes, setSimulationTypes] = useState<any[]>([]);
   const [selectedSimType, setSelectedSimType] = useState("");
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
   const [charts, setCharts] = useState<DebriefChartConfig[]>([]);
   const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [] });
-  const [form, setForm] = useState({ ...EMPTY });
+  const [form, setForm] = useState<ChartDraft>({ ...EMPTY_CHART });
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -193,7 +147,7 @@ export default function DebriefChartsPage() {
       .catch((e: any) => setError(e.message));
   }, [selectedSimType]);
 
-  const reset = () => { setForm({ ...EMPTY }); setEditing(null); };
+  const reset = () => { setForm({ ...EMPTY_CHART }); setEditing(null); };
 
   const run = async (fn: () => Promise<any>, ok?: string) => {
     setError(""); setNotice("");
@@ -214,18 +168,7 @@ export default function DebriefChartsPage() {
 
   const submit = () => {
     if (!form.name.trim()) return;
-    // Empty string → null, not "": the axes are nullable and "" would read as a
-    // configured dimension named nothing.
-    const payload = {
-      name: form.name,
-      category: form.category,
-      order: Number(form.order) || 0,
-      scope: form.scope,
-      chartStyle: form.chartStyle || null,
-      xAxis: form.xAxis || null,
-      yAxis: form.yAxis || null,
-      grouping: form.grouping || null,
-    };
+    const payload = chartPayload(form);
     if (editing) run(() => updateDebriefChart(editing, payload), "Chart saved.").then(reset);
     else run(() => createDebriefChart({ simulationTypeId: selectedSimType, ...payload }), "Chart added.").then(reset);
   };
@@ -295,15 +238,7 @@ export default function DebriefChartsPage() {
                     <td style={td}>{dimLabel(dims, c.grouping)}</td>
                     <td style={td}>
                       <button
-                        onClick={() => {
-                          setEditing(c._id);
-                          setForm({
-                            name: c.name, category: c.category, order: c.order,
-                            scope: c.scope ?? "overall",
-                            chartStyle: c.chartStyle?._id ?? "",
-                            xAxis: c.xAxis ?? "", yAxis: c.yAxis ?? "", grouping: c.grouping ?? "",
-                          });
-                        }}
+                        onClick={() => { setEditing(c._id); setForm(draftFromChart(c)); }}
                       >
                         Edit
                       </button>{" "}
@@ -322,53 +257,7 @@ export default function DebriefChartsPage() {
             </table>
 
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-              <input
-                type="number" placeholder="order" value={form.order}
-                onChange={(e) => setForm({ ...form, order: Number(e.target.value) })}
-                style={{ width: 70 }}
-              />
-              <input
-                placeholder="slide group" value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                style={{ width: 130 }}
-              />
-              <input
-                placeholder="chart name" value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                style={{ width: 180 }}
-              />
-              <select
-                value={form.scope}
-                onChange={(e) => setForm({ ...form, scope: e.target.value as "overall" | "each" })}
-                title="each = one chart per notebook plus an all-notebooks summary, each needing its own description"
-              >
-                <option value="overall">overall</option>
-                <option value="each">each notebook</option>
-              </select>
-              <select
-                value={form.chartStyle}
-                onChange={(e) => setForm({ ...form, chartStyle: e.target.value })}
-              >
-                <option value="">-- shape --</option>
-                {styles.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.category ? `${s.category} / ${s.name}` : s.name}
-                  </option>
-                ))}
-              </select>
-              {/* X and GROUPING divide, Y is plotted — so they are drawn from
-                  different halves of the registry. These were free text until the
-                  registry existed, and a typo then saved fine and silently never
-                  resolved. */}
-              <DimensionSelect label="x" options={dims.categorical}
-                               value={form.xAxis}
-                               onChange={(v) => setForm({ ...form, xAxis: v })} />
-              <DimensionSelect label="y" options={dims.measures}
-                               value={form.yAxis}
-                               onChange={(v) => setForm({ ...form, yAxis: v })} />
-              <DimensionSelect label="grouping" options={dims.categorical}
-                               value={form.grouping}
-                               onChange={(v) => setForm({ ...form, grouping: v })} />
+              <ChartConfigFields draft={form} styles={styles} dims={dims} onChange={setForm} />
               <button onClick={submit} disabled={!form.name.trim()}>
                 {editing ? "Save" : "Add chart"}
               </button>
