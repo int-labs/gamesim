@@ -4,7 +4,8 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  createRoundNote, deleteRoundNote, getRoundDebrief, getRoundNotes, updateRoundNote,
+  createRoundNote, deleteRoundNote, getRoundDebrief, getRoundNotes,
+  getSimulations, getSimulationTypes, updateRoundNote,
 } from "../api";
 import type { DebriefChart, RoundDebrief, DebriefRoundDto, RoundNote } from "../types";
 
@@ -52,15 +53,46 @@ function palette(teamIds: string[]): Record<string, string> {
 const money = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 export default function RoundDebriefPage() {
+  // SIMULATION TYPE FIRST. It is what scopes the catalogue, the products and
+  // the player config, so a debrief read without it is read against whatever
+  // the simulation happens to point at rather than against a chosen sim.
+  const [simulationTypes, setSimulationTypes] = useState<any[]>([]);
+  const [selectedSimType, setSelectedSimType] = useState("");
+  const [simulations, setSimulations] = useState<any[]>([]);
+
   const [filterSim, setFilterSim] = useState("");
   const [filterRound, setFilterRound] = useState("");
   const [data, setData] = useState<RoundDebrief | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    getSimulationTypes()
+      .then((res) => setSimulationTypes(res.data?.data ?? res.data))
+      .catch((e: any) => setError(e.message));
+  }, []);
+
+  // Narrowed in the browser, not by the endpoint: `GET /simulations` takes no
+  // simulationTypeId filter and does not populate the field, so it arrives as
+  // a plain id string and compares directly.
+  useEffect(() => {
+    if (!selectedSimType) {
+      setSimulations([]);
+      return;
+    }
+    getSimulations()
+      .then((res) => {
+        const all = res.data?.data ?? res.data ?? [];
+        setSimulations(
+          (all as any[]).filter((s) => String(s.simulationTypeId) === selectedSimType),
+        );
+      })
+      .catch((e: any) => setError(e.message));
+  }, [selectedSimType]);
+
   // `filterRound` is a STRING and rounds are 0-BASED, so this tests emptiness —
   // `!filterRound` would refuse round 0, which every simulation has.
-  const canLoad = filterSim !== "" && filterRound !== "";
+  const canLoad = selectedSimType !== "" && filterSim !== "" && filterRound !== "";
 
   const load = async () => {
     setError(""); setLoading(true); setData(null);
@@ -82,17 +114,46 @@ export default function RoundDebriefPage() {
         description is hidden from the players entirely.
       </p>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "12px 0" }}>
-        <input
-          placeholder="simulationId"
-          value={filterSim}
-          onChange={(e) => setFilterSim(e.target.value)}
-          style={{ width: 280 }}
-        />
+      <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "12px 0", flexWrap: "wrap" }}>
+        <label>
+          Simulation Type:{" "}
+          <select
+            value={selectedSimType}
+            // Clearing the chosen simulation is load-bearing: a simulation from
+            // the previous type stays selectable in state otherwise, and the
+            // page would read a debrief for a type it is no longer showing.
+            onChange={(e) => {
+              setSelectedSimType(e.target.value);
+              setFilterSim("");
+              setData(null);
+            }}
+          >
+            <option value="">-- select --</option>
+            {simulationTypes.map((st: any) => (
+              <option key={st._id} value={st._id}>{st.name ?? st._id}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Simulation:{" "}
+          <select
+            value={filterSim}
+            onChange={(e) => { setFilterSim(e.target.value); setData(null); }}
+            disabled={!selectedSimType}
+          >
+            <option value="">-- select --</option>
+            {simulations.map((s: any) => (
+              <option key={s._id} value={s._id}>{s.name ?? s._id}</option>
+            ))}
+          </select>
+        </label>
+
         <input
           placeholder="roundNumber (0-based)"
           value={filterRound}
           onChange={(e) => setFilterRound(e.target.value)}
+          disabled={!filterSim}
           style={{ width: 170 }}
         />
         <button onClick={load} disabled={!canLoad || loading}>
@@ -153,41 +214,40 @@ function ChartDescriptions({
     return () => { cancelled = true; };
   }, [simulationId, roundNumber, charts]);
 
-  // chart `name` → the note holding its description. Keyed by name because that
-  // is what `chartId` stores; `id` is a sort ordinal and renumbering it must
-  // not re-point anything.
+  // chart `_id` → the note holding its description. `chartId` is an ObjectId
+  // and arrives as a string here, so the key is already the right shape.
   const byChart = useMemo(() => {
     const m = new Map<string, RoundNote>();
-    for (const n of notes) if (n.chartId) m.set(n.chartId, n);
+    for (const n of notes) if (n.chartId) m.set(String(n.chartId), n);
     return m;
   }, [notes]);
 
   // SORT A COPY. `charts` is the array off the payload and `.sort()` is
   // in-place, so sorting it directly would reorder what the charts below read.
-  const ordered = useMemo(() => [...charts].sort((a, b) => a.id - b.id), [charts]);
+  const ordered = useMemo(() => [...charts].sort((a, b) => a.order - b.order), [charts]);
 
   const textFor = (c: DebriefChart) =>
-    drafts[c.name] ?? byChart.get(c.name)?.body ?? c.description ?? "";
+    drafts[c._id] ?? byChart.get(c._id)?.body ?? c.description ?? "";
 
   const save = async (c: DebriefChart) => {
     const body = textFor(c).trim();
-    const existing = byChart.get(c.name);
-    setBusy(c.name); setError("");
+    const existing = byChart.get(c._id);
+    setBusy(c._id); setError("");
     try {
       if (!body) {
         // EMPTY MEANS REMOVE, not "save an empty description": a blank body
         // would leave the chart resolved and draw it with no reading at all.
         if (existing) await deleteRoundNote(existing._id);
       } else if (existing) {
-        await updateRoundNote(existing._id, { body, title: c.label });
+        await updateRoundNote(existing._id, { body, title: c.name });
       } else {
         // `title` is required by the model and never rendered for a chart —
-        // the label is the heading — so it is filled rather than asked for.
+        // the chart's own name is the heading — so it is filled, not asked for.
         await createRoundNote({
-          simulationId, roundNumber, chartId: c.name, title: c.label, body,
+          simulationId, roundNumber, chartId: c._id, title: c.name, body,
         });
       }
-      setDrafts((d) => { const next = { ...d }; delete next[c.name]; return next; });
+      setDrafts((d) => { const next = { ...d }; delete next[c._id]; return next; });
       onSaved();
     } catch (e: any) {
       setError(e?.response?.data?.message ?? e?.message ?? "Failed to save the description.");
@@ -213,10 +273,10 @@ function ChartDescriptions({
         // run rather than a hardcoded list, so a new category needs no edit here.
         const heading = c.category !== lastCategory ? c.category : null;
         lastCategory = c.category;
-        const dirty = drafts[c.name] !== undefined;
+        const dirty = drafts[c._id] !== undefined;
 
         return (
-          <div key={c.name}>
+          <div key={c._id}>
             {heading && (
               <div style={{
                 textTransform: "uppercase", fontSize: 11, color: "#888",
@@ -227,20 +287,23 @@ function ChartDescriptions({
             )}
             <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "6px 0" }}>
               <div style={{ width: 230, paddingTop: 4 }}>
-                <div style={{ fontSize: 13 }}>{c.label}</div>
+                <div style={{ fontSize: 13 }}>{c.name}</div>
+                <div style={{ fontSize: 11, color: "#888" }}>
+                  {c.chartStyle ? c.chartStyle.name : "no shape chosen"}
+                </div>
                 <div style={{ fontSize: 11, color: c.resolved ? "#2a7" : "#b00" }}>
                   {c.resolved ? "shown to players" : "hidden"}
                 </div>
               </div>
               <textarea
                 value={textFor(c)}
-                onChange={(e) => setDrafts((d) => ({ ...d, [c.name]: e.target.value }))}
+                onChange={(e) => setDrafts((d) => ({ ...d, [c._id]: e.target.value }))}
                 rows={2}
                 style={{ flex: 1, minWidth: 0 }}
-                placeholder={`What a team should take from "${c.label}"`}
+                placeholder={`What a team should take from "${c.name}"`}
               />
-              <button onClick={() => save(c)} disabled={busy === c.name || !dirty}>
-                {busy === c.name ? "Saving…" : "Save"}
+              <button onClick={() => save(c)} disabled={busy === c._id || !dirty}>
+                {busy === c._id ? "Saving…" : "Save"}
               </button>
             </div>
           </div>

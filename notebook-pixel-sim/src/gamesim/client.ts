@@ -197,6 +197,10 @@ export function getDecisions(args: {
  * A team token may only pull a round the operator has already CALCULATED; an
  * open round comes back 404, which is the normal state while the team is still
  * waiting, not an error to surface as one.
+ *
+ * NO `simulationTypeId`. The simulation determines its type, so the server
+ * derives it — including the chart definitions, which belong to the TYPE and
+ * are shared by every simulation under it.
  */
 export function getRoundDebrief(args: {
   simulationId: Id;

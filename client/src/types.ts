@@ -282,18 +282,45 @@ export interface RoundNote {
   pinned: boolean;
 }
 
-/**
- * A chart slot with the round's copy joined on. MIRRORS
- * `server/src/constants/debriefCharts.ts`, which owns the list — `name` is the
- * stable join key a RoundNote's `chartId` stores, `id` is a sort ordinal and
- * nothing is keyed by it. `resolved` false = no description written, which the
- * player slide hides.
- */
-export interface DebriefChart {
-  id: number;
-  category: string;
+/** The gallery shape that draws a chart. MIRRORS `models/debriefChartStyle.ts`
+ *  — `category` is the FAMILY ("bar chart") and `name` the VARIANT ("Stacked
+ *  Bar"), which is a different namespace from the chart's own two fields. */
+export interface DebriefChartStyle {
+  _id: string;
   name: string;
-  label: string;
+  category: string;
+  /** The renderable shape. Sanitised on save, never at render. */
+  shape: string;
+}
+
+/**
+ * A configured chart as STORED. MIRRORS `models/debriefChart.ts` — what
+ * `GET /debrief-charts` returns, with `chartStyle` populated.
+ *
+ * `_id` is what a RoundNote's `chartId` stores, so `name` is display and free
+ * to be reworded. The axes may be null: an incomplete config saves and renders.
+ */
+export interface DebriefChartConfig {
+  _id: string;
+  simulationTypeId: string;
+  name: string;
+  category: string;
+  order: number;
+  chartStyle: DebriefChartStyle | null;
+  xAxis: string | null;
+  yAxis: string | null;
+  grouping: string | null;
+}
+
+/**
+ * The same chart with a ROUND's copy joined on — what `/round-debrief` emits.
+ *
+ * ⚠ `description` and `resolved` exist ONLY here. They are per round, so the
+ * stored document has neither; `GET /debrief-charts` returns
+ * `DebriefChartConfig` and typing it as this would promise fields that never
+ * arrive. `resolved` false = no description written, which the player hides.
+ */
+export interface DebriefChart extends Omit<DebriefChartConfig, "simulationTypeId"> {
   description: string | null;
   resolved: boolean;
 }

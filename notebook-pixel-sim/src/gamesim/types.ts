@@ -444,24 +444,40 @@ export interface DebriefRoundDto {
   teams: Record<string, DebriefTeamRoundDto>;
 }
 
+/** The gallery shape that draws a chart. MIRRORS `models/debriefChartStyle.ts`.
+ *  Its `category`/`name` are the chart FAMILY and VARIANT — a different
+ *  namespace from the configured chart's two fields of the same names. */
+export interface DebriefChartStyleDto {
+  _id: Id;
+  name: string;
+  category: string;
+  /** The renderable shape, sanitised on the console side. */
+  shape: string;
+}
+
 /**
- * A chart slot with this round's copy joined on. MIRRORS
- * `server/src/constants/debriefCharts.ts`:
+ * A configured chart with this round's copy joined on. MIRRORS
+ * `models/debriefChart.ts`:
  *
- *   id        sort ordinal, spaced by 10, renumber freely
- *   category  grouping
- *   name      THE STABLE JOIN KEY a RoundNote's `chartId` stores
- *   label     display, reword freely
+ *   _id        what a RoundNote's `chartId` stores
+ *   category   where on the slide it renders
+ *   name       display, free to reword
+ *   order      position within the slide
  *
  * ⚠ `resolved` false means the operator wrote no description, and the slide
- * HIDES that chart — a slot without a reading is not a slide. Read the flag,
- * never re-derive it from `description == null`.
+ * HIDES that chart. Read the flag, never re-derive it from `description ==
+ * null`. An incomplete config is NOT a reason to hide — a chart with null axes
+ * renders with whatever it has.
  */
 export interface DebriefChartDto {
-  id: number;
-  category: string;
+  _id: Id;
   name: string;
-  label: string;
+  category: string;
+  order: number;
+  chartStyle: DebriefChartStyleDto | null;
+  xAxis: string | null;
+  yAxis: string | null;
+  grouping: string | null;
   description: string | null;
   resolved: boolean;
 }

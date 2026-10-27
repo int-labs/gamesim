@@ -1,13 +1,22 @@
 /**
- * The debrief's chart SLOTS — what a slide can contain, and the only place
- * their order and grouping is decided.
+ * ⚠ RETIRED — REFERENCE ONLY. NOTHING IMPORTS THIS FILE.
  *
- * ⚠ A SLOT IS NOT A SLIDE. This table is shape alone; a chart resolves only
- * once a description is appended to it, which happens per round in the
- * controller by joining `RoundNote.chartId`. Nothing here is ever served as-is.
+ * Charts are rows in `models/debriefChart.ts` now, owned by a simulationTypeId
+ * and drawn by a shape from `models/debriefChartStyle.ts`. A type with no rows
+ * has an empty debrief, which is the starting state rather than a failure.
  *
- * PRESENTATION ONLY. No figure is keyed by any of this; `debriefSeries` emits
- * the numbers and never consults this table.
+ * Kept because the fifteen entries below document the slide as it was built —
+ * the groups, the order, and which charts existed — which is the seed an
+ * operator configuring a type for the first time would otherwise reconstruct
+ * from the player's JSX. Delete it once a type has been configured end to end.
+ *
+ * ── WHAT THE OLD SHAPE SAID, and what replaced it ───────────────────────────
+ * `name` was the stable join key because a hardcoded array had no `_id` to
+ * point at. It does now: `RoundNote.chartId` is a `DebriefChart._id`, so a
+ * chart's `name` is display and free to be reworded.
+ *
+ * `id` was the sort ordinal. That is `order` on the document, and the gallery
+ * has no ordinal at all.
  *
  * ── THE THREE FIELDS THAT WERE ONE ──────────────────────────────────────────
  * `id` used to be the name too, which tied reordering to identity. Split:

@@ -24,7 +24,7 @@ import RoundNote from "../models/roundNote";
 import Simulation from "../models/simulations";
 import PlayerConfig from "../models/playerConfig";
 import { ROLES } from "../constants/roles";
-import { DEBRIEF_CHARTS, type DebriefChart } from "../constants/debriefCharts";
+import DebriefChartModel from "../models/debriefChart";
 import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
 
@@ -32,6 +32,21 @@ interface TokenUser {
   id?:     string;
   role?:   string;
   teamId?: string;
+}
+
+/** A configured chart with this round's copy joined on — THE WIRE SHAPE. */
+interface DebriefChartDto {
+  _id:        string;
+  name:       string;
+  category:   string;
+  order:      number;
+  /** The gallery shape, resolved. Null while the operator has not picked one. */
+  chartStyle: { _id: string; name: string; category: string; shape: string } | null;
+  xAxis:      string | null;
+  yAxis:      string | null;
+  grouping:   string | null;
+  description: string | null;
+  resolved:    boolean;
 }
 
 /**
@@ -42,11 +57,14 @@ interface TokenUser {
  * `types.ts`.
  */
 interface RoundDebriefResponse extends DebriefPayload {
-  charts: DebriefChart[];
+  charts: DebriefChartDto[];
 }
 
 /**
- * Join this round's descriptions onto the slots.
+ * The simulation type's charts, with this round's descriptions joined on.
+ *
+ * A type with NO charts returns an empty array, which is an empty debrief — the
+ * starting state of a type nobody has configured.
  *
  * ⚠ THE TEAM FILTER IS RE-APPLIED HERE. `getRoundNotes` narrows a team token to
  * the general notes plus its own, and none of that comes along with a query
@@ -59,9 +77,10 @@ interface RoundDebriefResponse extends DebriefPayload {
  */
 const resolveCharts = async (
   simulationId: string,
+  simulationTypeId: unknown,
   roundNumber: number,
   teamId: string | null,
-): Promise<DebriefChart[]> => {
+): Promise<DebriefChartDto[]> => {
   const filter: Record<string, unknown> = {
     simulationId,
     roundNumber,
@@ -70,17 +89,44 @@ const resolveCharts = async (
   // null teamId = staff, who read every note. A team reads general + its own.
   if (teamId) filter.$or = [{ teamId: null }, { teamId }];
 
-  const notes = await RoundNote.find(filter).sort({ teamId: 1 }).lean();
+  const [charts, notes] = await Promise.all([
+    DebriefChartModel.find({ simulationTypeId })
+      .sort({ order: 1 })
+      .populate("chartStyle")
+      .lean(),
+    RoundNote.find(filter).sort({ teamId: 1 }).lean(),
+  ]);
 
+  // KEYED BY STRING. `chartId` is an ObjectId and `_id` is an ObjectId, and two
+  // ObjectIds for the same value are different object identities — a Map keyed
+  // on them would never hit.
   const byChart = new Map<string, string>();
   for (const n of notes) {
-    if (n.chartId) byChart.set(n.chartId, n.body ?? "");
+    if (n.chartId) byChart.set(String(n.chartId), n.body ?? "");
   }
 
-  return DEBRIEF_CHARTS.map((slot) => {
-    // JOINED ON `name`, never `id` — the ordinal is free to be renumbered.
-    const description = byChart.get(slot.name) ?? null;
-    return { ...slot, description, resolved: description !== null };
+  return (charts as any[]).map((c) => {
+    const description = byChart.get(String(c._id)) ?? null;
+    const style = c.chartStyle ?? null;
+    return {
+      _id:        String(c._id),
+      name:       c.name,
+      category:   c.category,
+      order:      c.order,
+      chartStyle: style
+        ? {
+            _id:      String(style._id),
+            name:     style.name,
+            category: style.category,
+            shape:    style.shape,
+          }
+        : null,
+      xAxis:    c.xAxis ?? null,
+      yAxis:    c.yAxis ?? null,
+      grouping: c.grouping ?? null,
+      description,
+      resolved: description !== null,
+    };
   });
 };
 
@@ -147,6 +193,10 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
       res.status(404).json({ message: "Simulation not found." });
       return;
     }
+    // DERIVED, never a parameter. A simulation belongs to exactly one type, so
+    // `simulationId` already determines this — asking the caller for it would
+    // add a value the request cannot contradict and the server would have to
+    // look up regardless.
     const simulationTypeId = (simulation as { simulationTypeId?: unknown }).simulationTypeId;
 
     // No GlobalInput load: the decision snapshots every lever figure the
@@ -178,6 +228,7 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
 
     const charts = await resolveCharts(
       String(simulationId),
+      simulationTypeId,
       round,
       isTeam ? String(user.teamId) : null,
     );

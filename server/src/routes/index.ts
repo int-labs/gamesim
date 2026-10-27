@@ -27,6 +27,8 @@ import teamProgressRoutes  from "./teamProgressRoutes";
 import teamRunReportRoutes from "./teamRunReportRoutes";
 import debriefRoutes        from "./debriefRoutes";
 import roundDebriefRoutes   from "./roundDebriefRoutes";
+import debriefChartRoutes      from "./debriefChartRoutes";
+import debriefChartStyleRoutes from "./debriefChartStyleRoutes";
 
 const router = Router();
 
@@ -56,6 +58,10 @@ router.use("/debriefs", debriefRoutes);
 // The player's per-round chart data. Distinct from "/debriefs", which is the
 // operator's authored markdown wrap-up for the whole simulation.
 router.use("/round-debrief", roundDebriefRoutes);
+// The CONFIGURATION behind that slide: which charts a simulation type shows,
+// and the global gallery of shapes they are drawn with.
+router.use("/debrief-charts", debriefChartRoutes);
+router.use("/debrief-chart-styles", debriefChartStyleRoutes);
 // router.use("/upload", uploadRoutes);
 router.use("/image-assets", imageAssetsRoutes);
 router.use("/initiatives", initiativeRoutes);

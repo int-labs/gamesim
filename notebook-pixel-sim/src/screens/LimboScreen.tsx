@@ -150,9 +150,11 @@ function DebriefBody({
 }) {
   const { teams, products, rounds, roundNumber, you } = data;
 
-  // Keyed by `name`, the catalogue's stable join key. `id` is a sort ordinal
-  // and is free to be renumbered, so indexing by it would re-point every
-  // lookup the moment a slide is inserted.
+  // ⚠ INTERIM. Keyed by `name` because the thirteen `<Section name="…">` call
+  // sites below are still hardcoded, so they can only find a chart an operator
+  // happened to name identically. Charts are DB rows now and the slide should
+  // ITERATE `data.charts` in `order`, drawing each from its `chartStyle` —
+  // until it does, a configured chart whose name differs simply never appears.
   const charts = useMemo(
     () => new Map((data.charts ?? []).map((c) => [c.name, c])),
     [data.charts],
@@ -785,7 +787,7 @@ function Section({
   if (!chart?.resolved) return null;
 
   return (
-    <PixelPanel title={suffix ? `${chart.label} · ${suffix}` : chart.label}>
+    <PixelPanel title={suffix ? `${chart.name} · ${suffix}` : chart.name}>
       {chart.description && (
         <div className="body text-ink-700 leading-snug mb-2">{chart.description}</div>
       )}

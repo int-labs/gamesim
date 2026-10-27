@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { RoundDebrief, RoundNote } from "./types";
+import type { DebriefChartConfig, DebriefChartStyle, RoundDebrief, RoundNote } from "./types";
 
 const api = axios.create({
   baseURL: (import.meta as any).env?.VITE_GAMESIM_API_URL ?? "http://localhost:5000/api",
@@ -296,6 +296,11 @@ export const recalcProjections = (data: {
  * "Completed". `you` comes back null here, so nothing is highlighted as "your"
  * team — the operator is not one of the columns.
  *
+ * NO `simulationTypeId`. A simulation belongs to exactly one type, so this id
+ * already determines it and the controller derives it. The type is required for
+ * AUTHORING the charts — those belong to the type and are shared by all its
+ * simulations — not for reading a round.
+ *
  * Distinct from `/reports/:kind`, which streams a PDF. This is JSON the page
  * charts directly.
  */
@@ -351,3 +356,71 @@ export const updateRoundNote = (
 /** Deleting a chart's description UNRESOLVES that chart — the player stops
  *  seeing it entirely, not just its copy. */
 export const deleteRoundNote = (id: string) => api.delete(`/round-notes/${id}`);
+
+// ── Debrief chart styles (the global gallery) ──────────────────
+/**
+ * Every chart shape the app can draw, as data — family, variant and the shape
+ * the player renders.
+ *
+ * ⚠ `shape` IS RENDERED BY THE PLAYER, so it must be sanitised HERE before it
+ * is sent. The API is not the boundary; the console is, the same rule
+ * `products.segments` follows. Writes are admin-only.
+ */
+export const getDebriefChartStyles = async (): Promise<DebriefChartStyle[]> => {
+  const res = await api.get("/debrief-chart-styles");
+  return (Array.isArray(res.data) ? res.data : []) as DebriefChartStyle[];
+};
+
+export const createDebriefChartStyle = (data: {
+  name: string; category?: string; shape?: string;
+}) => api.post("/debrief-chart-styles", data);
+
+export const updateDebriefChartStyle = (
+  id: string,
+  data: Partial<{ name: string; category: string; shape: string }>,
+) => api.patch(`/debrief-chart-styles/${id}`, data);
+
+/** 409s while any configured chart still points at it — deliberately, so a
+ *  delete cannot silently leave charts that render nothing. */
+export const deleteDebriefChartStyle = (id: string) =>
+  api.delete(`/debrief-chart-styles/${id}`);
+
+// ── Debrief charts (per simulation type) ───────────────────────
+/**
+ * Which charts a simulation type's debrief shows. One type, one set, shared by
+ * every simulation under it.
+ *
+ * The axes are nullable and a half-configured chart saves and renders as-is —
+ * the only thing that hides a chart from a team is a missing description.
+ */
+export const getDebriefCharts = async (
+  simulationTypeId: string,
+): Promise<DebriefChartConfig[]> => {
+  const res = await api.get("/debrief-charts", { params: { simulationTypeId } });
+  return (Array.isArray(res.data) ? res.data : []) as DebriefChartConfig[];
+};
+
+export const createDebriefChart = (data: {
+  simulationTypeId: string;
+  name:        string;
+  category?:   string;
+  order?:      number;
+  chartStyle?: string | null;
+  xAxis?:      string | null;
+  yAxis?:      string | null;
+  grouping?:   string | null;
+}) => api.post("/debrief-charts", data);
+
+export const updateDebriefChart = (
+  id: string,
+  data: Partial<{
+    name: string; category: string; order: number;
+    chartStyle: string | null;
+    xAxis: string | null; yAxis: string | null; grouping: string | null;
+  }>,
+) => api.patch(`/debrief-charts/${id}`, data);
+
+/** ⚠ DELETES ITS DESCRIPTIONS TOO, across every round — they are keyed to this
+ *  `_id` and a recreated chart gets a new one, so they could never be
+ *  reattached. The response reports how many went. */
+export const deleteDebriefChart = (id: string) => api.delete(`/debrief-charts/${id}`);

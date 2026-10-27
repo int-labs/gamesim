@@ -17,9 +17,9 @@ const noteSchema = z.object({
   simulationId: objectId,
   roundNumber: z.number().int().min(0).max(999),
   teamId: objectId.nullish(),
-  // Free string, not an enum of DEBRIEF_CHARTS: a note must survive a slide
-  // being renamed out from under it rather than 400 on save.
-  chartId: z.string().trim().max(64).nullish(),
+  // A DebriefChart `_id`. Validated as an id rather than left free: a typo in a
+  // name would have stored fine and simply never resolved.
+  chartId: objectId.nullish(),
   title: z.string().trim().min(1, "A note needs a title.").max(120),
   body: z.string().max(5000).default(""),
   imageAssetId: objectId.nullish(),
