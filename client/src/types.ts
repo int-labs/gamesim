@@ -277,6 +277,9 @@ export interface RoundNote {
   roundNumber: number;
   teamId: string | null;
   chartId: string | null;
+  /** Which instance of that chart — a Product `_id`, or null for the summary.
+   *  A note is keyed by the PAIR; there is no fallback between them. */
+  productId: string | null;
   title: string;
   body: string;
   pinned: boolean;
@@ -326,6 +329,9 @@ export interface DebriefChartConfig {
   name: string;
   category: string;
   order: number;
+  /** `each` fans this row out to N + 1 instances — one per notebook plus an
+   *  all-notebooks summary — each needing its own description. */
+  scope: "overall" | "each";
   chartStyle: DebriefChartStyle | null;
   xAxis: string | null;
   yAxis: string | null;
@@ -341,6 +347,10 @@ export interface DebriefChartConfig {
  * arrive. `resolved` false = no description written, which the player hides.
  */
 export interface DebriefChart extends Omit<DebriefChartConfig, "simulationTypeId"> {
+  /** ⚠ `_id` REPEATS across a `scope: "each"` chart's instances. This is what
+   *  tells them apart — null is the summary. Key by the pair, never `_id`. */
+  productId: string | null;
+  productName: string | null;
   description: string | null;
   resolved: boolean;
 }

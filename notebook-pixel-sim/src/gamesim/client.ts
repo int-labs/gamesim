@@ -295,6 +295,9 @@ export interface RoundNoteDto {
    *  here — `/round-debrief` joins them onto its charts, so a reader of this
    *  endpoint must exclude them or they render twice. */
   chartId: string | null;
+  /** Which instance of that chart — a Product `_id`, or null for the summary.
+   *  Keyed by the PAIR with `chartId`; there is no fallback between them. */
+  productId: string | null;
   title: string;
   body: string;
   pinned: boolean;

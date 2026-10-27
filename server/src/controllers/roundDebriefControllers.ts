@@ -34,12 +34,24 @@ interface TokenUser {
   teamId?: string;
 }
 
-/** A configured chart with this round's copy joined on — THE WIRE SHAPE. */
+/**
+ * ONE CHART INSTANCE with this round's copy joined on — THE WIRE SHAPE.
+ *
+ * ⚠ NOT one per stored chart. A `scope: "each"` row fans out to N + 1 entries:
+ * one per notebook plus an all-notebooks summary. `_id` repeats across them and
+ * `productId` is what tells them apart, so anything keying by `_id` alone will
+ * collapse a whole notebook breakdown into one.
+ */
 interface DebriefChartDto {
   _id:        string;
+  /** The notebook this instance is for; null = summary, or an `overall` chart. */
+  productId:   string | null;
+  /** Carried so a reader need not re-join the product list to label it. */
+  productName: string | null;
   name:       string;
   category:   string;
   order:      number;
+  scope:      "overall" | "each";
   /** The gallery shape, resolved. Null while the operator has not picked one. */
   chartStyle: { _id: string; name: string; category: string; shape: string } | null;
   xAxis:      string | null;
@@ -80,6 +92,7 @@ const resolveCharts = async (
   simulationTypeId: unknown,
   roundNumber: number,
   teamId: string | null,
+  products: { _id: unknown; productName?: string }[],
 ): Promise<DebriefChartDto[]> => {
   const filter: Record<string, unknown> = {
     simulationId,
@@ -97,22 +110,27 @@ const resolveCharts = async (
     RoundNote.find(filter).sort({ teamId: 1 }).lean(),
   ]);
 
-  // KEYED BY STRING. `chartId` is an ObjectId and `_id` is an ObjectId, and two
-  // ObjectIds for the same value are different object identities — a Map keyed
-  // on them would never hit.
-  const byChart = new Map<string, string>();
+  // KEYED BY THE PAIR, as strings. `chartId`/`productId` are ObjectIds and two
+  // ObjectIds for the same value are different object identities, so a Map
+  // keyed on them would never hit. The empty half means "the summary".
+  const key = (chartId: unknown, productId: unknown) =>
+    `${String(chartId)}:${productId ? String(productId) : ""}`;
+
+  const byInstance = new Map<string, string>();
   for (const n of notes) {
-    if (n.chartId) byChart.set(String(n.chartId), n.body ?? "");
+    if (n.chartId) byInstance.set(key(n.chartId, n.productId), n.body ?? "");
   }
 
-  return (charts as any[]).map((c) => {
-    const description = byChart.get(String(c._id)) ?? null;
+  const out: DebriefChartDto[] = [];
+
+  for (const c of charts as any[]) {
     const style = c.chartStyle ?? null;
-    return {
-      _id:        String(c._id),
-      name:       c.name,
-      category:   c.category,
-      order:      c.order,
+    const base = {
+      _id:      String(c._id),
+      name:     c.name,
+      category: c.category,
+      order:    c.order,
+      scope:    (c.scope ?? "overall") as "overall" | "each",
       chartStyle: style
         ? {
             _id:      String(style._id),
@@ -124,10 +142,26 @@ const resolveCharts = async (
       xAxis:    c.xAxis ?? null,
       yAxis:    c.yAxis ?? null,
       grouping: c.grouping ?? null,
-      description,
-      resolved: description !== null,
     };
-  });
+
+    const instance = (productId: string | null, productName: string | null) => {
+      const description = byInstance.get(key(c._id, productId)) ?? null;
+      out.push({ ...base, productId, productName, description, resolved: description !== null });
+    };
+
+    // THE SUMMARY ALWAYS EXISTS, for both scopes — for `overall` it is the only
+    // instance, for `each` it is the all-notebooks chart that sits alongside
+    // the per-notebook ones.
+    instance(null, null);
+
+    if (base.scope === "each") {
+      for (const p of products) {
+        instance(String(p._id), p.productName ?? null);
+      }
+    }
+  }
+
+  return out;
 };
 
 export const getRoundDebrief = async (req: Request, res: Response): Promise<void> => {
@@ -231,6 +265,7 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
       simulationTypeId,
       round,
       isTeam ? String(user.teamId) : null,
+      products as never,
     );
 
     const body: RoundDebriefResponse = { ...payload, charts };

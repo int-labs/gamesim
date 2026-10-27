@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   createDebriefChart, deleteDebriefChart,
   getDebriefCharts, getDebriefChartStyles, getDebriefDimensions, getSimulationTypes,
-  updateDebriefChart,
+  previewDebriefChart, updateDebriefChart,
 } from "../api";
 import type {
   DebriefChartConfig, DebriefChartStyle, DebriefDimension, DebriefDimensions,
@@ -30,7 +30,86 @@ const box = { border: "1px solid #ddd", padding: 12, marginBottom: 24 };
 const th  = { textAlign: "left" as const, fontSize: 11, color: "#888", padding: "4px 6px" };
 const td  = { padding: "3px 6px", verticalAlign: "top" as const };
 
-const EMPTY = { name: "", category: "", order: 0, chartStyle: "", xAxis: "", yAxis: "", grouping: "" };
+const EMPTY = {
+  name: "", category: "", order: 0, scope: "overall" as "overall" | "each",
+  chartStyle: "", xAxis: "", yAxis: "", grouping: "",
+};
+
+/**
+ * Render the draft binding against a real round.
+ *
+ * ⚠ THE SVG COMES FROM THE SERVER, already rendered. Injecting it is safe for
+ * the reason the whole architecture exists: the console never receives a spec,
+ * only output that `assertSafeSpec` and Vega have both been through. If this
+ * ever starts receiving a spec instead, this `dangerouslySetInnerHTML` becomes
+ * the hole.
+ *
+ * NOT automatic. It needs a simulation and round the operator picks, and firing
+ * on every keystroke would render a chart per character against real decision
+ * data.
+ */
+function Preview({ draft }: { draft: typeof EMPTY }) {
+  const [simulationId, setSimulationId] = useState("");
+  const [roundNumber, setRoundNumber] = useState("");
+  const [svg, setSvg] = useState("");
+  const [rows, setRows] = useState<number | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const canRender = draft.chartStyle !== "" && simulationId !== "" && roundNumber !== "";
+
+  const render = async () => {
+    setBusy(true); setErr(""); setSvg(""); setRows(null);
+    try {
+      const res = await previewDebriefChart({
+        chartStyle: draft.chartStyle,
+        simulationId,
+        roundNumber: Number(roundNumber),
+        xAxis: draft.xAxis || null,
+        yAxis: draft.yAxis || null,
+        grouping: draft.grouping || null,
+      });
+      setSvg(res.svg);
+      setRows(res.rows);
+    } catch (e: any) {
+      setErr(e?.response?.data?.message ?? e?.message ?? "Preview failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ borderTop: "1px solid #eee", marginTop: 14, paddingTop: 10 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <strong style={{ fontSize: 12 }}>Preview</strong>
+        <input placeholder="simulationId" value={simulationId}
+               onChange={(e) => setSimulationId(e.target.value)} style={{ width: 240 }} />
+        <input placeholder="round (0-based)" value={roundNumber}
+               onChange={(e) => setRoundNumber(e.target.value)} style={{ width: 120 }} />
+        <button onClick={render} disabled={!canRender || busy}>
+          {busy ? "Rendering…" : "Render"}
+        </button>
+        {!draft.chartStyle && (
+          <span style={{ fontSize: 11, color: "#888" }}>pick a shape first</span>
+        )}
+        {/* ROW COUNT IS THE DIAGNOSTIC. An empty chart with 0 rows is a binding
+            that resolved to nothing; an empty chart with rows is a shape
+            problem. Without this they look identical. */}
+        {rows !== null && (
+          <span style={{ fontSize: 11, color: rows === 0 ? "#b00" : "#888" }}>
+            {rows} row(s){rows === 0 ? " — the bindings matched no data" : ""}
+          </span>
+        )}
+      </div>
+
+      {err && <div style={{ color: "#b00", fontSize: 12, marginTop: 6 }}>{err}</div>}
+      {svg && (
+        <div style={{ marginTop: 8, overflowX: "auto" }}
+             dangerouslySetInnerHTML={{ __html: svg }} />
+      )}
+    </div>
+  );
+}
 
 /** A binding's human label, or the raw field marked when the registry no longer
  *  offers it — the same rule the select follows, so the table and the form
@@ -141,6 +220,7 @@ export default function DebriefChartsPage() {
       name: form.name,
       category: form.category,
       order: Number(form.order) || 0,
+      scope: form.scope,
       chartStyle: form.chartStyle || null,
       xAxis: form.xAxis || null,
       yAxis: form.yAxis || null,
@@ -189,6 +269,7 @@ export default function DebriefChartsPage() {
               <thead>
                 <tr>
                   <th style={th}>ORDER</th><th style={th}>SLIDE GROUP</th><th style={th}>NAME</th>
+                  <th style={th}>SCOPE</th>
                   <th style={th}>SHAPE</th><th style={th}>X</th><th style={th}>Y</th>
                   <th style={th}>GROUPING</th><th style={th} />
                 </tr>
@@ -199,6 +280,11 @@ export default function DebriefChartsPage() {
                     <td style={td}>{c.order}</td>
                     <td style={td}>{c.category || <span style={{ color: "#bbb" }}>—</span>}</td>
                     <td style={td}>{c.name}</td>
+                    <td style={td}>
+                      {c.scope === "each"
+                        ? <span title="one chart per notebook, plus an all-notebooks summary">each + summary</span>
+                        : "overall"}
+                    </td>
                     <td style={td}>
                       {c.chartStyle
                         ? c.chartStyle.name
@@ -213,6 +299,7 @@ export default function DebriefChartsPage() {
                           setEditing(c._id);
                           setForm({
                             name: c.name, category: c.category, order: c.order,
+                            scope: c.scope ?? "overall",
                             chartStyle: c.chartStyle?._id ?? "",
                             xAxis: c.xAxis ?? "", yAxis: c.yAxis ?? "", grouping: c.grouping ?? "",
                           });
@@ -226,7 +313,7 @@ export default function DebriefChartsPage() {
                 ))}
                 {charts.length === 0 && (
                   <tr>
-                    <td style={{ ...td, color: "#999" }} colSpan={8}>
+                    <td style={{ ...td, color: "#999" }} colSpan={9}>
                       No charts — this type's debrief is empty.
                     </td>
                   </tr>
@@ -250,6 +337,14 @@ export default function DebriefChartsPage() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 style={{ width: 180 }}
               />
+              <select
+                value={form.scope}
+                onChange={(e) => setForm({ ...form, scope: e.target.value as "overall" | "each" })}
+                title="each = one chart per notebook plus an all-notebooks summary, each needing its own description"
+              >
+                <option value="overall">overall</option>
+                <option value="each">each notebook</option>
+              </select>
               <select
                 value={form.chartStyle}
                 onChange={(e) => setForm({ ...form, chartStyle: e.target.value })}
@@ -279,6 +374,8 @@ export default function DebriefChartsPage() {
               </button>
               {editing && <button onClick={reset}>Cancel</button>}
             </div>
+
+            <Preview draft={form} />
           </div>
         )}
       </div>

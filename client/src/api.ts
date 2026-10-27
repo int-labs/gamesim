@@ -349,6 +349,8 @@ export const createRoundNote = (data: {
   title:        string;
   body:         string;
   chartId?:     string | null;
+  /** Which instance, for a `scope: "each"` chart. Null = the summary. */
+  productId?:   string | null;
   teamId?:      string | null;
   pinned?:      boolean;
 }) => api.post("/round-notes", data);
@@ -423,16 +425,37 @@ export const createDebriefChart = (data: {
   name:        string;
   category?:   string;
   order?:      number;
+  scope?:      "overall" | "each";
   chartStyle?: string | null;
   xAxis?:      string | null;
   yAxis?:      string | null;
   grouping?:   string | null;
 }) => api.post("/debrief-charts", data);
 
+/**
+ * Render a DRAFT binding against a real round, before saving.
+ *
+ * Writes nothing. Deliberately takes a real simulation and round rather than
+ * sample data — "does this chart work" means "is it readable with this sim's
+ * numbers", which samples cannot answer.
+ */
+export const previewDebriefChart = async (data: {
+  chartStyle:   string;
+  simulationId: string;
+  roundNumber:  number;
+  xAxis?:       string | null;
+  yAxis?:       string | null;
+  grouping?:    string | null;
+  productId?:   string | null;
+}): Promise<{ svg: string; rows: number }> => {
+  const res = await api.post("/debrief-charts/preview", data);
+  return res.data as { svg: string; rows: number };
+};
+
 export const updateDebriefChart = (
   id: string,
   data: Partial<{
-    name: string; category: string; order: number;
+    name: string; category: string; order: number; scope: "overall" | "each";
     chartStyle: string | null;
     xAxis: string | null; yAxis: string | null; grouping: string | null;
   }>,

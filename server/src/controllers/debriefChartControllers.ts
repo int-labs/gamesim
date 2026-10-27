@@ -2,7 +2,9 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
 import DebriefChart from "../models/debriefChart";
+import DebriefChartStyle from "../models/debriefChartStyle";
 import RoundNote from "../models/roundNote";
+import { renderChartToSvg, UnsafeSpecError } from "../services/chartRenderer";
 
 /**
  * A simulation type's configured charts.
@@ -22,6 +24,8 @@ const chartSchema = z.object({
   name:       z.string().trim().min(1, "A chart needs a name.").max(160),
   category:   z.string().trim().max(64).default(""),
   order:      z.number().int().min(0).max(99999).default(0),
+  // `each` fans this one row out to N + 1 instances at render time.
+  scope:      z.enum(["overall", "each"]).default("overall"),
   chartStyle: objectId.nullish(),
   xAxis:      z.string().trim().max(64).nullish(),
   yAxis:      z.string().trim().max(64).nullish(),
@@ -97,6 +101,82 @@ export const updateDebriefChart = async (req: Request, res: Response): Promise<v
     res.status(200).json(chart);
   } catch (err: any) {
     res.status(500).json({ message: err?.message ?? "Failed to update the chart." });
+  }
+};
+
+const previewSchema = z.object({
+  chartStyle: objectId,
+  // A real simulation and round, not samples. "Does this chart work" almost
+  // always means "is it readable with this sim's numbers", and a synthetic
+  // preview answers the wrong question.
+  simulationId: objectId,
+  roundNumber:  z.number().int().min(0).max(999),
+  xAxis:    z.string().trim().max(64).nullish(),
+  yAxis:    z.string().trim().max(64).nullish(),
+  grouping: z.string().trim().max(64).nullish(),
+  productId: objectId.nullish(),
+});
+
+// POST /debrief-charts/preview
+/**
+ * Render a DRAFT binding before it is saved.
+ *
+ * Takes the config the operator is editing rather than a stored chart, so a
+ * bad axis is visible at the moment it is chosen instead of after a save and a
+ * trip to the player.
+ *
+ * ⚠ RENDERS NOTHING OF ITS OWN. It builds the same rows the debrief would and
+ * hands them to the same renderer; if the preview and the real slide ever
+ * disagree, this endpoint has grown a second opinion and that is the bug.
+ */
+export const previewDebriefChart = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const parsed = previewSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Preview request is invalid.", issues: issues(parsed.error) });
+      return;
+    }
+
+    const style = await DebriefChartStyle.findById(parsed.data.chartStyle).lean();
+    if (!style) {
+      res.status(404).json({ message: "Chart style not found." });
+      return;
+    }
+    if (!style.shape?.trim()) {
+      res.status(400).json({ message: "That chart style has no shape to render." });
+      return;
+    }
+
+    let spec: unknown;
+    try {
+      spec = JSON.parse(style.shape);
+    } catch {
+      // The gallery stores the shape as text, so a malformed one is an
+      // authoring mistake rather than a server fault.
+      res.status(400).json({ message: "That chart style's shape is not valid JSON." });
+      return;
+    }
+
+    const { buildPreviewDatasets } = await import("../services/debriefChartData");
+    const datasets = await buildPreviewDatasets({
+      simulationId: parsed.data.simulationId,
+      roundNumber:  parsed.data.roundNumber,
+      xAxis:        parsed.data.xAxis ?? null,
+      yAxis:        parsed.data.yAxis ?? null,
+      grouping:     parsed.data.grouping ?? null,
+      productId:    parsed.data.productId ?? null,
+    });
+
+    const svg = await renderChartToSvg({ spec, datasets });
+    res.status(200).json({ svg, rows: datasets.rows?.length ?? 0 });
+  } catch (err: any) {
+    // An unsafe or uncompilable spec is the AUTHOR's problem, not a 500 — and
+    // saying which keeps the gallery author out of the server logs.
+    if (err instanceof UnsafeSpecError) {
+      res.status(400).json({ message: err.message });
+      return;
+    }
+    res.status(400).json({ message: err?.message ?? "Failed to render the preview." });
   }
 };
 

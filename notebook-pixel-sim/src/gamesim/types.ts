@@ -470,10 +470,18 @@ export interface DebriefChartStyleDto {
  * renders with whatever it has.
  */
 export interface DebriefChartDto {
+  /** ⚠ REPEATS across a `scope: "each"` chart's instances. `productId` is what
+   *  tells them apart — key by the pair, never `_id` alone. */
   _id: Id;
+  /** The notebook this instance draws; null = the all-notebooks summary, or an
+   *  `overall` chart. */
+  productId: Id | null;
+  productName: string | null;
   name: string;
   category: string;
   order: number;
+  /** `each` means the server emitted N + 1 of these from one stored row. */
+  scope: 'overall' | 'each';
   chartStyle: DebriefChartStyleDto | null;
   xAxis: string | null;
   yAxis: string | null;

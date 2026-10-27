@@ -27,6 +27,16 @@ export interface RoundNoteInterface extends Document {
    * reworded, which would silently orphan every description written against it.
    */
   chartId: Types.ObjectId | null;
+  /**
+   * Which INSTANCE of that chart, when its `scope` is `each`. A Product `_id`
+   * for a per-notebook chart, `null` for the all-notebooks summary and for
+   * every `overall` chart.
+   *
+   * ⚠ A note is keyed by the PAIR. `chartId` alone is ambiguous once a chart
+   * draws N + 1 instances, and there is NO fallback — a per-notebook chart with
+   * no note of its own is hidden, it does not inherit the summary's.
+   */
+  productId: Types.ObjectId | null;
   title: string;
   /** Markdown. Rendered as plain text until a renderer is wired in. */
   body: string;
@@ -48,7 +58,8 @@ const roundNoteSchema = new Schema<RoundNoteInterface>(
     },
     roundNumber: { type: Number, required: true },
     teamId: { type: Schema.Types.ObjectId, ref: "Team", default: null },
-    chartId: { type: Schema.Types.ObjectId, ref: "DebriefChart", default: null },
+    chartId:   { type: Schema.Types.ObjectId, ref: "DebriefChart", default: null },
+    productId: { type: Schema.Types.ObjectId, ref: "Product", default: null },
     title: { type: String, required: true, trim: true, maxlength: 120 },
     body: { type: String, default: "", maxlength: 5000 },
     imageAssetId: { type: Schema.Types.ObjectId, ref: "ImageAsset", default: null },

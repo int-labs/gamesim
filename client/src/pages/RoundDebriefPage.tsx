@@ -214,25 +214,41 @@ function ChartDescriptions({
     return () => { cancelled = true; };
   }, [simulationId, roundNumber, charts]);
 
-  // chart `_id` → the note holding its description. `chartId` is an ObjectId
-  // and arrives as a string here, so the key is already the right shape.
-  const byChart = useMemo(() => {
+  /**
+   * ⚠ KEYED BY THE PAIR, never `_id` alone.
+   *
+   * `charts` carries one entry per INSTANCE: a `scope: "each"` chart appears
+   * N + 1 times with the same `_id`, told apart by `productId`. Keying on `_id`
+   * would collapse a whole notebook breakdown into one row and let its
+   * descriptions overwrite each other.
+   */
+  const instanceKey = (chartId: string, productId: string | null) =>
+    `${chartId}:${productId ?? ""}`;
+
+  const byInstance = useMemo(() => {
     const m = new Map<string, RoundNote>();
-    for (const n of notes) if (n.chartId) m.set(String(n.chartId), n);
+    for (const n of notes) {
+      if (n.chartId) m.set(instanceKey(String(n.chartId), n.productId ?? null), n);
+    }
     return m;
   }, [notes]);
 
   // SORT A COPY. `charts` is the array off the payload and `.sort()` is
   // in-place, so sorting it directly would reorder what the charts below read.
+  // Stable, so a chart's own instances keep the order the server emitted —
+  // summary first, then its notebooks.
   const ordered = useMemo(() => [...charts].sort((a, b) => a.order - b.order), [charts]);
 
+  const keyOf = (c: DebriefChart) => instanceKey(c._id, c.productId);
+
   const textFor = (c: DebriefChart) =>
-    drafts[c._id] ?? byChart.get(c._id)?.body ?? c.description ?? "";
+    drafts[keyOf(c)] ?? byInstance.get(keyOf(c))?.body ?? c.description ?? "";
 
   const save = async (c: DebriefChart) => {
+    const k = keyOf(c);
     const body = textFor(c).trim();
-    const existing = byChart.get(c._id);
-    setBusy(c._id); setError("");
+    const existing = byInstance.get(k);
+    setBusy(k); setError("");
     try {
       if (!body) {
         // EMPTY MEANS REMOVE, not "save an empty description": a blank body
@@ -244,10 +260,12 @@ function ChartDescriptions({
         // `title` is required by the model and never rendered for a chart —
         // the chart's own name is the heading — so it is filled, not asked for.
         await createRoundNote({
-          simulationId, roundNumber, chartId: c._id, title: c.name, body,
+          simulationId, roundNumber,
+          chartId: c._id, productId: c.productId,
+          title: c.name, body,
         });
       }
-      setDrafts((d) => { const next = { ...d }; delete next[c._id]; return next; });
+      setDrafts((d) => { const next = { ...d }; delete next[k]; return next; });
       onSaved();
     } catch (e: any) {
       setError(e?.response?.data?.message ?? e?.message ?? "Failed to save the description.");
@@ -273,10 +291,14 @@ function ChartDescriptions({
         // run rather than a hardcoded list, so a new category needs no edit here.
         const heading = c.category !== lastCategory ? c.category : null;
         lastCategory = c.category;
-        const dirty = drafts[c._id] !== undefined;
+        const k = keyOf(c);
+        const dirty = drafts[k] !== undefined;
+        // A per-notebook instance is indented under its summary, so N + 1 rows
+        // read as one chart broken down rather than N + 1 unrelated charts.
+        const isBreakdown = c.productId !== null;
 
         return (
-          <div key={c._id}>
+          <div key={k}>
             {heading && (
               <div style={{
                 textTransform: "uppercase", fontSize: 11, color: "#888",
@@ -285,11 +307,20 @@ function ChartDescriptions({
                 {heading}
               </div>
             )}
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "6px 0" }}>
+            <div style={{
+              display: "flex", gap: 8, alignItems: "flex-start", margin: "6px 0",
+              ...(isBreakdown ? { marginLeft: 18, borderLeft: "2px solid #eee", paddingLeft: 10 } : {}),
+            }}>
               <div style={{ width: 230, paddingTop: 4 }}>
-                <div style={{ fontSize: 13 }}>{c.name}</div>
+                <div style={{ fontSize: 13 }}>
+                  {c.name}
+                  {isBreakdown && (
+                    <span style={{ color: "#666" }}> · {c.productName ?? "notebook"}</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: "#888" }}>
                   {c.chartStyle ? c.chartStyle.name : "no shape chosen"}
+                  {c.scope === "each" && !isBreakdown ? " · all notebooks" : ""}
                 </div>
                 <div style={{ fontSize: 11, color: c.resolved ? "#2a7" : "#b00" }}>
                   {c.resolved ? "shown to players" : "hidden"}
@@ -297,13 +328,17 @@ function ChartDescriptions({
               </div>
               <textarea
                 value={textFor(c)}
-                onChange={(e) => setDrafts((d) => ({ ...d, [c._id]: e.target.value }))}
+                onChange={(e) => setDrafts((d) => ({ ...d, [k]: e.target.value }))}
                 rows={2}
                 style={{ flex: 1, minWidth: 0 }}
-                placeholder={`What a team should take from "${c.name}"`}
+                placeholder={
+                  isBreakdown
+                    ? `What a team should take from "${c.name}" for ${c.productName ?? "this notebook"}`
+                    : `What a team should take from "${c.name}"`
+                }
               />
-              <button onClick={() => save(c)} disabled={busy === c._id || !dirty}>
-                {busy === c._id ? "Saving…" : "Save"}
+              <button onClick={() => save(c)} disabled={busy === k || !dirty}>
+                {busy === k ? "Saving…" : "Save"}
               </button>
             </div>
           </div>
