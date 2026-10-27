@@ -366,12 +366,13 @@ export const deleteRoundNote = (id: string) => api.delete(`/round-notes/${id}`);
 
 // ── Debrief chart styles (the global gallery) ──────────────────
 /**
- * Every chart shape the app can draw, as data — family, variant and the shape
- * the player renders.
+ * Every chart shape the app can draw, as data — family, variant, and the
+ * Vega-Lite spec the SERVER compiles.
  *
- * ⚠ `shape` IS RENDERED BY THE PLAYER, so it must be sanitised HERE before it
- * is sent. The API is not the boundary; the console is, the same rule
- * `products.segments` follows. Writes are admin-only.
+ * ⚠ THE PLAYER NEVER SEES `shape`. `/round-debrief` resolves it to finished SVG
+ * and withholds the spec, so there is no interpreter at the far end. It is
+ * still sanitised HERE before it is sent — the console is the boundary, the
+ * same rule `products.segments` follows. Writes are admin-only.
  */
 export const getDebriefChartStyles = async (): Promise<DebriefChartStyle[]> => {
   const res = await api.get("/debrief-chart-styles");

@@ -444,15 +444,15 @@ export interface DebriefRoundDto {
   teams: Record<string, DebriefTeamRoundDto>;
 }
 
-/** The gallery shape that draws a chart. MIRRORS `models/debriefChartStyle.ts`.
- *  Its `category`/`name` are the chart FAMILY and VARIANT — a different
- *  namespace from the configured chart's two fields of the same names. */
+/** The gallery shape's IDENTITY. MIRRORS `models/debriefChartStyle.ts` minus
+ *  its `shape`, which this client never receives: the server compiles the spec
+ *  and ships `DebriefChartDto.svg`, so there is no grammar out here to abuse.
+ *  `category`/`name` are the chart FAMILY and VARIANT — a different namespace
+ *  from the configured chart's two fields of the same names. */
 export interface DebriefChartStyleDto {
   _id: Id;
   name: string;
   category: string;
-  /** The renderable shape, sanitised on the console side. */
-  shape: string;
 }
 
 /**
@@ -488,6 +488,19 @@ export interface DebriefChartDto {
   grouping: string | null;
   description: string | null;
   resolved: boolean;
+  /**
+   * THE FINISHED PICTURE, drawn by the server.
+   *
+   * Injected as-is. It is not sanitised here and must not be — it was produced
+   * by this server from a spec the console had already sanitised and the
+   * renderer had already refused executable keys in. Scrubbing it at render
+   * would be a second opinion about markup we generated ourselves, and the one
+   * most likely to break a gradient or a clip path.
+   *
+   * Null = copy without a figure. Never a reason to hide the slide; `resolved`
+   * decides that.
+   */
+  svg: string | null;
 }
 
 export interface RoundDebriefDto {

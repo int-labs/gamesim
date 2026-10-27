@@ -26,6 +26,8 @@ import PlayerConfig from "../models/playerConfig";
 import { ROLES } from "../constants/roles";
 import DebriefChartModel from "../models/debriefChart";
 import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
+import { buildChartRows } from "../services/debriefChartData";
+import { renderChartToSvg } from "../services/chartRenderer";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
 
 interface TokenUser {
@@ -52,13 +54,28 @@ interface DebriefChartDto {
   category:   string;
   order:      number;
   scope:      "overall" | "each";
-  /** The gallery shape, resolved. Null while the operator has not picked one. */
-  chartStyle: { _id: string; name: string; category: string; shape: string } | null;
+  /**
+   * The gallery shape's IDENTITY, not its shape.
+   *
+   * ⚠ `shape` IS DELIBERATELY NOT ON THE WIRE. It is a Vega-Lite spec, and the
+   * whole security argument is that the player holds no interpreter and no
+   * grammar — only `svg` below. Putting it back here would hand every team the
+   * thing the server exists to resolve on their behalf.
+   */
+  chartStyle: { _id: string; name: string; category: string } | null;
   xAxis:      string | null;
   yAxis:      string | null;
   grouping:   string | null;
   description: string | null;
   resolved:    boolean;
+  /**
+   * THE FINISHED PICTURE for this instance, drawn here.
+   *
+   * Null when the chart has no shape, when its spec will not render, or when it
+   * is unresolved and therefore never drawn at all. A null is a slide with copy
+   * and no figure, never a failed request.
+   */
+  svg: string | null;
 }
 
 /**
@@ -93,6 +110,7 @@ const resolveCharts = async (
   roundNumber: number,
   teamId: string | null,
   products: { _id: unknown; productName?: string }[],
+  payload: DebriefPayload,
 ): Promise<DebriefChartDto[]> => {
   const filter: Record<string, unknown> = {
     simulationId,
@@ -122,9 +140,23 @@ const resolveCharts = async (
   }
 
   const out: DebriefChartDto[] = [];
+  // Every instance's render, in flight at once. Awaited before this returns, so
+  // the mutation of each `dto.svg` below has settled by the time anyone reads
+  // the array.
+  const drawing: Promise<void>[] = [];
 
   for (const c of charts as any[]) {
     const style = c.chartStyle ?? null;
+
+    // PARSED ONCE PER CHART, not once per instance — a `scope: "each"` row would
+    // otherwise re-parse the same text N + 1 times. A shape that is not JSON is
+    // an authoring fault the preview already shows; here it just means no
+    // picture.
+    let spec: unknown = null;
+    if (style?.shape) {
+      try { spec = JSON.parse(style.shape); } catch { spec = null; }
+    }
+
     const base = {
       _id:      String(c._id),
       name:     c.name,
@@ -136,7 +168,6 @@ const resolveCharts = async (
             _id:      String(style._id),
             name:     style.name,
             category: style.category,
-            shape:    style.shape,
           }
         : null,
       xAxis:    c.xAxis ?? null,
@@ -146,7 +177,41 @@ const resolveCharts = async (
 
     const instance = (productId: string | null, productName: string | null) => {
       const description = byInstance.get(key(c._id, productId)) ?? null;
-      out.push({ ...base, productId, productName, description, resolved: description !== null });
+      const dto: DebriefChartDto = {
+        ...base,
+        productId,
+        productName,
+        description,
+        resolved: description !== null,
+        svg: null,
+      };
+      out.push(dto);
+
+      // AN UNRESOLVED CHART IS NEVER DRAWN. The slide hides it, so rendering it
+      // would be a Vega compile and an SVG serialisation per team per round for
+      // a picture nobody sees — and a debrief has many instances.
+      if (!dto.resolved || spec === null) return;
+
+      // ⚠ THE SAME ROW BUILDER THE PREVIEW USES. That is the whole guarantee
+      // behind the preview: what the operator approved is what the team reads.
+      const rows = buildChartRows({
+        payload,
+        xAxis:    base.xAxis,
+        yAxis:    base.yAxis,
+        grouping: base.grouping,
+        productId,
+      });
+
+      drawing.push(
+        renderChartToSvg({ spec, datasets: { rows } })
+          .then((svg) => { dto.svg = svg; })
+          // SWALLOWED ON PURPOSE. One unrenderable shape must not fail the
+          // debrief for every team on the simulation — the slide degrades to
+          // copy without a figure. The place a bad spec is meant to be legible
+          // is `POST /debrief-charts/preview`, which reports the reason to the
+          // author before it is ever saved.
+          .catch(() => { dto.svg = null; }),
+      );
     };
 
     // THE SUMMARY ALWAYS EXISTS, for both scopes — for `overall` it is the only
@@ -161,6 +226,7 @@ const resolveCharts = async (
     }
   }
 
+  await Promise.all(drawing);
   return out;
 };
 
@@ -266,6 +332,7 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
       round,
       isTeam ? String(user.teamId) : null,
       products as never,
+      payload,
     );
 
     const body: RoundDebriefResponse = { ...payload, charts };

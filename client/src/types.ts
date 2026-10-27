@@ -346,13 +346,20 @@ export interface DebriefChartConfig {
  * `DebriefChartConfig` and typing it as this would promise fields that never
  * arrive. `resolved` false = no description written, which the player hides.
  */
-export interface DebriefChart extends Omit<DebriefChartConfig, "simulationTypeId"> {
+export interface DebriefChart
+  extends Omit<DebriefChartConfig, "simulationTypeId" | "chartStyle"> {
   /** ⚠ `_id` REPEATS across a `scope: "each"` chart's instances. This is what
    *  tells them apart — null is the summary. Key by the pair, never `_id`. */
   productId: string | null;
   productName: string | null;
   description: string | null;
   resolved: boolean;
+  /** ⚠ IDENTITY ONLY — no `shape`. `/round-debrief` withholds the spec and
+   *  ships `svg` instead, so nothing downstream of it holds the grammar. */
+  chartStyle: Omit<DebriefChartStyle, "shape"> | null;
+  /** The finished picture, drawn by the server. Null when the chart has no
+   *  shape, its spec would not render, or it is unresolved and never drawn. */
+  svg: string | null;
 }
 
 export interface RoundDebrief {

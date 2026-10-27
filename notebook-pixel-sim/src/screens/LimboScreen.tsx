@@ -1,27 +1,7 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getRoundDebrief, getStoredSession, GamesimApiError } from '@/gamesim/client';
-import type { DebriefChartDto, DebriefTeamProductDto, RoundDebriefDto } from '@/gamesim/types';
+import type { DebriefChartDto, RoundDebriefDto } from '@/gamesim/types';
 import { PixelPanel } from '@/components/primitives';
-import { ChartLegend, type LegendEntry } from '@/components/charts/ChartLegend';
-import { PixelBarChart, type BarSeries } from '@/components/charts/PixelBarChart';
-import { PixelColumnStack, type StackSlice } from '@/components/charts/PixelColumnStack';
-import { PixelLineChart, type LineSeries } from '@/components/charts/PixelLineChart';
-import { PixelBubbleChart, type Bubble } from '@/components/charts/PixelBubbleChart';
-import { PixelVocPlot, type VocRow } from '@/components/charts/PixelVocPlot';
-import {
-  SERIES_COLORS,
-  SIGN_COLORS,
-  buildTeamPalette,
-  colorFor,
-  shortMoney,
-} from '@/components/charts/chartTheme';
-import {
-  priceSensitivityFromBounds,
-  productScoreFromDynamicPrice,
-  weightScaleFor,
-  TOP_DRIVER_SHARE,
-} from '@/engine/finlit/core/config/fieldConfig';
-import { diminishingReturnsFactor } from '@/engine/finlit/core/mathUtils';
 import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
 
@@ -29,16 +9,20 @@ import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
  * LIMBO — the round debrief the team reads after the operator calculates, and
  * before it confirms the next phase.
  *
- * ── THIS SCREEN DERIVES NOTHING IT COULD READ ───────────────────────────────
- * Every money and unit figure comes straight off `GET /round-debrief`. The only
- * arithmetic here is turning raw field bounds into the two 0..1 positions the
- * VoC axis needs, and that arithmetic is owned locally on purpose:
- * `priceSensitivity()` in fieldConfig.ts is the ONE definition of the price
- * tick, shared with the market tab, and the server ships raw bounds precisely
- * so it stays that way.
+ * ── THIS SCREEN DRAWS NOTHING AND DERIVES NOTHING ───────────────────────────
+ * Every chart on this page is a finished SVG the server rendered from the
+ * operator's configuration. This file's whole job is arrangement: order the
+ * instances, group them into collapsible segments, and inject the picture.
  *
- * Story order is the operator's, and the sections below follow it exactly:
- *   energy → cash → revenue → profit → cost → capacity → TnO → VoC
+ * It was thirteen hardcoded sections until 2026-10-27, each with its own
+ * derivation, and that is exactly what the configuration layer replaced — a
+ * slide that could only ever describe ONE simulation. Story order is now the
+ * operator's `order`, and which segment a chart sits in is their `category`.
+ *
+ * ⚠ ONE THING WENT WITH THEM. The old VoC plot normalised weights in the
+ * browser (`priceSensitivityFromBounds`, `diminishingReturnsFactor`), and the
+ * server's row builder emits `{x, y, series}` only — so that chart cannot be
+ * expressed as a binding yet. See the handover note.
  */
 
 type Load =
@@ -128,18 +112,41 @@ export function LimboScreen({
   return <DebriefBody data={load.data} onContinue={onContinue} />;
 }
 
+/** A category and the chart instances that render inside it. */
+interface Segment {
+  /** The operator's `category`. Empty = ungrouped, which renders with no
+   *  collapsible wrapper rather than under a blank heading. */
+  category: string;
+  charts: DebriefChartDto[];
+}
+
 /**
- * The round's resolved charts, keyed by `name`.
+ * Order the instances, then cut them into segments.
  *
- * A CONTEXT rather than a prop: `Section` is rendered by `DebriefBody`,
- * `ProfitBreakdown`, `TnOBreakdown` and `VocSection`, and threading the map
- * through would make every one of them carry something it never reads itself.
+ * ⚠ UNRESOLVED CHARTS ARE DROPPED FIRST. A slot with no description is not a
+ * slide — the server already declines to draw one, and a segment left holding
+ * only unresolved charts must disappear with them rather than render as an
+ * empty collapsible nobody can open onto anything.
  *
- * EMPTY BY DEFAULT, which is the same outcome as a chart nobody wrote copy
- * for — a `Section` rendered outside the provider resolves nothing and hides,
- * rather than throwing or drawing an untitled panel.
+ * `sort` is stable and the server emits a `scope: "each"` chart as its summary
+ * followed by its notebooks, so that reading order survives the sort without
+ * any secondary key.
  */
-const ChartsContext = createContext<Map<string, DebriefChartDto>>(new Map());
+function toSegments(charts: DebriefChartDto[]): Segment[] {
+  const ordered = charts.filter((c) => c.resolved).sort((a, b) => a.order - b.order);
+
+  const segments: Segment[] = [];
+  for (const chart of ordered) {
+    const category = chart.category ?? '';
+    // Appended to the LAST segment only when the category matches, never looked
+    // up across the whole list: two runs of the same category separated by a
+    // third are two segments, which is what the operator's `order` asked for.
+    const tail = segments[segments.length - 1];
+    if (tail && tail.category === category) tail.charts.push(chart);
+    else segments.push({ category, charts: [chart] });
+  }
+  return segments;
+}
 
 function DebriefBody({
   data,
@@ -148,308 +155,134 @@ function DebriefBody({
   data: RoundDebriefDto;
   onContinue?: () => void;
 }) {
-  const { teams, products, rounds, roundNumber, you } = data;
-
-  // ⚠ INTERIM. Keyed by `name` because the thirteen `<Section name="…">` call
-  // sites below are still hardcoded, so they can only find a chart an operator
-  // happened to name identically. Charts are DB rows now and the slide should
-  // ITERATE `data.charts` in `order`, drawing each from its `chartStyle` —
-  // until it does, a configured chart whose name differs simply never appears.
-  const charts = useMemo(
-    () => new Map((data.charts ?? []).map((c) => [c.name, c])),
-    [data.charts],
-  );
-
-  // Built once from the roster and read ONLY by id — a chart that coloured by
-  // array position would repaint a team whenever the roster order shifted, and
-  // this page shows several rounds side by side.
-  const palette = useMemo(
-    () => buildTeamPalette(teams.map((t) => t.teamId)),
-    [teams],
-  );
-
-  const legend: LegendEntry[] = teams.map((t) => ({
-    id: t.teamId,
-    label: t.teamName,
-    color: colorFor(palette, t.teamId),
-  }));
-
-  const here = rounds.find((r) => r.roundNumber === roundNumber) ?? null;
-  const roundLabels = rounds.map((r) => `Round ${r.roundNumber + 1}`);
-
-  /** One bar series per team for a single-round figure. */
-  const perTeam = (pick: (t: string) => number | null): BarSeries[] =>
-    teams.map((t) => ({
-      id: t.teamId,
-      label: t.teamName,
-      color: colorFor(palette, t.teamId),
-      values: [pick(t.teamId)],
-    }));
-
-  /** One line series per team across every round loaded. */
-  const overRounds = (pick: (t: string, r: typeof rounds[number]) => number | null): LineSeries[] =>
-    teams.map((t) => ({
-      id: t.teamId,
-      label: t.teamName,
-      color: colorFor(palette, t.teamId),
-      values: rounds.map((r) => pick(t.teamId, r)),
-    }));
-
-  const figure = (teamId: string, key: keyof NonNullable<typeof here>['teams'][string]) => {
-    const v = here?.teams[teamId]?.[key];
-    return typeof v === 'number' ? v : null;
-  };
+  const { roundNumber } = data;
+  const segments = useMemo(() => toSegments(data.charts ?? []), [data.charts]);
 
   return (
     // A FULL SCREEN, like PhaseIntroScreen and StartScreen: `absolute inset-0`
     // with its own opaque surface. Without it the page rendered transparent
     // over `AppBackground` and, because App's container is
     // `h-screen overflow-hidden`, a long debrief could not scroll either.
-    <ChartsContext.Provider value={charts}>
     <div className="absolute inset-0 z-10 overflow-y-auto bg-cream-100">
       {/* 80vw, not a `max-w-*` step. The rail and the stage are both sized in
           `vw` and this page was capped at `max-w-5xl` (1024px), so on a wide
           screen it sat in a narrow column with the charts squeezed and the
           prose hard to read. A viewport fraction scales with everything else. */}
       <div className="flex flex-col gap-4 p-3 sm:p-4 w-[80vw] mx-auto">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <div className="eyebrow eyebrow-sm text-ink-700">Round debrief</div>
-          <h1 className="h2 leading-none">Round {roundNumber + 1}</h1>
-        </div>
-        {/* The team legend moved OUT of here and into each chart — one roster
-            at the top meant scrolling back up to recall which colour was whom.
-            See `Section`, which renders it beneath every plot. */}
-      </header>
+        <header className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <div className="eyebrow eyebrow-sm text-ink-700">Round debrief</div>
+            <h1 className="h2 leading-none">Round {roundNumber + 1}</h1>
+          </div>
+        </header>
 
-      <LearningPoint roundNumber={roundNumber} />
+        <LearningPoint roundNumber={roundNumber} />
 
-      {/* Moved here 2026-10-08 from the deleted "Phase N complete" step, which
-          was its only call site. Takes the DEBRIEF's round explicitly — the
-          default reads `bootstrap.round`, which by now is the NEXT round.
-          Renders nothing when the facilitator wrote no notes. */}
-      <RoundNotesCard roundNumber={roundNumber} />
+        {/* Moved here 2026-10-08 from the deleted "Phase N complete" step, which
+            was its only call site. Takes the DEBRIEF's round explicitly — the
+            default reads `bootstrap.round`, which by now is the NEXT round.
+            Renders nothing when the facilitator wrote no notes. */}
+        <RoundNotesCard roundNumber={roundNumber} />
 
-      {/* ── Story opener: effort ───────────────────────────────────────── */}
-      {/* "Cash utilization" (opening vs closing balance, with a delta label)
-          was removed here 2026-10-09 — owner's call, no longer useful. It was
-          the only caller of PixelBarChart's `delta` and `fadeLead` props. */}
-      <Section name="totalEnergy" legend={legend} youId={you}>
-        <PixelBarChart
-          groups={['This round']}
-          series={perTeam((t) => figure(t, 'energy'))}
-          yLabel="Energy"
-        />
-      </Section>
-
-      {/* ── 1. Revenue ─────────────────────────────────────────────────── */}
-      {/* PER ROUND, one bar per team — not the across-rounds line it was until
-          2026-10-09. Team identity is colour plus the header legend, which is
-          how "Total energy consumption" above already reads. */}
-      <Section name="totalRevenue"
-               legend={legend} youId={you}>
-        <PixelBarChart
-          groups={['This round']}
-          series={perTeam((t) => figure(t, 'revenue'))}
-          format={shortMoney}
-          yLabel="Revenue ($)"
-        />
-      </Section>
-
-      <Section name="revenueByNotebook">
-        <PixelColumnStack
-          columns={teams.map((t) => t.teamName)}
-          slices={products.map((p, i) => ({
-            id: p.productId,
-            label: p.productName,
-            color: SERIES_COLORS[i % SERIES_COLORS.length],
-            values: teams.map((t) => here?.teams[t.teamId]?.byProduct[p.productId]?.revenue ?? null),
-          }))}
-          format={shortMoney}
-          yLabel="Revenue ($)"
-        />
-        <ChartLegend entries={products.map((p, i) => ({
-          id: p.productId, label: p.productName, color: SERIES_COLORS[i % SERIES_COLORS.length],
-        }))} />
-      </Section>
-
-      {/* THE SAME NUMBER THE HUD CHIP SHOWED while the player was designing —
-          `dynamicPrice` through `productScoreFromDynamicPrice`, out of 100.
-          Reading the server's `productScore` here instead would put a second,
-          unrelated 0..1 figure under the same word. */}
-      <Section name="productScore">
-        <PixelColumnStack
-          columns={teams.map((t) => t.teamName)}
-          slices={products.map((p, i) => ({
-            id: p.productId,
-            label: p.productName,
-            color: SERIES_COLORS[i % SERIES_COLORS.length],
-            values: teams.map((t) =>
-              productScoreFromDynamicPrice(
-                here?.teams[t.teamId]?.byProduct[p.productId]?.dynamicPrice,
-              ),
+        {segments.length === 0 ? (
+          // ⚠ AN EMPTY DEBRIEF IS A CONFIGURED OUTCOME, not a failure. It means
+          // the facilitator wrote no descriptions for this round, and saying so
+          // is the only way a team can tell that apart from a broken page.
+          <PixelPanel title="Nothing to read yet">
+            <div className="body text-ink-800 leading-relaxed">
+              The facilitator hasn't written up this round's charts.
+            </div>
+          </PixelPanel>
+        ) : (
+          segments.map((s, i) =>
+            s.category ? (
+              <CollapsibleSegment key={`${s.category}:${i}`} title={s.category}>
+                {s.charts.map((c) => <ChartSlide key={instanceKey(c)} chart={c} />)}
+              </CollapsibleSegment>
+            ) : (
+              s.charts.map((c) => <ChartSlide key={instanceKey(c)} chart={c} />)
             ),
-          }))}
-          format={(n) => n.toFixed(1)}
-          yLabel="Product score (/100)"
-        />
-        <ChartLegend entries={products.map((p, i) => ({
-          id: p.productId, label: p.productName, color: SERIES_COLORS[i % SERIES_COLORS.length],
-        }))} />
-      </Section>
+          )
+        )}
 
-      {/* ── 2. Profit ──────────────────────────────────────────────────── */}
-      {/* COLOURED BY SIGN, not by team — so the teams are named on the axis
-          here. The page legend maps team → colour and would be wrong for this
-          chart. Gross profit; net profit belongs to the profit breakdown. */}
-      <Section name="grossProfit">
-        <PixelBarChart
-          groups={teams.map((t) => t.teamName)}
-          series={[{
-            id: 'grossProfit',
-            label: 'Gross profit',
-            color: SIGN_COLORS.positive,
-            values: teams.map((t) => figure(t.teamId, 'grossProfit')),
-            colors: teams.map((t) => {
-              const v = figure(t.teamId, 'grossProfit');
-              return v == null ? null : v >= 0 ? SIGN_COLORS.positive : SIGN_COLORS.negative;
-            }),
-          }]}
-          format={shortMoney}
-          yLabel="Gross profit ($)"
-        />
-      </Section>
-
-      <ProfitBreakdown
-        name="grossProfitByNotebook"
-        teams={teams}
-        products={products}
-        here={here}
-        pick={(bp) => bp?.grossProfit ?? null}
-      />
-
-      <Section name="netProfit">
-        <PixelBarChart
-          groups={teams.map((t) => t.teamName)}
-          series={[{
-            id: 'netProfit',
-            label: 'Net profit',
-            color: SIGN_COLORS.positive,
-            values: teams.map((t) => figure(t.teamId, 'netProfit')),
-            colors: teams.map((t) => {
-              const v = figure(t.teamId, 'netProfit');
-              return v == null ? null : v >= 0 ? SIGN_COLORS.positive : SIGN_COLORS.negative;
-            }),
-          }]}
-          format={shortMoney}
-          yLabel="Net profit ($)"
-        />
-      </Section>
-
-      <ProfitBreakdown
-        name="netProfitByNotebook"
-        teams={teams}
-        products={products}
-        here={here}
-        pick={(bp) => bp?.netProfit ?? null}
-      />
-
-      {/* ── 3. Cost ────────────────────────────────────────────────────── */}
-      <Section name="totalCost">
-        <PixelBarChart
-          groups={['This round']}
-          series={perTeam((t) => {
-            const c = figure(t, 'cogs');
-            const o = figure(t, 'operatingExpenses');
-            // Both or neither: a total built from one half would understate it
-            // silently, which is worse than showing no bar.
-            return c == null || o == null ? null : c + o;
-          })}
-          format={shortMoney}
-          yLabel="Cost ($)"
-        />
-      </Section>
-
-      <CostBreakdown data={data} here={here} />
-
-      {/* ── 4. Capacity ────────────────────────────────────────────────── */}
-      <Section name="unitsVsDemand">
-        <PixelBarChart
-          groups={teams.map((t) => t.teamName)}
-          series={[
-            {
-              id: 'demand', label: 'Customers obtained', color: SERIES_COLORS[1],
-              values: teams.map((t) => figure(t.teamId, 'customersObtained')),
-            },
-            {
-              id: 'sold', label: 'Units sold', color: SERIES_COLORS[2],
-              values: teams.map((t) => figure(t.teamId, 'unitsSold')),
-            },
-          ]}
-          yLabel="Units"
-        />
-        <ChartLegend entries={[
-          { id: 'demand', label: 'Customers obtained', color: SERIES_COLORS[1] },
-          { id: 'sold', label: 'Units sold', color: SERIES_COLORS[2] },
-        ]} />
-      </Section>
-
-      <Section name="priceVsUnits"
-               legend={legend} youId={you}>
-        <PriceVsUnits data={data} here={here} palette={palette} />
-      </Section>
-
-      {/* ── 5. TnO ─────────────────────────────────────────────────────── */}
-      <TnOBreakdown data={data} here={here} />
-
-      {/* ── 6. Voice of Customer ───────────────────────────────────────── */}
-      {products.map((p) => (
-        <VocSection key={p.productId} data={data} here={here} product={p} palette={palette} />
-      ))}
-
-      {/* ── 7. Across rounds — the wrapper ─────────────────────────────────
-          LAST ON PURPOSE. Everything above answers "what happened this
-          round"; this closes the page by putting those answers back into the
-          run, so the team leaves on the trend rather than on one round's VoC.
-
-          THE ONLY SECTION THAT IS NOT ABOUT THIS ROUND — every figure above
-          reads `here`, these read all of `rounds`. Grouped rather than sat
-          beside each metric's own bar chart: alternating bar/line per metric
-          made the page read as six charts of the same thing.
-
-          Colour is by TEAM here, so the names come from the page legend, not
-          the axis — the opposite of the sign-coloured profit bars above. */}
-      <Section name="acrossRounds" legend={legend} youId={you}>
-        <PixelLineChart
-          points={roundLabels}
-          series={overRounds((t, r) => r.teams[t]?.revenue ?? null)}
-          format={shortMoney}
-          yLabel="Revenue ($)"
-        />
-        <PixelLineChart
-          points={roundLabels}
-          series={overRounds((t, r) => r.teams[t]?.grossProfit ?? null)}
-          format={shortMoney}
-          yLabel="Gross profit ($)"
-        />
-        <PixelLineChart
-          points={roundLabels}
-          series={overRounds((t, r) => r.teams[t]?.netProfit ?? null)}
-          format={shortMoney}
-          yLabel="Net profit ($)"
-        />
-      </Section>
-
-      {onContinue && (
-        <div className="flex justify-end pt-2 pb-4">
-          <button onClick={onContinue} className="game-btn min-h-[44px]">
-            <span className="btn-label uppercase">Continue to next phase</span>
-          </button>
-        </div>
-      )}
+        {onContinue && (
+          <div className="flex justify-end pt-2 pb-4">
+            <button onClick={onContinue} className="game-btn min-h-[44px]">
+              <span className="btn-label uppercase">Continue to next phase</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
-    </ChartsContext.Provider>
+  );
+}
+
+/** ⚠ THE PAIR, never `_id`. A `scope: "each"` chart emits N + 1 instances that
+ *  all share an `_id`; keying on it alone collapses a whole notebook breakdown
+ *  into one row and React reuses the wrong node for it. */
+const instanceKey = (c: DebriefChartDto) => `${c._id}:${c.productId ?? ''}`;
+
+/**
+ * One category of the slide, open by default.
+ *
+ * OPEN, because a team is reading this once, in a fixed stretch of time, and a
+ * closed segment is a chart they will never find. Collapsing exists so a long
+ * debrief can be put away after it is read, not so it starts hidden.
+ */
+function CollapsibleSegment({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between gap-2 border-2 border-ink-900 bg-cream-50 px-3 py-2 text-left min-h-[44px]"
+        aria-expanded={open}
+      >
+        <span className="eyebrow uppercase text-ink-800">{title}</span>
+        <span className="body-sm text-ink-700">{open ? '−' : '+'}</span>
+      </button>
+      {open && <div className="flex flex-col gap-4">{children}</div>}
+    </div>
+  );
+}
+
+/**
+ * ONE CHART INSTANCE — title, the operator's copy, and the server's picture.
+ *
+ * ⚠ THE SVG IS INJECTED UNSANITISED, deliberately. It is not operator input: it
+ * is output this server produced from a spec the console sanitised on save and
+ * the renderer refused executable keys in. Scrubbing it here would be a second
+ * opinion about markup we generated ourselves, and the likeliest outcome is a
+ * broken gradient or clip path rather than any security gained.
+ *
+ * A null `svg` still renders the slide. The copy is the lesson; the chart
+ * illustrates it, and a shape that failed to compile should not take the
+ * facilitator's writing down with it.
+ */
+function ChartSlide({ chart }: { chart: DebriefChartDto }) {
+  const title = chart.productName ? `${chart.name} · ${chart.productName}` : chart.name;
+
+  return (
+    <PixelPanel title={title}>
+      {chart.description && (
+        <div className="body text-ink-700 leading-snug mb-2">{chart.description}</div>
+      )}
+      {chart.svg && (
+        // Vega writes fixed `width`/`height` onto the root `<svg>`, so it is
+        // capped to the panel here rather than left to overflow the 80vw column.
+        <div
+          className="w-full overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto"
+          dangerouslySetInnerHTML={{ __html: chart.svg }}
+        />
+      )}
+    </PixelPanel>
   );
 }
 
@@ -480,320 +313,6 @@ function LearningPoint({ roundNumber }: { roundNumber: number }) {
       <div className="body-sm font-bold leading-tight">{lp.title}</div>
       <div className="body-sm text-ink-800 leading-snug mt-1">{lp.blurb}</div>
     </div>
-  );
-}
-
-/* ── Sections that need their own derivation ─────────────────────────── */
-
-/**
- * A profit breakdown stacked by notebook — gross and net take the same shape,
- * differing only in which figure they pick, so they share one component rather
- * than two near-identical blocks that could drift apart.
- *
- * Losses stack DOWNWARD from zero on their own running base; `PixelColumnStack`
- * keeps `basePos`/`baseNeg` separately for exactly this, so a loss-making
- * notebook draws below the line instead of punching a gap in the column.
- */
-function ProfitBreakdown({
-  name, teams, products, here, pick,
-}: {
-  /** The catalogue slot — the two call sites are separate charts with separate
-   *  descriptions, although they share this component. */
-  name: string;
-  teams: RoundDebriefDto['teams'];
-  products: RoundDebriefDto['products'];
-  here: RoundDebriefDto['rounds'][number] | null;
-  pick: (bp: DebriefTeamProductDto | undefined) => number | null;
-}) {
-  const slices: StackSlice[] = products.map((p, i) => ({
-    id: p.productId,
-    label: p.productName,
-    color: SERIES_COLORS[i % SERIES_COLORS.length],
-    values: teams.map((t) => pick(here?.teams[t.teamId]?.byProduct[p.productId])),
-  }));
-
-  return (
-    <Section name={name}>
-      <PixelColumnStack
-        columns={teams.map((t) => t.teamName)}
-        slices={slices}
-        format={shortMoney}
-        yLabel="Profit ($)"
-      />
-      <ChartLegend entries={slices.map((s) => ({ id: s.id, label: s.label, color: s.color }))} />
-    </Section>
-  );
-}
-
-/** Cost categories are OPERATOR FREE TEXT — collected from the data, never a
- *  hardcoded list, or renaming a row on the console silently drops a band. */
-function CostBreakdown({
-  data, here,
-}: { data: RoundDebriefDto; here: RoundDebriefDto['rounds'][number] | null }) {
-  const categories = useMemo(() => {
-    const seen = new Set<string>();
-    for (const t of data.teams) {
-      for (const k of Object.keys(here?.teams[t.teamId]?.costByCategory ?? {})) seen.add(k);
-    }
-    return [...seen].sort();
-  }, [data.teams, here]);
-
-  if (categories.length === 0) return null;
-
-  const slices: StackSlice[] = categories.map((c, i) => ({
-    id: c,
-    label: c,
-    color: SERIES_COLORS[i % SERIES_COLORS.length],
-    values: data.teams.map((t) => here?.teams[t.teamId]?.costByCategory[c] ?? null),
-  }));
-
-  return (
-    <Section name="moneyAllocation">
-      <PixelColumnStack
-        columns={data.teams.map((t) => t.teamName)}
-        slices={slices}
-        format={shortMoney}
-        yLabel="Expenses ($)"
-      />
-      <ChartLegend entries={slices.map((s) => ({ id: s.id, label: s.label, color: s.color }))} />
-    </Section>
-  );
-}
-
-/**
- * ENERGY ALLOCATION — the twin of the money allocation above, deliberately the
- * same shape: one column per team, stacked by lever container.
- *
- * It was grouped bars with LEVERS on the axis until 2026-10-09. That answered
- * "who spent most on hiring"; stacking answers "where did each team's energy
- * go", which is the question the money chart next to it asks of cash. Lever
- * names are the container as snapshotted on the decision, so they are operator
- * free text — collected from the data, never hardcoded.
- */
-function TnOBreakdown({
-  data, here,
-}: {
-  data: RoundDebriefDto;
-  here: RoundDebriefDto['rounds'][number] | null;
-}) {
-  const levers = useMemo(() => {
-    const seen = new Set<string>();
-    for (const t of data.teams) {
-      for (const k of Object.keys(here?.teams[t.teamId]?.energyByLever ?? {})) seen.add(k);
-    }
-    return [...seen].sort();
-  }, [data.teams, here]);
-
-  if (levers.length === 0) return null;
-
-  const slices: StackSlice[] = levers.map((l, i) => ({
-    id: l,
-    label: l,
-    color: SERIES_COLORS[i % SERIES_COLORS.length],
-    values: data.teams.map((t) => here?.teams[t.teamId]?.energyByLever[l] ?? null),
-  }));
-
-  return (
-    <Section name="energyAllocation">
-      <PixelColumnStack
-        columns={data.teams.map((t) => t.teamName)}
-        slices={slices}
-        yLabel="Energy"
-      />
-      <ChartLegend entries={slices.map((s) => ({ id: s.id, label: s.label, color: s.color }))} />
-    </Section>
-  );
-}
-
-function PriceVsUnits({
-  data, here, palette,
-}: {
-  data: RoundDebriefDto;
-  here: RoundDebriefDto['rounds'][number] | null;
-  palette: Map<string, string>;
-}) {
-  // One bubble per team per notebook they actually made. A notebook with no
-  // scored block is omitted rather than plotted at the origin, which would read
-  // as "priced at zero, sold none".
-  const bubbles: Bubble[] = [];
-  for (const t of data.teams) {
-    for (const p of data.products) {
-      const bp = here?.teams[t.teamId]?.byProduct[p.productId];
-      if (!bp || bp.sellingPrice == null || bp.unitsSold == null) continue;
-      bubbles.push({
-        id: `${t.teamId}:${p.productId}`,
-        label: t.teamName.slice(0, 2).toUpperCase(),
-        color: colorFor(palette, t.teamId),
-        x: bp.unitsSold,
-        y: bp.sellingPrice,
-        size: bp.unitsSold,
-      });
-    }
-  }
-  return <PixelBubbleChart bubbles={bubbles} xLabel="Units sold" yLabel="Price ($)" />;
-}
-
-/**
- * VoC for one notebook.
- *
- * THE TWO NORMALISATIONS LIVE HERE, and nowhere else:
- *   weight — `direction × scale`, or `priceSensitivity().weight` for `selling_price`
- *   bubble — `(captured / attainable) × weight`, on the weight's own scale
- *
- * The server ships raw bounds precisely so `priceSensitivity()` stays the one
- * definition shared with the market tab.
- */
-function VocSection({
-  data, here, product, palette,
-}: {
-  data: RoundDebriefDto;
-  here: RoundDebriefDto['rounds'][number] | null;
-  product: RoundDebriefDto['products'][number];
-  palette: Map<string, string>;
-}) {
-  // ⚠ THE DIVISOR SPANS EVERY NOTEBOOK, not this one.
-  //
-  // The same normalisation `reportMatrix` applies to its Weight column, and it
-  // has to be the same SET or the two surfaces disagree: only ONE driver in the
-  // catalogue reaches 0.95, and every other notebook's best spec lands below it.
-  // Scaled per notebook this read 0.95 on every chart — Cutesy's `charms` would
-  // sit at the top here while the report put it at 0.64 of the anchor, the same
-  // driver telling two stories.
-  //
-  // `data.products` is the whole catalogue, already on the wire, so no fetch is
-  // needed. `selling_price` is excluded: it carries direction 0 and would only
-  // drag the divisor down.
-  const scale = weightScaleFor(
-    data.products.flatMap((p) =>
-      p.fields.filter((f) => f.key !== 'selling_price').map((f) => f.direction),
-    ),
-  );
-
-  const rows: VocRow[] = product.fields.map((f) => {
-    // `selling_price` carries direction 0 and takes its weight from the shared
-    // helper; every other spec uses the operator's authored `direction`.
-    //
-    // FROM THE WIRE'S BOUNDS, not `priceSensitivity(genre)` — the genre id is
-    // not the product name, and that lookup would miss and return defaults
-    // while still type-checking.
-    //
-    // BOTH ARRIVE AT THE SAME CEILING, by different routes, because they are
-    // different quantities. A `direction` is scaled by this notebook's divisor
-    // so the top driver lands on 0.95. Price sensitivity is ALREADY a 0..1
-    // share of the price universe, so it takes the 0.95 anchor directly —
-    // running it through a direction-derived divisor would be dimensionally
-    // meaningless and would throw it off the axis (0.75 × 3.4 = 2.55).
-    const weight = f.key === 'selling_price'
-      ? priceSensitivityFromBounds(f.minValue, f.maxValue).weight * TOP_DRIVER_SHARE
-      : (f.direction ?? 0) * scale;
-
-    // THE BUBBLE IS THE TEAM'S WEIGHTED VALUE, on the weight's own scale —
-    // `(captured / attainable) × weight`, the same normalisation the analysis
-    // report applies to its design rows. `direction` cancels out of that ratio,
-    // which is why this works for `selling_price` too, whose direction is 0.
-    //
-    // ⚠ MIRRORS THE SERVER. `diminishingReturnsFactor` is the client's copy of
-    // `calcDiminishingReturnsCostFactor`, and `PEAK` must stay its value at the
-    // optimum. If that curve moves and this does not, every bubble lands at the
-    // wrong height while still looking plausible.
-    const min = f.minValue ?? 0;
-    const max = f.maxValue ?? 0;
-    const PEAK = diminishingReturnsFactor(max, min, max);
-    const attainable = max * PEAK;
-
-    const dots: VocRow['dots'] = [];
-    for (const t of data.teams) {
-      const raw = here?.teams[t.teamId]?.byProduct[product.productId]?.fieldValues[f.fieldId];
-      if (raw == null || attainable <= 0 || weight == null) continue;
-      // Floor only — the curve is meant to SEE an overshoot and decay past the
-      // ceiling, which is the whole point of it being centred on `max`.
-      const resolved = Math.max(raw, min);
-      const captured = resolved * diminishingReturnsFactor(resolved, min, max);
-      dots.push({
-        teamId: t.teamId,
-        label: t.teamName,
-        color: colorFor(palette, t.teamId),
-        value: (captured / attainable) * weight,
-      });
-    }
-
-    return { id: f.fieldId, label: f.label, weight, dots };
-  });
-
-  // WEIGHT DESCENDING — the heaviest driver is most of the answer, matching the
-  // competitor report's rule in `reportMatrix.ts`. `sort` is stable and the wire
-  // already arrives in the operator's authored `order`, so ties hold it.
-  //
-  // Sorted on the EFFECTIVE weight, not raw `direction`: `selling_price` carries
-  // direction 0 and takes its tick from `priceSensitivityFromBounds`, so sorting
-  // the raw field would bury the one spec whose weight was substituted.
-  rows.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
-
-  if (rows.length === 0) return null;
-
-  return (
-    <Section
-      name="voc"
-      // ONE SLOT, drawn once per notebook — the description explains what the
-      // chart means, which does not change per product. The notebook's name is
-      // appended to the server's label rather than authored into it.
-      suffix={product.productName}
-      legend={data.teams.map((t) => ({
-        id: t.teamId,
-        label: t.teamName,
-        color: colorFor(palette, t.teamId),
-      }))}
-      youId={data.you}
-    >
-      <PixelVocPlot rows={rows} youId={data.you} />
-    </Section>
-  );
-}
-
-/* ── Shell ───────────────────────────────────────────────────────────── */
-
-/**
- * A SLOT WITHOUT A READING IS NOT A SLIDE.
- *
- * The title and the description both come from the server's chart catalogue,
- * joined per round from the facilitator's notes — nothing on this page authors
- * copy any more. A chart the operator has written nothing for is `resolved:
- * false` and renders NOTHING, which is why this returns before `PixelPanel`.
- *
- * ⚠ That makes an unwritten round an EMPTY debrief, by design. If the page is
- * blank, the charts are unresolved, not broken.
- *
- * `legend` is the TEAM roster, and it rides with the chart rather than sitting
- * once in the page header — a reader partway down the page was scrolling back
- * up to recall which colour was whom. Sections whose marks are coloured by
- * something else (products, cost categories, levers) pass none and render
- * their own legend in `children` instead.
- */
-function Section({
-  name, suffix, legend, youId, children,
-}: {
-  /** The catalogue's stable `name`. Joined on this, never on the label. */
-  name: string;
-  /** Appended to the server's label, for a chart drawn once per notebook. */
-  suffix?: string;
-  legend?: LegendEntry[];
-  youId?: string | null;
-  children: React.ReactNode;
-}) {
-  const chart = useContext(ChartsContext).get(name);
-  // READ THE FLAG, don't re-derive it from `description`. The server decides
-  // what counts as resolved; a second opinion here is how the two come to
-  // disagree about which charts a round contains.
-  if (!chart?.resolved) return null;
-
-  return (
-    <PixelPanel title={suffix ? `${chart.name} · ${suffix}` : chart.name}>
-      {chart.description && (
-        <div className="body text-ink-700 leading-snug mb-2">{chart.description}</div>
-      )}
-      <div className="flex flex-col gap-2">{children}</div>
-      {legend && legend.length > 0 && <ChartLegend entries={legend} youId={youId} />}
-    </PixelPanel>
   );
 }
 
