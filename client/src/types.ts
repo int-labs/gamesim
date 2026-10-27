@@ -282,6 +282,26 @@ export interface RoundNote {
   pinned: boolean;
 }
 
+/**
+ * Something a chart may plot, for one simulation type. MIRRORS
+ * `services/debriefDimensions.ts`.
+ *
+ * `field` is stored verbatim in a chart's `xAxis`/`yAxis`/`grouping`. The list
+ * is per type because the notebooks, lever keys and cost bands come from that
+ * type's own Products and GlobalInputs.
+ */
+export interface DebriefDimension {
+  field: string;
+  label: string;
+  kind: "categorical" | "measure";
+  source: "team" | "round" | "product" | "lever" | "cost" | "spec";
+}
+
+export interface DebriefDimensions {
+  categorical: DebriefDimension[];
+  measures: DebriefDimension[];
+}
+
 /** The gallery shape that draws a chart. MIRRORS `models/debriefChartStyle.ts`
  *  — `category` is the FAMILY ("bar chart") and `name` the VARIANT ("Stacked
  *  Bar"), which is a different namespace from the chart's own two fields. */

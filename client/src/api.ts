@@ -1,5 +1,7 @@
 import axios from "axios";
-import type { DebriefChartConfig, DebriefChartStyle, RoundDebrief, RoundNote } from "./types";
+import type {
+  DebriefChartConfig, DebriefChartStyle, DebriefDimensions, RoundDebrief, RoundNote,
+} from "./types";
 
 const api = axios.create({
   baseURL: (import.meta as any).env?.VITE_GAMESIM_API_URL ?? "http://localhost:5000/api",
@@ -387,6 +389,19 @@ export const updateDebriefChartStyle = (
  *  delete cannot silently leave charts that render nothing. */
 export const deleteDebriefChartStyle = (id: string) =>
   api.delete(`/debrief-chart-styles/${id}`);
+
+// ── Debrief dimensions ─────────────────────────────────────────
+/**
+ * What a chart may plot for this simulation type — what the X / Y / grouping
+ * selects read. Derived server-side from the type's Products and GlobalInputs,
+ * so there is nothing to write.
+ */
+export const getDebriefDimensions = async (
+  simulationTypeId: string,
+): Promise<DebriefDimensions> => {
+  const res = await api.get("/debrief-dimensions", { params: { simulationTypeId } });
+  return (res.data ?? { categorical: [], measures: [] }) as DebriefDimensions;
+};
 
 // ── Debrief charts (per simulation type) ───────────────────────
 /**

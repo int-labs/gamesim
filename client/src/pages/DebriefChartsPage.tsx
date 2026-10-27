@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   createDebriefChart, deleteDebriefChart,
-  getDebriefCharts, getDebriefChartStyles, getSimulationTypes,
+  getDebriefCharts, getDebriefChartStyles, getDebriefDimensions, getSimulationTypes,
   updateDebriefChart,
 } from "../api";
-import type { DebriefChartConfig, DebriefChartStyle } from "../types";
+import type {
+  DebriefChartConfig, DebriefChartStyle, DebriefDimension, DebriefDimensions,
+} from "../types";
 
 /**
  * Which charts a simulation type's debrief shows, and where.
@@ -30,11 +32,55 @@ const td  = { padding: "3px 6px", verticalAlign: "top" as const };
 
 const EMPTY = { name: "", category: "", order: 0, chartStyle: "", xAxis: "", yAxis: "", grouping: "" };
 
+/** A binding's human label, or the raw field marked when the registry no longer
+ *  offers it — the same rule the select follows, so the table and the form
+ *  cannot disagree about whether a chart is bound to something real. */
+function dimLabel(dims: DebriefDimensions, field: string | null) {
+  if (!field) return <span style={{ color: "#bbb" }}>—</span>;
+  const hit = [...dims.categorical, ...dims.measures].find((d) => d.field === field);
+  if (hit) return hit.label;
+  return <span style={{ color: "#b00" }}>{field} (missing)</span>;
+}
+
+/**
+ * One binding slot.
+ *
+ * ⚠ A SAVED VALUE THE REGISTRY NO LONGER OFFERS IS KEPT AND MARKED, not dropped
+ * silently. A lever renamed on the GlobalInputs page takes its dimension with
+ * it, and a select that simply showed blank would look like the operator had
+ * never set one — then overwrite it on the next save.
+ */
+function DimensionSelect({
+  label, options, value, onChange,
+}: {
+  label: string;
+  options: DebriefDimension[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const known = options.some((o) => o.field === value);
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{ maxWidth: 190, ...(value && !known ? { color: "#b00" } : {}) }}
+      title={value && !known ? `"${value}" is not offered by this type any more` : undefined}
+    >
+      <option value="">-- {label} --</option>
+      {value && !known && <option value={value}>{value} (missing)</option>}
+      {options.map((o) => (
+        <option key={o.field} value={o.field}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
 export default function DebriefChartsPage() {
   const [simulationTypes, setSimulationTypes] = useState<any[]>([]);
   const [selectedSimType, setSelectedSimType] = useState("");
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
   const [charts, setCharts] = useState<DebriefChartConfig[]>([]);
+  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [] });
   const [form, setForm] = useState({ ...EMPTY });
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -57,6 +103,16 @@ export default function DebriefChartsPage() {
   };
 
   useEffect(() => { load(); }, [selectedSimType]);
+
+  // PER TYPE, so it reloads with the gate. The notebooks, lever keys and cost
+  // bands differ by type, and offering another type's would be worse than
+  // offering none.
+  useEffect(() => {
+    if (!selectedSimType) { setDims({ categorical: [], measures: [] }); return; }
+    getDebriefDimensions(selectedSimType)
+      .then(setDims)
+      .catch((e: any) => setError(e.message));
+  }, [selectedSimType]);
 
   const reset = () => { setForm({ ...EMPTY }); setEditing(null); };
 
@@ -148,9 +204,9 @@ export default function DebriefChartsPage() {
                         ? c.chartStyle.name
                         : <span style={{ color: "#b00" }}>none</span>}
                     </td>
-                    <td style={td}>{c.xAxis ?? <span style={{ color: "#bbb" }}>—</span>}</td>
-                    <td style={td}>{c.yAxis ?? <span style={{ color: "#bbb" }}>—</span>}</td>
-                    <td style={td}>{c.grouping ?? <span style={{ color: "#bbb" }}>—</span>}</td>
+                    <td style={td}>{dimLabel(dims, c.xAxis)}</td>
+                    <td style={td}>{dimLabel(dims, c.yAxis)}</td>
+                    <td style={td}>{dimLabel(dims, c.grouping)}</td>
                     <td style={td}>
                       <button
                         onClick={() => {
@@ -205,16 +261,19 @@ export default function DebriefChartsPage() {
                   </option>
                 ))}
               </select>
-              {/* ⚠ FREE TEXT, not selects. The dimension registry these should read
-                  from does not exist yet — there is no list of what a chart may plot.
-                  Until it does, a typo here saves and silently never resolves, which
-                  is the main thing likely to confuse a non-technical operator. */}
-              <input placeholder="x" value={form.xAxis}
-                     onChange={(e) => setForm({ ...form, xAxis: e.target.value })} style={{ width: 110 }} />
-              <input placeholder="y" value={form.yAxis}
-                     onChange={(e) => setForm({ ...form, yAxis: e.target.value })} style={{ width: 110 }} />
-              <input placeholder="grouping" value={form.grouping}
-                     onChange={(e) => setForm({ ...form, grouping: e.target.value })} style={{ width: 110 }} />
+              {/* X and GROUPING divide, Y is plotted — so they are drawn from
+                  different halves of the registry. These were free text until the
+                  registry existed, and a typo then saved fine and silently never
+                  resolved. */}
+              <DimensionSelect label="x" options={dims.categorical}
+                               value={form.xAxis}
+                               onChange={(v) => setForm({ ...form, xAxis: v })} />
+              <DimensionSelect label="y" options={dims.measures}
+                               value={form.yAxis}
+                               onChange={(v) => setForm({ ...form, yAxis: v })} />
+              <DimensionSelect label="grouping" options={dims.categorical}
+                               value={form.grouping}
+                               onChange={(v) => setForm({ ...form, grouping: v })} />
               <button onClick={submit} disabled={!form.name.trim()}>
                 {editing ? "Save" : "Add chart"}
               </button>

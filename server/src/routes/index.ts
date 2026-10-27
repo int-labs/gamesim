@@ -29,6 +29,7 @@ import debriefRoutes        from "./debriefRoutes";
 import roundDebriefRoutes   from "./roundDebriefRoutes";
 import debriefChartRoutes      from "./debriefChartRoutes";
 import debriefChartStyleRoutes from "./debriefChartStyleRoutes";
+import debriefDimensionRoutes  from "./debriefDimensionRoutes";
 
 const router = Router();
 
@@ -62,6 +63,8 @@ router.use("/round-debrief", roundDebriefRoutes);
 // and the global gallery of shapes they are drawn with.
 router.use("/debrief-charts", debriefChartRoutes);
 router.use("/debrief-chart-styles", debriefChartStyleRoutes);
+// What a chart MAY plot for a given type — what the X/Y/grouping selects read.
+router.use("/debrief-dimensions", debriefDimensionRoutes);
 // router.use("/upload", uploadRoutes);
 router.use("/image-assets", imageAssetsRoutes);
 router.use("/initiatives", initiativeRoutes);
