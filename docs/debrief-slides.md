@@ -50,8 +50,8 @@ you want grouped — for example `Money`, `Market`, `Production`.
 
 | Setting | What happens |
 |---|---|
-| `overall` | **One chart**, covering every notebook together |
-| `each notebook` | **One chart per notebook** — three notebooks means three charts |
+| `overall` | **One chart**, covering every grouping (products & segments) together |
+| `each notebook` | **One chart per notebook** — three groupings (products & segments) means three charts |
 
 > If you want both an overall figure *and* a per-notebook breakdown, create
 > **two separate charts**. There is no setting that gives you both at once.
