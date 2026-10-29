@@ -491,38 +491,51 @@ export function StudioPanel({
                     BORDER stays outside this wrapper at full strength - an
                     off switch is still a control. */}
                 <div className={clsx('contents', !on && '[&>*]:opacity-60')}>
-                <div className="flex items-start justify-between gap-2">
+                {/* ⚠ ART BESIDE THE TEXT, not stacked above it. This card had
+                    the image on its own row with the name and blurb beneath,
+                    while the spend levers two sections down put the art to the
+                    left of the same pair — two layouts for one kind of object.
+                    Image-beside is the shape everything converges on, through
+                    the levers and the hiring cards and on to the debrief
+                    slides, so this is the one that moved.
+
+                    `w-16 h-16` is the lever's size; it was `w-28 h-28`, which
+                    is what forced the stack in the first place.
+
+                    Text recedes with the card. Dimming only the ART left the
+                    name and the figures at full strength, so an off channel
+                    read as "available" rather than "not running". --c-text-3
+                    still measures ~10:1 on cream, so receding costs no
+                    legibility. */}
+                <div className="flex items-start gap-3">
                   <img
                     src={channelIcon(ch)}
                     alt=""
                     className={clsx(
-                      'w-28 h-28 object-contain shrink-0 transition-[filter,opacity]',
+                      'w-16 h-16 object-contain shrink-0 transition-[filter,opacity]',
                       !on && 'grayscale',
                     )}
                     style={{ imageRendering: 'pixelated' }}
                     draggable={false}
                   />
-                  {/* Solid + ✓ when on, hollow + ✕ when off. The glyph is the
-                      part that still works in greyscale or at a glance. */}
-                  <span className={clsx(
-                    'shrink-0 inline-flex items-center gap-1 px-2 py-1 border-2',
-                    on
-                      ? 'bg-primary-strong border-primary-strong text-cream-50'
-                      : 'bg-transparent border-ink-900/40 text-text-3',
-                  )}>
-                    <span aria-hidden className="btn-label-sm leading-none">{on ? '✓' : '✕'}</span>
-                    <span className="eyebrow eyebrow-sm text-inherit">{on ? 'On' : 'Off'}</span>
-                  </span>
-                </div>
-
-                {/* Text recedes with the card. Dimming only the ART left the
-                    name and the figures at full strength, so an off channel
-                    read as "available" rather than "not running" — the exact
-                    complaint. --c-text-3 still measures ~10:1 on cream, so
-                    receding costs no legibility. */}
-                <div className="min-w-0">
-                  <div className="h3 uppercase text-ink-900">{CHANNEL_META[ch].name}</div>
-                  <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="h3 uppercase text-ink-900">{CHANNEL_META[ch].name}</span>
+                      {/* Solid + ✓ when on, hollow + ✕ when off. The glyph is
+                          the part that still works in greyscale or at a
+                          glance. */}
+                      <span className={clsx(
+                        'shrink-0 inline-flex items-center gap-1 px-2 py-1 border-2',
+                        on
+                          ? 'bg-primary-strong border-primary-strong text-cream-50'
+                          : 'bg-transparent border-ink-900/40 text-text-3',
+                      )}>
+                        <span aria-hidden className="btn-label-sm leading-none">{on ? '✓' : '✕'}</span>
+                        <span className="eyebrow eyebrow-sm text-inherit">{on ? 'On' : 'Off'}</span>
+                      </span>
+                    </div>
+                    <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
+                  </div>
                 </div>
 
                 {/* The numbers you're actually choosing between get to look
@@ -807,7 +820,9 @@ export function StudioPanel({
                       <SafeImage
                         src={v.img}
                         alt=""
-                        className={clsx('shrink-0 w-20 h-20 object-contain', !on && 'grayscale')}
+                        // `w-16 h-16` — one art size across every card in this
+                        // panel (channels, levers, vendors). This was w-20.
+                        className={clsx('shrink-0 w-16 h-16 object-contain', !on && 'grayscale')}
                         fallbackIcon="box"
                         fallbackSize={32}
                       />
