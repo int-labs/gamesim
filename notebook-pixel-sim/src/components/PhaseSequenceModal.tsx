@@ -378,7 +378,12 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
             <div className="flex items-start gap-3">
               <MascotAvatar mood="presenting" size={66} />
               <div className="flex-1 body-sm text-text leading-relaxed">
-                <p className="mb-1">
+                {/* ⚠ `mb-3`, and it has to BEAT the line-height. `leading-relaxed`
+                    is 1.625, so at `mb-1` the gap between two paragraphs was
+                    SMALLER than the gap between two lines inside one — the
+                    block read as a single run-on paragraph. A paragraph break
+                    is only a break if it is the bigger of the two. */}
+                <p className="mb-3">
                   Lock in your decisions for <strong>Phase {phase}</strong>. The simulation
                   will run <strong>{daysLeft} day{daysLeft === 1 ? '' : 's'}</strong>, pausing for
                   the insight check in this same window.
@@ -396,10 +401,24 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
                 label="Cash now"
                 value={fmt$(projectedCashValue)}
                 sub={projectedCashDelta < 0 ? `after decisions (${fmt$(projectedCashDelta)})` : fmt$(cash)}
-                tone={projectedCashValue < 0 ? 'warn' : 'cash'}
+                // `neutral` when positive, not `cash` green: a green tile at
+                // every healthy balance is the same decoration as the amber
+                // Energy tile was. The row is now plain until something is
+                // actually wrong, and then exactly one tile is amber.
+                tone={projectedCashValue < 0 ? 'warn' : 'neutral'}
               />
-              <Stat icon="energy" label="Energy" value={`${energy}`} tone="warn" />
-              <Stat icon="demand" label="Produce" value={intProduce > 0 ? fmtInt(intProduce) : '—'} sub="planned this phase" tone="info" />
+              {/* ⚠ TONE IS A SIGNAL, NOT DECORATION. Energy was permanently
+                  amber and Produce permanently blue — neither state meant
+                  anything, they were those colours at every value. Stacked
+                  with the caramel panel below and its own tinted tiles, that
+                  is the "too much combined colour" QA saw, and it also spent
+                  the warning colour on a tile that was never warning.
+
+                  Cash keeps its tone because it is CONDITIONAL above — it
+                  turns `warn` only when the balance goes negative, which is
+                  the one thing on this row a player must not miss. */}
+              <Stat icon="energy" label="Energy" value={`${energy}`} tone="neutral" />
+              <Stat icon="demand" label="Produce" value={intProduce > 0 ? fmtInt(intProduce) : '—'} sub="planned this phase" tone="neutral" />
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 
@@ -428,7 +447,12 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
               <CostTiles
                 tiles={[
                   { label: 'Produce', value: intProduce > 0 ? fmtInt(intProduce) : '—', tone: 'neutral', icon: 'stock' },
-                  { label: 'Revenue', value: fmt$(Math.round(hudRevenue)), tone: 'gain', icon: 'cash' },
+                  // Revenue was permanently `gain` green. Revenue cannot be
+                  // bad, so the colour distinguished nothing — it just put a
+                  // second green beside gross profit's, inside an already
+                  // caramel panel. Gross profit below keeps its tone: that one
+                  // genuinely flips to `danger`.
+                  { label: 'Revenue', value: fmt$(Math.round(hudRevenue)), tone: 'neutral', icon: 'cash' },
                   {
                     label: 'Gross profit',
                     value: hudProfit == null ? '—' : fmt$(Math.round(hudProfit)),
@@ -553,7 +577,16 @@ function Stat({
     : tone === 'cash' ? 'bg-success-soft/30'
     : 'bg-surface-2/50';
   return (
-    <div className={clsx('px-3 py-2 flex flex-col gap-0.5', toneChip)}>
+    // ⚠ `min-w-0` OR THE TILE OVERFLOWS ITS GRID CELL. A grid item defaults to
+    // `min-width: auto`, which refuses to shrink below its content — so the
+    // long `sub` ("after decisions (-$270.00)") pushed the tile straight
+    // through its own right edge and across the one beside it. `flex-wrap`
+    // below cannot help while the track itself is being widened.
+    //
+    // CENTRED, to match the CostTiles row directly underneath. Two rows of
+    // readouts in one modal, one left and one centre, was the inconsistency —
+    // centre wins because it is what every other readout tile in the app uses.
+    <div className={clsx('min-w-0 px-3 py-2 flex flex-col items-center gap-0.5 text-center', toneChip)}>
       <div className="flex items-center gap-1.5">
         <PixelIcon kind={icon} size={11} color={color} />
         <span className="kpi-label">{label}</span>
@@ -561,9 +594,9 @@ function Stat({
       {/* The unit rides WITH the figure on one baseline. On its own line it
           read as a second, unrelated fact stacked under the number, and left
           the tiles that have no `sub` a row shorter than the ones that do. */}
-      <div className="flex items-baseline gap-1.5 flex-wrap">
+      <div className="flex items-baseline justify-center gap-1.5 flex-wrap">
         <span className="num-md text-text">{value}</span>
-        {sub && <span className="stat-label">{sub}</span>}
+        {sub && <span className="stat-label break-words">{sub}</span>}
       </div>
     </div>
   );
