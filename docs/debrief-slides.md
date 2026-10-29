@@ -1,232 +1,256 @@
-# Debrief slides — how to use them
+# Debrief slides — user guide
 
-The debrief is the slide a team reads between rounds: a set of charts about
-what just happened, each with a facilitator's reading of it.
+The debrief is what a team reads between rounds: a set of charts showing what
+just happened, each with your explanation of what it means.
 
-Three people build it, on three console pages, in this order. Each one depends
-on the one before it.
+Building one is two jobs, usually done by two people.
 
-```
-  DEVELOPER          ADMIN / OPERATOR            FACILITATOR
-  Chart Gallery  →   Debrief Charts         →    Round Debrief
-  "what shapes      "which charts this          "what this chart
-   can be drawn"     simulation type has"        says about round N"
-  once per app       once per sim type           every round
-```
+| Job | Who | How often |
+|---|---|---|
+| **Set up the charts** — decide which charts exist and what they measure | Operator | Once, when a simulation type is created |
+| **Write the debrief** — explain what each chart says this round | Facilitator | Every round, after it is calculated |
 
-> **There is no role enforcement.** All three pages are in the same console nav
-> and anyone who can sign in can open any of them. The split below is about who
-> *should* touch what, and what breaks downstream when the wrong person does.
+You only need the part of this guide that matches your job. If you do both,
+read Part 1 first — the second job depends on the first being done.
 
 ---
 
-## The model, in one paragraph
-
-A **gallery shape** is a Vega-Lite spec with no idea what it plots — it is a
-grouped bar chart, nothing more. A **configured chart** picks a shape and binds
-it to data (`xAxis`, `yAxis`, `grouping`) for one simulation type. A **round
-description** is the facilitator's text for that chart in that round. The
-server joins all three, renders the chart to an SVG, and ships the picture and
-the text to the player.
-
-**A chart with no description for a round is not shown at all.** Not greyed,
-not captionless — absent. An unwritten round is an empty debrief, by design.
+> ## Read this first: round numbers start at 0
+>
+> Everywhere you are asked for a round number, **the first round is `0`**.
+>
+> | The round you mean | What you type |
+> |---|---|
+> | Round 1 | `0` |
+> | Round 2 | `1` |
+> | Round 3 | `2` |
+>
+> Getting this wrong is the single most common mistake. It does not show an
+> error — you simply get the wrong round's data, or a blank page.
 
 ---
 
-## 1. Developer — Chart Gallery
+# Part 1 — Setting up the charts
 
-**Page:** `Chart Gallery`  ·  **When:** once per app, rarely after that
+**Page: `Debrief Charts`**
 
-This is the only page where you write chart grammar. A shape here is reusable
-by every simulation type.
+You do this once per simulation type. Every simulation of that type shares the
+same set of charts.
 
-| Field | Meaning |
+## Before you start
+
+Open the page and choose a **Simulation Type** from the dropdown. Nothing else
+on the page works until you do.
+
+If you see *"The chart gallery is empty"* in red, stop — a developer needs to
+load the chart shapes before you can continue. You cannot fix this from here.
+
+## Adding a chart
+
+Fill in the row of fields at the bottom of the page, then press **Add chart**.
+
+**Order** — where this chart appears in the slide. Lower numbers come first.
+Leave gaps (10, 20, 30) so you can slot something in later without renumbering
+everything.
+
+**Slide group** — the heading this chart sits under. Charts sharing a group
+appear together in one collapsible section. Type the same text for each chart
+you want grouped — for example `Money`, `Market`, `Production`. Leave it blank
+and the chart stands on its own.
+
+**Chart name** — the heading the team reads above the chart. Write it for them,
+not for you: *"What each team earned"* beats *"revenue_by_team"*.
+
+**Scope** — how many copies of this chart to make.
+
+| Setting | What happens |
 |---|---|
-| `category` | the chart FAMILY — "bar chart", "2D chart" |
-| `name` | the VARIANT — "Stacked Bar", "Scatter" |
-| `shape` | a Vega-Lite spec, as text |
+| `overall` | **One chart**, covering every notebook together |
+| `each notebook` | **One chart per notebook** — three notebooks means three charts |
 
-### The data contract
+> If you want both an overall figure *and* a per-notebook breakdown, create
+> **two separate charts**. There is no setting that gives you both at once.
+> They answer different questions and need different explanations anyway.
 
-Every shape is handed rows of exactly this form, whatever it plots:
+**Shape** — what the chart looks like: bars, lines, a scatter. Pick whichever
+suits the comparison. If nothing looks right, a developer can add a new shape.
 
-```json
-{ "x": "Team Rocket", "y": 1240, "series": "Revenue" }
-```
+**X** — what runs along the bottom. Usually `Team`, so you get one bar per
+team. Can also be `Round` to show change over time.
 
-Bind to it with `{"values": "@name"}` — that is the only binding mechanism, and
-an unknown name silently yields no rows.
+**Y** — what is being measured: revenue, units sold, energy spent. You can pick
+**more than one** — choose one, it appears as a tag, then choose another. The
+chart plots them side by side. Press the `×` on a tag to remove it.
 
-- **`x` may be a string OR a number.** It is a number when the chart's `xAxis`
-  is bound to a measure, which is what makes a scatter possible.
-- **Do not name your axes.** A shape is picked by every chart that wants that
-  form, so it cannot know what it is plotting. Axis titles are filled in per
-  chart from its bindings, and they override whatever the shape declares.
-- **Set `sort: null` on categorical axes.** Vega-Lite sorts a nominal domain
-  alphabetically by default, so "Round 10" lands before "Round 2" and the team
-  roster reorders between charts.
-- **Stack with `y.stack`, not `transform`.** `transform` is on the deny list and
-  a shape using one never renders.
-- **A bar starts at zero; a point does not.** Scatter shapes set
-  `scale: {zero: false}` on both axes.
+**Grouping** — splits each bar or line into several. For example, X = `Team`
+and Grouping = `Product` gives you each team's bars broken down by notebook.
+Leave it blank if you don't need it.
 
-### Seeding
+## Check it before you move on
 
-```bash
-cd server && npm run seed-db
-```
+This is the step people skip, and it is the one that catches mistakes.
 
-Writes the six starter shapes (grouped / stacked / horizontal bar, line with
-points, stacked area, scatter). It is **idempotent and deletes nothing** — it
-upserts by fixed `_id`, which matters because configured charts hold a
-reference to those ids.
+At the bottom of the page is a **Preview** box. Fill in:
 
-> ⚠ Shapes live in the **database**. Editing `server/scripts/seed.ts` changes
-> nothing until you re-run `seed-db`.
+- **simulationId** — a long code identifying one running simulation. Copy it
+  from the **Simulations** page.
+- **round** — remember, first round is `0`.
 
----
+Press **Render**. You will see the chart drawn with real data.
 
-## 2. Admin / Operator — Debrief Charts
+**Look at the row count under each chart.**
 
-**Page:** `Debrief Charts`  ·  **When:** once per simulation type
+- A normal number — the chart is working.
+- **`0 rows — the bindings matched no data`** in red — the chart will be blank
+  for the team. Your X, Y or Grouping choice does not match anything in this
+  simulation. Change one and Render again.
 
-This decides which charts a simulation type's debrief contains and what each
-one plots. One type has one set, shared by every simulation under it.
+If you set Scope to `each notebook`, you should see **several charts**, one per
+notebook. If you only see one, Scope is still set to `overall`.
 
-Pick a Simulation Type first; nothing else works until you do.
+## Changing or removing a chart
 
-| Field | What it does |
-|---|---|
-| `order` | position in the slide |
-| `slide group` | the collapsible section this sits in (free text) |
-| `chart name` | the heading the player reads |
-| `scope` | `overall` = one chart; `each notebook` = one chart **per notebook** |
-| `shape` | from the gallery. Empty gallery ⇒ nothing to pick |
-| `x` / `y` / `grouping` | the bindings — never free text, always from the registry |
+**Edit** reopens the chart's settings. **Delete** removes it.
 
-> ⚠ `category` and `name` **here** are the slide's group and display name. The
-> gallery's two fields of the same names are the chart family and variant.
-> Different namespaces, same two words.
+> **Deleting a chart also deletes every explanation ever written for it**, in
+> every round, for every simulation of this type. This cannot be undone. The
+> page tells you how many were deleted after the fact.
 
-### Bindings
+> **Changing Scope after explanations have been written loses them.** Switching
+> between `overall` and `each notebook` changes which charts exist, and the old
+> text no longer has a chart to attach to. It is not deleted, but nothing can
+> reach it again. Decide Scope before the first round is written up.
 
-The `x` and `grouping` dropdowns offer **dimensions** (team, round, product,
-lever, spec, measure); `y` offers **measures** and is a list — pick several and
-the chart plots all of them, split by measure.
+Changing anything else — the name, the order, the measurements — is safe and
+keeps the existing text.
 
-A dimension **pivots** the measure, it does not merely label an axis. Binding
-`lever` reads `energyByLever` at each key in turn, so one chart becomes a
-breakdown. Teams are always iterated — the debrief is a cross-team comparison.
+## Voice of Customer
 
-A binding the registry no longer offers (a renamed lever, say) is **kept and
-marked `(missing)`**, never dropped silently.
+In the dropdown that normally reads `-- server-drawn --`, you may see
+**Voice of customer (player-drawn)**.
 
-### `scope: each` emits N charts, not N+1
+This chart is drawn by the game itself, because it changes shape for every
+simulation. Choose it and the Shape and X/Y/Grouping fields grey out — they
+would be ignored.
 
-There is no automatic summary. If a section needs both an overall figure and a
-per-notebook breakdown, **make two entries** — they answer different questions
-and want different copy.
-
-> ⚠ Changing `scope` on a chart that already has copy **strands that copy**. The
-> two scopes emit different instances, so existing descriptions lose the row
-> that reached them. Nothing cascades; only deleting a chart cleans up.
-
-### Preview before you leave the page
-
-Enter a `simulationId` and a `roundNumber` (**0-based** — round 1 is `0`) and
-press Render. It draws against real decision data and reports the row count
-**per instance**. `0 rows` means the bindings matched nothing — that is the
-diagnostic, and it is why the preview exists.
-
-### Player-drawn charts
-
-Setting `clientChart` (currently only Voice of Customer) means **the player
-draws it** and the server renders nothing. The shape and binding controls grey
-out, because they would be silently ignored. Order, slide group, name, scope
-and the description all still apply — but a client-drawn chart always renders
-**first**, whatever its `order`.
-
-### Importing the legacy slide
-
-```bash
-cd server && npm run seed-db
-cd server && npm run import-debrief-charts -- <simulationTypeId>
-```
-
-Writes the old hardcoded fifteen-slot slide in as ordinary, editable charts.
-Idempotent on `{simulationTypeId, name}`; refuses if the gallery lacks the
-shapes it needs, so run `seed-db` first.
+Everything else still applies: it needs a name, a slide group, a scope, and an
+explanation each round like any other chart. One thing is different: **it
+always appears first**, no matter what Order you give it.
 
 ---
 
-## 3. Facilitator — Round Debrief
+# Part 2 — Writing the debrief
 
-**Page:** `Round Debrief`  ·  **When:** every round, after it is calculated
+**Page: `Round Debrief`**
 
-Pick simulation type → simulation → round number (**0-based**) and Load.
+You do this every round, for every simulation you are running.
 
-You get every configured chart for that type, each **already rendered with this
-round's data**, with a text box under it. Write what the chart says. Save.
+## Before you start
 
-**That text is what makes the chart visible to players.** No text, no chart.
+**The round must be calculated first.** If the operator has not calculated the
+round, the charts will be empty or missing. Calculating and closing a round are
+two separate actions — ask whoever runs the simulation if you are unsure.
 
-- Descriptions are **per instance**. A `scope: each` chart has one box per
-  notebook and there is no fallback between them — writing the summary does not
-  cover the breakdown.
-- Descriptions are **per round**. The same chart in round 2 is a separate,
-  empty box.
-- Staff see the rendered chart even before it has a description; players never
-  do.
+## Loading the round
 
-### You can fix the chart from here
+1. Choose the **Simulation Type**
+2. Choose the **Simulation** — the actual session you are running
+3. Type the **round number** — first round is `0`
+4. Press **Load**
 
-Each chart has an **Edit** button that opens the same configuration form as the
-Debrief Charts page. Writing the copy is when a wrong axis actually shows up,
-and sending you to another page to fix it is how copy ends up written around
-the mistake instead.
+You now see every chart for this simulation, drawn with this round's real
+numbers, each with an empty text box underneath.
 
-> ⚠ **The chart is not per round.** It belongs to the simulation TYPE, so an
-> edit here lands on every round and every simulation under that type. Only the
-> copy is per-round.
+## Writing the explanations
 
-Only the first row of a `scope: each` chart opens the editor — the N rows are
-one stored document.
+Under each chart, write what it says. Press **Save**.
+
+> ## A chart with no text is not shown to the team
+>
+> This is the most important thing on this page. An empty box does not mean
+> "chart with no caption" — it means **the team never sees that chart at all**.
+>
+> This is deliberate: a chart nobody has explained is worse than no chart. But
+> it means that if you run out of time and leave three boxes empty, the team's
+> debrief quietly has three fewer charts and nothing warns you.
+>
+> **Before ending a round, scroll the whole page and check for empty boxes.**
+
+Some practical notes:
+
+- **Every box is separate.** If a chart is set to `each notebook`, you will see
+  one box per notebook. Writing the first one does **not** cover the others.
+- **Every round is separate.** The same chart in round 2 starts empty again.
+  Nothing carries over, by design — the point is what changed.
+- **You can see charts the team cannot.** As staff, every chart is drawn for
+  you even before you write anything. The team only ever gets the ones with
+  text.
+
+### What to write
+
+You are reading the chart *for* them. A useful explanation usually does one of
+these:
+
+- Points at what actually happened — *"Team C sold twice what anyone else did"*
+- Names the cause — *"...because they were the only team on the retail channel"*
+- Asks the question you want them to take into the next round — *"Was that
+  worth the 20% they gave up per sale?"*
+
+Avoid restating the axis labels. The team can already see that the bars are
+revenue by team.
+
+## If a chart itself is wrong
+
+Sometimes you only notice a chart is measuring the wrong thing when you sit
+down to explain it. Each chart has an **Edit** button that opens its settings
+here, so you do not have to leave the page and lose your place.
+
+> **A chart belongs to the simulation type, not to this round.** Editing it
+> here changes it for **every round and every simulation** of this type —
+> including rounds you have already written up. The *text* is per round; the
+> chart is not.
+
+If a chart is set to `each notebook`, only the **first** of its boxes has an
+Edit button. The notebooks share one chart between them.
 
 ---
 
-## What the player sees
+# When something looks wrong
 
-Charts with a description, sorted by `order`, cut into collapsible sections by
-slide group. Client-drawn charts first. The player receives the **finished
-SVG** and never the spec — there is no chart interpreter in the player, which
-is the whole security argument for rendering server-side.
-
----
-
-## When something looks wrong
-
-| Symptom | Cause |
-|---|---|
-| Chart missing for a team | no description written for that round + instance |
-| Only one chart where you expected several | `scope` is `overall`, not `each` |
-| Preview shows `0 rows` | bindings matched no data — check x / y / grouping |
-| Copy vanished | `scope` was changed after it was written |
-| Chart is blank but the text is there | the shape failed to render; use Preview to see why |
-| Configured and described, permanently empty | `clientChart` key with no drawing at the player end |
-| Shape dropdown is empty | the gallery is empty — run `seed-db` |
-| Edited a seeded shape, nothing changed | shapes live in the DB; re-run `seed-db` |
+| What you see | What it means | What to do |
+|---|---|---|
+| A chart is missing for the team | No text was written for it this round | Load the round and check for empty boxes |
+| Only one chart where you expected several | Scope is `overall` | Edit the chart, set Scope to `each notebook` |
+| Preview says `0 rows` in red | X, Y or Grouping matches no data | Change one and Render again |
+| The chart is blank but the text is there | The chart shape failed to draw | Use Preview on the Debrief Charts page to see why; may need a developer |
+| Text you wrote has vanished | Scope was changed after it was written | Rewrite it. Avoid changing Scope once a round is written up |
+| The whole page is empty after Load | Wrong round number, or the round is not calculated yet | First round is `0`. Check the round has been calculated |
+| A chart is named and described but always blank | Usually a Voice of Customer setup problem | Ask a developer |
+| The Shape dropdown is empty | No chart shapes have been loaded | Ask a developer to seed the chart gallery |
 
 ---
 
-## Reference
+# Glossary
 
-| | |
-|---|---|
-| Gallery shapes | `DebriefChartStyle`, seeded by `server/scripts/seed.ts` |
-| Configured charts | `DebriefChart`, per `simulationTypeId` |
-| Round copy | `RoundNote`, keyed by chart `_id` + `productId` |
-| Row builder | `server/src/services/debriefChartData.ts` |
-| Renderer | `server/src/services/chartRenderer.ts` (vega 5, pinned) |
-| Dimension registry | `server/src/services/debriefDimensions.ts` |
-| Player arrangement | `notebook-pixel-sim/src/screens/LimboScreen.tsx` |
+**Simulation type** — the template. "Notebook Business" is a type; the session
+you ran on Tuesday is a simulation *of* that type. Charts belong to the type.
+
+**Simulation** — one actual session, with real teams playing it.
+
+**Round** — one phase of play. Teams make decisions, the operator calculates
+the round, then the debrief is written. **Numbered from 0.**
+
+**Scope** — whether a chart covers everything at once (`overall`) or is
+repeated for each notebook (`each notebook`).
+
+**Slide group** — a heading that collects related charts into one section of
+the debrief.
+
+**Shape** — the visual form of a chart: bars, lines, scatter. Shapes are
+created by developers and shared by every simulation type.
+
+**Chart gallery** — the list of available shapes. A developer's page; you only
+need to know it exists when the Shape dropdown is empty.
+
+**Explanation / description** — your text under a chart. Without it, the chart
+is hidden from the team.
