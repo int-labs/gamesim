@@ -178,11 +178,12 @@ export function ProductLineList({
 
       {/* Vertical stack of full-width notebook cards */}
       <div>
-        {lines.length === 0 ? (
-          <div className="py-3 body-sm text-text-2">
-            No notebooks in your collection. Add at least one notebook to continue.
-          </div>
-        ) : (
+        {/* NO EMPTY-STATE SENTENCE. The header above already reads "0
+            notebooks · Phase N" and the "+ Add Notebook" button below is the
+            action — a line of prose between them said a third time what both
+            of those say. The canvas popup is the one place that explains it.
+            See the empty-state note in NotebookCanvas. */}
+        {lines.length === 0 ? null : (
           <div className="flex flex-col gap-2">
             {lines.map((line, cardIdx) => {
               const isActive = line.id === activeLineId;

@@ -131,6 +131,12 @@ export function NotebookCanvas({
         <div aria-hidden className="absolute inset-0 bg-ink-900/25" />
         <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6 py-10 gap-3">
           <div className="panel-frame bg-surface px-8 py-8 flex flex-col items-center gap-3">
+            {/* ⚠ THE ONLY "no notebook" MESSAGE ON THIS SCREEN, and it owns
+                the explanation and the way out of it. There were four — this
+                popup, the notebook list, the design panel under it, and the
+                canvas header bar — all saying the same sentence at once.
+                Before adding another empty state anywhere on the simulation
+                screen, check whether this one already covers it. */}
             <PixelIcon kind="product" size={28} color="var(--c-text-3)" />
             <div className="item-name text-text">No notebook selected</div>
             <p className="hint text-text-2 max-w-[28ch]">

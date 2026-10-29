@@ -58,9 +58,10 @@ export function FinlitDesignControls({
       .map((sel) => sel.selectedStepKey as ChannelId),
   );
 
-  if (!line) {
-    return <div className="body-sm text-text-2 p-2">Add a notebook first, then design it here.</div>;
-  }
+  // Nothing to design, and nothing to say about it — the canvas popup owns the
+  // "no notebook" message for the whole screen. This panel sat directly under
+  // the notebook list, which was already saying the same thing twice.
+  if (!line) return null;
 
   const genre: GenreId = line.productId;
   // Full spec = the line's overrides on top of defaults (type follows genre).

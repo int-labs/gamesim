@@ -74,15 +74,17 @@ function useActiveLine() {
   return { product, hasNotebook, apply };
 }
 
+/**
+ * ⚠ DELIBERATELY EMPTY. This rendered a second "No notebook selected" block,
+ * directly below the canvas whose popup already says it — one of four copies
+ * of the same sentence on one screen. The canvas popup is the single place
+ * that explains the empty state and offers the way out of it.
+ *
+ * Kept as a named component rather than inlining `null` so the two call sites
+ * still read as "this section has nothing to show yet".
+ */
 function EmptyLine() {
-  return (
-    <div className="flex flex-col items-center justify-center text-center px-4 py-12 gap-2">
-      <div className="h3 text-ink-900">No notebook selected</div>
-      <p className="body-xs text-text-2 max-w-[32ch]">
-        Open the <span className="strong text-text">Notebook</span> section to add one.
-      </p>
-    </div>
-  );
+  return null;
 }
 
 /**

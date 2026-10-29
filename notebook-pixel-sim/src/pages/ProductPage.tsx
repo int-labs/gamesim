@@ -172,13 +172,22 @@ function StageHeader({
     // both on the fluid type scale, and at a high resolution they are taller
     // than a fixed 48px box.
     <header className="shrink-0 min-h-[48px] flex items-center gap-2 px-2.5 py-1 border-b border-border-soft bg-surface-2">
+      {/* ⚠ NAMES THE NOTEBOOK, OR SAYS NOTHING. With no line this read "No
+          notebook selected / Add one from the Notebook tab" — a third copy of
+          the message the canvas popup below is already showing, on the same
+          screen. The bar itself stays (it carries Hide/Show), it just has no
+          title to print yet. */}
       <div className="min-w-0 flex-1 flex flex-col justify-center">
-        <span className="item-name text-text truncate leading-tight">
-          {line?.name ?? 'No notebook selected'}
-        </span>
-        <span className="hint truncate leading-tight">
-          {line ? archetypeLabel(line.productId) : 'Add one from the Notebook tab'}
-        </span>
+        {line && (
+          <>
+            <span className="item-name text-text truncate leading-tight">
+              {line.name}
+            </span>
+            <span className="hint truncate leading-tight">
+              {archetypeLabel(line.productId)}
+            </span>
+          </>
+        )}
       </div>
       {/* HIDE collapses the section rail and gives the room to the canvas;
           SHOW brings it back. One button, two states — `isExpand` says which
