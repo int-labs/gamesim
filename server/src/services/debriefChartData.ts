@@ -4,7 +4,7 @@ import Decision from "../models/decisions";
 import Simulation from "../models/simulations";
 import PlayerConfig from "../models/playerConfig";
 import { buildDebriefSeries, type DebriefPayload } from "./debriefSeries";
-import { measureLabel } from "./debriefDimensions";
+import { ALL_KEYS, measureLabel } from "./debriefDimensions";
 import { groupByRound, openingCashFrom } from "./roundReport";
 
 /**
@@ -90,6 +90,20 @@ interface Slice {
 }
 
 /**
+ * One key of an operator-keyed map, or the sum of every key.
+ *
+ * Summing when nothing pivots mirrors what `byProduct.*` already does above:
+ * an unsliced chart over a per-member measure totals its members.
+ */
+function keyedTotal(map: any, key: string): number | null {
+  if (key !== ALL_KEYS) return num(map?.[key]);
+  const values = Object.values(map ?? {});
+  // A team with no levers at all is a GAP, not a zero — same rule as `num`.
+  if (values.length === 0) return null;
+  return sum(values.map(num));
+}
+
+/**
  * Read one measure for one team, through a slice.
  *
  * ⚠ THE SLICE OVERRIDES THE MEASURE'S OWN KEY. `energyByLever.marketing` on a
@@ -123,10 +137,10 @@ function measure(
   }
 
   const lever = at("energyByLever.");
-  if (lever !== null) return num(teamBlock.energyByLever?.[slice.lever ?? lever]);
+  if (lever !== null) return keyedTotal(teamBlock.energyByLever, slice.lever ?? lever);
 
   const cost = at("costByCategory.");
-  if (cost !== null) return num(teamBlock.costByCategory?.[slice.lever ?? cost]);
+  if (cost !== null) return keyedTotal(teamBlock.costByCategory, slice.lever ?? cost);
 
   const spec = at("spec.");
   if (spec !== null) {
