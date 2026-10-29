@@ -8,7 +8,7 @@ import { AcademyMascotStage } from './AcademyMascotStage';
 import { HeartRain } from '@/components/fx/HeartRain';
 import { SceneAmbience } from './SceneAmbience';
 import { PixelWipe } from './PixelWipe';
-import { useStage, projectX, projectY } from './useStage';
+import { useStage, useSourceSize, projectX, projectY } from './useStage';
 import { playSfx } from '@/audio/audioManager';
 
 // ── Scene anchors, as fractions of the 16:9 art ────────────────────────────
@@ -29,7 +29,11 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
   // The stage box IS the element the backdrop fills — projections are measured
   // off it, not off the window. See the note in useStage.
   const stageRef = useRef<HTMLDivElement>(null);
-  const stage = useStage(stageRef);
+  // The ART's own dimensions, read off the poster the backdrop already loads —
+  // not a constant. The overlays are projected onto features baked into this
+  // image, so its aspect is the one number the projection cannot guess.
+  const srcSize = useSourceSize(A.env.passkeyPoster);
+  const stage = useStage(stageRef, srcSize);
   const [leaving, setLeaving] = useState(false);
   const [roamTick, setRoamTick] = useState(0);
 
