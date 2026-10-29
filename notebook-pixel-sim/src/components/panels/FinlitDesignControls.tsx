@@ -191,13 +191,24 @@ export function FinlitDesignControls({
 
 /**
  * A titled group. Sections used to be a bare caption over content, so two of
- * them in a column read as one undifferentiated list. The framed header gives
- * each a clear start and end — RULE 5: border-2 is the container weight.
+ * them in a column read as one undifferentiated list. The filled header is
+ * what gives each a clear start and end.
+ *
+ * ⚠ It used to be the BORDER that did that, and the border had to go: a
+ * container you cannot click must not wear the same outline as the selects
+ * and cards inside it. The header's fill separates the sections just as well
+ * and leaves the border to mean one thing. See `.soft-panel`.
  */
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="border border-border-soft bg-cream-50">
-      <header className="px-3.5 py-2.5 border-b border-border-soft bg-cream-200">
+    // ⚠ NO BORDER. A section is a GROUP, not a target — everything you can
+    // actually act on lives inside it (the selects, the slider, the charm
+    // cards) and each of those carries its own border. Outlining the wrapper
+    // too put a box around a box and flattened the two into one rank, which
+    // is what made the panel read as a wall of equally-clickable rectangles.
+    // The header's darker fill is what separates the sections now.
+    <section className="soft-panel">
+      <header className="px-3.5 py-2.5 bg-cream-200">
         <div className="section-title text-ink-900">{title}</div>
         {hint && <div className="hint mt-0.5">{hint}</div>}
       </header>
@@ -238,7 +249,11 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: 'inf
   const cls =
     tone === 'good' ? 'text-success' : tone === 'bad' ? 'text-danger' : tone === 'warn' ? 'text-warning' : 'text-text';
   return (
-    <div className="readout border border-border-soft bg-surface px-2.5 py-2 text-center">
+    // A READOUT. Nothing here responds to a click, so it takes the soft plate
+    // rather than a border — these sat in a row directly under the price
+    // slider wearing the same outline as the controls above them.
+    // (The `-ink` text tones are right HERE: `.soft-panel` is a light cream.)
+    <div className="readout soft-panel px-2.5 py-2 text-center">
       <div className="stat-label">{label}</div>
       <div className={clsx('num-sm mt-1', cls)}>{value}</div>
     </div>
