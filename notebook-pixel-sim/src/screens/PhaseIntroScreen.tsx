@@ -171,11 +171,20 @@ export function PhaseIntroScreen() {
           centred on screen and responsive. This wrapper stays z-auto (no
           stacking context) so the letterbox bars (z-20) still layer between the
           mascot (z-10) and the panel (z-30). ── */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="flex h-full w-full max-w-[1120px] items-center justify-center gap-4 px-4 sm:gap-8 sm:px-8 lg:gap-12">
-          {/* Mascot column — grounded to the screen bottom (behind the bottom
-              bar). Hidden below md so the panel stands alone on small screens. */}
-          <div className="relative hidden h-full w-[42%] max-w-[460px] shrink-0 md:block">
+      <div className="absolute inset-0 flex items-center justify-center px-4 sm:px-8">
+        {/* ⚠ `items-stretch`, and NO `h-full`. The row used to be screen-tall
+            with the mascot column stretched to match it, so she ran from the
+            top bar to the bottom one while the card floated at a third of that
+            height beside her — two columns of a pair at visibly different
+            sizes. The row now takes its height from the CARD, and the mascot
+            column stretches to that. */}
+        {/* `max-h-full` because the row is no longer screen-tall: without it a
+            card taller than a short viewport would overflow and be clipped by
+            the root's `overflow-hidden`. */}
+        <div className="flex max-h-full w-full max-w-[min(94vw,1360px)] items-stretch justify-center gap-4 sm:gap-8 lg:gap-12">
+          {/* Mascot column — the card's height. Hidden below md so the panel
+              stands alone on small screens. */}
+          <div className="relative hidden w-[42%] max-w-[min(38vw,520px)] shrink-0 md:block">
             <motion.div
               aria-hidden
               className="pointer-events-none absolute inset-0 z-[4]"
@@ -186,7 +195,7 @@ export function PhaseIntroScreen() {
             <HeartRain className="pointer-events-none absolute inset-0 z-[9]" />
             <motion.div
               style={{ x: charX, y: charY }}
-              className="pointer-events-none absolute inset-x-0 bottom-0 top-[6%] z-[10]"
+              className="pointer-events-none absolute inset-0 z-[10]"
             >
               <motion.div
                 initial={reduced ? false : { y: 70, opacity: 0 }}
@@ -195,9 +204,13 @@ export function PhaseIntroScreen() {
                 whileHover={reduced ? undefined : { scale: 1.03 }}
                 className="pointer-events-auto h-full w-full origin-bottom"
               >
-                {/* object-cover + object-top = BIG mascot; her lower edge crops
-                    at the screen bottom and is covered by the bottom bar. Subtle
-                    idle "breathing" from the feet keeps her alive. */}
+                {/* ⚠ `object-contain`, NOT `object-cover`. Cover fills the
+                    column by cropping whichever axis is long — her column is
+                    tall and narrow, so it was slicing her arms off at the
+                    sides and her legs at the bottom. Contain fits the whole
+                    sprite inside the column and `object-bottom` keeps her
+                    standing on its floor rather than floating mid-air.
+                    Subtle idle "breathing" from the feet keeps her alive. */}
                 <motion.img
                   ref={heroRef}
                   src={forRound(ROUND_POSE, phase)}
@@ -208,7 +221,7 @@ export function PhaseIntroScreen() {
                   animate={reduced ? undefined : { scaleY: [1, 1.016, 1], scaleX: [1, 0.994, 1] }}
                   transition={{ duration: 3.9, repeat: Infinity, ease: 'easeInOut' }}
                   className={clsx(
-                    'h-full w-full object-cover object-top cursor-pointer drop-shadow-[8px_12px_0_rgba(0,0,0,0.42)]',
+                    'h-full w-full object-contain object-bottom cursor-pointer drop-shadow-[8px_12px_0_rgba(0,0,0,0.42)]',
                     patting && 'mascot-pat',
                   )}
                   onAnimationEnd={(e) => { if (/mascot-pat/.test(e.animationName)) setPatting(false); }}
@@ -223,7 +236,7 @@ export function PhaseIntroScreen() {
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.6, ease: [0.2, 1.2, 0.4, 1], delay: 0.12 }}
             whileHover={reduced ? undefined : { y: -3 }}
-            className="pixel-frame z-[30] w-full max-w-[500px] shrink overflow-hidden bg-cream-50 shadow-[8px_10px_0_0_rgba(0,0,0,0.4)]"
+            className="pixel-frame z-[30] w-full max-w-[min(42vw,560px)] shrink overflow-hidden bg-cream-50 shadow-[8px_10px_0_0_rgba(0,0,0,0.4)]"
           >
           <div className="p-6 sm:p-7">
             {/* ⚠ PHASE, NOT ROUND. "Round" is the SERVER's unit and never
@@ -330,9 +343,12 @@ export function PhaseIntroScreen() {
         </div>
       </div>
 
-      {/* ── Cinematic letterbox bars (full width, on top). The bottom bar hides
-          the mascot's cropped lower edge; both slide in on entry. Bounded so
-          they stay sensible on very tall / short viewports. ── */}
+      {/* ── Cinematic letterbox bars (full width, on top), sliding in on
+          entry. Bounded so they stay sensible on very tall / short viewports.
+          ⚠ The bottom bar used to be load-bearing — it HID the mascot's
+          cropped lower edge. She is `object-contain` now and has no cropped
+          edge, so these are decoration only; changing or dropping them cannot
+          expose a cut-off sprite. ── */}
       <motion.div
         aria-hidden
         initial={reduced ? false : { y: '-101%' }}
