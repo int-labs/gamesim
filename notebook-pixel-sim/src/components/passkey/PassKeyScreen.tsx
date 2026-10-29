@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { A } from '@/assets';
@@ -26,7 +26,10 @@ const BOARD = { cx: 0.808, y0: 0.135, wFrac: 0.265, hFrac: 0.55 };
  */
 export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
   const reduced = useReducedMotion();
-  const stage = useStage();
+  // The stage box IS the element the backdrop fills — projections are measured
+  // off it, not off the window. See the note in useStage.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const stage = useStage(stageRef);
   const [leaving, setLeaving] = useState(false);
   const [roamTick, setRoamTick] = useState(0);
 
@@ -54,7 +57,7 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
   const wipeRows = Math.max(8, Math.min(26, Math.round(18 * (stage.vh / Math.max(1, stage.vw)))));
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-hidden bg-bg">
+    <div ref={stageRef} className="fixed inset-0 z-[60] overflow-hidden bg-bg">
       {/* Full-viewport scene — object-cover, so there are never side bars. */}
       <VideoBackdrop poster={A.env.passkeyPoster} videoMp4={A.video.passkeyBg} focal="50% 42%" />
 

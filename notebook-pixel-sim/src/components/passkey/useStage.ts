@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { RefObject, useEffect, useState } from 'react';
 
 /**
  * useStage — responsive coordinate system for compositing UI onto the fixed
@@ -29,9 +29,25 @@ export interface StageMetrics {
 const SRC_W = 1920;
 const SRC_H = 1080;
 
-function compute(): StageMetrics {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+/**
+ * ⚠ MEASURE THE ELEMENT, NOT THE WINDOW.
+ *
+ * This read `window.innerWidth`/`innerHeight` and projected overlays onto a
+ * box it had never measured. Whenever the painted container is not exactly the
+ * window — a classic scrollbar, browser zoom, a device-pixel-ratio rounding,
+ * an app shell with its own chrome — the projection is computed against a
+ * larger rectangle than the one the backdrop actually fills, so the panel
+ * lands past the scene's edge and the uncovered strip shows the page's own
+ * background. That is the dark band down the right and along the bottom.
+ *
+ * Measuring the stage element removes the whole class: the art, the overlays
+ * and the maths all describe one box.
+ */
+function compute(el: Element | null): StageMetrics {
+  const box = el?.getBoundingClientRect();
+  // `innerWidth` only as the pre-mount fallback, never as the live source.
+  const vw = box && box.width > 0 ? box.width : window.innerWidth;
+  const vh = box && box.height > 0 ? box.height : window.innerHeight;
   const scale = Math.max(vw / SRC_W, vh / SRC_H); // object-cover
   const rw = SRC_W * scale;
   const rh = SRC_H * scale;
@@ -51,21 +67,34 @@ const SSR_FALLBACK: StageMetrics = {
   mode: 'card', vw: 0, vh: 0, scale: 1, rw: 0, rh: 0, ox: 0, oy: 0,
 };
 
-export function useStage(): StageMetrics {
+/**
+ * @param ref the element the backdrop fills. Pass it — the window-sized
+ *   fallback exists only for the first paint, before the ref is attached.
+ */
+export function useStage(ref?: RefObject<HTMLElement | null>): StageMetrics {
   const [metrics, setMetrics] = useState<StageMetrics>(() =>
-    typeof window === 'undefined' ? SSR_FALLBACK : compute(),
+    typeof window === 'undefined' ? SSR_FALLBACK : compute(null),
   );
 
   useEffect(() => {
-    const onResize = () => setMetrics(compute());
+    const el = ref?.current ?? null;
+    const onResize = () => setMetrics(compute(el));
     onResize();
+
+    // A ResizeObserver catches what `resize` does not: the element changing
+    // size while the window does not — a scrollbar appearing, an app chrome
+    // panel opening, a zoom step.
+    const ro = el ? new ResizeObserver(onResize) : null;
+    if (el && ro) ro.observe(el);
+
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
     return () => {
+      ro?.disconnect();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
     };
-  }, []);
+  }, [ref]);
 
   return metrics;
 }

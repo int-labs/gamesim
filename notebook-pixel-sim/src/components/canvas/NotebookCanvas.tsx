@@ -14,6 +14,7 @@ import { lineSize } from '@/engine/selectors';
 import { AddOnLayer } from './AddOnLayer';
 import { currentAddOns } from '@/engine/mockEngine';
 import { PixelIcon } from '@/components/icons/PixelIcon';
+import { PixelButton } from '@/components/primitives';
 import { NotebookCycler } from '@/components/canvas/NotebookCycler';
 import { DustMotes } from '@/components/fx/DustMotes';
 import { PixelBurstLayer } from '@/components/fx/PixelBurst';
@@ -135,17 +136,24 @@ export function NotebookCanvas({
             <p className="hint text-text-2 max-w-[28ch]">
               Open the <span className="strong text-text">Notebook</span> section to add your first notebook.
             </p>
-            <button
+            {/* THE PRIMITIVE, not a hand-rolled `.pbtn`. This was the only
+                primary action on the screen and it was wearing `primary-soft`
+                with an eyebrow label — a pale, small-caps thing that read as
+                less clickable than the frame around it. Every other CTA in the
+                app is a `PixelButton`. */}
+            <PixelButton
+              variant="primary"
+              size="md"
+              className="mt-1"
               // Switches SECTION. It called `openDrawer('left', 'items')`, and
               // that drawer no longer exists — the button was already dead.
               onClick={() => {
                 playSfx('click-soft');
                 window.dispatchEvent(new CustomEvent('intlabs:goto', { detail: { page: 'notebook' } }));
               }}
-              className="pbtn mt-1 px-3 h-[30px] eyebrow eyebrow-sm text-text border-2 border-primary bg-primary-soft"
             >
               Go to Notebook
-            </button>
+            </PixelButton>
           </div>
         </div>
       </div>

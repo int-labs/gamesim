@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Timer } from 'lucide-react';
+import {
+  Timer, Star, Trophy, Sparkles, Gift, Notebook, LayoutGrid,
+  type LucideIcon,
+} from 'lucide-react';
 import clsx from 'clsx';
 import { NavIcon } from '@/components/icons/NavIcon';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import { useGamesimSession, phaseFromRoundNumber } from '@/gamesim/GamesimProvider';
-import { A } from '@/assets';
 
 /**
  * The bit of the ROOM the game never showed: which round the facilitator has
@@ -45,19 +47,20 @@ function formatLeft(ms: number): string {
     : `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** Pixel marks a team badge can take. Kept to visually distinct silhouettes so
- *  two teams in the same room are told apart at 16px. */
-const TEAM_MARKS = [
-  A.ui.pixel.star,
-  A.ui.pixel.trophy,
-  A.ui.pixel.sparkles,
-  A.ui.pixel.gift,
-  A.ui.pixel.notebook_focus,
-  A.ui.pixel.grid_shelf,
-];
+/**
+ * Marks a team badge can take. Kept to visually distinct silhouettes so two
+ * teams in the same room are told apart at 16px.
+ *
+ * ⚠ LINE ICONS, not the pixel sprites these used to be. The status bar is
+ * NavIcon territory — the clock beside this is a lucide `Timer` — and a
+ * raster trophy sitting next to it was the one graphic mark in a row of
+ * stroked ones. Same six silhouettes in the same order, so a team's badge is
+ * unchanged; only the drawing is.
+ */
+const TEAM_MARKS: LucideIcon[] = [Star, Trophy, Sparkles, Gift, Notebook, LayoutGrid];
 
 /** Stable per-team pick — same name always yields the same mark. */
-function teamMark(name: string | null | undefined): string {
+function teamMark(name: string | null | undefined): LucideIcon {
   let h = 0;
   for (const ch of name ?? '') h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return TEAM_MARKS[h % TEAM_MARKS.length];
@@ -151,21 +154,14 @@ export function SessionChip() {
         {bootstrap.teamName && (
           <Tooltip content="Your team, as your facilitator set it up." placement="top">
             <div className="flex items-center gap-2 min-w-0" role="status" aria-label={`Team ${bootstrap.teamName}`}>
-              {/* A PIXEL mark, not the server's DiceBear avatar. That avatar is
-                  abstract geometry in its own palette — bright cyan and orange —
-                  which is right for the console's team roster and completely
-                  foreign inside a warm pixel-art game. The mark is still chosen
-                  deterministically from the team name, so each team keeps a
-                  distinct badge; it just belongs to the same art set as
-                  everything else on screen. */}
+              {/* NOT the server's DiceBear avatar. That avatar is abstract
+                  geometry in its own palette — bright cyan and orange — which
+                  is right for the console's team roster and completely foreign
+                  here. The mark is still chosen deterministically from the team
+                  name, so each team keeps a distinct badge; it is drawn in the
+                  bar's own stroke weight rather than as a sprite. */}
               <span className="game-phase-marker">
-                <img
-                  src={teamMark(bootstrap.teamName)}
-                  alt=""
-                  className="h-4 w-4 shrink-0 object-contain"
-                  style={{ imageRendering: 'pixelated' }}
-                  draggable={false}
-                />
+                <NavIcon icon={teamMark(bootstrap.teamName)} size={14} color="var(--c-border)" />
               </span>
               <div className="flex flex-col leading-tight min-w-0">
                 <span className="eyebrow eyebrow-sm text-[#9F7F52]">Team</span>

@@ -184,7 +184,7 @@ export function TopHUD({ liveProjectionState }: { liveProjectionState?: LiveProj
             tooltip={HUD_TOOLTIPS.energy}
             numValue={energy}
             ghostFormat={(d) => `${d > 0 ? '+' : '−'}${Math.abs(d)}`}
-            ghostDownClass="text-warning"
+            ghostDownClass="text-warning-soft"
             pulseDanger={energy === 0}
             render={
               <span className="num-xs text-text">
@@ -276,7 +276,7 @@ function Chip({
   variant = 'neutral',
   tooltip,
   ghostFormat,
-  ghostDownClass = 'text-danger',
+  ghostDownClass = 'text-danger-soft',
   pulseDanger = false,
 }: {
   icon: LucideIcon;
@@ -294,7 +294,9 @@ function Chip({
   /** When set, value changes ALSO spawn a floating "+$120"/"−2" ghost. */
   ghostFormat?: (delta: number) => string;
   /** Color for negative ghosts — danger for money loss, warning for an
-      expected spend like energy. */
+      expected spend like energy. ⚠ Pass a `-soft` pastel: the ghost sits on
+      its own dark plate, and the plain `text-danger` / `text-warning` classes
+      are dark inks meant for cream. */
   ghostDownClass?: string;
   /** Slow red heartbeat — resource fully spent / cash underwater. */
   pulseDanger?: boolean;
@@ -383,7 +385,11 @@ function Chip({
               className={clsx(
                 'stat-ghost',
                 g.delta < 0 && 'stat-ghost--down',
-                g.delta > 0 ? 'text-success' : ghostDownClass,
+                // ⚠ THE `-soft` PASTELS, not `text-success` / `text-danger`.
+                // Those resolve to the `-ink` weights (tailwind.config.ts),
+                // which are dark greens and reds for cream surfaces — on the
+                // ghost's own dark plate they disappear.
+                g.delta > 0 ? 'text-success-soft' : ghostDownClass,
               )}
             >
               {ghostFormat(g.delta)}
