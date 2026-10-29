@@ -40,6 +40,20 @@ const FALLBACK_SRC = { w: 1672, h: 941 };
 
 export interface SourceSize { w: number; h: number }
 
+/** The baked-in feature an overlay is anchored to, in art fractions. */
+export interface StageAnchor {
+  cx: number;
+  y0: number;
+  wFrac: number;
+  hFrac: number;
+}
+
+/** Breathing room the anchored panel must keep from the viewport edge. */
+const EDGE_MARGIN = 12;
+
+/** A viewport below this never uses stage mode, however well the board fits. */
+const MIN_STAGE_W = 768;
+
 /**
  * The backdrop art's own pixel dimensions, read from the image itself.
  *
@@ -79,7 +93,11 @@ export function useSourceSize(src: string | undefined): SourceSize {
  * Measuring the stage element removes the whole class: the art, the overlays
  * and the maths all describe one box.
  */
-function compute(el: Element | null, src: SourceSize): StageMetrics {
+function compute(
+  el: Element | null,
+  src: SourceSize,
+  anchor: StageAnchor | null,
+): StageMetrics {
   const box = el?.getBoundingClientRect();
   // `innerWidth` only as the pre-mount fallback, never as the live source.
   const vw = box && box.width > 0 ? box.width : window.innerWidth;
@@ -87,8 +105,41 @@ function compute(el: Element | null, src: SourceSize): StageMetrics {
   const scale = Math.max(vw / src.w, vh / src.h); // object-cover
   const rw = src.w * scale;
   const rh = src.h * scale;
-  const mode: StageMetrics['mode'] = vw >= 768 && vw / vh >= 1.2 ? 'stage' : 'card';
-  return { mode, vw, vh, scale, rw, rh, ox: (vw - rw) / 2, oy: (vh - rh) / 2 };
+  const ox = (vw - rw) / 2;
+  const oy = (vh - rh) / 2;
+
+  /*
+   * ⚠ STAGE MODE IS DECIDED BY WHETHER THE BOARD FITS, NOT BY AN ASPECT RATIO.
+   *
+   * This was `vw >= 768 && vw / vh >= 1.2`, which is a guess that the screen is
+   * widescreen. It is not, on a 4:3 iPad, a 16:10 laptop, or a split-screen
+   * window. `object-cover` scales by whichever axis is short, so on anything
+   * NARROWER than the art the crop comes off the sides — and the board this
+   * panel anchors to sits at cx 0.808, far right in the art, so it is the
+   * first thing the crop eats.
+   *
+   * On a 1024x768 iPad the panel's right edge projects to 1113px in a 1024px
+   * viewport: 89px off-screen. At the old 1.2 cutoff itself it is 183px off.
+   * The ratio test admitted exactly the cases it needed to exclude.
+   *
+   * Projecting the anchor and checking it lands inside the viewport tests the
+   * thing that actually matters, and does so for any aspect — no new constant
+   * needs to be guessed when a device shape appears that nobody planned for.
+   */
+  let fits = true;
+  if (anchor) {
+    const cardW = rw * anchor.wFrac;
+    const left = ox + anchor.cx * rw - cardW / 2;
+    const top = oy + anchor.y0 * rh;
+    fits =
+      left >= EDGE_MARGIN &&
+      left + cardW <= vw - EDGE_MARGIN &&
+      top >= 0 &&
+      top + rh * anchor.hFrac <= vh;
+  }
+
+  const mode: StageMetrics['mode'] = vw >= MIN_STAGE_W && fits ? 'stage' : 'card';
+  return { mode, vw, vh, scale, rw, rh, ox, oy };
 }
 
 /** Map a normalized point in the backdrop art (0..1) to viewport px. */
@@ -110,19 +161,23 @@ const SSR_FALLBACK: StageMetrics = {
 export function useStage(
   ref?: RefObject<HTMLElement | null>,
   src: SourceSize = FALLBACK_SRC,
+  /** The overlay this stage has to fit. Omit and stage mode is width-only. */
+  anchor: StageAnchor | null = null,
 ): StageMetrics {
   // ⚠ DESTRUCTURED TO PRIMITIVES. `useSourceSize` hands back a fresh object
   // every render, so an effect depending on `src` itself would re-run — and
   // re-measure — on each one.
   const { w: srcW, h: srcH } = src;
+  const { cx = 0, y0 = 0, wFrac = 0, hFrac = 0 } = anchor ?? {};
 
   const [metrics, setMetrics] = useState<StageMetrics>(() =>
-    typeof window === 'undefined' ? SSR_FALLBACK : compute(null, src),
+    typeof window === 'undefined' ? SSR_FALLBACK : compute(null, src, anchor),
   );
 
   useEffect(() => {
     const el = ref?.current ?? null;
-    const onResize = () => setMetrics(compute(el, { w: srcW, h: srcH }));
+    const a = anchor ? { cx, y0, wFrac, hFrac } : null;
+    const onResize = () => setMetrics(compute(el, { w: srcW, h: srcH }, a));
     onResize();
 
     // A ResizeObserver catches what `resize` does not: the element changing
@@ -138,7 +193,10 @@ export function useStage(
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
     };
-  }, [ref, srcW, srcH]);
+    // Primitives, never the objects — both callers build theirs inline, so a
+    // fresh identity arrives on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref, srcW, srcH, anchor === null, cx, y0, wFrac, hFrac]);
 
   return metrics;
 }

@@ -11,18 +11,26 @@ import { PixelWipe } from './PixelWipe';
 import { useStage, useSourceSize, projectX, projectY } from './useStage';
 import { playSfx } from '@/audio/audioManager';
 
-// ── Scene anchors, as fractions of the 16:9 art ────────────────────────────
+// ── Scene anchors, as fractions of the backdrop art ─────────────────────────
 // The blank parchment board (the panel fills it) and the floor (the mascot).
+// ⚠ `cx: 0.808` is FAR RIGHT in the art, which makes this the first feature a
+// horizontal crop removes — see the stage-mode note in useStage.
 const BOARD = { cx: 0.808, y0: 0.135, wFrac: 0.265, hFrac: 0.55 };
 
 /**
  * PassKeyScreen — the full-bleed Academy "storefront" entry experience.
  *
- * The video ALWAYS object-covers the viewport (no bars). In landscape
- * ("stage") mode the panel fills the baked-in board (top-aligned) and the
- * mascot stands on the floor, both math-anchored via the cover projection. In
- * portrait ("card") mode the panel is a full-height sheet (centered content,
- * branded with the logo) and the mascot is dropped.
+ * The video ALWAYS object-covers the viewport (no bars). In "stage" mode the
+ * panel fills the baked-in board (top-aligned) and the mascot stands on the
+ * floor, both math-anchored via the cover projection. In "card" mode the panel
+ * is a full-height sheet (centered content, branded with the logo) and the
+ * mascot is dropped.
+ *
+ * ⚠ THE TWO MODES ARE NOT "LANDSCAPE" AND "PORTRAIT". That is what the old
+ * aspect-ratio test made them, and it is why a 4:3 iPad in landscape got stage
+ * mode with the panel hanging off the right edge. Stage mode is used when the
+ * board FITS; anything else — a 4:3 tablet, a 16:10 laptop, a half-width
+ * window — falls back to the card, which needs no baked-in feature to land on.
  */
 export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
   const reduced = useReducedMotion();
@@ -33,7 +41,10 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
   // not a constant. The overlays are projected onto features baked into this
   // image, so its aspect is the one number the projection cannot guess.
   const srcSize = useSourceSize(A.env.passkeyPoster);
-  const stage = useStage(stageRef, srcSize);
+  // BOARD is passed so the stage/card decision can be made on whether the
+  // panel actually lands inside the viewport, rather than on an aspect ratio
+  // that assumed every screen is widescreen.
+  const stage = useStage(stageRef, srcSize, BOARD);
   const [leaving, setLeaving] = useState(false);
   const [roamTick, setRoamTick] = useState(0);
 
