@@ -3,19 +3,9 @@
 The debrief is what a team reads between rounds: a set of charts showing what
 just happened, each with your explanation of what it means.
 
-Building one is two jobs, usually done by two people.
-
-| Job | Who | How often |
-|---|---|---|
-| **Set up the charts** — decide which charts exist and what they measure | Operator | Once, when a simulation type is created |
-| **Write the debrief** — explain what each chart says this round | Facilitator | Every round, after it is calculated |
-
-You only need the part of this guide that matches your job. If you do both,
-read Part 1 first — the second job depends on the first being done.
-
 ---
 
-> ## Read this first: round numbers start at 0
+> ## Round numbers start at 0
 >
 > Everywhere you are asked for a round number, **the first round is `0`**.
 >
@@ -25,8 +15,7 @@ read Part 1 first — the second job depends on the first being done.
 > | Round 2 | `1` |
 > | Round 3 | `2` |
 >
-> Getting this wrong is the single most common mistake. It does not show an
-> error — you simply get the wrong round's data, or a blank page.
+> error — you simply get the wrong round's data, or a blank page. if the round has yet to be calculated. it will also show as blank
 
 ---
 
@@ -49,19 +38,15 @@ load the chart shapes before you can continue. You cannot fix this from here.
 
 Fill in the row of fields at the bottom of the page, then press **Add chart**.
 
-**Order** — where this chart appears in the slide. Lower numbers come first.
-Leave gaps (10, 20, 30) so you can slot something in later without renumbering
-everything.
+**Order** — where this chart appears in the slide.
 
 **Slide group** — the heading this chart sits under. Charts sharing a group
 appear together in one collapsible section. Type the same text for each chart
-you want grouped — for example `Money`, `Market`, `Production`. Leave it blank
-and the chart stands on its own.
+you want grouped — for example `Money`, `Market`, `Production`. 
 
-**Chart name** — the heading the team reads above the chart. Write it for them,
-not for you: *"What each team earned"* beats *"revenue_by_team"*.
+**Chart name** — the heading the team reads above the chart.
 
-**Scope** — how many copies of this chart to make.
+**Scope** — the scope of the chart, whether it's overall or through a foreach loop
 
 | Setting | What happens |
 |---|---|
@@ -70,25 +55,20 @@ not for you: *"What each team earned"* beats *"revenue_by_team"*.
 
 > If you want both an overall figure *and* a per-notebook breakdown, create
 > **two separate charts**. There is no setting that gives you both at once.
-> They answer different questions and need different explanations anyway.
 
 **Shape** — what the chart looks like: bars, lines, a scatter. Pick whichever
 suits the comparison. If nothing looks right, a developer can add a new shape.
 
-**X** — what runs along the bottom. Usually `Team`, so you get one bar per
-team. Can also be `Round` to show change over time.
+**X** — the x-axis
 
 **Y** — what is being measured: revenue, units sold, energy spent. You can pick
-**more than one** — choose one, it appears as a tag, then choose another. The
-chart plots them side by side. Press the `×` on a tag to remove it.
+**more than one**. the chosen y-axis will appear as a tag. delete the tag by clicking 
+on the X button
 
 **Grouping** — splits each bar or line into several. For example, X = `Team`
 and Grouping = `Product` gives you each team's bars broken down by notebook.
-Leave it blank if you don't need it.
 
 ## Check it before you move on
-
-This is the step people skip, and it is the one that catches mistakes.
 
 At the bottom of the page is a **Preview** box. Fill in:
 
@@ -113,13 +93,11 @@ notebook. If you only see one, Scope is still set to `overall`.
 **Edit** reopens the chart's settings. **Delete** removes it.
 
 > **Deleting a chart also deletes every explanation ever written for it**, in
-> every round, for every simulation of this type. This cannot be undone. The
-> page tells you how many were deleted after the fact.
+> every round, for every simulation of this type. This cannot be undone.
 
 > **Changing Scope after explanations have been written loses them.** Switching
 > between `overall` and `each notebook` changes which charts exist, and the old
-> text no longer has a chart to attach to. It is not deleted, but nothing can
-> reach it again. Decide Scope before the first round is written up.
+> text no longer has a chart to attach to.
 
 Changing anything else — the name, the order, the measurements — is safe and
 keeps the existing text.
@@ -170,10 +148,6 @@ Under each chart, write what it says. Press **Save**.
 > This is the most important thing on this page. An empty box does not mean
 > "chart with no caption" — it means **the team never sees that chart at all**.
 >
-> This is deliberate: a chart nobody has explained is worse than no chart. But
-> it means that if you run out of time and leave three boxes empty, the team's
-> debrief quietly has three fewer charts and nothing warns you.
->
 > **Before ending a round, scroll the whole page and check for empty boxes.**
 
 Some practical notes:
@@ -181,54 +155,7 @@ Some practical notes:
 - **Every box is separate.** If a chart is set to `each notebook`, you will see
   one box per notebook. Writing the first one does **not** cover the others.
 - **Every round is separate.** The same chart in round 2 starts empty again.
-  Nothing carries over, by design — the point is what changed.
-- **You can see charts the team cannot.** As staff, every chart is drawn for
-  you even before you write anything. The team only ever gets the ones with
-  text.
-
-### What to write
-
-You are reading the chart *for* them. A useful explanation usually does one of
-these:
-
-- Points at what actually happened — *"Team C sold twice what anyone else did"*
-- Names the cause — *"...because they were the only team on the retail channel"*
-- Asks the question you want them to take into the next round — *"Was that
-  worth the 20% they gave up per sale?"*
-
-Avoid restating the axis labels. The team can already see that the bars are
-revenue by team.
-
-## If a chart itself is wrong
-
-Sometimes you only notice a chart is measuring the wrong thing when you sit
-down to explain it. Each chart has an **Edit** button that opens its settings
-here, so you do not have to leave the page and lose your place.
-
-> **A chart belongs to the simulation type, not to this round.** Editing it
-> here changes it for **every round and every simulation** of this type —
-> including rounds you have already written up. The *text* is per round; the
-> chart is not.
-
-If a chart is set to `each notebook`, only the **first** of its boxes has an
-Edit button. The notebooks share one chart between them.
-
----
-
-# When something looks wrong
-
-| What you see | What it means | What to do |
-|---|---|---|
-| A chart is missing for the team | No text was written for it this round | Load the round and check for empty boxes |
-| Only one chart where you expected several | Scope is `overall` | Edit the chart, set Scope to `each notebook` |
-| Preview says `0 rows` in red | X, Y or Grouping matches no data | Change one and Render again |
-| The chart is blank but the text is there | The chart shape failed to draw | Use Preview on the Debrief Charts page to see why; may need a developer |
-| Text you wrote has vanished | Scope was changed after it was written | Rewrite it. Avoid changing Scope once a round is written up |
-| The whole page is empty after Load | Wrong round number, or the round is not calculated yet | First round is `0`. Check the round has been calculated |
-| A chart is named and described but always blank | Usually a Voice of Customer setup problem | Ask a developer |
-| The Shape dropdown is empty | No chart shapes have been loaded | Ask a developer to seed the chart gallery |
-
----
+  Nothing carries over.
 
 # Glossary
 
