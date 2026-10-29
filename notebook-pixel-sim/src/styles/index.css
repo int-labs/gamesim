@@ -1293,6 +1293,20 @@ button {
   background-color: var(--c-surface);
   border: 1px solid var(--c-border-soft);
 }
+/* A container you CANNOT act on.
+   ⚠ THE BORDER IS THE AFFORDANCE. A bordered box reads as a button or a
+   target; a box that only groups text must not borrow that, or the page
+   offers more things to click than it has. Grouping is carried by the
+   background alone. Use this for read-only chips, blurbs and result rows —
+   anything clickable keeps its border. */
+.soft-panel {
+  /* cream-100 — ONE step off the surface it sits on, which is all the
+     separation a non-interactive group needs. Anything stronger starts
+     competing with the buttons again. */
+  background-color: #F5EED8;
+  border: none;
+  border-radius: 2px;
+}
 .pixel-frame--strong {
   background-color: var(--c-surface);
   border: 2px solid var(--c-border);

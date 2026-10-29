@@ -13,7 +13,6 @@ import { playSfx } from '@/audio/audioManager';
 import { HeartRain, patHeartRain, originOf } from '@/components/fx/HeartRain';
 import clsx from 'clsx';
 import { useTotalRounds } from '@/gamesim/GamesimProvider';
-import { DAYS_PER_PHASE } from '@/engine/config';
 
 // Round art is a LIST, cycled — not a table keyed 1/2/3.
 //
@@ -122,11 +121,10 @@ export function PhaseIntroScreen() {
 
   // Only the THEME half of the authored title is used. Its eyebrow half is
   // baked with a day range ("Phase 1 · Days 1-30", copy.ts:170) that is wrong
-  // for any reused round, so the eyebrow is COMPOSED from the phase instead.
+  // for any reused round — and there is NO DAY RANGE ON THIS CARD any more.
+  // The sim advances by phase, so a day span was a second unit to track that
+  // nothing else in the game counts in. The pill states the phase, once.
   const [, theme] = splitTitle(info.title);
-  const fromDay = (phase - 1) * DAYS_PER_PHASE + 1;
-  const toDay = phase * DAYS_PER_PHASE;
-  const eyebrow = `Phase ${phase} · Days ${fromDay}-${toDay}`;
 
   // ── Parallax: MASCOT ONLY, and gentle. Cursor → [-1, 1], spring, small fan. ──
   const mvx = useMotionValue(0);
@@ -228,23 +226,29 @@ export function PhaseIntroScreen() {
             className="pixel-frame z-[30] w-full max-w-[500px] shrink overflow-hidden bg-cream-50 shadow-[8px_10px_0_0_rgba(0,0,0,0.4)]"
           >
           <div className="p-6 sm:p-7">
-            {/* Round pill + phase/day eyebrow */}
+            {/* ⚠ PHASE, NOT ROUND. "Round" is the SERVER's unit and never
+                reaches the player — this card said Round in the pill, Phase in
+                the eyebrow and Round again in the footer, for one thing. The
+                pill carries the whole statement ("Phase 1 of 3") so the footer
+                no longer repeats it. */}
             <motion.div
               initial={reduced ? false : { y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.28, duration: 0.4 }}
               className="mb-3 flex flex-wrap items-center gap-2"
             >
-              {/* "ROUND N" stamps in with an impact overshoot. */}
+              {/* "PHASE N OF M" stamps in with an impact overshoot. "of M"
+                  comes from the operator's `simulation.config.totalRounds`;
+                  with no known total the label drops the clause rather than
+                  claiming a three-phase run the simulation may not be. */}
               <motion.span
                 initial={reduced ? false : { scale: 1.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.34, duration: 0.4, ease: [0.2, 1.7, 0.3, 1] }}
                 className="inline-block bg-brand-500 px-2 py-1 eyebrow eyebrow-sm text-cream-50"
               >
-                Round {phase}
+                {totalRounds ? `Phase ${phase} of ${totalRounds}` : `Phase ${phase}`}
               </motion.span>
-              <span className="eyebrow eyebrow-sm eyebrow-muted">{eyebrow}</span>
             </motion.div>
 
             {/* Big theme title — punches in from the left. */}
@@ -289,15 +293,9 @@ export function PhaseIntroScreen() {
           </div>
 
           {/* Footer — big CTA */}
-          <div className="flex items-center justify-between gap-3 border-t border-border-soft bg-cream-200 p-4 sm:px-6">
-            {/* eyebrow-muted, not ink-500: the legacy ink ramp bottoms out at
-                2.74:1 on cream, below the 3:1 floor even for a label. */}
-            {/* "of N" comes from the operator's `simulation.config.totalRounds`.
-                With no known total the label drops the "of" clause rather than
-                claiming a three-round run the simulation may not be. */}
-            <span className="eyebrow eyebrow-sm eyebrow-muted">
-              {totalRounds ? `Round ${phase} of ${totalRounds}` : `Round ${phase}`}
-            </span>
+          {/* The "Round N of M" label that sat on the left is GONE — the pill
+              at the top of the card already says it, in the player's unit. */}
+          <div className="flex items-center justify-end gap-3 border-t border-border-soft bg-cream-200 p-4 sm:px-6">
             <motion.button
               type="button"
               onClick={start}

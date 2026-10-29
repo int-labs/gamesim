@@ -72,13 +72,18 @@ export function StartScreen() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="pixel-frame bg-cream-50 max-w-[640px] w-full text-center"
         >
-          <div className="px-6 pt-6 pb-2">
-            {/* Title slams in with an arcade overshoot. */}
+          {/* `pt-5` matches the `mt-5` above the "What you'll learn" rule, so
+              the gap over the title and the gap over the separator are the same
+              step rather than two near-misses. */}
+          <div className="px-6 pt-5 pb-2">
+            {/* Title slams in with an arcade overshoot. THE page's h1 — it was
+                set at `.h2` and so carried the same weight as a card title
+                three screens deeper, which is what flattened the hierarchy. */}
             <motion.h1
               initial={reduced ? false : { scale: 0.7, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.18 }}
-              className="h2 text-ink-900 leading-tight"
+              className="h1 text-ink-900 leading-tight"
             >
               {HOME.title}
             </motion.h1>
@@ -182,7 +187,10 @@ function Lp({ body, index }: { body: string; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -3 }}
       transition={{ duration: 0.35, delay: 0.3 + index * 0.07, ease: 'easeOut' }}
-      className="flex items-center gap-2 border border-border-soft bg-cream-100 px-2.5 py-2 text-left cursor-default"
+      // NO BORDER — these are blurbs, not targets. A bordered chip beside a
+      // filled CTA competes with it for "the thing to click"; the background
+      // alone does the grouping. See `.soft-panel`.
+      className="flex items-center gap-2 soft-panel px-2.5 py-2 text-left cursor-default"
     >
       <span className="font-body hint leading-tight text-ink-900">{body}</span>
     </motion.div>

@@ -37,46 +37,75 @@ export function RouteChoiceScreen() {
     <div className="absolute inset-0 flex flex-col">
       <img src={A.env.deskFull} alt="" className="absolute inset-0 w-full h-full object-cover opacity-95" draggable={false} />
       <div className="absolute inset-0 bg-ink-900/35" />
-      <div className="relative z-10 flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-[560px] flex flex-col items-center gap-6">
-          <motion.div
-            className="text-center"
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-          >
-            <div className="eyebrow eyebrow-md eyebrow-light">{ROUTE.eyebrow}</div>
-            <h1 className="h2 uppercase text-cream-50 mt-1">{ROUTE.shop.title}</h1>
-            <p className="body-sm text-cream-100 mt-2 max-w-[52ch] mx-auto">{ROUTE.shop.hint}</p>
-          </motion.div>
+      {/* ONE FRAMED CARD, like the Start screen before it. These two screens run
+          back to back and used to disagree about whether content sits on a card
+          at all, so the second one read as a different app. */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-6">
+        <motion.div
+          className="pixel-frame bg-cream-50 w-full max-w-[640px] text-center"
+          initial={{ scale: 0.92, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="px-6 pt-6 pb-2">
+            <motion.h1
+              className="h1 uppercase text-ink-900 leading-tight"
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+            >
+              {ROUTE.shop.title}
+            </motion.h1>
+            <p className="font-body body-xs text-ink-800 mt-3 max-w-[560px] mx-auto leading-relaxed">
+              {ROUTE.shop.hint}
+            </p>
 
-          <motion.div
-            className="w-full flex flex-col items-center gap-4"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08, type: 'spring', stiffness: 260, damping: 22 }}
-          >
-            <input
-              id="shop-name"
-              aria-label={ROUTE.shop.title}
-              value={shopDraft}
-              onChange={(e) => setShopDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') begin(); }}
-              maxLength={MAX_SHOP_NAME}
-              placeholder={DEFAULT_SHOP_NAME}
-              autoFocus
-              className="w-[320px] max-w-full bg-cream-50 border-2 border-ink-900 shadow-pixel-2 text-text section-title text-center outline-none focus:border-primary px-3 py-2.5"
-            />
-            <PixelButton variant="primary" size="md" onClick={begin}>
+            <motion.div
+              className="w-full flex flex-col items-center gap-4 mt-5"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08, type: 'spring', stiffness: 260, damping: 22 }}
+            >
+              <input
+                id="shop-name"
+                aria-label={ROUTE.shop.title}
+                value={shopDraft}
+                onChange={(e) => setShopDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') begin(); }}
+                maxLength={MAX_SHOP_NAME}
+                // A PLACEHOLDER, never a prefilled value — `setShopName` already
+                // falls back to this string on an empty draft, so prefilling it
+                // would only mean the player has to clear it to type.
+                placeholder={DEFAULT_SHOP_NAME}
+                autoFocus
+                className="w-[320px] max-w-full bg-cream-50 border-2 border-ink-900 shadow-pixel-2 text-text section-title text-center outline-none focus:border-primary px-3 py-2.5 placeholder:text-text-3"
+              />
+            </motion.div>
+          </div>
+
+          {/* The footer matches the Start screen's: avatar, speech bubble,
+              primary CTA, on the same cream-200 shelf. */}
+          <div className="border-t border-border-soft bg-cream-200 p-4 mt-4 flex flex-col gap-3 items-center">
+            <div className="flex w-full max-w-[470px] items-center gap-3">
+              <MascotAvatar mood="thinking_side" size={76} />
+              <div className="relative flex-1 text-left">
+                <span
+                  aria-hidden
+                  className="absolute -left-[7px] top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 border-b-2 border-l-2 border-ink-900 bg-cream-50"
+                />
+                <div className="rounded-lg border border-border-soft bg-cream-50 px-3 py-2">
+                  <div className="eyebrow eyebrow-sm text-brand-500">Amelia</div>
+                  <div className="mt-0.5 font-body hint leading-snug text-ink-900">
+                    {ROUTE.footer}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <PixelButton variant="primary" size="lg" onClick={begin}>
               {ROUTE.cta}
             </PixelButton>
-          </motion.div>
-
-          <div className="flex items-center gap-3 bg-cream-50 border border-border-soft px-3 py-2">
-            <MascotAvatar mood="thinking_side" size={60} />
-            <div className="body-xs font-body">{ROUTE.footer}</div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

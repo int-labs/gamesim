@@ -90,7 +90,10 @@ export function SessionChip() {
   // `round.roundNumber` is the server's 0-BASED index; the player counts from 1
   // and reads it next to "Phase N", so an unconverted 2 sat beside Phase 3.
   // See ../../gamesim/GamesimProvider.tsx — the only conversion seam.
-  const roundLabel = round ? phaseFromRoundNumber(round.roundNumber) : null;
+  // ⚠ PHASE, not round. `phaseFromRoundNumber` already converts the server's
+  // 0-based roundNumber into the 1-based unit the player is shown — the label
+  // over it said "Round", which is the operator's word for the same thing.
+  const phaseLabel = round ? phaseFromRoundNumber(round.roundNumber) : null;
 
   return (
     <>
@@ -102,8 +105,8 @@ export function SessionChip() {
           <Tooltip
             content={
               over
-                ? 'The round is past its time. You can still submit until the facilitator closes it.'
-                : 'The round your facilitator has open, and the time left on it.'
+                ? 'The phase is past its time. You can still submit until the facilitator closes it.'
+                : 'The phase your facilitator has open, and the time left on it.'
             }
             placement="top"
           >
@@ -112,10 +115,10 @@ export function SessionChip() {
               role="status"
               aria-label={
                 left === null
-                  ? `Round ${roundLabel}`
+                  ? `Phase ${phaseLabel}`
                   : over
-                    ? `Round ${roundLabel}, past its time`
-                    : `Round ${roundLabel}, ${formatLeft(left)} remaining`
+                    ? `Phase ${phaseLabel}, past its time`
+                    : `Phase ${phaseLabel}, ${formatLeft(left)} remaining`
               }
             >
               <span className="game-phase-marker">
@@ -127,7 +130,7 @@ export function SessionChip() {
               </span>
               <div className="flex flex-col leading-tight min-w-0">
                 <span className="eyebrow eyebrow-sm text-[#9F7F52]">
-                  Round {roundLabel}
+                  Phase {phaseLabel}
                 </span>
                 {/* The plate is #221710. The theme's -ink reds are tuned for
                     CREAM and go nearly black here, so urgency uses the bright

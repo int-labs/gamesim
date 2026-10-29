@@ -597,16 +597,18 @@ function InsightCheck({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-start gap-3">
-        <MascotAvatar mood="thinking_side" size={66} />
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <PixelBadge tone="brand">Phase {phase} Insight Check</PixelBadge>
-          </div>
+      {/* The chip is a LABEL ON THE QUESTION BOX, so the two touch. It used to
+          sit in a `flex-1` column of its own beside the avatar, holding one
+          badge and a lot of nothing — which read as a description slot somebody
+          had forgotten to fill. There is no description; the question is the
+          content. */}
+      <div>
+        <div className="flex items-center gap-2">
+          <MascotAvatar mood="thinking_side" size={66} />
+          <PixelBadge tone="brand">Phase {phase} Insight Check</PixelBadge>
         </div>
-      </div>
 
-      <div className="panel-muted px-3.5 py-3">
+        <div className="panel-muted px-3.5 py-3">
         <p className="body-sm text-text mb-2">{insight.question}</p>
         <div className="flex flex-col gap-1.5">
           {insight.options.map((o) => {
@@ -618,15 +620,26 @@ function InsightCheck({
                 key={o.id}
                 disabled={revealed}
                 onClick={() => { playSfx('click-soft'); onPick(o.id); }}
+                // ⚠ A BORDER HERE MEANS SOMETHING. Four identical outlines on
+                // four options is noise — it marks every row as special, so
+                // none of them is. An option carries a border ONLY once it has
+                // a verdict on it (picked, right, wrong); the resting state is
+                // a soft plate, and the fill alone does the separating.
                 className={clsx(
-                  'text-left p-2 border-2 body-xs leading-snug transition-all',
-                  showCorrect && 'border-success bg-success-soft text-text',
-                  wrongPicked && 'border-danger bg-error-soft text-text',
+                  'text-left p-2 body-xs leading-snug transition-all',
+                  showCorrect && 'border-2 border-success bg-success-soft text-text',
+                  wrongPicked && 'border-2 border-danger bg-error-soft text-text',
                   // Selected (pre-reveal) - dark walnut plate + cream
                   // text so the pick is unambiguous, mirrors the HUD
                   // bar treatment elsewhere in the app.
-                  isPicked && !revealed && 'border-primary bg-[#221710] text-[#FAF7E8]',
-                  !isPicked && !revealed && 'border-border-soft bg-surface hover:border-border',
+                  isPicked && !revealed && 'border-2 border-primary bg-[#221710] text-[#FAF7E8]',
+                  // ⚠ `border-2 border-transparent` on the resting state, not
+                  // `border-0`: without it the row grows 4px the instant it is
+                  // picked and the whole list jumps.
+                  !isPicked && !revealed && 'border-2 border-transparent soft-panel hover:brightness-[0.97]',
+                  // Unpicked rows AFTER the reveal are over — flatten them so
+                  // the two that carry a verdict are the only ones read.
+                  revealed && !isPicked && !showCorrect && 'border-2 border-transparent soft-panel opacity-70',
                 )}
               >
                 <span
@@ -647,6 +660,7 @@ function InsightCheck({
             <strong className="text-text">Why:</strong> {insight.explanation}
           </div>
         )}
+        </div>
       </div>
 
       <div className="flex justify-end gap-2">

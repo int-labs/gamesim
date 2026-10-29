@@ -144,7 +144,9 @@ export const ROUTE = {
     title: 'Name your studio',
     hint: 'This is your business. You can rename it any time from Business ▸ Operations.',
   },
-  eyebrow: 'Step 1',
+  // NO EYEBROW. It read "Step 1" and there was never a step 2 — the naming
+  // screen is the whole of it, so the label promised a sequence that does not
+  // exist. Removed 2026-10-29 on QA's note.
   cta: 'Open for business',
   footer: 'You can change this later. Nothing here affects your score.',
 };

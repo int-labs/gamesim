@@ -311,10 +311,24 @@ export function VisualNovelMascot() {
                   // share with `.game-btn` read as a disabled control, and
                   // this is the button that advances every tutorial line.
                   className="vn-continue inline-flex items-center gap-2 h-[36px] px-5 border-2 border-border bg-primary text-[#12301C] cursor-pointer"
-                  aria-label={isFinalMessage ? 'Finish' : (fullyTyped ? 'Next message' : 'Reveal full message')}
+                  aria-label={
+                    !fullyTyped ? 'Reveal full message'
+                      : isFinalMessage ? 'Close'
+                        : isLastInSequence ? 'Continue to the next topic'
+                          : 'Next message'
+                  }
                 >
+                  {/* ⚠ THREE LABELS, because the counter above reads
+                      "2 / 2" the moment a sequence ends — and the button then
+                      said "Next", which QA read as the dialogue contradicting
+                      itself. `isLastInSequence` is the end of THIS topic;
+                      `isFinalMessage` additionally means nothing is queued
+                      behind it, and only that one closes the box. */}
                   <span className="eyebrow eyebrow-sm text-inherit">
-                    {!fullyTyped ? 'Reveal' : isFinalMessage ? 'Finish' : 'Next'}
+                    {!fullyTyped ? 'Reveal'
+                      : isFinalMessage ? 'Close'
+                        : isLastInSequence ? 'Continue'
+                          : 'Next'}
                   </span>
                   <PixelIcon kind="arrow-right" size={11} color="currentColor" />
                 </button>
