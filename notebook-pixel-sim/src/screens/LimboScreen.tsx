@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import clsx from 'clsx';
 import { getRoundDebrief, getStoredSession, GamesimApiError } from '@/gamesim/client';
 import type { DebriefChartDto, RoundDebriefDto } from '@/gamesim/types';
 import { PixelPanel } from '@/components/primitives';
@@ -298,20 +299,45 @@ function ChartSlide({ chart, data }: { chart: DebriefChartDto; data: RoundDebrie
   // rather than silent.
   const Client = chart.clientChart ? CLIENT_CHARTS[chart.clientChart] : undefined;
 
+  // Whether there is anything to put in the left cell at all. A chart whose
+  // spec failed to compile has none, and splitting the row then would strand
+  // the copy in the right half beside an empty box.
+  const hasFigure = !!Client || !!chart.svg;
+
   return (
     <PixelPanel title={title}>
-      {chart.description && (
-        <div className="body text-ink-700 leading-snug mb-2">{chart.description}</div>
-      )}
-      {Client && <Client chart={chart} data={data} />}
-      {chart.svg && (
-        // Vega writes fixed `width`/`height` onto the root `<svg>`, so it is
-        // capped to the panel here rather than left to overflow the 80vw column.
-        <div
-          className="w-full overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto"
-          dangerouslySetInnerHTML={{ __html: chart.svg }}
-        />
-      )}
+      {/* ⚠ FIGURE LEFT, READING RIGHT — they are a pair, read together. The
+          copy used to sit ABOVE the chart, so a team read the conclusion, then
+          scrolled past it to find the evidence, and could never hold both at
+          once. One slide is now one row.
+
+          `lg:`, not `md:`: this page is `w-[80vw]`, so a 768px viewport gives
+          two ~300px columns and the server renders its charts 720px wide.
+          Below that the two cells stack and the old order is restored by the
+          source order — figure first, then its reading. */}
+      <div className={clsx('grid gap-4 items-start', hasFigure && 'lg:grid-cols-2')}>
+        {hasFigure && (
+          // `min-w-0` or the SVG's intrinsic width widens the grid track and
+          // pushes the copy out of the panel — the same trap as the stat tiles
+          // in PhaseSequenceModal.
+          <div className="min-w-0">
+            {Client && <Client chart={chart} data={data} />}
+            {chart.svg && (
+              // Vega writes fixed `width`/`height` onto the root `<svg>`, so it
+              // is capped to its cell here rather than left to overflow.
+              <div
+                className="w-full overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto"
+                dangerouslySetInnerHTML={{ __html: chart.svg }}
+              />
+            )}
+          </div>
+        )}
+        {chart.description && (
+          <div className="min-w-0 body text-ink-700 leading-relaxed">
+            {chart.description}
+          </div>
+        )}
+      </div>
     </PixelPanel>
   );
 }
