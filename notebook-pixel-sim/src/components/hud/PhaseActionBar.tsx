@@ -404,8 +404,15 @@ function DocButton({
     <Tooltip content={title} placement="top">
       <button
         type="button"
-        onClick={onClick}
-        disabled={disabled}
+        // ⚠ `aria-disabled`, NOT `disabled`. A disabled button dispatches no
+        // pointer events, and `Tooltip` works by catching them as they bubble
+        // out of its child — so the tooltip could never open on the one state
+        // that actually needs explaining, and the button sat greyed with no
+        // way to ask why. `aria-disabled` keeps the meaning for assistive
+        // tech and the focus stop for keyboard users (who then get the
+        // tooltip on focus), while the handler below refuses the action.
+        aria-disabled={disabled || undefined}
+        onClick={() => { if (!disabled) onClick(); }}
         aria-label={title}
         className={clsx(
           'min-h-[36px] px-2.5 border-2 border-ink-900 btn-label-sm uppercase whitespace-nowrap',

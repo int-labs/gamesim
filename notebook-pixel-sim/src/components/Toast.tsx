@@ -4,14 +4,26 @@ import clsx from 'clsx';
 import { useGame } from '@/state/store';
 import type { BubbleType } from '@/types';
 
+/**
+ * ⚠ TEXT COLOUR ONLY — no fill, no frame.
+ *
+ * This was a bordered pastel chip at the top edge, and it lost every time: a
+ * `-soft` tint on a cream page, inside a 1px border, in `eyebrow-sm` tracked
+ * capitals, sitting in the same band as the HUD. The message it carries is
+ * usually the server's own error text, which is the one thing on screen a
+ * player must not miss.
+ *
+ * The STRONG weights, not the `-ink` ones: this floats over whatever happens
+ * to be behind it, so it cannot borrow contrast from a fill it no longer has.
+ */
 const tones: Record<BubbleType, string> = {
-  hint: 'bg-cream-50 border-ink-900',
-  warning: 'bg-warn-soft border-ui-danger',
-  success: 'bg-success-soft border-success',
-  event: 'bg-info-soft border-info',
-  insight: 'bg-info-soft border-info',
-  debrief: 'bg-info-soft border-info',
-  tutorial: 'bg-cream-100 border-ink-900',
+  hint:     'text-ink-900',
+  warning:  'text-danger-strong',
+  success:  'text-success-ink',
+  event:    'text-info',
+  insight:  'text-info',
+  debrief:  'text-info',
+  tutorial: 'text-ink-900',
 };
 
 export function Toast() {
@@ -26,16 +38,37 @@ export function Toast() {
   }, [toast, clearToast]);
 
   return (
-    <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[120] pointer-events-none">
+    // ⚠ CENTRE OF THE SCREEN, not the top edge. At `top-3` it sat in the same
+    // band as the HUD bar — the busiest strip on the page — so the one message
+    // the app ever pushes at the player was competing with the chrome for
+    // attention and losing. Dead centre is where the eye already is.
+    //
+    // `inset-0` + `pointer-events-none` so the overlay never takes a click:
+    // the toast is a notice, and nothing underneath it should become
+    // unreachable for the two seconds it is up.
+    <div className="fixed inset-0 z-[120] flex items-center justify-center pointer-events-none">
       <AnimatePresence>
         {toast && (
           <motion.div
             key={toast.id}
-            initial={{ y: -10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -10, opacity: 0 }}
+            // Scale rather than a downward slide: it is arriving in place now,
+            // not dropping in from an edge it no longer starts at.
+            initial={{ scale: 0.94, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.98, opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className={clsx('pixel-frame px-3 py-2 eyebrow eyebrow-sm', tones[toast.kind])}
+            className={clsx(
+              // `.section-heading` is the top of the type scale — see the
+              // `--fs-unit` rule; no raw px here. It carries a sentence, so
+              // `leading-tight` rather than the class's own display spacing.
+              'section-heading leading-tight max-w-[min(90vw,40rem)] text-center px-4',
+              // The halo is what makes a fill unnecessary: a cream glow so red
+              // survives the dark desk scenes, plus a hairline drop so it
+              // still has an edge on the cream panels. Without it, transparent
+              // text is only legible over half the app.
+              '[text-shadow:0_0_10px_rgba(251,246,233,0.95),0_0_3px_rgba(251,246,233,1),0_2px_0_rgba(42,32,23,0.3)]',
+              tones[toast.kind],
+            )}
           >
             {toast.text}
           </motion.div>
