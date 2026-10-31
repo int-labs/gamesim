@@ -127,7 +127,7 @@ export const A = {
   // this in over the poster once buffered, and falls back to the poster on
   // reduced-motion / error.
   video: {
-    passkeyBg: i('img/environment/pixelenterpin-background-loop_v02.mp4'),
+    passkeyBg: i('img/environment/pixelenterpin-background.png'),
   },
 
   addons: {
