@@ -3,6 +3,16 @@ import GlobalInput from "../models/globalInputs";
 import { CLIENT_CHARTS, type ClientChart } from "../constants/clientCharts";
 
 /**
+ * The measure-key suffix meaning "every key in this map, added up".
+ *
+ * ⚠ ONE DEFINITION, and it lives HERE rather than beside the code that reads
+ * it: `debriefChartData` already imports from this module, so the constant
+ * going the other way would close an import cycle. The registry offers the
+ * field and the row builder resolves it; they must agree on this string.
+ */
+export const ALL_KEYS = "*";
+
+/**
  * WHAT A CHART MAY PLOT, for one simulation type.
  *
  * The operator's X / Y / grouping selects read this. They were free text, and a
@@ -164,6 +174,32 @@ export const buildDebriefDimensions = async (
       kind: "measure",
       source: "spec",
     })),
+    // ⚠ THE TOTALS COME FIRST, and they only exist because these two maps are
+    // keyed by the OPERATOR's own lever and category names — there is no fixed
+    // "total energy" field on the wire to offer instead. Without these, every
+    // cost and energy measure was a single category, so "what did this team
+    // spend in all" was not a chart anyone could author.
+    //
+    // `.*` is the same suffix the row builder already understood: it reads as
+    // the total when nothing pivots, and as each key in turn when `lever` is
+    // bound to x or grouping. The legacy import writes it, which is why those
+    // two charts read "(missing)" until the registry offered it as well.
+    ...(levers.size > 0
+      ? [
+          {
+            field: `energyByLever.${ALL_KEYS}`,
+            label: "Energy — all levers",
+            kind: "measure" as const,
+            source: "lever" as const,
+          },
+          {
+            field: `costByCategory.${ALL_KEYS}`,
+            label: "Cost — all categories",
+            kind: "measure" as const,
+            source: "cost" as const,
+          },
+        ]
+      : []),
     ...[...levers].map(([key, label]): DebriefDimension => ({
       field: `energyByLever.${key}`,
       label: `Energy — ${label}`,
