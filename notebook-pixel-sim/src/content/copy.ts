@@ -17,8 +17,11 @@ export const HOME = {
     "Run a notebook business phase by phase. Pick your customers, design your products, manage stock and cash - and learn why growth is more than revenue.",
   taglineReturning:
     'Pick up where you left off. Your run is saved.',
+  // ⚠ DOES NOT OFFER A NEW RUN. A finished run is locked — the debrief is the
+  // only thing still reachable — and this line used to say "Start a fresh one
+  // to try a different strategy" beside a screen that no longer lets you.
   taglineEnded:
-    'Your last run wrapped. Start a fresh one to try a different strategy.',
+    'That run is complete. Your debrief is the record of it, and you can reread it any time.',
   ameliaIntro: "Hi, I'm Amelia. I'll guide you through the numbers and explain what each decision changes.",
   /** `totalRounds` is undefined in standalone play — the sentence then omits
    *  the total rather than asserting one. */
@@ -28,7 +31,9 @@ export const HOME = {
     startFirst: 'Start business',
     continue: (phase: number) => `Continue · Phase ${phase}`,
     startNew: 'Start new game',
-    startAnother: 'Start a new run',
+    /** Straight to the last scored phase's debrief, skipping the run. PHASE,
+     *  not round — see the unit ruling in PhaseIntroScreen. */
+    debrief: (phase: number) => `Phase ${phase} debrief`,
   },
   learningPoints: [
     { tag: 'LP1', body: 'Targeted Design' },

@@ -33,6 +33,25 @@ export function StartScreen() {
   // `AND route !== null` clause that the route choice used to supply.
   const hasSavedRun = started && !ended;
 
+  /**
+   * The phase the saved debrief is ABOUT — the last one evaluated, 1-based.
+   *
+   * ⚠ THE SAME DERIVATION AS App.tsx's, and it has to be: `screen === 'limbo'`
+   * renders NOTHING when that value is null, so a shortcut offered on any
+   * other test would land on a blank page. `evaluations` is not stripped by
+   * `partialize`, which is what makes this survive closing the tab — the whole
+   * reason the shortcut is worth having.
+   */
+  const debriefPhase = useGame((s) => {
+    const done = s.evaluations.resolved;
+    return done.length > 0 ? done[done.length - 1].phase : null;
+  });
+
+  const onDebrief = () => {
+    playSfx('whoosh');
+    setScreen('limbo');
+  };
+
   const onContinue = () => {
     playSfx('whoosh');
     setScreen('simulation');
@@ -140,6 +159,16 @@ export function StartScreen() {
                     {HOME.cta.continue(phase)}
                   </PixelButton>
                 </CtaPulse>
+                {/* STRAIGHT TO THE SCORING, skipping the run. A player who
+                    submitted their decisions and closed the tab had to walk
+                    the whole flow again to reach the debrief that was already
+                    waiting for them. Shown only when there IS one — `limbo`
+                    renders blank without a resolved evaluation. */}
+                {debriefPhase != null && (
+                  <PixelButton variant="ghost" size="lg" onClick={onDebrief}>
+                    {HOME.cta.debrief(debriefPhase)}
+                  </PixelButton>
+                )}
                 {/* Ghost, not a second filled button. This one WIPES the saved
                     run, and sitting it beside Continue as an equally solid,
                     equally coloured CTA invited exactly the misclick you can't
@@ -149,12 +178,23 @@ export function StartScreen() {
                 </PixelButton>
               </div>
             ) : ended ? (
+              /* ⚠ A FINISHED RUN IS LOCKED. Once the final phase is played
+                 the only surface still reachable is its debrief — there is
+                 deliberately no "start another", because replaying is how a
+                 scored result gets retaken until it looks better. The run is
+                 the record; the debrief is the record of the record.
+
+                 ⚠ DO NOT RESTORE A RESET BUTTON HERE. Wiping the save is
+                 still possible from a run IN PROGRESS, which is a different
+                 decision — nothing has been finally scored yet. */
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <CtaPulse reduced={!!reduced}>
-                  <PixelButton variant="primary" size="lg" onClick={onStartNew}>
-                    {HOME.cta.startAnother}
-                  </PixelButton>
-                </CtaPulse>
+                {debriefPhase != null && (
+                  <CtaPulse reduced={!!reduced}>
+                    <PixelButton variant="primary" size="lg" onClick={onDebrief}>
+                      {HOME.cta.debrief(debriefPhase)}
+                    </PixelButton>
+                  </CtaPulse>
+                )}
               </div>
             ) : (
               <CtaPulse reduced={!!reduced}>
