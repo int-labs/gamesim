@@ -1,6 +1,15 @@
 import { Request, Response } from "express";
 import { buildRoundReport, type ReportKind } from "../services/roundReport";
 import { writeReportPdf } from "../services/reportPdf";
+import Decision from "../models/decisions";
+import Team from "../models/teams";
+import { ROLES } from "../constants/roles";
+
+interface TokenUser {
+  id?:     string;
+  role?:   string;
+  teamId?: string;
+}
 
 /**
  * The round reports, as a PDF download.
@@ -39,6 +48,34 @@ export const getRoundReport = async (req: Request, res: Response): Promise<void>
     if (!Number.isInteger(roundNumber) || roundNumber < 0) {
       res.status(400).json({ message: "roundNumber must be a non-negative integer." });
       return;
+    }
+
+    // Gated for teams only: an operator reads the report while calculating.
+    // Checked before anything loads, so a refused caller cannot infer existence.
+    const user = (req as { user?: TokenUser }).user ?? {};
+    if (user.role === ROLES.TEAM) {
+      if (!user.teamId) {
+        res.status(403).json({ message: "Team token carries no team." });
+        return;
+      }
+      // !important the only thing tying the caller to the simulation it asked
+      // for. `simulationId` is a query parameter and nothing else checks it.
+      const onSimulation = await Team.exists({ _id: user.teamId, simulationId });
+      if (!onSimulation) {
+        res.status(403).json({ message: "That team is not on this simulation." });
+        return;
+      }
+      // !important `scored`, not `Round.status`: calculate and close are separate.
+      const calculated = await Decision.exists({
+        simulationId,
+        roundNumber,
+        scored: { $ne: null },
+      });
+      if (!calculated) {
+        // 404, so asking early reveals no report rather than a withheld one.
+        res.status(404).json({ message: `Round ${roundNumber} has not been calculated yet.` });
+        return;
+      }
     }
 
     const report = await buildRoundReport({ simulationId, roundNumber, kind });

@@ -11,9 +11,8 @@ router.use(authenticate);
 // GET /reports/competitor?simulationId=&roundNumber=  → competitor report PDF
 //
 // Any signed-in user, teams included: players are meant to read these.
-// !important the controller checks neither simulation membership nor whether
-// the round is scored, so a team token can pull any simulation's report for an
-// uncalculated round.
+// A team is additionally checked for membership and a scored round, in the
+// controller, where `simulationId` and `roundNumber` are known.
 router.get("/:kind", getRoundReport);
 
 export default router;
