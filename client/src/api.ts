@@ -14,10 +14,10 @@ export const setAuthToken = (token: string) => {
 
 // TEMPORARY: dev-only admin token, emulates ROLES.ADMIN for testing.
 // authentication.ts does no DB lookup, so this works even with zero
-// users in the database. Remove once real login is wired in — see
+// users in the database. Remove once real login is wired in, see
 // the matching TODO(auth) comments on the locked-down routers.
 // Reissued 2026-10-27, expires 2027-10-27. `authenticate` 403s on ANY verify
-// failure, expiry included — so a blanket 403 across every route means this is
+// failure, expiry included, so a blanket 403 across every route means this is
 // stale, not a permissions problem. Resign with the server's JWT_SECRET.
 const DEV_ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3OTMwNzE4MDQsImV4cCI6MTgyNDYwNzgwNH0.7mSs0dyq5rZwheofF1tjTuUB718sLDcdkv1LGEF2MV4";
 
@@ -32,7 +32,7 @@ export const deleteImageAsset = (image_id: string) => api.delete(`/image-assets/
 /**
  * Which storage driver is actually live, verified against Supabase rather than
  * inferred from env vars. When `durable` is false, uploads land on the API's
- * local disk and are lost on the next redeploy — so the URLs written into
+ * local disk and are lost on the next redeploy, so the URLs written into
  * PlayerConfig would be dead. Call this BEFORE an upload session.
  */
 export const getStorageStatus = () =>
@@ -40,7 +40,7 @@ export const getStorageStatus = () =>
     "/image-assets/storage",
   );
 /**
- * Buckets an upload may target. There is NO default — the operator must choose,
+ * Buckets an upload may target. There is NO default, the operator must choose,
  * because storage is partitioned by simulation type and no bucket is right to
  * guess. `buckets` is EMPTY on the local driver, where buckets do not apply.
  */
@@ -81,7 +81,7 @@ export const deleteDecisionsByRound = (simulationId: string, roundNumber: number
 export const deleteResultsByRound = (simulationId: string, roundNumber: number) =>
   api.delete("/results", { params: { simulationId, roundNumber } });
 
-/** Part of a round RESET — see RoundsPage.handleReset. */
+/** Part of a round RESET, see RoundsPage.handleReset. */
 export const deleteProjectionsByRound = (simulationId: string, roundNumber: number) =>
   api.delete("/projections", { params: { simulationId, roundNumber } });
 
@@ -207,19 +207,13 @@ export const createPlayerConfig = (data: object) => api.post("/player-config", d
 export const updatePlayerConfig = (id: string, data: object) => api.patch(`/player-config/${id}`, data);
 export const deletePlayerConfig = (id: string) => api.delete(`/player-config/${id}`);
 
-// ── Leaderboard Config ────────────────────────────────────────
-/** Scores the competitor report's leaderboard. One document per simulationType;
- *  weights must sum to 100 — the server refuses the save otherwise. */
+// Scores the competitor report's leaderboard. One document per simulation type.
 export const getLeaderboardConfig = (simulationTypeId: string) =>
   api.get(`/leaderboard-config/${simulationTypeId}`);
-/** UPSERT — REPLACES the whole metric set. Right when the page holds the truth
- *  (it just loaded); wrong for a partial edit, which would drop everything the
- *  caller did not send. */
+/** Upsert: replaces the whole metric set. Wrong for a partial edit. */
 export const putLeaderboardConfig = (simulationTypeId: string, metrics: object[]) =>
   api.put(`/leaderboard-config/${simulationTypeId}`, { metrics });
-/** MERGE BY METRIC KEY — send only what changed. A key that exists is updated
- *  field-by-field, a new one is appended, `removeKeys` deletes. 404s when no
- *  config exists yet: PUT creates, PATCH edits. */
+/** Merge by metric key: send only what changed. */
 export const patchLeaderboardConfig = (
   simulationTypeId: string,
   body: { metrics?: object[]; removeKeys?: string[] },
@@ -228,18 +222,7 @@ export const patchLeaderboardConfig = (
  *  from what the scorer accepts. */
 export const getLeaderboardSources = () => api.get(`/leaderboard-config/sources`);
 
-// ── Round reports (PDF) ───────────────────────────────────────
-/**
- * Download a round report and hand the browser a save dialog.
- *
- * `blob`, not JSON — the endpoint streams a PDF. The failure path matters: on
- * an error the server still replies JSON, but axios has already been told to
- * expect a blob, so the message has to be read back OUT of it or the operator
- * sees a bare "Request failed with status code 400" for something as ordinary
- * as a round nobody has submitted to yet.
- *
- * Returns the filename it saved under, so the caller can say so.
- */
+// Download a round report and hand the browser a save dialog.
 export const downloadRoundReport = async (
   kind: "decisions" | "competitor",
   simulationId: string,
@@ -293,22 +276,7 @@ export const recalcProjections = (data: {
   fields?:           { fieldId: string; value: any }[];
   globalInputs:      any[];
 }) => api.post("/projections/recalc", data);
-// ── Round debrief ──────────────────────────────────────────────
-/**
- * GET /round-debrief — the chart data behind the player's limbo slide.
- *
- * The operator reads ANY round; a team token is gated to rounds whose status is
- * "Completed". `you` comes back null here, so nothing is highlighted as "your"
- * team — the operator is not one of the columns.
- *
- * NO `simulationTypeId`. A simulation belongs to exactly one type, so this id
- * already determines it and the controller derives it. The type is required for
- * AUTHORING the charts — those belong to the type and are shared by all its
- * simulations — not for reading a round.
- *
- * Distinct from `/reports/:kind`, which streams a PDF. This is JSON the page
- * charts directly.
- */
+// GET /round-debrief: the chart data behind the player's limbo slide.
 export const getRoundDebrief = async (
   simulationId: string,
   roundNumber: number,
@@ -317,18 +285,7 @@ export const getRoundDebrief = async (
   return res.data as RoundDebrief;
 };
 
-// ── Round notes ────────────────────────────────────────────────
-/**
- * Facilitator notes on a round, chart descriptions among them.
- *
- * ⚠ THESE ARE THE SAME ROWS `/round-debrief` JOINS ONTO ITS CHARTS. The debrief
- * is the read path — it resolves a chart's description and decides whether the
- * player sees that chart at all. This is the WRITE path, and it is the only
- * reason to read notes directly: a description's `_id`, which the debrief
- * payload does not carry.
- *
- * Writes are ROLES.ADMIN/OPERATOR server-side; the player can only ever GET.
- */
+// Facilitator notes on a round, chart descriptions among them.
 export const getRoundNotes = async (
   simulationId: string,
   roundNumber?: number,
@@ -337,12 +294,7 @@ export const getRoundNotes = async (
   return (Array.isArray(res.data) ? res.data : []) as RoundNote[];
 };
 
-/**
- * `title` is required by the model. A chart description never renders it — the
- * chart's label is the heading — so pass that label rather than prompting for
- * one. `chartId` is the chart's `name`, NEVER its `id`: the ordinal is a sort
- * key and renumbering it would re-point the note.
- */
+/** `title` is required by the model but never rendered for a chart description. */
 export const createRoundNote = (data: {
   simulationId: string;
   roundNumber:  number;
@@ -360,20 +312,11 @@ export const updateRoundNote = (
   data: Partial<{ title: string; body: string; chartId: string | null; teamId: string | null; pinned: boolean }>,
 ) => api.patch(`/round-notes/${id}`, data);
 
-/** Deleting a chart's description UNRESOLVES that chart — the player stops
+/** Deleting a chart's description UNRESOLVES that chart, the player stops
  *  seeing it entirely, not just its copy. */
 export const deleteRoundNote = (id: string) => api.delete(`/round-notes/${id}`);
 
-// ── Debrief chart styles (the global gallery) ──────────────────
-/**
- * Every chart shape the app can draw, as data — family, variant, and the
- * Vega-Lite spec the SERVER compiles.
- *
- * ⚠ THE PLAYER NEVER SEES `shape`. `/round-debrief` resolves it to finished SVG
- * and withholds the spec, so there is no interpreter at the far end. It is
- * still sanitised HERE before it is sent — the console is the boundary, the
- * same rule `products.segments` follows. Writes are admin-only.
- */
+// Every chart shape the app can draw, as data. A developer surface.
 export const getDebriefChartStyles = async (): Promise<DebriefChartStyle[]> => {
   const res = await api.get("/debrief-chart-styles");
   return (Array.isArray(res.data) ? res.data : []) as DebriefChartStyle[];
@@ -388,17 +331,12 @@ export const updateDebriefChartStyle = (
   data: Partial<{ name: string; category: string; shape: string }>,
 ) => api.patch(`/debrief-chart-styles/${id}`, data);
 
-/** 409s while any configured chart still points at it — deliberately, so a
+/** 409s while any configured chart still points at it, deliberately, so a
  *  delete cannot silently leave charts that render nothing. */
 export const deleteDebriefChartStyle = (id: string) =>
   api.delete(`/debrief-chart-styles/${id}`);
 
-// ── Debrief dimensions ─────────────────────────────────────────
-/**
- * What a chart may plot for this simulation type — what the X / Y / grouping
- * selects read. Derived server-side from the type's Products and GlobalInputs,
- * so there is nothing to write.
- */
+// What a chart may plot for this simulation type.
 export const getDebriefDimensions = async (
   simulationTypeId: string,
 ): Promise<DebriefDimensions> => {
@@ -406,14 +344,7 @@ export const getDebriefDimensions = async (
   return (res.data ?? { categorical: [], measures: [], clientCharts: [] }) as DebriefDimensions;
 };
 
-// ── Debrief charts (per simulation type) ───────────────────────
-/**
- * Which charts a simulation type's debrief shows. One type, one set, shared by
- * every simulation under it.
- *
- * The axes are nullable and a half-configured chart saves and renders as-is —
- * the only thing that hides a chart from a team is a missing description.
- */
+// Which charts a simulation type's debrief shows.
 export const getDebriefCharts = async (
   simulationTypeId: string,
 ): Promise<DebriefChartConfig[]> => {
@@ -433,16 +364,10 @@ export const createDebriefChart = (data: {
   grouping?:   string | null;
 }) => api.post("/debrief-charts", data);
 
-/**
- * Render a DRAFT binding against a real round, before saving.
- *
- * Writes nothing. Deliberately takes a real simulation and round rather than
- * sample data — "does this chart work" means "is it readable with this sim's
- * numbers", which samples cannot answer.
- */
+/** Render a draft binding against a real round, before saving. Writes nothing. */
 export const previewDebriefChart = async (data: {
   chartStyle:   string;
-  /** Drawn as the chart's title — the preview has no panel heading. */
+  /** Drawn as the chart's title, the preview has no panel heading. */
   name?:        string | null;
   simulationId: string;
   roundNumber:  number;
@@ -450,7 +375,7 @@ export const previewDebriefChart = async (data: {
   yAxis?:       string[] | null;
   grouping?:    string | null;
   /** `each` previews ONE PER NOTEBOOK, which is exactly what the slide will
-   *  emit. There is no summary instance — a summary is its own `overall` row. */
+   *  emit. There is no summary instance, a summary is its own `overall` row. */
   scope?:       "overall" | "each";
 }): Promise<{ instances: PreviewInstance[] }> => {
   const res = await api.post("/debrief-charts/preview", data);
@@ -474,7 +399,5 @@ export const updateDebriefChart = (
   }>,
 ) => api.patch(`/debrief-charts/${id}`, data);
 
-/** ⚠ DELETES ITS DESCRIPTIONS TOO, across every round — they are keyed to this
- *  `_id` and a recreated chart gets a new one, so they could never be
- *  reattached. The response reports how many went. */
+/** !important deletes its descriptions too, across every round. */
 export const deleteDebriefChart = (id: string) => api.delete(`/debrief-charts/${id}`);

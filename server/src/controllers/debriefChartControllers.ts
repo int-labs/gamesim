@@ -9,16 +9,7 @@ import { CLIENT_CHART_KEYS } from "../constants/clientCharts";
 import { toMeasures } from "../services/debriefChartData";
 import { axisLabel, measureLabel } from "../services/debriefDimensions";
 
-/**
- * A simulation type's configured charts.
- *
- * ⚠ THE AXES ARE NULLABLE ON PURPOSE. An unfinished chart is saved and shown
- * as-is; nothing here refuses a half-configured row. The only thing that hides
- * a chart from a team is a missing description — see `RoundNote.chartId`.
- *
- * Reads are open to any authenticated caller because the player's debrief needs
- * them; writes are admin/operator, same split as `/round-notes`.
- */
+/** A simulation type's configured charts. !important the axes are nullable: an unfinished chart saves and shows as-is. */
 
 const objectId = z.string().length(24);
 
@@ -34,9 +25,7 @@ const chartSchema = z.object({
   // described and permanently blank, with nothing to say why.
   clientChart: z.enum(CLIENT_CHART_KEYS as [string, ...string[]]).nullish(),
   xAxis:      z.string().trim().max(64).nullish(),
-  // ⚠ ACCEPTS A BARE STRING and wraps it. Charts written before 2026-10-27
-  // hold one, and so does anything patching this endpoint from before the
-  // change — rejecting those would turn a widening into a breaking change.
+  // !important accepts a bare string and wraps it; documents before 2026-10-27 hold one.
   yAxis:      z.union([
                 z.string().trim().max(64),
                 z.array(z.string().trim().min(1).max(64)).max(12),
@@ -45,7 +34,7 @@ const chartSchema = z.object({
 });
 
 // `simulationTypeId` is omitted: moving a chart to another type is not an edit,
-// it is a different chart — and its descriptions are keyed to this one.
+// it is a different chart, and its descriptions are keyed to this one.
 const patchSchema = chartSchema.partial().omit({ simulationTypeId: true });
 
 const issues = (e: z.ZodError) =>
@@ -88,7 +77,7 @@ export const createDebriefChart = async (req: Request, res: Response): Promise<v
       chartStyle:  parsed.data.chartStyle ?? null,
       clientChart: parsed.data.clientChart ?? null,
       xAxis:       parsed.data.xAxis ?? null,
-      // Already an array — the schema's transform normalises it.
+      // Already an array, the schema's transform normalises it.
       yAxis:      parsed.data.yAxis,
       grouping:   parsed.data.grouping ?? null,
     });
@@ -123,9 +112,7 @@ const previewSchema = z.object({
   /** The draft's name, drawn as the chart's title. The preview has no panel
    *  heading around it, unlike every surface that renders the real payload. */
   name: z.string().trim().max(160).nullish(),
-  // A real simulation and round, not samples. "Does this chart work" almost
-  // always means "is it readable with this sim's numbers", and a synthetic
-  // preview answers the wrong question.
+  // A real simulation and round, not samples.
   simulationId: objectId,
   roundNumber:  z.number().int().min(0).max(999),
   xAxis:    z.string().trim().max(64).nullish(),
@@ -134,24 +121,11 @@ const previewSchema = z.object({
               z.array(z.string().trim().min(1).max(64)).max(12),
             ]).nullish(),
   grouping: z.string().trim().max(64).nullish(),
-  // ⚠ THE PREVIEW FANS OUT TOO. Without this it rendered the summary alone for
-  // an `each` chart, so the operator approved one chart and the team was shown
-  // N + 1 — the opposite of what the preview exists for.
+  // !important the preview fans out too, or the operator approves one chart and the team sees four.
   scope:    z.enum(["overall", "each"]).default("overall"),
 });
 
-// POST /debrief-charts/preview
-/**
- * Render a DRAFT binding before it is saved.
- *
- * Takes the config the operator is editing rather than a stored chart, so a
- * bad axis is visible at the moment it is chosen instead of after a save and a
- * trip to the player.
- *
- * ⚠ RENDERS NOTHING OF ITS OWN. It builds the same rows the debrief would and
- * hands them to the same renderer; if the preview and the real slide ever
- * disagree, this endpoint has grown a second opinion and that is the bug.
- */
+// POST /debrief-charts/preview: render a draft binding before it is saved.
 export const previewDebriefChart = async (req: Request, res: Response): Promise<void> => {
   try {
     const parsed = previewSchema.safeParse(req.body);
@@ -183,7 +157,7 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
     const { buildChartRows, chartInstances, loadPreviewPayload } =
       await import("../services/debriefChartData");
 
-    // ONE LOAD for every instance — they all read the same round.
+    // ONE LOAD for every instance, they all read the same round.
     const payload = await loadPreviewPayload({
       simulationId: parsed.data.simulationId,
       roundNumber:  parsed.data.roundNumber,
@@ -220,7 +194,7 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
 
     res.status(200).json({ instances });
   } catch (err: any) {
-    // An unsafe or uncompilable spec is the AUTHOR's problem, not a 500 — and
+    // An unsafe or uncompilable spec is the AUTHOR's problem, not a 500, and
     // saying which keeps the gallery author out of the server logs.
     if (err instanceof UnsafeSpecError) {
       res.status(400).json({ message: err.message });
@@ -244,9 +218,7 @@ export const deleteDebriefChart = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // ITS DESCRIPTIONS GO WITH IT. They are keyed to this `_id` across every
-    // round, so leaving them would strand rows nothing can reach or edit —
-    // and a recreated chart gets a new id, so they could never be reattached.
+    // !important its descriptions go with it, across every round.
     const { deletedCount } = await RoundNote.deleteMany({ chartId: chart._id });
 
     res.status(200).json({

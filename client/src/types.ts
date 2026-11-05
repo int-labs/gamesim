@@ -188,10 +188,7 @@ export interface BaseData extends MongoDoc {
   csatMarketModel?: Record<string, unknown>;
 }
 
-// ── Round debrief (the player's limbo slide, read-only for the operator) ──
-// Mirrors `server/src/services/debriefSeries.ts` by hand, like every shape in
-// this file. Numbers and RAW BOUNDS only — the server does no 0..1
-// normalisation, because the player client owns those formulas.
+// Round debrief DTOs, mirroring `server/src/services/debriefSeries.ts` by hand.
 
 export interface DebriefTeamRef {
   teamId: string;
@@ -220,17 +217,17 @@ export interface DebriefTeamProductDto {
   produced: number | null;
   inventoryQty: number | null;
   closingStock: number | null;
-  /** Normalised productScore — what the decisions EARNED of the market. */
+  /** Normalised productScore, what the decisions EARNED of the market. */
   marketFit: number | null;
-  /** `customersObtained / Σ customersObtained` — share of customers WON. */
+  /** `customersObtained / Σ customersObtained`, share of customers WON. */
   marketShare: number | null;
   /** Per-notebook profit. These SUM to the team-level `grossProfit` /
-   *  `netProfit` — the server derives those from exactly these keys, so a
+   *  `netProfit`, the server derives those from exactly these keys, so a
    *  breakdown column always totals to its bar. */
   grossProfit: number | null;
   netProfit: number | null;
-  /** The server's 0..1 pricing score. ⚠ NOT what the player is shown as
-   *  "product score" — that is `dynamicPrice` below. */
+  /** The server's 0..1 pricing score. !important NOT what the player is shown as
+   *  "product score", that is `dynamicPrice` below. */
   productScore: number | null;
   /** The UNNORMALISED product score: what the spec decisions are WORTH, and
    *  the centre the pricing curve pivots on. Runs 0..12.5, so the player
@@ -251,7 +248,7 @@ export interface DebriefTeamRoundDto {
   netProfit: number | null;
   unitsSold: number | null;
   customersObtained: number | null;
-  /** Operator-owned FREE TEXT keys — read them from the data, never hardcode. */
+  /** Operator-owned FREE TEXT keys, read them from the data, never hardcode. */
   costByCategory: Record<string, number>;
   energyByLever: Record<string, number>;
   byProduct: Record<string, DebriefTeamProductDto>;
@@ -262,22 +259,14 @@ export interface DebriefRoundDto {
   teams: Record<string, DebriefTeamRoundDto>;
 }
 
-/**
- * A facilitator note on a round.
- *
- * `chartId` is a debrief chart's `name` when the note IS that chart's
- * description, and null for a free-standing note the player sees in its own
- * panel. `title` is required by the server but never rendered for a chart
- * description — the chart's own label is the heading — so the editor fills it
- * with that label rather than asking for one.
- */
+/** A facilitator note on a round. `chartId` is set when the note is a chart's description. */
 export interface RoundNote {
   _id: string;
   simulationId: string;
   roundNumber: number;
   teamId: string | null;
   chartId: string | null;
-  /** Which instance of that chart — a Product `_id`, or null for the summary.
+  /** Which instance of that chart, a Product `_id`, or null for the summary.
    *  A note is keyed by the PAIR; there is no fallback between them. */
   productId: string | null;
   title: string;
@@ -285,14 +274,7 @@ export interface RoundNote {
   pinned: boolean;
 }
 
-/**
- * Something a chart may plot, for one simulation type. MIRRORS
- * `services/debriefDimensions.ts`.
- *
- * `field` is stored verbatim in a chart's `xAxis`/`yAxis`/`grouping`. The list
- * is per type because the notebooks, lever keys and cost bands come from that
- * type's own Products and GlobalInputs.
- */
+/** Something a chart may plot, for one simulation type. Mirrors `services/debriefDimensions.ts`. */
 export interface DebriefDimension {
   field: string;
   label: string;
@@ -300,7 +282,7 @@ export interface DebriefDimension {
   source: "team" | "round" | "product" | "lever" | "cost" | "spec";
 }
 
-/** A chart the PLAYER draws itself — the slot is configured here, the drawing
+/** A chart the PLAYER draws itself, the slot is configured here, the drawing
  *  is not. Served by `/debrief-dimensions` so this list is never hardcoded. */
 export interface ClientChart {
   key: string;
@@ -314,9 +296,7 @@ export interface DebriefDimensions {
   clientCharts: ClientChart[];
 }
 
-/** The gallery shape that draws a chart. MIRRORS `models/debriefChartStyle.ts`
- *  — `category` is the FAMILY ("bar chart") and `name` the VARIANT ("Stacked
- *  Bar"), which is a different namespace from the chart's own two fields. */
+/** The gallery shape. `category` is the family, `name` the variant. */
 export interface DebriefChartStyle {
   _id: string;
   name: string;
@@ -325,51 +305,35 @@ export interface DebriefChartStyle {
   shape: string;
 }
 
-/**
- * A configured chart as STORED. MIRRORS `models/debriefChart.ts` — what
- * `GET /debrief-charts` returns, with `chartStyle` populated.
- *
- * `_id` is what a RoundNote's `chartId` stores, so `name` is display and free
- * to be reworded. The axes may be null: an incomplete config saves and renders.
- */
+/** A configured chart as stored. Mirrors `models/debriefChart.ts`. */
 export interface DebriefChartConfig {
   _id: string;
   simulationTypeId: string;
   name: string;
   category: string;
   order: number;
-  /** `each` fans this row out to N + 1 instances — one per notebook plus an
+  /** `each` fans this row out to N + 1 instances, one per notebook plus an
    *  needing its own description. A summary is a separate `overall` row. */
   scope: "overall" | "each";
   chartStyle: DebriefChartStyle | null;
   /** Set = the PLAYER draws it, and the shape and bindings are ignored. */
   clientChart: string | null;
   xAxis: string | null;
-  /** ONE CHART MAY PLOT SEVERAL. With more than one bound, the series is the
-   *  MEASURE — "units sold vs customers obtained" is one chart, not two.
-   *  ⚠ Documents written before 2026-10-27 hold a bare string; the server
-   *  normalises on read, so anything off the API is already an array. */
+  /** !important one chart may plot several measures; the series is then the measure. */
   yAxis: string[];
   grouping: string | null;
 }
 
-/**
- * The same chart with a ROUND's copy joined on — what `/round-debrief` emits.
- *
- * ⚠ `description` and `resolved` exist ONLY here. They are per round, so the
- * stored document has neither; `GET /debrief-charts` returns
- * `DebriefChartConfig` and typing it as this would promise fields that never
- * arrive. `resolved` false = no description written, which the player hides.
- */
+/** The same chart with a round's copy joined on. `description` and `resolved` exist only here. */
 export interface DebriefChart
   extends Omit<DebriefChartConfig, "simulationTypeId" | "chartStyle"> {
-  /** ⚠ `_id` REPEATS across a `scope: "each"` chart's instances. This is what
-   *  tells them apart — null is the summary. Key by the pair, never `_id`. */
+  /** !important `_id` REPEATS across a `scope: "each"` chart's instances. This is what
+   *  tells them apart, null is the summary. Key by the pair, never `_id`. */
   productId: string | null;
   productName: string | null;
   description: string | null;
   resolved: boolean;
-  /** ⚠ IDENTITY ONLY — no `shape`. `/round-debrief` withholds the spec and
+  /** !important IDENTITY ONLY, no `shape`. `/round-debrief` withholds the spec and
    *  ships `svg` instead, so nothing downstream of it holds the grammar. */
   chartStyle: Omit<DebriefChartStyle, "shape"> | null;
   /** The finished picture, drawn by the server. Null when the chart has no
@@ -380,7 +344,7 @@ export interface DebriefChart
 export interface RoundDebrief {
   simulationId: string;
   roundNumber: number;
-  /** `null` for an operator — they are not one of the columns. */
+  /** `null` for an operator, they are not one of the columns. */
   you: string | null;
   teams: DebriefTeamRef[];
   products: DebriefProductDto[];

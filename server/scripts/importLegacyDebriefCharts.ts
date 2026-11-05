@@ -1,25 +1,4 @@
-/**
- * ONE-TIME: turn the hardcoded debrief slide into `DebriefChart` rows.
- *
- *   npm run import-debrief-charts -- <simulationTypeId>
- *
- * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
- * The slide was fifteen hardcoded slots in `constants/debriefCharts.ts`, drawn
- * by hardcoded JSX in both clients. Those charts WORK and are the current sim's
- * source of truth for what a debrief says — but nothing can edit, reorder or
- * remove them, because they are code. This writes them into the database once
- * so they become ordinary configured charts.
- *
- * IDEMPOTENT by `{simulationTypeId, name}`: run it twice and the second run
- * updates in place rather than duplicating the slide. It never deletes, so a
- * chart the operator has since edited is overwritten only in the fields below —
- * which is why it prints what it changed.
- *
- * ── WHAT IT CANNOT CARRY ACROSS ─────────────────────────────────────────────
- * One: `voc`. It needs the 0..1 weight normalisation that lives in the player
- * client as the single definition shared with its market tab, and emitting a
- * normalised value from the server would make a second one.
- */
+/** One-time: turn the hardcoded debrief slide into `DebriefChart` rows. Idempotent on {simulationTypeId, name}. */
 
 import connectToDatabase from "../src/db/db";
 import DebriefChart from "../src/models/debriefChart";
@@ -39,32 +18,20 @@ interface LegacyChart {
   category: string;
   /** Set = the PLAYER draws it; shape and bindings are ignored. */
   clientChart?: string;
-  /** The old catalogue's stable key — kept as the chart's name so a RoundNote
+  /** The old catalogue's stable key, kept as the chart's name so a RoundNote
    *  written before the move can still be recognised by a human reading it. */
   name:     string;
   scope:    "overall" | "each";
-  /** Null for a client-drawn chart — there is no server shape to pick. */
+  /** Null for a client-drawn chart, there is no server shape to pick. */
   shape:    keyof typeof SHAPES | null;
   xAxis:    string | null;
   yAxis:    string[];
   grouping: string | null;
 }
 
-/**
- * The twelve that survive, with the bindings that reproduce what the hardcoded
- * JSX drew. `order` and `category` are the old catalogue's, so the slide comes
- * out in the sequence the operator's story was written in.
- */
+/** The twelve that survive, with bindings reproducing what the hardcoded JSX drew. */
 const LEGACY: LegacyChart[] = [
-  // ⚠ FIRST, AND THE SLIDE ENFORCES IT. `order` says so here, but the player
-  // hoists client-drawn segments to the top regardless — renumbering these
-  // cannot move them.
-  //
-  // TWO ENTRIES, because `each` no longer carries a summary and the owner's
-  // rule is that there is ALWAYS an all-notebooks VoC. The `overall` row is
-  // that summary — `VocSection` merges every notebook by spec key when its
-  // instance has no notebook — and the `each` row is the breakdown. They are
-  // separate charts with separate copy, which is the point.
+  // !important the slide hoists client-drawn segments to the top regardless of `order`.
   { order:   0, category: "Voice of customer", name: "Voice of customer — all notebooks",
     scope: "overall", shape: null, clientChart: "voc",
     xAxis: null, yAxis: [], grouping: null },
@@ -79,7 +46,7 @@ const LEGACY: LegacyChart[] = [
     scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["revenue"], grouping: "team" },
   { order:  30, category: "revenue", name: "Revenue by notebook",
     scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["byProduct.revenue"], grouping: "product" },
-  // ⚠ `dynamicPrice`, not `productScore`. The player showed dynamicPrice under
+  // !important `dynamicPrice`, not `productScore`. The player showed dynamicPrice under
   // the words "product score"; the 0..1 `productScore` is a different number.
   { order:  40, category: "revenue", name: "Product score by notebook",
     scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["byProduct.dynamicPrice"], grouping: "product" },
@@ -93,16 +60,13 @@ const LEGACY: LegacyChart[] = [
   { order:  80, category: "profit", name: "Net profit by notebook",
     scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["byProduct.netProfit"], grouping: "product" },
 
-  // The old chart was COGS + operating expenses added together. A chart has one
-  // measure, so this is COGS and the opex half is its own row below — which is
-  // arguably the better reading anyway, since the two sit on opposite sides of
-  // the gross profit line.
+  // The old chart added COGS and opex; they are separate rows now.
   { order:  90, category: "cost", name: "Cost of goods sold",
     scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["cogs"], grouping: "team" },
   { order:  95, category: "cost", name: "Operating expenses",
     scope: "overall", shape: "groupedBar", xAxis: "team", yAxis: ["operatingExpenses"], grouping: "team" },
 
-  // TWO MEASURES ON ONE SCALE, with the series naming which — both are unit
+  // TWO MEASURES ON ONE SCALE, with the series naming which, both are unit
   // counts, so this is one chart about capacity, never two.
   { order: 100, category: "capacity", name: "Units sold vs demand",
     scope: "overall", shape: "groupedBar", xAxis: "team",
@@ -114,18 +78,12 @@ const LEGACY: LegacyChart[] = [
     scope: "overall", shape: "groupedBar", xAxis: "team",
     yAxis: ["cashOpening", "cashClosing"], grouping: "measure" },
 
-  // ⚠ `scope: "each"` IS WHAT MAKES THIS THE OLD CHART. Both axes are
-  // measures, so nothing expands along them — the per-notebook instance is
-  // what narrows each point to one notebook, leaving one point per team with
-  // the team as the series. No summary, which suits it: summing a price
-  // across notebooks means nothing.
+  // !important `scope: each` is what makes this the old chart: both axes are measures.
   { order: 115, category: "capacity", name: "Price vs units sold",
     scope: "each", shape: "scatter", xAxis: "byProduct.unitsSold",
     yAxis: ["byProduct.sellingPrice"], grouping: "team" },
 
-  // ⚠ THE SUFFIX IS A PLACEHOLDER. `lever` on an axis pivots the measure, so
-  // the key after the dot is only what the field would mean with nothing
-  // pivoting on it. See `measure()` in services/debriefChartData.ts.
+  // !important the suffix is a placeholder; `lever` on an axis pivots the measure.
   { order: 120, category: "tno", name: "Money allocation",
     scope: "overall", shape: "stackedBar", xAxis: "team", yAxis: ["costByCategory.*"], grouping: "lever" },
   { order: 130, category: "tno", name: "Energy allocation",
@@ -163,9 +121,7 @@ async function run(): Promise<void> {
     const missing = (Object.keys(SHAPES) as (keyof typeof SHAPES)[])
       .filter((k) => !shapeId(k));
     if (missing.length) {
-      // Refuses rather than writing charts with no shape: a chart with a null
-      // chartStyle renders nothing, and a slide full of those looks like the
-      // import worked.
+      // Refuses rather than writing charts with no shape.
       console.error(
         `❌ The gallery is missing ${missing.map((k) => `"${SHAPES[k].category} / ${SHAPES[k].name}"`).join(", ")}.\n` +
         "   Run `npm run seed-db` first.",
