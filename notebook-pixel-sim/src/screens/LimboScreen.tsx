@@ -15,61 +15,27 @@ import { diminishingReturnsFactor } from '@/engine/finlit/core/mathUtils';
 import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
 
-/**
- * LIMBO — the round debrief the team reads after the operator calculates, and
- * before it confirms the next phase.
- *
- * ── THIS SCREEN DRAWS NOTHING AND DERIVES NOTHING ───────────────────────────
- * Every chart on this page is a finished SVG the server rendered from the
- * operator's configuration. This file's whole job is arrangement: order the
- * instances, group them into collapsible segments, and inject the picture.
- *
- * It was thirteen hardcoded sections until 2026-10-27, each with its own
- * derivation, and that is exactly what the configuration layer replaced — a
- * slide that could only ever describe ONE simulation. Story order is now the
- * operator's `order`, and which segment a chart sits in is their `category`.
- *
- * ── EXCEPT THE VoC PLOT, AND PERMANENTLY ───────────────────────────────────
- * It is still drawn here, and it is not pending work. A configured chart binds
- * to figures the server already derived; the VoC plot's CONTENT is a
- * derivation — `diminishingReturnsFactor` is this simulation's calculation
- * layer, and it means something different in the next one. Owner's ruling:
- * the shape of this chart changes per simulation, so the server owns the SLOT
- * and this file owns the drawing.
- *
- * It is still an ordinary `DebriefChart` row — ordered, named, grouped, and
- * hidden until a description is written. It carries `clientChart: "voc"` and
- * no shape, and `CLIENT_CHARTS` below maps that key to the component.
- */
+/** Limbo: the round debrief, read after the operator calculates and before the next phase. Arranges only; the server draws. */
 
 type Load =
   | { state: 'loading' }
-  /** 404 is the NORMAL state while the round is still open — the server refuses
-   *  an uncalculated round rather than leaking a live one. Not an error.
-   *  Carries the server's own reason: the endpoint 404s for three different
-   *  causes and only one of them is "not calculated yet". */
+  /** 404 is the normal state while the round is still open, not an error. */
   | { state: 'waiting'; message: string }
   | { state: 'error'; message: string }
   | { state: 'ready'; data: RoundDebriefDto };
 
-// NO POLLING. The first version fetched once and never again, which left a
-// screen promising "the debrief appears here as soon as they do" that could not
-// deliver — limbo is entered BEFORE the operator closes the round. A timer was
-// the other fix and was rejected: this codebase removed polling everywhere on
-// purpose, and a player sitting on a waiting screen can press a button.
+// No polling: the refresh button is the only re-fetch.
 
 export function LimboScreen({
   roundNumber,
   onContinue,
 }: {
   roundNumber: number;
-  /** Rendered as the exit only once the debrief has loaded — the whole point of
+  /** Rendered as the exit only once the debrief has loaded, the whole point of
    *  limbo is that the team reads this before moving on. */
   onContinue?: () => void;
 }) {
-  // Read once, and the no-session case is the INITIAL state rather than a
-  // synchronous setState inside the effect — that extra render is avoidable
-  // here, unlike in the animation components where the rule is downgraded.
+  // Read once; the no-session case is the initial state, not a setState in the effect.
   const session = useMemo(() => getStoredSession(), []);
   const [load, setLoad] = useState<Load>(() =>
     session
@@ -77,9 +43,7 @@ export function LimboScreen({
       : { state: 'error', message: 'No session — sign in again to see the debrief.' },
   );
 
-  // Bumped by the refresh button to re-run the effect. A counter rather than a
-  // callback so there is ONE fetch path, used by both the first load and every
-  // retry — two paths would drift on error handling.
+  // Bumped by refresh to re-run the effect, so there is one fetch path.
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -114,9 +78,7 @@ export function LimboScreen({
       <Notice
         title="Waiting for the results"
         body="Your decisions are in. The facilitator hasn't closed this round yet — check back once they have."
-        // The server's own reason. Three different causes 404 here and only one
-        // is "not calculated yet"; showing it means a misconfigured simulation
-        // cannot masquerade as a slow facilitator.
+        // The server's own reason: three causes 404 here and only one is "not calculated yet".
         detail={load.message}
         onRefresh={refresh}
       />
@@ -137,36 +99,21 @@ interface Segment {
   charts: DebriefChartDto[];
 }
 
-/**
- * Order the instances, then cut them into segments.
- *
- * ⚠ UNRESOLVED CHARTS ARE DROPPED FIRST. A slot with no description is not a
- * slide — the server already declines to draw one, and a segment left holding
- * only unresolved charts must disappear with them rather than render as an
- * empty collapsible nobody can open onto anything.
- *
- * `sort` is stable and the server emits a `scope: "each"` chart as its summary
- * followed by its notebooks, so that reading order survives the sort without
- * any secondary key.
- */
+/** Order the instances, then cut into segments. Nothing is filtered. */
 function toSegments(charts: DebriefChartDto[]): Segment[] {
-  const ordered = charts.filter((c) => c.resolved).sort((a, b) => a.order - b.order);
+  // Copy first: sorting the prop array in place would reorder the caller's.
+  const ordered = [...charts].sort((a, b) => a.order - b.order);
 
   const segments: Segment[] = [];
   for (const chart of ordered) {
     const category = chart.category ?? '';
-    // Appended to the LAST segment only when the category matches, never looked
-    // up across the whole list: two runs of the same category separated by a
-    // third are two segments, which is what the operator's `order` asked for.
+    // Appended to the last segment only, so two runs of a category stay apart.
     const tail = segments[segments.length - 1];
     if (tail && tail.category === category) tail.charts.push(chart);
     else segments.push({ category, charts: [chart] });
   }
 
-  // ⚠ CLIENT-DRAWN SEGMENTS COME FIRST, whatever their `order`. Owner's rule:
-  // the VoC category always opens the debrief. `order` still decides the rest,
-  // and the relative order WITHIN each group is kept — this is a partition,
-  // not a re-sort.
+  // !important client-drawn segments come first, whatever their `order`.
   return [
     ...segments.filter((s) => s.charts.some((c) => c.clientChart)),
     ...segments.filter((s) => !s.charts.some((c) => c.clientChart)),
@@ -184,15 +131,9 @@ function DebriefBody({
   const segments = useMemo(() => toSegments(data.charts ?? []), [data.charts]);
 
   return (
-    // A FULL SCREEN, like PhaseIntroScreen and StartScreen: `absolute inset-0`
-    // with its own opaque surface. Without it the page rendered transparent
-    // over `AppBackground` and, because App's container is
-    // `h-screen overflow-hidden`, a long debrief could not scroll either.
+    // A full screen with its own opaque surface, or a long debrief cannot scroll.
     <div className="absolute inset-0 z-10 overflow-y-auto bg-cream-100">
-      {/* 80vw, not a `max-w-*` step. The rail and the stage are both sized in
-          `vw` and this page was capped at `max-w-5xl` (1024px), so on a wide
-          screen it sat in a narrow column with the charts squeezed and the
-          prose hard to read. A viewport fraction scales with everything else. */}
+      {/* 80vw, not a `max-w-*` step, so the page scales with the rail and the stage. */}
       <div className="flex flex-col gap-4 p-3 sm:p-4 w-[80vw] mx-auto">
         <header className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
@@ -203,16 +144,11 @@ function DebriefBody({
 
         <LearningPoint roundNumber={roundNumber} />
 
-        {/* Moved here 2026-10-08 from the deleted "Phase N complete" step, which
-            was its only call site. Takes the DEBRIEF's round explicitly — the
-            default reads `bootstrap.round`, which by now is the NEXT round.
-            Renders nothing when the facilitator wrote no notes. */}
+        {/* Takes the debrief's round explicitly; the default reads the next one. */}
         <RoundNotesCard roundNumber={roundNumber} />
 
         {segments.length === 0 ? (
-          // ⚠ AN EMPTY DEBRIEF IS A CONFIGURED OUTCOME, not a failure. It means
-          // the facilitator wrote no descriptions for this round, and saying so
-          // is the only way a team can tell that apart from a broken page.
+          // An empty debrief is a configured outcome, not a failure.
           <PixelPanel title="Nothing to read yet">
             <div className="body text-ink-800 leading-relaxed">
               The facilitator hasn't written up this round's charts.
@@ -242,18 +178,10 @@ function DebriefBody({
   );
 }
 
-/** ⚠ THE PAIR, never `_id`. A `scope: "each"` chart emits N + 1 instances that
- *  all share an `_id`; keying on it alone collapses a whole notebook breakdown
- *  into one row and React reuses the wrong node for it. */
+/** !important key by the pair; a `scope: each` chart's instances share an `_id`. */
 const instanceKey = (c: DebriefChartDto) => `${c._id}:${c.productId ?? ''}`;
 
-/**
- * One category of the slide, open by default.
- *
- * OPEN, because a team is reading this once, in a fixed stretch of time, and a
- * closed segment is a chart they will never find. Collapsing exists so a long
- * debrief can be put away after it is read, not so it starts hidden.
- */
+/** One category of the slide, open by default: a closed segment is never found. */
 function CollapsibleSegment({
   title,
   children,
@@ -278,55 +206,28 @@ function CollapsibleSegment({
   );
 }
 
-/**
- * ONE CHART INSTANCE — title, the operator's copy, and the server's picture.
- *
- * ⚠ THE SVG IS INJECTED UNSANITISED, deliberately. It is not operator input: it
- * is output this server produced from a spec the console sanitised on save and
- * the renderer refused executable keys in. Scrubbing it here would be a second
- * opinion about markup we generated ourselves, and the likeliest outcome is a
- * broken gradient or clip path rather than any security gained.
- *
- * A null `svg` still renders the slide. The copy is the lesson; the chart
- * illustrates it, and a shape that failed to compile should not take the
- * facilitator's writing down with it.
- */
+/** One chart instance. !important the SVG is injected unsanitised on purpose: it is our own output, sanitised at the console boundary. */
 function ChartSlide({ chart, data }: { chart: DebriefChartDto; data: RoundDebriefDto }) {
   const title = chart.productName ? `${chart.name} · ${chart.productName}` : chart.name;
 
-  // THE ESCAPE HATCH. A key with no component here renders as copy with no
-  // figure — the same as a chart whose spec would not compile, and visible
-  // rather than silent.
+  // A `clientChart` key with no component here renders as copy with no figure.
   const Client = chart.clientChart ? CLIENT_CHARTS[chart.clientChart] : undefined;
 
-  // Whether there is anything to put in the left cell at all. A chart whose
-  // spec failed to compile has none, and splitting the row then would strand
-  // the copy in the right half beside an empty box.
+  // No figure means no split row, or the copy is stranded beside an empty cell.
   const hasFigure = !!Client || !!chart.svg;
 
   return (
     <PixelPanel title={title}>
-      {/* ⚠ FIGURE LEFT, READING RIGHT — they are a pair, read together. The
-          copy used to sit ABOVE the chart, so a team read the conclusion, then
-          scrolled past it to find the evidence, and could never hold both at
-          once. One slide is now one row.
-
-          `lg:`, not `md:`: this page is `w-[80vw]`, so a 768px viewport gives
-          two ~300px columns and the server renders its charts 720px wide.
-          Below that the two cells stack and the old order is restored by the
-          source order — figure first, then its reading. */}
+      {/* Figure left, reading right. */}
       <div className={clsx('grid gap-4 items-start', hasFigure && 'lg:grid-cols-2')}>
         {hasFigure && (
-          // `min-w-0` or the SVG's intrinsic width widens the grid track and
-          // pushes the copy out of the panel — the same trap as the stat tiles
-          // in PhaseSequenceModal.
+          // !important `min-w-0`, or the SVG's intrinsic width pushes the copy out of the panel.
           <div className="min-w-0">
             {Client && <Client chart={chart} data={data} />}
             {chart.svg && (
-              // Vega writes fixed `width`/`height` onto the root `<svg>`, so it
-              // is capped to its cell here rather than left to overflow.
+              // Native size, never scaled: shrinking the root <svg> shrinks its type too.
               <div
-                className="w-full overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto"
+                className="w-full overflow-x-auto"
                 dangerouslySetInnerHTML={{ __html: chart.svg }}
               />
             )}
@@ -346,9 +247,7 @@ function ChartSlide({ chart, data }: { chart: DebriefChartDto; data: RoundDebrie
 
 type ClientChartProps = { chart: DebriefChartDto; data: RoundDebriefDto };
 
-/** One computed VoC row before it becomes a `VocRow` — keyed by the spec's
- *  `key` rather than its `fieldId`, because the same axis carries a different
- *  fieldId on every notebook and the summary has to merge across them. */
+/** Keyed by the spec's `key`, not `fieldId`, which differs per notebook. */
 interface VocComputed {
   key: string;
   label: string;
@@ -356,16 +255,7 @@ interface VocComputed {
   dots: VocRow['dots'];
 }
 
-/**
- * VoC rows for ONE notebook.
- *
- * THE TWO NORMALISATIONS LIVE HERE, and nowhere else:
- *   weight — `direction × scale`, or `priceSensitivity().weight` for `selling_price`
- *   bubble — `(captured / attainable) × weight`, on the weight's own scale
- *
- * The server ships raw bounds precisely so `priceSensitivity()` stays the one
- * definition shared with the market tab.
- */
+/** VoC rows for one notebook; both normalisations live here. */
 function vocRowsFor(
   data: RoundDebriefDto,
   here: RoundDebriefDto['rounds'][number] | null,
@@ -374,21 +264,12 @@ function vocRowsFor(
   scale: number,
 ): VocComputed[] {
   return product.fields.map((f) => {
-    // `selling_price` carries direction 0 and takes its weight from the shared
-    // helper; every other spec uses the operator's authored `direction`.
-    //
-    // BOTH ARRIVE AT THE SAME CEILING by different routes, because they are
-    // different quantities. A `direction` is scaled by the catalogue's divisor
-    // so the top driver lands on 0.95. Price sensitivity is ALREADY a 0..1
-    // share of the price universe, so it takes the anchor directly.
+    // `selling_price` carries direction 0 and takes its weight from the shared helper.
     const weight = f.key === 'selling_price'
       ? priceSensitivityFromBounds(f.minValue, f.maxValue).weight * TOP_DRIVER_SHARE
       : (f.direction ?? 0) * scale;
 
-    // ⚠ MIRRORS THE SERVER. `diminishingReturnsFactor` is the client's copy of
-    // `calcDiminishingReturnsCostFactor`, and `PEAK` must stay its value at the
-    // optimum. If that curve moves and this does not, every bubble lands at the
-    // wrong height while still looking plausible.
+    // !important mirrors the server's `calcDiminishingReturnsCostFactor`.
     const min = f.minValue ?? 0;
     const max = f.maxValue ?? 0;
     const PEAK = diminishingReturnsFactor(max, min, max);
@@ -398,7 +279,7 @@ function vocRowsFor(
     for (const t of data.teams) {
       const raw = here?.teams[t.teamId]?.byProduct[product.productId]?.fieldValues[f.fieldId];
       if (raw == null || attainable <= 0 || weight == null) continue;
-      // Floor only — the curve is meant to SEE an overshoot and decay past the
+      // Floor only, the curve is meant to SEE an overshoot and decay past the
       // ceiling, which is the whole point of it being centred on `max`.
       const resolved = Math.max(raw, min);
       const captured = resolved * diminishingReturnsFactor(resolved, min, max);
@@ -414,18 +295,7 @@ function vocRowsFor(
   });
 }
 
-/**
- * Every notebook's rows, merged into one — THE SUMMARY.
- *
- * Merged BY SPEC KEY and AVERAGED. A spec means the same thing on every
- * notebook that declares it, so the summary answers "where does each team sit
- * on this driver across its whole portfolio". Summing instead would make a
- * team look stronger for making more notebooks, which is a different question
- * and not the one the axis is labelled with.
- *
- * A key only some notebooks carry is averaged over the ones that do — the
- * others have no position on it to dilute.
- */
+/** Every notebook's rows merged by spec key and AVERAGED, not summed. */
 function mergeVoc(perProduct: VocComputed[][]): VocComputed[] {
   const byKey = new Map<string, VocComputed[]>();
   for (const rows of perProduct) {
@@ -459,13 +329,7 @@ function mergeVoc(perProduct: VocComputed[][]): VocComputed[] {
   });
 }
 
-/**
- * VOICE OF CUSTOMER — the one chart this client draws.
- *
- * A `scope: "each"` row, so it arrives as the all-notebooks summary plus one
- * instance per notebook. ⚠ THE SUMMARY ALWAYS EXISTS — it is not an optional
- * extra, it is the chart that opens the debrief.
- */
+/** Voice of customer, the one chart this client draws. */
 function VocSection({ chart, data }: ClientChartProps) {
   const here = data.rounds.find((r) => r.roundNumber === data.roundNumber) ?? null;
   const palette = useMemo(
@@ -473,15 +337,7 @@ function VocSection({ chart, data }: ClientChartProps) {
     [data.teams],
   );
 
-  // ⚠ THE DIVISOR SPANS EVERY NOTEBOOK, not one.
-  //
-  // The same normalisation `reportMatrix` applies to its Weight column, and it
-  // has to be the same SET or the two surfaces disagree: only ONE driver in the
-  // catalogue reaches 0.95, and every other notebook's best spec lands below
-  // it. Scaled per notebook, every chart would read 0.95 at the top.
-  //
-  // `selling_price` is excluded: it carries direction 0 and would only drag the
-  // divisor down.
+  // !important the divisor spans every notebook, matching reportMatrix's Weight column.
   const scale = weightScaleFor(
     data.products.flatMap((p) =>
       p.fields.filter((f) => f.key !== 'selling_price').map((f) => f.direction),
@@ -495,10 +351,7 @@ function VocSection({ chart, data }: ClientChartProps) {
     const perProduct = wanted.map((p) => vocRowsFor(data, here, p, palette, scale));
     const computed = chart.productId ? perProduct[0] ?? [] : mergeVoc(perProduct);
 
-    // WEIGHT DESCENDING — the heaviest driver is most of the answer, matching
-    // the competitor report's rule in `reportMatrix.ts`. Sorted on the
-    // EFFECTIVE weight, not raw `direction`: `selling_price` carries 0 and took
-    // its tick from `priceSensitivityFromBounds`.
+    // Weight descending, on the effective weight, matching reportMatrix.
     return [...computed]
       .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
       .map((r) => ({ id: r.key, label: r.label, weight: r.weight, dots: r.dots }));
@@ -520,24 +373,12 @@ function VocSection({ chart, data }: ClientChartProps) {
   );
 }
 
-/** key → component. ⚠ MIRRORS `server/src/constants/clientCharts.ts`; a key
- *  there with no entry here is a chart that configures, describes and renders
- *  nothing. */
+/** !important mirrors `server/src/constants/clientCharts.ts`. */
 const CLIENT_CHARTS: Record<string, (p: ClientChartProps) => React.ReactNode> = {
   voc: VocSection,
 };
 
-/**
- * The phase's learning point, as the header of its own debrief.
- *
- * Resolved through `PHASE_INTRO[phase].learningFocus`, which is the SAME
- * mapping the phase intro used to open the round — so the debrief closes the
- * loop on the lesson the team was told they were practising, rather than
- * naming a second one.
- *
- * Renders nothing when a phase has no configured focus; an invented lesson is
- * worse than none.
- */
+/** The phase's learning point, resolved through `PHASE_INTRO[phase].learningFocus`. */
 function LearningPoint({ roundNumber }: { roundNumber: number }) {
   // `roundNumber` is 0-based on the wire; PHASE_INTRO is keyed 1-based.
   const phase = roundNumber + 1;
@@ -566,7 +407,7 @@ function Notice({
   onRefresh?: () => void;
 }) {
   return (
-    // Same full-screen treatment as the loaded page — the waiting state was the
+    // Same full-screen treatment as the loaded page, the waiting state was the
     // one most often seen, and it was the least visible.
     <div className="absolute inset-0 z-10 flex items-center justify-center p-4 bg-cream-100">
       <PixelPanel title={title}>

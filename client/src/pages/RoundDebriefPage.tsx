@@ -395,7 +395,7 @@ function ChartDescriptions({
                   {c.scope === "overall" ? " · every notebook at once" : ""}
                 </div>
                 <div style={{ fontSize: 11, color: c.resolved ? "#2a7" : "#b00" }}>
-                  {c.resolved ? "shown to players" : "hidden"}
+                  {c.resolved ? "described" : "no description — ships without one"}
                 </div>
                 {/* ONCE PER CHART. Every instance is the same stored document,
                     so a button on each would all mutate one chart while
