@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { getRoundDebrief, getStoredSession, GamesimApiError } from '@/gamesim/client';
-import type { DebriefChartDto, RoundDebriefDto } from '@/gamesim/types';
+import type { DebriefChartDto, DebriefTeamRoundDto, RoundDebriefDto } from '@/gamesim/types';
 import { PixelPanel } from '@/components/primitives';
 import { ChartLegend, type LegendEntry } from '@/components/charts/ChartLegend';
 import { PixelVocPlot, type VocRow } from '@/components/charts/PixelVocPlot';
@@ -14,6 +14,7 @@ import {
 import { diminishingReturnsFactor } from '@/engine/finlit/core/mathUtils';
 import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
+import { fmt$, fmtPct } from '@/utils/format';
 
 /** Limbo: the round debrief, read after the operator calculates and before the next phase. Arranges only; the server draws. */
 
@@ -165,6 +166,8 @@ function DebriefBody({
             ),
           )
         )}
+
+        <ProfitAndLoss data={data} />
 
         {onContinue && (
           <div className="flex justify-end pt-2 pb-4">
@@ -385,6 +388,86 @@ function VocSection({ chart, data }: ClientChartProps) {
 const CLIENT_CHARTS: Record<string, (p: ClientChartProps) => React.ReactNode> = {
   voc: VocSection,
 };
+
+/**
+ * The round's income statement, every team side by side.
+ * !important read, never derived: these are the same `sumScored` figures the
+ * analysis report prints. Only the margin is computed, as the report does.
+ */
+function ProfitAndLoss({ data }: { data: RoundDebriefDto }) {
+  const round = data.rounds.find((r) => r.roundNumber === data.roundNumber) ?? null;
+  if (!round) return null;
+
+  const money = (n: number | null | undefined) =>
+    n == null || !Number.isFinite(n) ? '--' : fmt$(n);
+
+  const ROWS: Array<[string, (t: DebriefTeamRoundDto) => string]> = [
+    ['Revenue',            (t) => money(t.revenue)],
+    ['COGS',               (t) => money(t.cogs)],
+    ['Gross Profit',       (t) => money(t.grossProfit)],
+    ['Operating Expenses', (t) => money(t.operatingExpenses)],
+    ['Net Profit',         (t) => money(t.netProfit)],
+    // Blank rather than 0%: a team that sold nothing has no margin, and 0%
+    // reads as one that broke even.
+    ['Profit Margin', (t) =>
+      t.revenue == null || t.netProfit == null || t.revenue === 0
+        ? '--'
+        : fmtPct(t.netProfit / t.revenue, 1)],
+  ];
+
+  return (
+    <PixelPanel title="Profit & loss">
+      <div className="w-full overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="eyebrow eyebrow-sm text-left text-ink-700 py-1.5 pr-3" />
+              {data.teams.map((t) => (
+                <th
+                  key={t.teamId}
+                  className={clsx(
+                    'eyebrow eyebrow-sm text-right py-1.5 px-2 whitespace-nowrap',
+                    t.teamId === data.you ? 'text-ink-900' : 'text-ink-700',
+                  )}
+                >
+                  {t.teamName}{t.teamId === data.you ? ' (you)' : ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ROWS.map(([label, cell]) => (
+              <tr
+                key={label}
+                className={clsx(
+                  'border-t border-border-soft',
+                  // The two totals carry the statement; the rest are workings.
+                  (label === 'Net Profit' || label === 'Gross Profit') && 'bg-cream-50',
+                )}
+              >
+                <td className="item-name text-text py-1.5 pr-3 whitespace-nowrap">{label}</td>
+                {data.teams.map((t) => {
+                  const block = round.teams[String(t.teamId)];
+                  return (
+                    <td
+                      key={t.teamId}
+                      className={clsx(
+                        'num-sm text-right py-1.5 px-2 tabular-nums whitespace-nowrap',
+                        t.teamId === data.you ? 'text-ink-900' : 'text-text-2',
+                      )}
+                    >
+                      {block ? cell(block) : '--'}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </PixelPanel>
+  );
+}
 
 /** The phase's learning point, resolved through `PHASE_INTRO[phase].learningFocus`. */
 function LearningPoint({ roundNumber }: { roundNumber: number }) {
