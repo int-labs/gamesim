@@ -1,20 +1,9 @@
-/**
- * Charts the PLAYER CLIENT draws itself.
- *
- * A configured chart binds to figures the server has already derived, and that
- * covers everything whose content is a number. These are the ones whose content
- * IS a derivation belonging to one simulation — the server cannot own the
- * formula, so it owns the SLOT and the client owns the drawing.
- *
- * ⚠ ADDING A KEY HERE DRAWS NOTHING BY ITSELF. The player maps the same key to
- * a component; a key with no component on the other side renders as a chart
- * that is configured, described, and blank. Keep the two in step.
- */
+/** Charts the player client draws itself, because their content is a per-sim derivation the server cannot bind. */
 
 export interface ClientChart {
   key:   string;
   label: string;
-  /** What the operator needs to know when picking it — these charts ignore the
+  /** What the operator needs to know when picking it, these charts ignore the
    *  shape and the bindings entirely. */
   note:  string;
 }

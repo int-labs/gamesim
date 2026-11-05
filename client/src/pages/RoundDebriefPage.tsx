@@ -11,37 +11,10 @@ import {
   ChartConfigFields, chartPayload, draftFromChart, type ChartDraft,
 } from "./ChartConfigForm";
 
-/**
- * The operator's view of a round's debrief — every chart the teams see, with
- * the copy that decides which of them they see at all.
- *
- * ── IT DRAWS NOTHING ────────────────────────────────────────────────────────
- * Every chart here is a finished SVG from `GET /round-debrief`, the same
- * payload and the same picture the player's limbo screen gets.
- *
- * It used to render its own recharts set beside the editor — eight hardcoded
- * panels, roughly the same figures, drawn a second way. Removed 2026-10-27:
- * they could not be edited, reordered or removed, they did not change when a
- * chart's bindings did, and an operator writing copy was describing one chart
- * while the team read another. `scripts/importLegacyDebriefCharts.ts` carried
- * what they showed into the database as ordinary configured charts.
- *
- * ── THE ONE THING HERE THAT IS NOT READ-ONLY ────────────────────────────────
- * `ChartDescriptions` writes the copy the PLAYER's slide renders. A chart with
- * no description is `resolved: false` and the player does not see it at all —
- * so this editor decides which charts exist on their screen, not merely what
- * they read. A round with nothing written here is a blank debrief.
- *
- * ── WHAT IS STILL MISSING FROM EVERY SURFACE ────────────────────────────────
- * The VoC dot plot, and the two charts that need more than one measure. None
- * of the three is expressible as a single `{x, y, series}` binding; see the
- * import script's header for the specifics.
- */
+/** The operator's view of a round's debrief: every chart the teams see, with the copy that decides which of them they get. */
 
 export default function RoundDebriefPage() {
-  // SIMULATION TYPE FIRST. It is what scopes the catalogue, the products and
-  // the player config, so a debrief read without it is read against whatever
-  // the simulation happens to point at rather than against a chosen sim.
+  // Simulation type first: it scopes the catalogue, the products and the player config.
   const [simulationTypes, setSimulationTypes] = useState<any[]>([]);
   const [selectedSimType, setSelectedSimType] = useState("");
   const [simulations, setSimulations] = useState<any[]>([]);
@@ -52,10 +25,7 @@ export default function RoundDebriefPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // The two things a chart's configuration is edited AGAINST: the gallery it
-  // picks a shape from, and this type's own dimension registry. Both belong to
-  // the simulation TYPE, which is why the editor below is only reachable once
-  // one is chosen.
+  // A chart's configuration is edited against the gallery and this type's dimensions.
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
   const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [] });
 
@@ -63,7 +33,7 @@ export default function RoundDebriefPage() {
     getSimulationTypes()
       .then((res) => setSimulationTypes(res.data?.data ?? res.data))
       .catch((e: any) => setError(e.message));
-    // GLOBAL, so it is fetched once rather than per type — the gallery is the
+    // GLOBAL, so it is fetched once rather than per type, the gallery is the
     // same list wherever a shape is picked.
     getDebriefChartStyles().then(setStyles).catch((e: any) => setError(e.message));
   }, []);
@@ -77,9 +47,7 @@ export default function RoundDebriefPage() {
       .catch((e: any) => setError(e.message));
   }, [selectedSimType]);
 
-  // Narrowed in the browser, not by the endpoint: `GET /simulations` takes no
-  // simulationTypeId filter and does not populate the field, so it arrives as
-  // a plain id string and compares directly.
+  // Narrowed in the browser: `GET /simulations` takes no simulationTypeId filter.
   useEffect(() => {
     if (!selectedSimType) {
       setSimulations([]);
@@ -95,7 +63,7 @@ export default function RoundDebriefPage() {
       .catch((e: any) => setError(e.message));
   }, [selectedSimType]);
 
-  // `filterRound` is a STRING and rounds are 0-BASED, so this tests emptiness —
+  // `filterRound` is a STRING and rounds are 0-BASED, so this tests emptiness -
   // `!filterRound` would refuse round 0, which every simulation has.
   const canLoad = selectedSimType !== "" && filterSim !== "" && filterRound !== "";
 
@@ -125,9 +93,7 @@ export default function RoundDebriefPage() {
           Simulation Type:{" "}
           <select
             value={selectedSimType}
-            // Clearing the chosen simulation is load-bearing: a simulation from
-            // the previous type stays selectable in state otherwise, and the
-            // page would read a debrief for a type it is no longer showing.
+            // Clearing the chosen simulation is load-bearing: one from the previous type stays selectable otherwise.
             onChange={(e) => {
               setSelectedSimType(e.target.value);
               setFilterSim("");
@@ -189,34 +155,7 @@ export default function RoundDebriefPage() {
   );
 }
 
-/**
- * The descriptions that decide which charts a team sees.
- *
- * ── WHY IT READS `/round-notes` WHEN THE DEBRIEF ALREADY CARRIES THE COPY ───
- * `charts[].description` is the resolved text, and that is all a reader needs.
- * Editing needs the note's `_id` to PATCH or DELETE, and the debrief does not
- * emit one — it joins the body and drops the row. So the debrief stays the read
- * path and this fetch is the write path's own.
- *
- * Both paths target the same rows, so after a save the DEBRIEF is reloaded
- * rather than this component patching its own copy: the server decides what
- * `resolved` means, and a local guess at it is how the editor and the player
- * come to disagree about which charts a round has.
- *
- * Notes written here are GENERAL (`teamId: null`). The model supports a
- * per-team description and `/round-debrief` prefers it over the general one,
- * but nothing authors one yet.
- *
- * ── IT ALSO EDITS THE CHART ITSELF ──────────────────────────────────────────
- * Writing the copy is when a chart's bindings are actually read, and that is
- * when a wrong axis shows up. Sending the operator to another page to fix it —
- * and back again to find their place in the round — is the kind of trip that
- * ends in the copy being written around the mistake instead.
- *
- * ⚠ THE CHART IS NOT PER ROUND. It belongs to the simulation TYPE, so a change
- * here lands on every round and every simulation under that type. The copy is
- * the per-round half; the configuration is not.
- */
+/** The descriptions that decide which charts a team sees. Reads `/round-notes` because editing needs the note's `_id`, which the debrief drops. */
 function ChartDescriptions({
   simulationId, roundNumber, charts, styles, dims, onSaved,
 }: {
@@ -232,9 +171,7 @@ function ChartDescriptions({
   const [busy, setBusy]     = useState<string | null>(null);
   const [error, setError]   = useState("");
 
-  // The chart whose configuration is open, by `_id` — NOT by instance key. A
-  // `scope: "each"` chart's N + 1 rows are one stored document, so only its
-  // summary row opens this and the edit applies to the whole fan-out.
+  // Keyed by `_id`, not instance: a `scope: each` chart's rows are one stored document.
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft]     = useState<ChartDraft | null>(null);
 
@@ -246,14 +183,7 @@ function ChartDescriptions({
     return () => { cancelled = true; };
   }, [simulationId, roundNumber, charts]);
 
-  /**
-   * ⚠ KEYED BY THE PAIR, never `_id` alone.
-   *
-   * `charts` carries one entry per INSTANCE: a `scope: "each"` chart appears
-   * N + 1 times with the same `_id`, told apart by `productId`. Keying on `_id`
-   * would collapse a whole notebook breakdown into one row and let its
-   * descriptions overwrite each other.
-   */
+  /** !important keyed by the pair, never `_id` alone; `charts` carries one entry per instance. */
   const instanceKey = (chartId: string, productId: string | null) =>
     `${chartId}:${productId ?? ""}`;
 
@@ -265,10 +195,7 @@ function ChartDescriptions({
     return m;
   }, [notes]);
 
-  // SORT A COPY. `charts` is the array off the payload and `.sort()` is
-  // in-place, so sorting it directly would reorder what the charts below read.
-  // Stable, so a chart's own instances keep the order the server emitted —
-  // summary first, then its notebooks.
+  // Sort a copy: `charts` is the payload's own array and `.sort()` is in place.
   const ordered = useMemo(() => [...charts].sort((a, b) => a.order - b.order), [charts]);
 
   const keyOf = (c: DebriefChart) => instanceKey(c._id, c.productId);
@@ -289,8 +216,8 @@ function ChartDescriptions({
       } else if (existing) {
         await updateRoundNote(existing._id, { body, title: c.name });
       } else {
-        // `title` is required by the model and never rendered for a chart —
-        // the chart's own name is the heading — so it is filled, not asked for.
+        // `title` is required by the model and never rendered for a chart -
+        // the chart's own name is the heading, so it is filled, not asked for.
         await createRoundNote({
           simulationId, roundNumber,
           chartId: c._id, productId: c.productId,
@@ -313,14 +240,7 @@ function ChartDescriptions({
 
   const closeEditor = () => { setEditing(null); setDraft(null); };
 
-  /**
-   * Save the chart's CONFIGURATION, not its copy.
-   *
-   * Reloads the whole debrief afterwards rather than patching the local copy:
-   * a `scope` change alters how many instances exist, and `resolved` is the
-   * server's decision. Guessing either here is how this editor and the player
-   * come to disagree about which charts a round has.
-   */
+  /** Saves the chart's configuration, not its copy, then reloads: the server decides `resolved`. */
   const saveChart = async (chartId: string) => {
     if (!draft || !draft.name.trim()) return;
     setBusy(`chart:${chartId}`); setError("");
@@ -351,16 +271,13 @@ function ChartDescriptions({
       {error && <div style={{ color: "#b00", marginBottom: 8 }}>{error}</div>}
 
       {ordered.map((c) => {
-        // Grouped by `category`, which arrives with the chart — a heading per
+        // Grouped by `category`, which arrives with the chart, a heading per
         // run rather than a hardcoded list, so a new category needs no edit here.
         const heading = c.category !== lastCategory ? c.category : null;
         lastCategory = c.category;
         const k = keyOf(c);
         const dirty = drafts[k] !== undefined;
-        // ⚠ KEYED ON THE CHART, NOT ON `productId`. A `scope: "each"` chart has
-        // no summary instance any more, so its FIRST notebook is the row that
-        // carries the chart's name and its Edit button; the rest nest under it
-        // and read as one chart broken down rather than N unrelated charts.
+        // !important keyed on the chart, not `productId`: an `each` chart has no summary instance.
         const firstOfChart = c._id !== lastChartId;
         lastChartId = c._id;
         const isBreakdown = c.productId !== null;
@@ -397,9 +314,7 @@ function ChartDescriptions({
                 <div style={{ fontSize: 11, color: c.resolved ? "#2a7" : "#b00" }}>
                   {c.resolved ? "described" : "no description — ships without one"}
                 </div>
-                {/* ONCE PER CHART. Every instance is the same stored document,
-                    so a button on each would all mutate one chart while
-                    looking like they edited that notebook's own. */}
+                {/* Once per chart: every instance is the same stored document. */}
                 {firstOfChart && (
                   <button
                     onClick={() => (editing === c._id ? closeEditor() : openEditor(c))}
@@ -428,14 +343,7 @@ function ChartDescriptions({
               </button>
             </div>
 
-            {/* THE CHART ITSELF, under its own copy.
-                ⚠ THE SERVER DREW IT. This is the same SVG the team's slide
-                shows, taken off the same payload — so what an operator writes
-                about is what the team reads, which was the whole reason the
-                hardcoded console charts had to go.
-                Unresolved charts carry a picture too, for staff only: the
-                moment you are deciding what to write is the moment the chart
-                has no description yet. */}
+            {/* The server drew this; the console never receives a spec. */}
             <div style={{
               margin: "0 0 18px 0", overflowX: "auto",
               ...(isBreakdown ? { marginLeft: 28 } : {}),
@@ -468,12 +376,7 @@ function ChartDescriptions({
                 </button>
                 <button onClick={closeEditor}>Cancel</button>
 
-                {/* ⚠ THE CHANGE THAT STRANDS COPY, IN EITHER DIRECTION. The two
-                    scopes emit disjoint instances — `overall` only the
-                    all-notebooks one, `each` only the per-notebook ones — so
-                    flipping leaves every existing description with no row that
-                    can reach or delete it. Nothing cascades; only deleting the
-                    chart does that. */}
+                {/* !important changing scope strands copy in either direction, and nothing cascades. */}
                 {c.scope !== draft.scope && (
                   <div style={{ color: "#b00", fontSize: 11, flexBasis: "100%" }}>
                     {draft.scope === "overall"

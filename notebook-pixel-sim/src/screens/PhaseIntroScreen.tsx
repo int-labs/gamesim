@@ -14,20 +14,10 @@ import { HeartRain, patHeartRain, originOf } from '@/components/fx/HeartRain';
 import clsx from 'clsx';
 import { useTotalRounds } from '@/gamesim/GamesimProvider';
 
-// Round art is a LIST, cycled — not a table keyed 1/2/3.
-//
-// There is a fixed amount of art and an operator-configured number of rounds,
-// so the two cannot be matched one-to-one: past the last drawing, a keyed table
-// yields `undefined` and the screen renders a broken image. Reuse is the only
-// answer that scales, and cycling makes the reuse orderly rather than blank.
-//
-// `round4` (ops pressure) was already drawn and was never referenced by the old
-// three-entry table.
+// Round art is a cycled list, not a table keyed 1/2/3: the round count is operator-configured.
 const ROUND_BG = [A.env.round1, A.env.round2, A.env.round3, A.env.round4];
 
-// Big hero poses — 03_poses ONLY (consistent full-body character), all
-// gesturing toward screen-right where the panel sits. Cycled by round the same
-// way, so round 1 is always the open hand and round 5 comes back round to it.
+// Full-body poses only, all gesturing toward screen-right where the panel sits.
 const ROUND_POSE = [
   A.mascot.poses.presenting_open_hand,
   A.mascot.poses.pointing_right_explain,
@@ -40,23 +30,14 @@ const ROUND_POSE = [
 const forRound = <T,>(list: readonly T[], phase: number): T =>
   list[(Math.max(1, phase) - 1) % list.length];
 
-// Split "Phase 1 · Days 1-30 - Market Positioning" into the small eyebrow
-// ("Phase 1 · Days 1-30") and the big theme ("Market Positioning"). We split on
-// the SPACED separator (" - ", or an em/en dash) so the un-spaced days range
-// ("1-30") is never mistaken for the divider.
+// Splits the authored title into its eyebrow half and its theme half.
 function splitTitle(title: string): [string, string] {
   const m = title.match(/\s[---]\s/);
   if (!m || m.index === undefined) return ['', title];
   return [title.slice(0, m.index).trim(), title.slice(m.index + m[0].length).trim()];
 }
 
-/**
- * FocusLines — manga "before the battle" concentration lines (集中線): ink
- * speed-lines that radiate from the centre and burst outward once as the screen
- * lands, then fade. Built from a repeating-conic-gradient + a radial mask so the
- * middle stays clear (classic focus-lines look). Sits behind the mascot/panel,
- * so it never obscures the content. Skipped under reduced motion.
- */
+/** Manga concentration lines that burst on entry and fade. */
 function FocusLines({ reduced }: { reduced: boolean }) {
   if (reduced) return null;
   return (
@@ -76,15 +57,7 @@ function FocusLines({ reduced }: { reduced: boolean }) {
   );
 }
 
-/**
- * PhaseIntroScreen — the cinematic "get ready" screen before a phase begins.
- *
- * Layout (the "before the game starts" hero): a large mascot pose sweeps in
- * from the left, an exciting UI panel sits on the right, over a dimmed scene
- * with drifting pixel fireflies. The whole thing parallaxes to the cursor for
- * depth, and "Start Phase" hands off to the simulation — where the shared
- * pixel-wipe transition (ScreenTransition) plays as the game begins.
- */
+/** The cinematic "get ready" screen before a phase begins. */
 export function PhaseIntroScreen() {
   const phase = useGame((s) => s.meta.phase);
   const totalRounds = useTotalRounds();
@@ -104,26 +77,14 @@ export function PhaseIntroScreen() {
     patHeartRain(patCount.current, originOf(heroRef.current));
   };
 
-  // Authored copy exists for rounds 1-3; round 4+ reuses it in the same cycle
-  // as the art. `PHASE_INTRO` stays an object keyed 1/2/3 rather than becoming
-  // an array ON PURPOSE: `configHydrator` resolves operator overrides by dotted
-  // path (`PHASE_INTRO.1.body`), so re-indexing from 0 would silently void every
-  // override an operator has already published.
-  //
-  // Keys are read at call time, not cached at module scope — the hydrator edits
-  // these tables in place and a module-scope derivation would freeze the
-  // bundled values (see CLAUDE.md, "Keep the containers mutable").
+  // Authored copy covers rounds 1-3; round 4+ reuses it in the same cycle as the art.
   const introKeys = Object.keys(PHASE_INTRO)
     .map(Number)
     .sort((a, b) => a - b) as (keyof typeof PHASE_INTRO)[];
   const info = PHASE_INTRO[forRound(introKeys, phase)];
   const lp = LEARNING_POINTS[info.learningFocus as keyof typeof LEARNING_POINTS];
 
-  // Only the THEME half of the authored title is used. Its eyebrow half is
-  // baked with a day range ("Phase 1 · Days 1-30", copy.ts:170) that is wrong
-  // for any reused round — and there is NO DAY RANGE ON THIS CARD any more.
-  // The sim advances by phase, so a day span was a second unit to track that
-  // nothing else in the game counts in. The pill states the phase, once.
+  // Only the theme half of the authored title is used; there is no day range on this card.
   const [, theme] = splitTitle(info.title);
 
   // ── Parallax: MASCOT ONLY, and gentle. Cursor → [-1, 1], spring, small fan. ──
@@ -151,7 +112,7 @@ export function PhaseIntroScreen() {
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-ink-900" onMouseMove={onMove}>
-      {/* Scene background — slowest parallax layer, over-scaled so it never
+      {/* Scene background, slowest parallax layer, over-scaled so it never
           shows an edge as it drifts. */}
       <img
         src={forRound(ROUND_BG, phase)}
@@ -164,25 +125,14 @@ export function PhaseIntroScreen() {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-ink-900/90 via-ink-900/50 to-ink-900/85" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-900/90 via-transparent to-ink-900/45" />
 
-      {/* Manga "before the battle" focus lines — burst in on entry, then fade. */}
+      {/* Manga "before the battle" focus lines, burst in on entry, then fade. */}
       <FocusLines reduced={!!reduced} />
 
-      {/* ── Centered composition: the mascot + panel as one balanced group,
-          centred on screen and responsive. This wrapper stays z-auto (no
-          stacking context) so the letterbox bars (z-20) still layer between the
-          mascot (z-10) and the panel (z-30). ── */}
+      {/* The mascot and panel as one centred group; z-auto so the letterbox bars still layer between them. */}
       <div className="absolute inset-0 flex items-center justify-center px-4 sm:px-8">
-        {/* ⚠ `items-stretch`, and NO `h-full`. The row used to be screen-tall
-            with the mascot column stretched to match it, so she ran from the
-            top bar to the bottom one while the card floated at a third of that
-            height beside her — two columns of a pair at visibly different
-            sizes. The row now takes its height from the CARD, and the mascot
-            column stretches to that. */}
-        {/* `max-h-full` because the row is no longer screen-tall: without it a
-            card taller than a short viewport would overflow and be clipped by
-            the root's `overflow-hidden`. */}
+        {/* !important `items-stretch` and no `h-full`: the row takes its height from the card. */}
         <div className="flex max-h-full w-full max-w-[min(94vw,1360px)] items-stretch justify-center gap-4 sm:gap-8 lg:gap-12">
-          {/* Mascot column — the card's height. Hidden below md so the panel
+          {/* Mascot column, the card's height. Hidden below md so the panel
               stands alone on small screens. */}
           <div className="relative hidden w-[42%] max-w-[min(38vw,520px)] shrink-0 md:block">
             <motion.div
@@ -204,13 +154,7 @@ export function PhaseIntroScreen() {
                 whileHover={reduced ? undefined : { scale: 1.03 }}
                 className="pointer-events-auto h-full w-full origin-bottom"
               >
-                {/* ⚠ `object-contain`, NOT `object-cover`. Cover fills the
-                    column by cropping whichever axis is long — her column is
-                    tall and narrow, so it was slicing her arms off at the
-                    sides and her legs at the bottom. Contain fits the whole
-                    sprite inside the column and `object-bottom` keeps her
-                    standing on its floor rather than floating mid-air.
-                    Subtle idle "breathing" from the feet keeps her alive. */}
+                {/* !important `object-contain`, not cover: cover crops the long axis and cut her arms off. */}
                 <motion.img
                   ref={heroRef}
                   src={forRound(ROUND_POSE, phase)}
@@ -239,21 +183,14 @@ export function PhaseIntroScreen() {
             className="pixel-frame z-[30] w-full max-w-[min(42vw,560px)] shrink overflow-hidden bg-cream-50 shadow-[8px_10px_0_0_rgba(0,0,0,0.4)]"
           >
           <div className="p-6 sm:p-7">
-            {/* ⚠ PHASE, NOT ROUND. "Round" is the SERVER's unit and never
-                reaches the player — this card said Round in the pill, Phase in
-                the eyebrow and Round again in the footer, for one thing. The
-                pill carries the whole statement ("Phase 1 of 3") so the footer
-                no longer repeats it. */}
+            {/* !important phase, not round: "round" is the server's unit and never reaches the player. */}
             <motion.div
               initial={reduced ? false : { y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.28, duration: 0.4 }}
               className="mb-3 flex flex-wrap items-center gap-2"
             >
-              {/* "PHASE N OF M" stamps in with an impact overshoot. "of M"
-                  comes from the operator's `simulation.config.totalRounds`;
-                  with no known total the label drops the clause rather than
-                  claiming a three-phase run the simulation may not be. */}
+              {/* "of M" comes from `simulation.config.totalRounds`; omitted when unknown. */}
               <motion.span
                 initial={reduced ? false : { scale: 1.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -264,7 +201,7 @@ export function PhaseIntroScreen() {
               </motion.span>
             </motion.div>
 
-            {/* Big theme title — punches in from the left. */}
+            {/* Big theme title, punches in from the left. */}
             <motion.h1
               initial={reduced ? false : { scale: 1.14, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -284,17 +221,14 @@ export function PhaseIntroScreen() {
               {info.body}
             </motion.p>
 
-            {/* Learning focus — what to watch for this phase */}
+            {/* Learning focus, what to watch for this phase */}
             <motion.div
               initial={reduced ? false : { y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.45 }}
               className="mt-4 border-2 border-primary bg-primary-soft px-3 py-2.5"
             >
-              {/* The pill shares one CENTERED row with the title it labels.
-                  `items-start` on the outer flex aligned it to the top of the
-                  whole two-line block, so it floated above the title's cap and
-                  read as detached from the text it belongs to. */}
+              {/* The pill shares one centred row with the title it labels. */}
               <div className="flex items-center gap-2.5">
                 <span className="shrink-0 bg-primary-strong px-1.5 py-0.5 eyebrow eyebrow-sm leading-none text-cream-50">
                   {info.learningFocus}
@@ -305,9 +239,7 @@ export function PhaseIntroScreen() {
             </motion.div>
           </div>
 
-          {/* Footer — big CTA */}
-          {/* The "Round N of M" label that sat on the left is GONE — the pill
-              at the top of the card already says it, in the player's unit. */}
+          {/* The footer's duplicate label is gone; the pill states the phase. */}
           <div className="flex items-center justify-end gap-3 border-t border-border-soft bg-cream-200 p-4 sm:px-6">
             <motion.button
               type="button"
@@ -343,12 +275,7 @@ export function PhaseIntroScreen() {
         </div>
       </div>
 
-      {/* ── Cinematic letterbox bars (full width, on top), sliding in on
-          entry. Bounded so they stay sensible on very tall / short viewports.
-          ⚠ The bottom bar used to be load-bearing — it HID the mascot's
-          cropped lower edge. She is `object-contain` now and has no cropped
-          edge, so these are decoration only; changing or dropping them cannot
-          expose a cut-off sprite. ── */}
+      {/* Cinematic letterbox bars. Decoration only now that the mascot is not cropped. */}
       <motion.div
         aria-hidden
         initial={reduced ? false : { y: '-101%' }}
