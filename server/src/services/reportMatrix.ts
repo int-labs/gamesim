@@ -1,18 +1,11 @@
-/**
- * Round reports as matrices: teams across the top. Pure, no I/O.
- * If a figure is stored, read it. Only the channel apportionment is derived.
- * `marketFit` = normalised productScore. `marketShare` = share of customers won.
- */
+/** Round reports as matrices. Pure, no I/O; if a figure is stored, read it. */
 
 import { SELLING_PRICE_KEY } from "../constants/impacts";
 import { stepMultiplier } from "../sim/calcFinancials";
 import type { LeaderboardMetric } from "../models/leaderboardConfig";
 import type { RoundScore, Standings } from "./leaderboard";
 
-/**
- * This round's ranked metrics plus the standings accumulated up to it.
- * Scored by the caller: the cumulative half needs every prior round.
- */
+/** This round's ranked metrics plus standings; scored by the caller. */
 export interface ScoredLeaderboard extends Standings {
   round: RoundScore;
 }
@@ -126,11 +119,7 @@ export const plain = (n: number | null | undefined): string =>
 export const pct = (n: number | null | undefined, dp = 1): string =>
   n == null ? BLANK : `${(Number(n) * 100).toFixed(dp)}%`;
 
-/**
- * A field's `direction`, for the analysis report's Weight column.
- * Empty, not "-": "-" claims the team submitted nothing. 0 is also empty, since
- * it means the field does not compete. 3dp is lossless for every live weight.
- */
+/** A field's `direction` for the Weight column; empty when 0 or absent. */
 const weightCell = (n: number | null | undefined): string => {
   const v = Number(n);
   return n == null || !Number.isFinite(v) || v === 0 ? "" : v.toFixed(3);
@@ -166,10 +155,7 @@ export function sumScored(
 export const scoredFor = (dec: ReportDecision | null, productId: unknown) =>
   dec?.scored?.[id(productId)] ?? null;
 
-/**
- * Per-field weighted scores from calcFinancials: `resolved × bellFactor ×
- * direction`, summing to `dynamicPrice`. Read, never derived here.
- */
+/** Per-field weighted scores from calcFinancials. Read, never derived. */
 function scoreTerms(
   dec: ReportDecision | null,
   productId: unknown,
@@ -184,15 +170,9 @@ function scoreTerms(
 const scoreTermFor = (dec: ReportDecision | null, productId: unknown, fieldKey: string) =>
   scoreTerms(dec, productId).find((r) => r.key === fieldKey)?.value ?? null;
 
-// Totals are summed from the driver rows (`grandScore`), not the breakdown:
-// marketing and sales-channel levers have no `productScoreBreakdown` entry, so
-// a breakdown total would not match the rows printed above it.
+// Totals come from the driver rows, not the breakdown: levers have no entry there.
 
-/**
- * Units carried into the reported round, `teamId → productId → units`.
- * Read from the previous round's stored `closingStock`, never derived: that
- * value is rounded on write, so reconstructing it would bake the error in.
- */
+/** Units carried in, read from the previous round's stored `closingStock`. */
 export type OpeningStock = Map<string, Map<string, number>>;
 
 export interface CashWalk {
@@ -202,11 +182,7 @@ export interface CashWalk {
   closing: Map<string, number>;
 }
 
-/**
- * Cash walked forward: `cashStart(r) = seed + Σ operatingProfit(i < r)`.
- * Deliberately a second computation of what the client banks into
- * `player.cash`. If the two disagree, this one is authoritative.
- */
+/** Cash walked forward; authoritative over the client's `player.cash`. */
 export function buildCashWalk(
   seed: number,
   roundNumber: number,
@@ -216,9 +192,7 @@ export function buildCashWalk(
   const opening = new Map<string, number>();
   const closing = new Map<string, number>();
 
-  // Ascending and bounded BELOW the reported round: a later round's profit
-  // cannot move this round's opening, and the report may be regenerated for an
-  // earlier round after later ones exist.
+  // Bounded below the reported round so a later profit cannot move this opening.
   const priorRounds = [...byRound.keys()]
     .filter((r) => r < roundNumber)
     .sort((a, b) => a - b);
@@ -238,11 +212,7 @@ export function buildCashWalk(
   return { opening, closing };
 }
 
-/**
- * The one derived figure: a team's channel split for one product, and a second
- * implementation of `calcFinancials`' never-persisted weighting. If they
- * disagree, calcFinancials wins. Unfiltered, matching `roundCalculation`.
- */
+/** !important a second implementation of calcFinancials' channel weighting; that one wins. */
 export function channelSharesFor(
   dec: ReportDecision | null,
   productId: unknown,
@@ -254,11 +224,7 @@ export function channelSharesFor(
   return out;
 }
 
-/**
- * One lever's impact on a product, with per-product override and step
- * multiplier applied. No selection check: this reads the decision, so every
- * entry in it was chosen.
- */
+/** One lever's impact on a product, override and step multiplier applied. */
 function leverWeight(
   gi: NonNullable<ReportDecision["globalInputs"]>[number],
   metricKey: string,
@@ -300,18 +266,10 @@ function leverTerms(
   return terms;
 }
 
-/**
- * The impacts declaring `affects: "customersObtained"`. Used to decide which
- * lever containers the notebook blocks already account for, not to split
- * demand: demand per channel is `channelSharesFor`.
- */
+/** Impacts declaring `affects: "customersObtained"`; not a demand split. */
 export const DEMAND_METRICS = ["sales_channel", "marketing"];
 
-/**
- * Capacity split across the levers that raised it. `inventoryQty` is
- * `base × Π(1 + w)`, so contributions compound and cannot be shared out; the
- * incremental walk is exact. Order-dependent when two levers are held at once.
- */
+/** Capacity split across levers; contributions compound, so walk incrementally. */
 export function capacityTermsFor(
   dec: ReportDecision | null,
   productId: unknown,
@@ -363,11 +321,7 @@ function leverItemsOf(containers: ReportContainer[], metricKeys: string[]) {
 const channelItemsOf = (containers: ReportContainer[]) =>
   leverItemsOf(containers, ["sales_channel"]);
 
-/**
- * A lever's configured weight on one product: impact value plus per-product
- * override, nothing team-specific. The step multiplier is deliberately absent;
- * that is the team's selection and belongs in the team cells.
- */
+/** A lever's configured weight; no step multiplier, that belongs in the team cells. */
 function configWeightOf(
   item: ReportGlobalInputItem,
   metricKey: string,
@@ -387,11 +341,7 @@ function configWeightOf(
     : base + Number(override);
 }
 
-/**
- * Weight anchors, one per family. `0.95` is what the catalogue's heaviest spec
- * driver accounts for. Keyed by container, so renaming a label cannot move a
- * scale and Vendors stays unscaled by having no entry.
- */
+/** Weight anchors per family, keyed by container so a label rename cannot move one. */
 const DESIGN_ANCHOR = 0.95;
 const CONTAINER_ANCHOR: Record<string, number> = {
   marketing: 0.77,
@@ -403,11 +353,7 @@ const CONTAINER_ANCHOR: Record<string, number> = {
 const DESIGN_GROUP = "Design Notebook";
 const showsWeight = (g: DriverGroup) => g.label !== DESIGN_GROUP;
 
-/**
- * The heaviest weight each family reaches across every notebook. !important
- * global, not per notebook: a per-notebook divisor pins each at the anchor and
- * flattens the difference the report exists to show. Computed by the caller.
- */
+/** !important global, not per notebook: a per-notebook divisor flattens the report. */
 export interface WeightTops {
   design: number;
   /** container key → its heaviest configured weight, over all notebooks. */
@@ -436,10 +382,7 @@ export function weightTopsOf(
     for (const item of gi.inputs ?? [])
       for (const metric of DEMAND_METRICS)
         if (item.impacts?.[metric])
-          // THROUGH `leverMaxWeight`, so the per-product `selections` overrides
-          // AND the top step are both included, the divisor must measure the
-          // same quantity the weight column shows, or the anchor lands on the
-          // wrong row. The base impacts look flat; the real ceilings are not.
+          // Through `leverMaxWeight` so overrides and the top step both count.
           for (const p of products)
             top = Math.max(top, leverMaxWeight(item, metric, p._id));
     byContainer[key] = top;
@@ -448,11 +391,7 @@ export function weightTopsOf(
   return { design, byContainer };
 }
 
-/**
- * A lever's weight at its top step: what the market pays if you max it.
- * The ladders are authored monotonic, so the top rung is the right thing to
- * measure a score against. A binary lever has no `options` and multiplies by 1.
- */
+/** A lever's weight at its top step; the ladders are monotonic. */
 function leverMaxWeight(
   item: ReportGlobalInputItem,
   metricKey: string,
@@ -513,11 +452,7 @@ interface Ctx {
   weights: boolean;
 }
 
-/**
- * `weights` adds the Weight column, on the analysis report only.
- * The flag lives here rather than in the shared cascade so one place decides
- * row width and the header cannot disagree with it.
- */
+/** `weights` adds the Weight column, analysis report only. */
 function context(
   decisions: ReportDecision[],
   teams: ReportTeam[],
@@ -541,10 +476,6 @@ function context(
 const leadHeader = (ctx: Ctx, labelCol: string): string[] =>
   ["Section", labelCol, ...(ctx.weights ? ["Weight"] : [])];
 
-// `emitLeaderboardWorking` was here, the analysis report's Actual / rank / N /
-// weight / points working behind each leaderboard figure. QA, 2026-09-28: the
-// leaderboard belongs to the COMPETITOR report only. That report builds its own
-// rows inline, so nothing else needs this.
 
 /** Cash rows, shared by both reports so they cannot drift on how it is shown.
  *  `null` when no opening was configured, see the seed read in roundReport. */
@@ -552,9 +483,7 @@ function emitCashRows(ctx: Ctx, cash: CashWalk | null): void {
   if (!cash) return;
   ctx.emit("Cash", "Opening", (_d, c) => money(cash.opening.get(c.id) ?? null));
   ctx.emit("Cash", "Closing", (_d, c) => money(cash.closing.get(c.id) ?? null));
-  // The delta is what the round actually did to the balance. Printed rather
-  // than left to the reader because the two figures above are cumulative and
-  // subtracting them by eye across a wide table is where mistakes happen.
+  // The delta is printed because the two figures above are cumulative.
   ctx.emit("Cash", "Change", (_d, c) => {
     const o = cash.opening.get(c.id);
     const l = cash.closing.get(c.id);
@@ -568,9 +497,7 @@ function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
   const section = gi.label ?? gi.category ?? gi.key ?? "";
   for (const item of gi.inputs ?? []) {
     ctx.emit(section, item.label ?? item.key ?? "", (dec) => {
-      // "-" ONLY when the team submitted nothing at all. It used to mean both
-      // "no decision" and "decided against this lever", a team that
-      // deliberately left a channel off read the same as one that never played.
+      // "-" only when the team submitted nothing at all.
       if (!dec) return BLANK;
       const sel = (dec.globalInputs ?? []).find(
         (g) => id(g.globalInputItemId) === id(item._id),
@@ -586,11 +513,7 @@ function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
   ctx.rows.push([]);
 }
 
-/**
- * One notebook, in QA's order: Inventory (what could be sold), Demand (what was
- * won, decomposed), Fulfilled (what was served).
- * Financials and Cash are not here: they are per team, not per notebook.
- */
+/** One notebook: Inventory, Demand, Fulfilled. Financials are per team. */
 function emitNotebookAnalysis(
   ctx: Ctx,
   p: ReportProduct,
@@ -613,18 +536,12 @@ function emitNotebookAnalysis(
   // 40-character column has something to scan down.
   emitHeading(ctx, name);
 
-  // ── CAPACITY ─────────────────────────────────────────────────────────────
-  // CAPACITY, NOT INVENTORY. A vendor does not put units in the warehouse; it
-  // raises how many the team COULD build. `inventoryQty` is that ceiling, and
-  // calling the block Inventory (2026-09-28) conflated it with stock on hand.
+  // Capacity, not inventory: a vendor raises the ceiling, not the warehouse.
   const cap = "Capacity";
   ctx.emit(cap, "Raw Capacity", (dec) =>
     dec == null ? BLANK : plain(capacityTermsFor(dec, p._id, qtyFor(dec)).base));
 
-  // Grouped by CONTAINER, "Vendors", "Hiring Options", not by item. A team
-  // holds at most one of each, so a row per item would be mostly blank; this
-  // shows each team's own contribution in one line. Detected, so an operator
-  // adding a third capacity group gets a row without a code change.
+  // Grouped by container, not item: a team holds at most one of each.
   const capContainers = containers.filter((gi) =>
     (gi.inputs ?? []).some((item) => item.impacts?.["inventory"]),
   );
@@ -678,11 +595,7 @@ function emitNotebookAnalysis(
     dec == null ? BLANK : plain(storedFor(c) + (producedFor(dec) ?? 0)));
   ctx.rows.push([]);
 
-  // The driver cascade: one tree rendered three times, as Decisions (what was
-  // chosen), Weighted Score (what it scored), Market Fit (that score as a share
-  // of the notebook's total). The label column is identical down all three.
-  // Weight descending within a group; `sort` is stable, so ties hold their
-  // authored order.
+  // One tree rendered three times: Decisions, Weighted Score, Market Fit.
   const fields = [...(p.fields ?? [])]
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .sort((a, b) => (Number(b.direction) || 0) - (Number(a.direction) || 0));
@@ -731,11 +644,7 @@ function emitNotebookAnalysis(
     };
   };
 
-  /**
-   * One group per container, not one per metric: collecting by impact alone
-   * filed Vendors under Marketing, which carries both. !important each item
-   * appears once, or `grandScore` double-counts it.
-   */
+  /** !important one group per container; each item once or `grandScore` double-counts. */
   const leverGroupsByContainer = (metric: string): DriverGroup[] =>
     containers
       .map((gi) => ({
@@ -749,9 +658,7 @@ function emitNotebookAnalysis(
         Number(String(b.gi.key ?? b.gi.category ?? "") === metric) -
         Number(String(a.gi.key ?? a.gi.category ?? "") === metric))
       .map(({ gi, items }) => {
-        // PER CONTAINER, so Marketing is anchored while Vendors, which carries
-        // the same `marketing` impact but computes it its own way, is left
-        // exactly as configured, having no entry in CONTAINER_ANCHOR.
+        // Per container, so Vendors is left unscaled.
         const key = String(gi.key ?? gi.category ?? "");
         const scale = scalerFor(CONTAINER_ANCHOR[key], tops.byContainer[key] ?? 0);
         // SAME scaler as the weight, see the note on `scalerFor`.
@@ -775,11 +682,7 @@ function emitNotebookAnalysis(
       String(f.key) !== SELLING_PRICE_KEY,
   );
 
-  /**
-   * The weight scale: `anchor / catalogue-wide top`, so every family lands in
-   * 0..1. !important applied at the ROW, never inside `grandScore`: that total
-   * feeds the Market Fit denominator and scaling it strands the parts.
-   */
+  /** !important scale at the ROW, never in `grandScore`: it feeds the Market Fit denominator. */
   const scalerFor = (anchor: number | undefined, top: number) =>
     anchor == null
       ? (w: number) => w
@@ -794,11 +697,7 @@ function emitNotebookAnalysis(
 
   const scaleWeight = scalerFor(DESIGN_ANCHOR, tops.design);
 
-  /**
-   * What a design field pays at its optimum: `max × PEAK × direction`.
-   * !important coupled to `calcDiminishingReturnsCostFactor`; if that curve's
-   * peak moves, every design score cell is wrong.
-   */
+  /** !important coupled to `calcDiminishingReturnsCostFactor`. */
   const PEAK_FACTOR = 2 - Math.exp(-2);
   const maxAttainable = (f: ReportProductField): number => {
     const max = Number(f.maxValue) || 0;
@@ -807,11 +706,7 @@ function emitNotebookAnalysis(
     return max * peak * (Number(f.direction) || 0);
   };
 
-  /**
-   * A design score as a share of what was attainable: `(actual /
-   * maxAttainable) × weight`. !important not `score × mult`: `direction` is a
-   * share of 1 and the score a magnitude, so only the division makes them meet.
-   */
+  /** !important divide by what was attainable; `direction` is a share, the score a magnitude. */
   const designScoreFor = (f: ReportProductField) => {
     const weight = scaleWeight(Number(f.direction) || 0);
     const attainable = maxAttainable(f);
@@ -820,9 +715,7 @@ function emitNotebookAnalysis(
   };
   const groups: DriverGroup[] = [
     {
-      // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
-      // direction > 0, not the selling price), exactly the set
-      // `productScoreBreakdown` holds, so no row here can be permanently blank.
+      // The notebook's own spec; mirrors calcFinancials' `priceFields`.
       label: DESIGN_GROUP,
       rows: filterByMoney
         .map((f) => ({
@@ -841,10 +734,7 @@ function emitNotebookAnalysis(
             designScoreFor(f)(scoreTermFor(dec, p._id, String(f.key ?? ""))),
         })),
     },
-    // Marketing and Vendors each get their own heading, see the note on
-    // `leverGroupsByContainer`. Sales Channel stays a metric group: exactly one
-    // container carries `sales_channel`, so splitting it would only rename the
-    // heading to that container's label.
+    // Marketing and Vendors get their own headings; Sales Channel stays a metric group.
     ...leverGroupsByContainer("marketing"),
     leverGroup("Sales Channel", "sales_channel", "channel"),
   ].filter((g) => g.rows.length > 0);
@@ -858,24 +748,15 @@ function emitNotebookAnalysis(
       for (const r of g.rows) {
         const v = r.score(dec);
         if (v == null) continue;
-        // Already scaled BY ITS OWN ROW, each with its family's factor, see
-        // the note on `scalerFor`. Scaling again here would move the total away
-        // from the parts, which is what broke Market Fit before.
+        // !important already scaled per row; scaling again moves the total off the parts.
         sum += v;
         any = true;
       }
     return any ? sum : null;
   };
 
-  // `grandWeight` was here and is GONE (owner, 2026-10-19). With the design
-  // group's weights hidden, a Total summing every group described a column the
-  // reader could no longer add up, and a Total over only the visible groups is
-  // a number nothing else in the report uses. The Total rows keep their VALUE
-  // cells; they simply carry no weight.
 
-  // Selling price sits OUTSIDE the cascade: `direction` is 0 on it, so it
-  // carries no weight and scores nothing, but it is still the decision a reader
-  // most wants to see.
+  // Selling price sits outside the cascade: `direction` is 0, so it scores nothing.
   const priceField = fields.find((f) => String(f.key) === SELLING_PRICE_KEY);
 
   // ── Decisions ────────────────────────────────────────────────────────────
@@ -887,9 +768,7 @@ function emitNotebookAnalysis(
       return hit?.value == null || hit.value === "" ? BLANK : money(Number(hit.value));
     });
   }
-  // NO WEIGHT COLUMN IN THIS SECTION AT ALL (owner, 2026-10-19). Decisions
-  // answers WHAT each team chose; the weight belongs beside the score it
-  // produced, one section down, not beside the choice.
+  // No weight column here: Decisions answers what was chosen.
   for (const g of groups) {
     ctx.emit("Decisions", g.label, () => "");
     for (const r of g.rows) ctx.emit("Decisions", `  ${r.label}`, r.choice);
@@ -926,9 +805,7 @@ function emitNotebookAnalysis(
     });
     ctx.rows.push([]);
 
-    // Each driver's share of the notebook's total weighted score, so the
-    // section closes at 100%. A share of the score, not of demand: the model
-    // contains no "this decision won N customers" attribution.
+    // Each driver's share of the notebook's total score, so the section closes at 100%.
     const fitOf = (dec: ReportDecision | null, value: number | null) => {
       const total = grandScore(dec);
       return value == null || total == null || total === 0 ? BLANK : pct(value / total);
@@ -974,21 +851,14 @@ function emitNotebookAnalysis(
     plain(scoredFor(dec, p._id)?.unitsSold));
   ctx.rows.push([]);
 
-  // All three read from `scored[productId]`, the same fields the closing PnL
-  // sums, so the rows and the statement cannot disagree.
-  // Gross profit is the deepest line that means anything per notebook:
-  // `operatingExpenses` is a team cost and is never apportioned per product.
+  // All three read from `scored[productId]`; gross profit is the deepest per-notebook line.
   ctx.emit("Financials", "Revenue",      (dec) => money(scoredFor(dec, p._id)?.revenue));
   ctx.emit("Financials", "COGS",         (dec) => money(scoredFor(dec, p._id)?.COGS));
   ctx.emit("Financials", "Gross Profit", (dec) => money(scoredFor(dec, p._id)?.grossProfit));
   ctx.rows.push([]);
 }
 
-/**
- * The team-wide close: headline figures, revenue by channel (analysis only)
- * and by notebook, then the PnL. Every figure is `sumScored` over the fields
- * the notebook blocks printed, so a column adds up the page and lands here.
- */
+/** The team-wide close: headline figures, revenue breakdowns, then the PnL. */
 function emitAllNotebooks(
   ctx: Ctx,
   ordered: ReportProduct[],
@@ -999,9 +869,7 @@ function emitAllNotebooks(
 
   emitHeading(ctx, SUMMARY_HEADING);
 
-  // MEAN across the notebooks the team actually made, not a sum: `marketFit` is
-  // a share of one market per notebook, so adding two of them produces a number
-  // with no meaning. Matches the player client's own `averageMarketFit`.
+  // !important mean, not sum: `marketFit` is a share of one market per notebook.
   emit("Market Fit", "Market fit (average)", (dec) => {
     const vals = Object.values(dec?.scored ?? {})
       .map((m) => Number((m as { marketFit?: unknown })?.marketFit))
@@ -1010,9 +878,7 @@ function emitAllNotebooks(
   });
   rows.push([]);
 
-  // `customersObtained` is DEMAND: won in the market. "Customers Fulfilled" is
-  // `unitsSold`, the server's own `min(customersObtained, openingStock +
-  // produced)`. The gap between them is stock that could not cover demand.
+  // `customersObtained` is demand won; "Customers Fulfilled" is `unitsSold`.
   emit("Demand", "Demand", (dec) => plain(sumScored(dec, "customersObtained")));
   emit("Demand", "Total Books Produced", (dec) => plain(sumScored(dec, "produced")));
   rows.push([]);
@@ -1021,9 +887,7 @@ function emitAllNotebooks(
     plain(sumScored(dec, "unitsSold")));
   rows.push([]);
 
-  // !important deliberately repeated from the PnL block and the leaderboard.
-  // The headline reads at a glance, the statement shows the working, the
-  // leaderboard says what it was worth. Do not remove as a duplicate.
+  // !important deliberately repeated from the PnL block; do not remove as a duplicate.
   emit("Revenue", "Revenue", (dec) => money(sumScored(dec, "revenue")));
   rows.push([]);
 
@@ -1056,9 +920,7 @@ function emitAllNotebooks(
   }
   rows.push([]);
 
-  // THE CLOSING STATEMENT. The two revenue breakdowns above roll into its
-  // Revenue row. "Net Profit" is the server's `operatingProfit`, RENAMED, not
-  // recomputed; the player's P&L sheet calls the same field "Net Income".
+  // The closing statement. "Net Profit" is the server's `operatingProfit`, renamed.
   const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
     ["Revenue",            "revenue",           money],
     ["COGS",               "COGS",              money],
@@ -1079,11 +941,7 @@ function emitAllNotebooks(
   rows.push([]);
 }
 
-/**
- * The competitor report: standings, the figures behind them, then decisions.
- * `metrics` is the operator's `LeaderboardConfig`; with none configured the
- * leaderboard blocks are absent and the rest still renders.
- */
+/** The competitor report; leaderboard blocks are absent when no metrics are configured. */
 export function buildCompetitorMatrix(
   roundNumber: number,
   decisions: ReportDecision[],
@@ -1098,9 +956,7 @@ export function buildCompetitorMatrix(
   const { emit, rows, cols } = ctx;
 
   if (board) {
-    // CUMULATIVE, and the only thing that is. These sum the points every round
-    // up to and including this one paid out. Every row below them is THIS
-    // round's figures, ranked against this round's competitors.
+    // !important cumulative, and the only thing that is.
     emit("Leaderboard", "Total points", (_d, c) =>
       String(round2(board.totals.get(c.id) ?? 0)));
     // "Rank", not "Standing", every winning metric below prints a "Rank" row,
@@ -1129,15 +985,10 @@ export function buildCompetitorMatrix(
 
   const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  // The summary sits directly below the leaderboard here, because this report
-  // answers "who won"; the analysis report keeps it at the foot, after the
-  // working. `withChannelSplit: false`: that breakdown is the analysis one's.
+  // Summary sits under the leaderboard here; the analysis report keeps it at the foot.
   emitAllNotebooks(ctx, ordered, containers, false);
 
-  // Same block and order as the analysis report, with `withScoring: false` so
-  // the scoring sections stay there. One function builds both, so the two
-  // cannot drift on what a notebook block contains.
-  // Computed once before the loop: the divisors span the whole catalogue.
+  // Same block and order as the analysis report, with `withScoring: false`.
   const tops = weightTopsOf(ordered, containers);
   for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, tops, opening, false);
 
@@ -1191,9 +1042,7 @@ export function buildDecisionMatrix(
   const tops = weightTopsOf(ordered, containers);
   for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, tops, opening);
 
-  // Any lever group the notebook blocks did NOT already account for. Channels,
-  // marketing and the capacity levers are shown there; a container carrying
-  // none of those impacts would otherwise vanish from the report entirely.
+  // Lever groups the notebook blocks did not already account for.
   const accounted = new Set(
     containers
       .filter((gi) =>
@@ -1207,9 +1056,7 @@ export function buildDecisionMatrix(
     if (!accounted.has(id(gi._id))) emitLeverRows(ctx, gi);
   }
 
-  // Money last here: every block above explains how a team got there, and the
-  // summary closes it. The competitor report puts the same block under the
-  // leaderboard. `withChannelSplit: true`: that breakdown is this report's.
+  // Money last: the summary closes what the blocks above explain.
   emitAllNotebooks(ctx, ordered, containers, true);
 
   collapseSectionRuns(rows);
