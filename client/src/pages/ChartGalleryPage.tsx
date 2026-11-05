@@ -6,20 +6,7 @@ import {
 import type { DebriefChartStyle } from "../types";
 import { sanitizeChartShape } from "./sanitizeChartShape";
 
-/**
- * The chart gallery — every shape the app can draw, as data.
- *
- * ⚠ A DEVELOPER SURFACE, not a facilitator one. Authoring a shape means writing
- * one, and writes are ADMIN-only on the route for that reason. The operator's
- * job is on the Debrief Charts page, where a shape is PICKED from a dropdown —
- * they never see what is stored here.
- *
- * GLOBAL: a shape is the same wherever it is used, so this list is not scoped
- * to a simulation type. `category` is the chart FAMILY ("bar chart") and `name`
- * the VARIANT ("Stacked Bar") — a different namespace from the configured
- * chart's two fields of the same names, which mean where on the slide it
- * renders and what it is called there.
- */
+/** The chart gallery as data. !important a developer surface: authoring a shape means writing Vega-Lite. */
 
 const box = { border: "1px solid #ddd", padding: 12, marginBottom: 24 };
 const th  = { textAlign: "left" as const, fontSize: 11, color: "#888", padding: "4px 6px" };
@@ -53,9 +40,7 @@ export default function ChartGalleryPage() {
 
   const submit = () => {
     if (!form.name.trim()) return;
-    // SANITISED ON SAVE, never at render — the console is the boundary. Held as
-    // raw text while typing and cleaned only here, because sanitising per
-    // keystroke fights the author mid-tag.
+    // !important sanitised on save, never at render; the console is the boundary.
     const payload = { ...form, shape: sanitizeChartShape(form.shape) };
     if (editing) run(() => updateDebriefChartStyle(editing, payload), "Shape saved.").then(reset);
     else run(() => createDebriefChartStyle(payload), "Shape added.").then(reset);

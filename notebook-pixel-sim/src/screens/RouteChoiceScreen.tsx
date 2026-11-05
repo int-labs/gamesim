@@ -10,7 +10,7 @@ import { expandScript, SCRIPT_AFTER_NAMING } from '@/content/mascotScripts';
 import { playSfx } from '@/audio/audioManager';
 
 /**
- * Founding the shop — the ONLY thing this screen asks.
+ * Founding the shop, the ONLY thing this screen asks.
  *
  * It used to also carry the funding-route choice (self-funded vs
  * investor-backed), which set starting cash and a debt obligation. That taught
@@ -37,9 +37,7 @@ export function RouteChoiceScreen() {
     <div className="absolute inset-0 flex flex-col">
       <img src={A.env.deskFull} alt="" className="absolute inset-0 w-full h-full object-cover opacity-95" draggable={false} />
       <div className="absolute inset-0 bg-ink-900/35" />
-      {/* ONE FRAMED CARD, like the Start screen before it. These two screens run
-          back to back and used to disagree about whether content sits on a card
-          at all, so the second one read as a different app. */}
+      {/* One framed card, matching the Start screen before it. */}
       <div className="relative z-10 flex-1 flex items-center justify-center px-6">
         <motion.div
           className="pixel-frame bg-cream-50 w-full max-w-[640px] text-center"
@@ -73,9 +71,7 @@ export function RouteChoiceScreen() {
                 onChange={(e) => setShopDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') begin(); }}
                 maxLength={MAX_SHOP_NAME}
-                // A PLACEHOLDER, never a prefilled value — `setShopName` already
-                // falls back to this string on an empty draft, so prefilling it
-                // would only mean the player has to clear it to type.
+                // A placeholder, never a prefilled value; `setShopName` already falls back to it.
                 placeholder={DEFAULT_SHOP_NAME}
                 autoFocus
                 className="w-[320px] max-w-full bg-cream-50 border-2 border-ink-900 shadow-pixel-2 text-text section-title text-center outline-none focus:border-primary px-3 py-2.5 placeholder:text-text-3"

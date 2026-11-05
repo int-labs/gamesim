@@ -17,7 +17,7 @@ import { playSfx } from '@/audio/audioManager';
  *     phase intro if a phase boundary just ticked).
  *   - "Start new game" → fully resets via `reset()`, then the naming screen.
  *
- * The Home screen is the entry point on EVERY fresh load — `meta.screen`
+ * The Home screen is the entry point on EVERY fresh load, `meta.screen`
  * is force-reset to 'start' on every persist (see store.ts partialize).
  */
 export function StartScreen() {
@@ -33,15 +33,7 @@ export function StartScreen() {
   // `AND route !== null` clause that the route choice used to supply.
   const hasSavedRun = started && !ended;
 
-  /**
-   * The phase the saved debrief is ABOUT — the last one evaluated, 1-based.
-   *
-   * ⚠ THE SAME DERIVATION AS App.tsx's, and it has to be: `screen === 'limbo'`
-   * renders NOTHING when that value is null, so a shortcut offered on any
-   * other test would land on a blank page. `evaluations` is not stripped by
-   * `partialize`, which is what makes this survive closing the tab — the whole
-   * reason the shortcut is worth having.
-   */
+  /** !important the same derivation as App.tsx's: `limbo` renders nothing when this is null. */
   const debriefPhase = useGame((s) => {
     const done = s.evaluations.resolved;
     return done.length > 0 ? done[done.length - 1].phase : null;
@@ -70,7 +62,7 @@ export function StartScreen() {
 
   return (
     <div className="absolute inset-0 flex overflow-hidden">
-      {/* Slow Ken-Burns drift — the desk breathes instead of sitting frozen. */}
+      {/* Slow Ken-Burns drift, the desk breathes instead of sitting frozen. */}
       <motion.img
         src={A.env.deskFull}
         alt=""
@@ -91,13 +83,9 @@ export function StartScreen() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="pixel-frame bg-cream-50 max-w-[640px] w-full text-center"
         >
-          {/* `pt-5` matches the `mt-5` above the "What you'll learn" rule, so
-              the gap over the title and the gap over the separator are the same
-              step rather than two near-misses. */}
+          {/* `pt-5` matches the `mt-5` above the rule, so both gaps are one step. */}
           <div className="px-6 pt-5 pb-2">
-            {/* Title slams in with an arcade overshoot. THE page's h1 — it was
-                set at `.h2` and so carried the same weight as a card title
-                three screens deeper, which is what flattened the hierarchy. */}
+            {/* The page's h1; it was `.h2` and carried a card title's weight. */}
             <motion.h1
               initial={reduced ? false : { scale: 0.7, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -110,7 +98,7 @@ export function StartScreen() {
               {HOME.tagline}
             </p>
 
-            {/* "What you'll learn" — labelled divider over the grid. */}
+            {/* "What you'll learn", labelled divider over the grid. */}
             <div className="mt-5 flex items-center gap-2">
               <span className="eyebrow eyebrow-sm eyebrow-muted whitespace-nowrap">
                 What you'll learn
@@ -122,7 +110,7 @@ export function StartScreen() {
                 <Lp key={lp.tag} body={lp.body} index={i} />
               ))}
             </div>
-            {/* The "Graded out of 100 on Day 90" line was here — removed
+            {/* The "Graded out of 100 on Day 90" line was here, removed
                 2026-10-01. It promised a day count the round-based sim no
                 longer runs on. */}
           </div>
@@ -153,17 +141,13 @@ export function StartScreen() {
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <CtaPulse reduced={!!reduced}>
                   <PixelButton variant="primary" size="lg" onClick={onContinue}>
-                    {/* PHASE, not day — `cta.continue` renders "Phase {n}" and
+                    {/* PHASE, not day, `cta.continue` renders "Phase {n}" and
                         was being handed `meta.day`, so a run on day 47 offered
                         "Continue · Phase 47". */}
                     {HOME.cta.continue(phase)}
                   </PixelButton>
                 </CtaPulse>
-                {/* STRAIGHT TO THE SCORING, skipping the run. A player who
-                    submitted their decisions and closed the tab had to walk
-                    the whole flow again to reach the debrief that was already
-                    waiting for them. Shown only when there IS one — `limbo`
-                    renders blank without a resolved evaluation. */}
+                {/* Straight to the debrief, skipping the run. Shown only when one exists. */}
                 {debriefPhase != null && (
                   <PixelButton variant="ghost" size="lg" onClick={onDebrief}>
                     {HOME.cta.debrief(debriefPhase)}
@@ -178,15 +162,7 @@ export function StartScreen() {
                 </PixelButton>
               </div>
             ) : ended ? (
-              /* ⚠ A FINISHED RUN IS LOCKED. Once the final phase is played
-                 the only surface still reachable is its debrief — there is
-                 deliberately no "start another", because replaying is how a
-                 scored result gets retaken until it looks better. The run is
-                 the record; the debrief is the record of the record.
-
-                 ⚠ DO NOT RESTORE A RESET BUTTON HERE. Wiping the save is
-                 still possible from a run IN PROGRESS, which is a different
-                 decision — nothing has been finally scored yet. */
+              /** !important a finished run is locked to its debrief; do not restore a reset button here. */
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {debriefPhase != null && (
                   <CtaPulse reduced={!!reduced}>
@@ -217,7 +193,7 @@ export function StartScreen() {
  * points nothing else in the game refers to, so it read as a cross-reference to
  * a list that does not exist. The point itself is the content.
  *
- * `lp.tag` is still the React key — it is the only stable id on the row, and a
+ * `lp.tag` is still the React key, it is the only stable id on the row, and a
  * key is not rendered.
  */
 function Lp({ body, index }: { body: string; index: number }) {
@@ -227,9 +203,7 @@ function Lp({ body, index }: { body: string; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -3 }}
       transition={{ duration: 0.35, delay: 0.3 + index * 0.07, ease: 'easeOut' }}
-      // NO BORDER — these are blurbs, not targets. A bordered chip beside a
-      // filled CTA competes with it for "the thing to click"; the background
-      // alone does the grouping. See `.soft-panel`.
+      // No border: blurbs, not targets.
       className="flex items-center gap-2 soft-panel px-2.5 py-2 text-left cursor-default"
     >
       <span className="font-body hint leading-tight text-ink-900">{body}</span>

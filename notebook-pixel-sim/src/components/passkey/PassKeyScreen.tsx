@@ -11,47 +11,23 @@ import { PixelWipe } from './PixelWipe';
 import { useStage, useSourceSize, projectX, projectY } from './useStage';
 import { playSfx } from '@/audio/audioManager';
 
-// ── Scene anchors, as fractions of the backdrop art ─────────────────────────
-// The blank parchment board (the panel fills it) and the floor (the mascot).
-// ⚠ `cx: 0.808` is FAR RIGHT in the art, which makes this the first feature a
-// horizontal crop removes — see the stage-mode note in useStage.
+// Scene anchors as fractions of the backdrop art. `cx` is far right, so a horizontal crop eats the board first.
 const BOARD = { cx: 0.808, y0: 0.135, wFrac: 0.265, hFrac: 0.55 };
 
-/**
- * PassKeyScreen — the full-bleed Academy "storefront" entry experience.
- *
- * The video ALWAYS object-covers the viewport (no bars). In "stage" mode the
- * panel fills the baked-in board (top-aligned) and the mascot stands on the
- * floor, both math-anchored via the cover projection. In "card" mode the panel
- * is a full-height sheet (centered content, branded with the logo) and the
- * mascot is dropped.
- *
- * ⚠ THE TWO MODES ARE NOT "LANDSCAPE" AND "PORTRAIT". That is what the old
- * aspect-ratio test made them, and it is why a 4:3 iPad in landscape got stage
- * mode with the panel hanging off the right edge. Stage mode is used when the
- * board FITS; anything else — a 4:3 tablet, a 16:10 laptop, a half-width
- * window — falls back to the card, which needs no baked-in feature to land on.
- */
+/** The full-bleed storefront entry. Stage mode anchors the panel to the baked-in board; card mode is used when it will not fit. */
 export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
   const reduced = useReducedMotion();
-  // The stage box IS the element the backdrop fills — projections are measured
+  // The stage box IS the element the backdrop fills, projections are measured
   // off it, not off the window. See the note in useStage.
   const stageRef = useRef<HTMLDivElement>(null);
-  // The ART's own dimensions, read off the poster the backdrop already loads —
-  // not a constant. The overlays are projected onto features baked into this
-  // image, so its aspect is the one number the projection cannot guess.
+  // The art's own dimensions, read off the poster rather than assumed.
   const srcSize = useSourceSize(A.env.passkeyPoster);
-  // BOARD is passed so the stage/card decision can be made on whether the
-  // panel actually lands inside the viewport, rather than on an aspect ratio
-  // that assumed every screen is widescreen.
+  // BOARD is passed so stage mode is decided by whether the panel fits.
   const stage = useStage(stageRef, srcSize, BOARD);
   const [leaving, setLeaving] = useState(false);
   const [roamTick, setRoamTick] = useState(0);
 
-  // canvas-confetti draws into a PERSISTENT full-screen canvas that outlives
-  // whatever triggered it. Without this reset the unlock burst kept falling
-  // over the naming screen that replaces us, drifting across its heading.
-  // The celebration belongs to the screen that earned it.
+  // confetti draws into a persistent canvas; reset or the burst follows the next screen.
   useEffect(() => () => { confetti.reset(); }, []);
 
   const handleUnlock = () => {
@@ -73,7 +49,7 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div ref={stageRef} className="fixed inset-0 z-[60] overflow-hidden bg-bg">
-      {/* Full-viewport scene — object-cover, so there are never side bars. */}
+      {/* Full-viewport scene, object-cover, so there are never side bars. */}
       <VideoBackdrop poster={A.env.passkeyPoster} videoMp4={A.video.passkeyBg} focal="50% 42%" />
 
       {/* Pixel fireflies. */}
@@ -95,17 +71,13 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
             onClick={() => setRoamTick((t) => t + 1)}
           />
 
-          {/* Hearts erupt from BEHIND Amelia: this canvas sits at z-14, she is
-              at z-15. Mounted per-mascot-context rather than globally so the
-              sprite always stays in front of its own love bomb. */}
+          {/* Hearts sit at z-14, Amelia at z-15, so she stays in front of her own burst. */}
           <HeartRain className="pointer-events-none absolute inset-0 z-[14]" />
 
-          {/* Roaming "idle-lobby" mascot — positions itself in the scene. */}
+          {/* Roaming "idle-lobby" mascot, positions itself in the scene. */}
           <AcademyMascotStage stage={stage} reduced={!!reduced} roamTick={roamTick} />
 
-          {/* Pass Key panel — fills the blank board, content top-aligned.
-              z-[30] keeps it above the fireflies (z-5) and the roaming mascot
-              (z-15) so nothing ever drifts over the field while typing. */}
+          {/* z-[30] keeps the panel above the fireflies and the roaming mascot. */}
           <div
             className="absolute z-[30]"
             style={{
@@ -128,7 +100,7 @@ export function PassKeyScreen({ onEnter }: { onEnter: () => void }) {
         </>
       ) : (
         <>
-          {/* Card mode (mobile / portrait) — full-height sheet, no mascot. */}
+          {/* Card mode (mobile / portrait), full-height sheet, no mascot. */}
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-ink-900/55" />
 
           <motion.div

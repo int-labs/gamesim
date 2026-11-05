@@ -10,22 +10,9 @@ import { fmt$, fmtInt } from '@/utils/format';
 import type { ServerProjectionResult } from '@/gamesim/sync';
 import clsx from 'clsx';
 
-/**
- * FinlitDesignControls — the V3 product editor: what the notebook IS. Sets a
- * line's market (genre), its production-spec axes, and its price, and shows the
- * live cost/demand feedback the FinLit engine uses.
- *
- * Deliberately NOT here — these are company decisions and live on the Business
- * page, so the player isn't running the business from inside a product editor:
- *   • WHERE you sell (sales channels)  → Business ▸ Operations (company-wide)
- *   • HOW MANY you make (produce/day)  → Business ▸ Inventory (production plan)
- * Price stays because margin = price − unit cost and the spec above sets unit
- * cost; price also feeds product-market fit (vocFit).
- */
+/** The V3 product editor: what the notebook is. Spec and price only; where and how many live on the Business page. */
 
-// `addon` is deliberately absent: add-ons are picked visually from the Add-ons
-// drawer on the canvas, so a duplicate dropdown here was a second way to set the
-// same value. The axis still exists in the spec and the engine still costs it.
+// `addon` is absent on purpose: add-ons are picked from the canvas drawer.
 const AXES: { axis: ConfigAxis; label: string }[] = [
   { axis: 'paper', label: 'Paper' },
   { axis: 'size', label: 'Size' },
@@ -58,9 +45,7 @@ export function FinlitDesignControls({
       .map((sel) => sel.selectedStepKey as ChannelId),
   );
 
-  // Nothing to design, and nothing to say about it — the canvas popup owns the
-  // "no notebook" message for the whole screen. This panel sat directly under
-  // the notebook list, which was already saying the same thing twice.
+  // !important the canvas popup owns the "no notebook" message for the whole screen.
   if (!line) return null;
 
   const genre: GenreId = line.productId;
@@ -71,7 +56,7 @@ export function FinlitDesignControls({
     size: line.finlitSpec?.size ?? DEFAULT_SPEC.size,
     pageDesign: line.finlitSpec?.pageDesign ?? DEFAULT_SPEC.pageDesign,
     cover: line.finlitSpec?.cover ?? DEFAULT_SPEC.cover,
-    // The canvas axes carry no default — unchosen means 0, not a free charm.
+    // The canvas axes carry no default, unchosen means 0, not a free charm.
     charms: line.finlitSpec?.charms,
     ribbons: line.finlitSpec?.ribbons,
     stickers: line.finlitSpec?.stickers,
@@ -79,24 +64,7 @@ export function FinlitDesignControls({
   };
   const channelLabel = activeChannels.map((c) => CHANNEL_META[c].name).join(' + ');
 
-  // Unit cost and capacity come from the SERVER's projection, with NO local
-  // fallback.
-  //
-  // There used to be one — `unitCost(spec)` / `prodPerDay(spec, 0)` — and it was
-  // worse than showing nothing. Those tables know only the spec above: they are
-  // blind to every business-page choice (hiring, vendors, the `dynamic_cost`
-  // impacts), and `prodPerDay(spec, 0)` passes a ZERO production bonus, so the
-  // figure understated capacity even on its own terms. It rendered
-  // indistinguishably from a real number, so the player priced against a margin
-  // the P&L never used and had no way to know.
-  //
-  // Absent data now reads as absent. `null` here means "the server has not said
-  // yet", and the display shows that rather than inventing an answer.
-  // Keyed by productId, never by position. `byProduct` is ordered by the
-  // server's own pairing, so an index read showed another notebook's figures
-  // whenever the two orders diverged. No `?? byProduct[0]` fallback either: a
-  // miss means the server has not projected THIS notebook, and borrowing the
-  // first one's numbers is the same lie in a quieter form.
+  // !important unit cost and capacity come from the server's projection, with no local fallback.
   const proj = liveProjection?.byProduct.find((p) => p.productId === line?.productId) ?? null;
   const uCost = proj?.dynamicCost ?? null;
   const capacityPerPhase = proj?.inventoryQty ?? null;
@@ -104,9 +72,7 @@ export function FinlitDesignControls({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── Market (genre) — HIDDEN for now. The picker still exists and
-           `setLineGenre` is untouched, so nothing about the engine changed;
-           this section is just not surfaced in the design drawer. ── */}
+      {/* Market (genre) is hidden for now; the picker and `setLineGenre` are untouched. */}
 
       {/* ── Production spec (5 axes; type mirrors genre) ── */}
       <Section title="Production Spec" hint="Each choice changes production speed and unit cost.">
@@ -116,14 +82,9 @@ export function FinlitDesignControls({
               <span className="field-label w-28 shrink-0">{label}</span>
               <PixelSelect
                 ariaLabel={label}
-                // The canvas axes (charms/ribbons/stickers/functional) are
-                // OPTIONAL, so `spec[axis]` is `string | undefined` for the
-                // union. '' reads as "nothing chosen"; the four axes listed in
-                // AXES are required and never reach it.
+                // The canvas axes are optional, so `spec[axis]` may be undefined.
                 value={spec[axis] ?? ''}
-                // COMPUTED, not stored: `score × unitCost`, the same arithmetic
-                // the server's `dynamicCost` runs. No `unitCost` ⇒ no hint,
-                // rather than a confident "+$0.00".
+                // Computed, not stored: the same arithmetic the server's `dynamicCost` runs.
                 options={CONFIG_TABLES[axis].options.map((o) => {
                   const added = optionUnitCost(genre, axis, o.id);
                   return {
@@ -145,11 +106,7 @@ export function FinlitDesignControls({
         </div>
       </Section>
 
-      {/* ── Price — stays with the product: margin = price − unit cost, and the
-           spec above is what sets unit cost. Price also feeds product-market fit
-           (vocFit), so it belongs next to the notebook you're designing.
-           WHERE you sell (channels) and HOW MANY you make (produce/day) are
-           business decisions and live on the Business page. ── */}
+      {/* Price stays with the product: margin is price minus the unit cost the spec sets. */}
       <Section title="Price" hint="What you charge. Margin is price minus unit cost.">
         <Slider
           label="Price" value={line.price} min={1} max={PRICE_MAX} step={1}
@@ -158,7 +115,7 @@ export function FinlitDesignControls({
         />
       </Section>
 
-      {/* ── Live feedback — the server's figures for this line, so the margin
+      {/* ── Live feedback, the server's figures for this line, so the margin
            you price against is the one the P&L will actually use. ── */}
       <div className="grid grid-cols-3 gap-2">
         <Stat
@@ -179,7 +136,7 @@ export function FinlitDesignControls({
         </div>
       )}
 
-      {/* Signpost — these used to live here; tell the player where they went. */}
+      {/* Signpost, these used to live here; tell the player where they went. */}
       <div className="hint border-t border-border-soft pt-3">
         Selling through <span className="strong text-text-2">{channelLabel}</span>.
         Set sales channels in <span className="strong text-text-2">Business ▸ Operations</span>,
@@ -189,24 +146,10 @@ export function FinlitDesignControls({
   );
 }
 
-/**
- * A titled group. Sections used to be a bare caption over content, so two of
- * them in a column read as one undifferentiated list. The filled header is
- * what gives each a clear start and end.
- *
- * ⚠ It used to be the BORDER that did that, and the border had to go: a
- * container you cannot click must not wear the same outline as the selects
- * and cards inside it. The header's fill separates the sections just as well
- * and leaves the border to mean one thing. See `.soft-panel`.
- */
+/** A titled group; the filled header separates sections, not a border. */
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    // ⚠ NO BORDER. A section is a GROUP, not a target — everything you can
-    // actually act on lives inside it (the selects, the slider, the charm
-    // cards) and each of those carries its own border. Outlining the wrapper
-    // too put a box around a box and flattened the two into one rank, which
-    // is what made the panel read as a wall of equally-clickable rectangles.
-    // The header's darker fill is what separates the sections now.
+    // !important no border: everything actionable inside already has one.
     <section className="soft-panel">
       <header className="px-3.5 py-2.5 bg-cream-200">
         <div className="section-title text-ink-900">{title}</div>
@@ -222,7 +165,7 @@ function Slider({
 }: {
   label: string; value: number; min: number; max: number; step: number;
   fmt: (v: number) => string; onChange: (v: number) => void;
-  /** Interaction END — pointer released, or a keyboard drag finished. */
+  /** Interaction END, pointer released, or a keyboard drag finished. */
   onCommit?: () => void;
 }) {
   return (
@@ -234,9 +177,7 @@ function Slider({
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
-        // `onPointerUp` covers mouse and touch; `onKeyUp` covers arrow-key
-        // dragging, which never fires a pointer event. A range has no `onBlur`
-        // worth using — the value is committed the moment the drag ends.
+        // `onPointerUp` covers pointer drags, `onKeyUp` covers arrow-key ones.
         onPointerUp={onCommit}
         onKeyUp={onCommit}
         className="w-full accent-ui-primary cursor-pointer"
@@ -249,10 +190,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: 'inf
   const cls =
     tone === 'good' ? 'text-success' : tone === 'bad' ? 'text-danger' : tone === 'warn' ? 'text-warning' : 'text-text';
   return (
-    // A READOUT. Nothing here responds to a click, so it takes the soft plate
-    // rather than a border — these sat in a row directly under the price
-    // slider wearing the same outline as the controls above them.
-    // (The `-ink` text tones are right HERE: `.soft-panel` is a light cream.)
+    // A readout: nothing here responds to a click, so it takes the soft plate.
     <div className="readout soft-panel px-2.5 py-2 text-center">
       <div className="stat-label">{label}</div>
       <div className={clsx('num-sm mt-1', cls)}>{value}</div>

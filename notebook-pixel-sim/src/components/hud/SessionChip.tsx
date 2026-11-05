@@ -13,7 +13,7 @@ import { useGamesimSession, phaseFromRoundNumber } from '@/gamesim/GamesimProvid
  * open, how long is left on the clock they announced, and who this team is.
  *
  * ── WHY IT LIVES IN THE BOTTOM BAR ──────────────────────────────────────────
- * It started in the top HUD and was the widest fixed block up there — round +
+ * It started in the top HUD and was the widest fixed block up there, round +
  * countdown + team name ran to roughly 380px that could not shrink. The top bar
  * also carries the logo, phase, energy, cash, the projection dashboard and the
  * utility menu, all `shrink-0`, so below about 1400px the total overran the bar
@@ -26,8 +26,8 @@ import { useGamesimSession, phaseFromRoundNumber } from '@/gamesim/GamesimProvid
  * they are in the session. These belong to the second group.
  *
  * ── WHY IT MATTERS ──────────────────────────────────────────────────────────
- * The timer existed end to end — the console sets `timer.durationMinutes`, the
- * server stores `startDate`/`endDate`, the player's `RoundDto` typed it — and
+ * The timer existed end to end, the console sets `timer.durationMinutes`, the
+ * server stores `startDate`/`endDate`, the player's `RoundDto` typed it, and
  * no component ever read it. A facilitator would say "you have 25 minutes" and
  * the room had no clock. Teams likewise had no idea what they were called;
  * the console knew, the player never asked.
@@ -47,19 +47,10 @@ function formatLeft(ms: number): string {
     : `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/**
- * Marks a team badge can take. Kept to visually distinct silhouettes so two
- * teams in the same room are told apart at 16px.
- *
- * ⚠ LINE ICONS, not the pixel sprites these used to be. The status bar is
- * NavIcon territory — the clock beside this is a lucide `Timer` — and a
- * raster trophy sitting next to it was the one graphic mark in a row of
- * stroked ones. Same six silhouettes in the same order, so a team's badge is
- * unchanged; only the drawing is.
- */
+/** Marks a team badge can take; distinct silhouettes so two teams are told apart at 16px. */
 const TEAM_MARKS: LucideIcon[] = [Star, Trophy, Sparkles, Gift, Notebook, LayoutGrid];
 
-/** Stable per-team pick — same name always yields the same mark. */
+/** Stable per-team pick, same name always yields the same mark. */
 function teamMark(name: string | null | undefined): LucideIcon {
   let h = 0;
   for (const ch of name ?? '') h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -87,15 +78,10 @@ export function SessionChip() {
   // Under two minutes is when a facilitator starts counting down out loud.
   const urgent = left !== null && left > 0 && left < 2 * 60 * 1000;
 
-  // Nothing to say — don't draw a divider into empty space.
+  // Nothing to say, don't draw a divider into empty space.
   if (!round && !bootstrap.teamName) return null;
 
-  // `round.roundNumber` is the server's 0-BASED index; the player counts from 1
-  // and reads it next to "Phase N", so an unconverted 2 sat beside Phase 3.
-  // See ../../gamesim/GamesimProvider.tsx — the only conversion seam.
-  // ⚠ PHASE, not round. `phaseFromRoundNumber` already converts the server's
-  // 0-based roundNumber into the 1-based unit the player is shown — the label
-  // over it said "Round", which is the operator's word for the same thing.
+  // !important phase, not round: `phaseFromRoundNumber` already converted the 0-based index.
   const phaseLabel = round ? phaseFromRoundNumber(round.roundNumber) : null;
 
   return (
@@ -135,9 +121,7 @@ export function SessionChip() {
                 <span className="eyebrow eyebrow-sm text-[#9F7F52]">
                   Phase {phaseLabel}
                 </span>
-                {/* The plate is #221710. The theme's -ink reds are tuned for
-                    CREAM and go nearly black here, so urgency uses the bright
-                    pastel, which is what actually reads on a dark surface. */}
+                {/* The plate is dark, so urgency uses the bright pastel, not the -ink red. */}
                 <span
                   className={clsx(
                     'hint truncate tabular-nums',
@@ -154,12 +138,7 @@ export function SessionChip() {
         {bootstrap.teamName && (
           <Tooltip content="Your team, as your facilitator set it up." placement="top">
             <div className="flex items-center gap-2 min-w-0" role="status" aria-label={`Team ${bootstrap.teamName}`}>
-              {/* NOT the server's DiceBear avatar. That avatar is abstract
-                  geometry in its own palette — bright cyan and orange — which
-                  is right for the console's team roster and completely foreign
-                  here. The mark is still chosen deterministically from the team
-                  name, so each team keeps a distinct badge; it is drawn in the
-                  bar's own stroke weight rather than as a sprite. */}
+              {/* A deterministic mark from the team name, drawn in the bar's own stroke weight. */}
               <span className="game-phase-marker">
                 <NavIcon icon={teamMark(bootstrap.teamName)} size={14} color="var(--c-border)" />
               </span>

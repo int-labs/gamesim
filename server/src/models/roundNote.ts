@@ -1,41 +1,14 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
-/**
- * Facilitator notes attached to a round.
- *
- * These are the running commentary an operator leaves as a simulation plays —
- * "why Team Beta's share collapsed", "remember the supplier event hit here".
- * They're read alongside that round's results.
- *
- * TARGETING: `teamId: null` means every team sees it. A specific teamId makes
- * it private feedback for that team — a team token only ever receives the
- * general notes plus its own (see the controller), never another team's.
- *
- * Several notes per round are allowed on purpose, so the index is NOT unique.
- */
+/** Facilitator notes on a round: free-standing commentary, or a debrief chart's description. */
 
 export interface RoundNoteInterface extends Document {
   simulationId: Types.ObjectId;
   roundNumber: number;
   teamId: Types.ObjectId | null;
-  /**
-   * The `DebriefChart` this note describes, by `_id`. `null` is the
-   * free-standing facilitator note, which renders in its own panel rather than
-   * against a chart.
-   *
-   * An `_id` and not a name: the chart's `name` is display and free to be
-   * reworded, which would silently orphan every description written against it.
-   */
+  /** The `DebriefChart` this note describes, by `_id`. `null` is a free-standing note. */
   chartId: Types.ObjectId | null;
-  /**
-   * Which INSTANCE of that chart, when its `scope` is `each`. A Product `_id`
-   * for a per-notebook chart, `null` for the all-notebooks summary and for
-   * every `overall` chart.
-   *
-   * ⚠ A note is keyed by the PAIR. `chartId` alone is ambiguous once a chart
-   * draws N + 1 instances, and there is NO fallback — a per-notebook chart with
-   * no note of its own is hidden, it does not inherit the summary's.
-   */
+  /** !important which instance, when `scope` is `each`. Keyed by the pair, never `_id` alone. */
   productId: Types.ObjectId | null;
   title: string;
   /** Markdown. Rendered as plain text until a renderer is wired in. */

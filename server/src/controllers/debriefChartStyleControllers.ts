@@ -3,15 +3,7 @@ import mongoose from "mongoose";
 import { z } from "zod";
 import DebriefChartStyle from "../models/debriefChartStyle";
 
-/**
- * The chart gallery — global, not scoped to a simulation type.
- *
- * ⚠ `shape` IS RENDERED BY THE PLAYER. It must be sanitised before it gets
- * here, at the console boundary, the same rule `products.segments` follows.
- * This endpoint is NOT the boundary: a row written straight to it never passes
- * the console's sanitiser, which is an accepted limit of that design and the
- * reason writes are admin-only.
- */
+/** The chart gallery, global rather than per simulation type. !important `shape` is sanitised here, at the console boundary. */
 
 const styleSchema = z.object({
   name:     z.string().trim().min(1, "A chart style needs a name.").max(120),
@@ -24,7 +16,7 @@ const patchSchema = styleSchema.partial();
 const issues = (e: z.ZodError) =>
   e.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
 
-/** The unique index is `{category, name}` — surface it as a conflict rather
+/** The unique index is `{category, name}`, surface it as a conflict rather
  *  than a 500, which is what a duplicate key would otherwise produce. */
 const isDuplicate = (err: unknown): boolean =>
   (err as { code?: number })?.code === 11000;
@@ -93,9 +85,7 @@ export const deleteDebriefChartStyle = async (req: Request, res: Response): Prom
       return;
     }
 
-    // REFUSED WHILE REFERENCED. Letting it go would leave every chart pointing
-    // here with a null shape, which renders nothing — and "renders nothing" is
-    // indistinguishable from a chart nobody finished configuring.
+    // Refused while referenced: every chart pointing here would render nothing.
     const inUse = await mongoose
       .model("DebriefChart")
       .exists({ chartStyle: req.params.id });
