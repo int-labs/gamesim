@@ -218,8 +218,13 @@ function ChartSlide({ chart, data }: { chart: DebriefChartDto; data: RoundDebrie
 
   return (
     <PixelPanel title={title}>
-      {/* Figure left, reading right. */}
-      <div className={clsx('grid gap-4 items-start', hasFigure && 'lg:grid-cols-2')}>
+      {/* Figure 70%, rule, reading 30%: the chart clears its 720px natively. */}
+      <div
+        className={clsx(
+          'grid gap-4 items-start',
+          hasFigure && 'lg:grid-cols-[7fr_1px_3fr]',
+        )}
+      >
         {hasFigure && (
           // !important `min-w-0`, or the SVG's intrinsic width pushes the copy out of the panel.
           <div className="min-w-0">
@@ -232,6 +237,9 @@ function ChartSlide({ chart, data }: { chart: DebriefChartDto; data: RoundDebrie
               />
             )}
           </div>
+        )}
+        {hasFigure && chart.description && (
+          <div aria-hidden className="hidden lg:block w-px h-full bg-border-soft" />
         )}
         {chart.description && (
           <div className="min-w-0 body text-ink-700 leading-relaxed">
