@@ -41,8 +41,8 @@ const phaseEndDay = (phase: number) => phase * DAYS_PER_PHASE;
 /**
  * `insight` sits BEFORE `simulating`, which is deliberate and was a change.
  *
- * The insight check is a fixed knowledge question — the copy and the correct
- * answer are hardcoded per phase and derive from no state — so it is not a
+ * The insight check is a fixed knowledge question, the copy and the correct
+ * answer are hardcoded per phase and derive from no state, so it is not a
  * phase-end reflection and does not need the round's outcome in front of it.
  *
  * Asking it first is what lets its answer ride on the SAME `POST /decisions`
@@ -59,23 +59,23 @@ interface Props {
    * The SimulationScreen's projection instance. Passed in, never fetched here:
    * `useLiveProjection` keeps its state per caller, so a second instance starts
    * at null and the modal's "Cash now" would omit the build cost the HUD chip
-   * includes — the same number, two different answers.
+   * includes, the same number, two different answers.
    */
   liveProjection?: ServerProjectionResult | null;
 }
 
 /**
- * Phase Sequence Modal — single coordinated flow that handles:
+ * Phase Sequence Modal, single coordinated flow that handles:
  *
  *   preview → insight → simulating → (closes straight into the limbo debrief)
  *
  * EVENTS, KEY SCENARIOS, THE PHASE-REVIEW SLIDE AND THE "PHASE N COMPLETE"
- * STEP WERE REMOVED (2026-10-08, QA's call) — the branching options taught
+ * STEP WERE REMOVED (2026-10-08, QA's call), the branching options taught
  * nothing the rest of the game builds on, and the completion step announced a
  * cash delta behind one button that the limbo debrief reports properly.
  *
  * The event step was already unreachable: nothing in the codebase ever assigns
- * `meta.pendingEventId` a non-null value — `applyEventChoice` only clears it.
+ * `meta.pendingEventId` a non-null value, `applyEventChoice` only clears it.
  * The phase-review slide said one sentence and offered a Continue button, but
  * it also carried the ONLY phase bump in the app; that bookkeeping moved into
  * `tick` rather than going with it. See `finishEvaluation`.
@@ -93,7 +93,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   // Snapshot projected cash at the moment the decision is submitted so the modal
   // shows the locked-in numbers even as live projections continue updating elsewhere.
   const cashByProduct = liveProjection?.byProduct ?? null;
-  // The ledger's figure for the headline, with committed spend as the delta —
+  // The ledger's figure for the headline, with committed spend as the delta -
   // exactly how the HUD chip presents it.
   const cashBalance = useGame((s) =>
     selectCashBalance(
@@ -113,7 +113,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     if (submittedDecision && !cashSnapshot) {
       setCashSnapshot({ value: liveCashValue, delta: liveCashDelta });
     }
-  }, [submittedDecision]); // intentionally excludes live values — captures at submission only
+  }, [submittedDecision]); // intentionally excludes live values, captures at submission only
   const frozen = !!submittedDecision;
   const projectedCashValue = frozen ? (cashSnapshot?.value ?? liveCashValue) : liveCashValue;
   const projectedCashDelta = frozen ? (cashSnapshot?.delta ?? liveCashDelta) : liveCashDelta;
@@ -125,7 +125,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   const [cashAtOpen, setCashAtOpen] = useState<number>(cash);
 
   // Which round is the last. `?? phase` means an unknown round count treats the
-  // CURRENT round as final — the conservative reading: it ends the run rather
+  // CURRENT round as final, the conservative reading: it ends the run rather
   // than advancing into a round the operator may not have configured.
   const finalRound = useTotalRounds() ?? phase;
 
@@ -150,7 +150,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
    * Reads the answer straight out of the store rather than from local state:
    * `answerInsight` has already folded it into `insights.score`, and
    * `collectClientMetrics` resolves whatever keys the operator configured from
-   * exactly that — so the payload cannot disagree with what the player saw.
+   * exactly that, so the payload cannot disagree with what the player saw.
    */
   const onInsightContinue = () => {
     playSfx('whoosh');
@@ -167,7 +167,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     apply((s) => { s.meta.sequenceActive = true; });
     // Cleared in a CLEANUP, not an else-branch. This modal is keyed on
     // `openCount`, so it remounts rather than re-renders, and its parent can
-    // unmount entirely while `open` is still true — in both cases an
+    // unmount entirely while `open` is still true, in both cases an
     // else-branch never runs and the flag outlives the component that owns it.
     // A stuck `sequenceActive` is unrecoverable without a reload: App.tsx both
     // declines to promote the evaluation screen and suppresses the standalone
@@ -183,7 +183,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   // THE SAME FIGURES THE HUD SHOWS, from the same single implementation.
   //
   // This used to sum `liveProjection.byProduct` for revenue, gross profit,
-  // units sold, operating expenses and operating profit — all of which hang off
+  // units sold, operating expenses and operating profit, all of which hang off
   // `customersObtained`, a figure the round calculation derives LATER against
   // every other team's submission. Quoting it here as "what your facilitator
   // scores" stated a number that does not exist yet.
@@ -195,23 +195,23 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     liveProjection?.byProduct,
   );
 
-  // The player's produce plan (from InventoryPanel) — the same value shown as
+  // The player's produce plan (from InventoryPanel), the same value shown as
   // "Produce / phase" there. It IS their demand estimate now that the separate
-  // estimate input is gone. 0 renders as '—'.
+  // estimate input is gone. 0 renders as '-'.
   const intProduce = lines.reduce((sum_, l) => sum_ + (l.targetPerPhase ?? 0), 0);
 
   // ─── Step transitions ────────────────────────────────────────────────────
 
   /** Advance the engine and route to the next step based on engine flags.
-   *  The 1.6s delay is pure showtime — the day counter races, coins rain,
-   *  the machine rumbles — then the engine applies in one go. */
+   *  The 1.6s delay is pure showtime, the day counter races, coins rain,
+   *  the machine rumbles, then the engine applies in one go. */
   const [simFromDay, setSimFromDay] = useState(1);
   const tick = async () => {
     // `roundContext` is only needed to SUBMIT. Demanding it to advance was the
     // same conflation as `canAdvance` itself, one level down: standalone play
     // has no round context and needs none, so the guard bounced the player
-    // back to step 1 with "this round is not accepting decisions" — about a
-    // round that does not exist — immediately after the event they had just
+    // back to step 1 with "this round is not accepting decisions", about a
+    // round that does not exist, immediately after the event they had just
     // answered. The POST below is already gated on `canSubmit`.
     if (!canAdvance || (canSubmit && !roundContext)) {
       setSyncError('Cannot submit: this round is not accepting decisions.');
@@ -223,7 +223,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     setSyncing(true);
     setSyncError(null);
     try {
-      // Must succeed before the local phase advances — a silent failure would
+      // Must succeed before the local phase advances, a silent failure would
       // leave the team out of the round's scoring while the player believed the
       // decision was in. POST /decisions is one-shot per round: no re-submit.
       //
@@ -259,9 +259,9 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
     setStep('simulating');
     setTimeout(() => {
       // V3: the whole phase resolves at once on the FinLit engine.
-      // `totalRounds` decides which round is the last — the mutator has no
+      // `totalRounds` decides which round is the last, the mutator has no
       // session access, so the round count is passed in.
-      // One mutator for the whole round transition — the phase bump, the energy
+      // One mutator for the whole round transition, the phase bump, the energy
       // refill and the evaluation record all moved into it. The modal used to
       // run a second copy of all three in `finishEvaluation`.
       apply((s) => advanceFinlitPhase(s, finalRound));
@@ -272,7 +272,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   const finishPhase = () => {
     const after = useGame.getState();
     const phaseDelta = after.player.cash - cashAtOpen;
-    // Triumphant SFX on positive phase, gentle warning on dip — pairs
+    // Triumphant SFX on positive phase, gentle warning on dip, pairs
     // with the confetti so the player feels the outcome.
     playSfx(phaseDelta >= 0 ? 'phase-up' : 'warning');
     confetti({
@@ -285,7 +285,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
         : ['#CB6356', '#DDA655', '#8A765D'],
       ticks: 200,
     });
-    // STRAIGHT TO THE DEBRIEF. There is no "Phase N complete" step any more —
+    // STRAIGHT TO THE DEBRIEF. There is no "Phase N complete" step any more -
     // it announced a cash delta and offered one button, and the limbo debrief
     // is the screen that actually reports the round.
     //
@@ -302,8 +302,8 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
    * The insight question for the round BEING PLAYED.
    *
    * Keyed on `phaseAtOpen`, NOT `pendingEvalPhase`. This used to read the
-   * latter, which is set by `advanceFinlitPhase` during `simulating` — i.e.
-   * AFTER the insight step now runs — and `PhaseActionBar` refuses to open this
+   * latter, which is set by `advanceFinlitPhase` during `simulating`, i.e.
+   * AFTER the insight step now runs, and `PhaseActionBar` refuses to open this
    * modal at all while it is non-null (`pendingEval !== null` blocks Confirm).
    * So it was always null here, `insight` was always null, and the guarded
    * `{step === 'insight' && insight && …}` rendered an EMPTY MODAL.
@@ -323,7 +323,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
   // Cleared at `preview`, the one step every run starts from. This keyed off
   // `step !== 'evaluation'` while the question lived on that step; with the
   // step gone, clearing on "anything else" would wipe the answer the moment
-  // `insight` hands over to `simulating` — and `finishEvaluation` reads it.
+  // `insight` hands over to `simulating`, and `finishEvaluation` reads it.
   useEffect(() => {
     if (step === 'preview') {
       setInsightAnswer(null);
@@ -362,7 +362,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
       }
       width="min(680px, calc(100vw - 32px))"
     >
-      {/* Step transitions — single live motion.div keyed on the current
+      {/* Step transitions, single live motion.div keyed on the current
           step. AnimatePresence with multiple sibling step containers led to
           stuck exits when the engine chained step transitions quickly. One
           container, one key, clean swap. */}
@@ -378,11 +378,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
             <div className="flex items-start gap-3">
               <MascotAvatar mood="presenting" size={66} />
               <div className="flex-1 body-sm text-text leading-relaxed">
-                {/* ⚠ `mb-3`, and it has to BEAT the line-height. `leading-relaxed`
-                    is 1.625, so at `mb-1` the gap between two paragraphs was
-                    SMALLER than the gap between two lines inside one — the
-                    block read as a single run-on paragraph. A paragraph break
-                    is only a break if it is the bigger of the two. */}
+                {/* !important `mb-3` must beat the 1.625 line-height, or a paragraph break reads smaller than a line break. */}
                 <p className="mb-3">
                   Lock in your decisions for <strong>Phase {phase}</strong>. The simulation
                   will run <strong>{daysLeft} day{daysLeft === 1 ? '' : 's'}</strong>, pausing for
@@ -401,30 +397,18 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
                 label="Cash now"
                 value={fmt$(projectedCashValue)}
                 sub={projectedCashDelta < 0 ? `after decisions (${fmt$(projectedCashDelta)})` : fmt$(cash)}
-                // `neutral` when positive, not `cash` green: a green tile at
-                // every healthy balance is the same decoration as the amber
-                // Energy tile was. The row is now plain until something is
-                // actually wrong, and then exactly one tile is amber.
+                // `neutral` when positive: a green tile at every healthy balance is decoration.
                 tone={projectedCashValue < 0 ? 'warn' : 'neutral'}
               />
-              {/* ⚠ TONE IS A SIGNAL, NOT DECORATION. Energy was permanently
-                  amber and Produce permanently blue — neither state meant
-                  anything, they were those colours at every value. Stacked
-                  with the caramel panel below and its own tinted tiles, that
-                  is the "too much combined colour" QA saw, and it also spent
-                  the warning colour on a tile that was never warning.
-
-                  Cash keeps its tone because it is CONDITIONAL above — it
-                  turns `warn` only when the balance goes negative, which is
-                  the one thing on this row a player must not miss. */}
+              {/* !important tone is a signal, not decoration; tint only what can turn bad. */}
               <Stat icon="energy" label="Energy" value={`${energy}`} tone="neutral" />
               <Stat icon="demand" label="Produce" value={intProduce > 0 ? fmtInt(intProduce) : '—'} sub="planned this phase" tone="neutral" />
               <Stat icon="stock" label="Finished stock" value={fmtInt(finished)} tone="neutral" />
             </div>
 
             {/* ONE PANEL, not two.
-                There were two — "Estimated phase impact (your studio's own
-                model)" and "Official projection · from the simulation server" —
+                There were two, "Estimated phase impact (your studio's own
+                model)" and "Official projection · from the simulation server" -
                 presented as rival models the player should compare. They were
                 not: both summed the SAME `liveProjection.byProduct`, and
                 `expectedRevenue` was literally `serverRevenue`. Two headings
@@ -433,7 +417,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
                 THE "OFFICIAL PROJECTION" FRAMING WAS ALSO FALSE. It quoted
                 `customersObtained` as a number the facilitator scores, but that
                 figure is recomputed at round calculation against every other
-                team's submission — it does not exist yet at this point, and
+                team's submission, it does not exist yet at this point, and
                 `unitsSold`, `revenue` and `grossProfit` all hang off it.
 
                 What is left is the same forecast the HUD shows, from the same
@@ -447,11 +431,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
               <CostTiles
                 tiles={[
                   { label: 'Produce', value: intProduce > 0 ? fmtInt(intProduce) : '—', tone: 'neutral', icon: 'stock' },
-                  // Revenue was permanently `gain` green. Revenue cannot be
-                  // bad, so the colour distinguished nothing — it just put a
-                  // second green beside gross profit's, inside an already
-                  // caramel panel. Gross profit below keeps its tone: that one
-                  // genuinely flips to `danger`.
+                  // Revenue cannot be bad, so a permanent green distinguished nothing.
                   { label: 'Revenue', value: fmt$(Math.round(hudRevenue)), tone: 'neutral', icon: 'cash' },
                   {
                     label: 'Gross profit',
@@ -520,7 +500,7 @@ export function PhaseSequenceModal({ open, onClose, liveProjection = null }: Pro
           />
         )}
 
-        {/* BEFORE the submit, not after — see the note on `Step`. The question
+        {/* BEFORE the submit, not after, see the note on `Step`. The question
             is fixed per phase and reads no state, so nothing here needs the
             round's outcome. */}
         {step === 'insight' && insight && (
@@ -564,7 +544,7 @@ function Stat({
     : 'var(--c-text-2)';
   // Tone has to reach the TILE, not just an 11px icon. A phase that stocked out
   // 30 days of 30 and lost 29 sales was rendering in the same neutral panel as
-  // the revenue beside it — the one number the player most needed to notice was
+  // the revenue beside it, the one number the player most needed to notice was
   // the one carrying no signal at all. `warn` now tints the whole chip, the way
   // every other chip in the app already states its tone.
   // The tone is carried by the FILL, not by a frame. These tiles used to wear a
@@ -577,15 +557,7 @@ function Stat({
     : tone === 'cash' ? 'bg-success-soft/30'
     : 'bg-surface-2/50';
   return (
-    // ⚠ `min-w-0` OR THE TILE OVERFLOWS ITS GRID CELL. A grid item defaults to
-    // `min-width: auto`, which refuses to shrink below its content — so the
-    // long `sub` ("after decisions (-$270.00)") pushed the tile straight
-    // through its own right edge and across the one beside it. `flex-wrap`
-    // below cannot help while the track itself is being widened.
-    //
-    // CENTRED, to match the CostTiles row directly underneath. Two rows of
-    // readouts in one modal, one left and one centre, was the inconsistency —
-    // centre wins because it is what every other readout tile in the app uses.
+    // !important `min-w-0` or the tile overflows its grid cell: a grid item will not shrink below its content.
     <div className={clsx('min-w-0 px-3 py-2 flex flex-col items-center gap-0.5 text-center', toneChip)}>
       <div className="flex items-center gap-1.5">
         <PixelIcon kind={icon} size={11} color={color} />
@@ -603,12 +575,12 @@ function Stat({
 }
 
 /**
- * The insight check — a fixed knowledge question, asked BEFORE the round is
+ * The insight check, a fixed knowledge question, asked BEFORE the round is
  * submitted so its answer can ride on the same insert.
  *
  * It reads no round state on purpose: the question, the options and the correct
  * answer are hardcoded per phase, so there is nothing here that needs the
- * outcome. The mascot is neutral for the same reason — at this point the phase
+ * outcome. The mascot is neutral for the same reason, at this point the phase
  * has not run, and a happy/concerned face would be reacting to the LAST round.
  */
 function InsightCheck({
@@ -630,11 +602,7 @@ function InsightCheck({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      {/* The chip is a LABEL ON THE QUESTION BOX, so the two touch. It used to
-          sit in a `flex-1` column of its own beside the avatar, holding one
-          badge and a lot of nothing — which read as a description slot somebody
-          had forgotten to fill. There is no description; the question is the
-          content. */}
+      {/* The chip is a label on the question box, so the two touch. */}
       <div>
         <div className="flex items-center gap-2">
           <MascotAvatar mood="thinking_side" size={66} />
@@ -653,11 +621,7 @@ function InsightCheck({
                 key={o.id}
                 disabled={revealed}
                 onClick={() => { playSfx('click-soft'); onPick(o.id); }}
-                // ⚠ A BORDER HERE MEANS SOMETHING. Four identical outlines on
-                // four options is noise — it marks every row as special, so
-                // none of them is. An option carries a border ONLY once it has
-                // a verdict on it (picked, right, wrong); the resting state is
-                // a soft plate, and the fill alone does the separating.
+                // !important a border here means a verdict; four identical outlines mark nothing.
                 className={clsx(
                   'text-left p-2 body-xs leading-snug transition-all',
                   showCorrect && 'border-2 border-success bg-success-soft text-text',
@@ -666,11 +630,9 @@ function InsightCheck({
                   // text so the pick is unambiguous, mirrors the HUD
                   // bar treatment elsewhere in the app.
                   isPicked && !revealed && 'border-2 border-primary bg-[#221710] text-[#FAF7E8]',
-                  // ⚠ `border-2 border-transparent` on the resting state, not
-                  // `border-0`: without it the row grows 4px the instant it is
-                  // picked and the whole list jumps.
+                  // !important `border-2 border-transparent` at rest, or the row grows 4px when picked.
                   !isPicked && !revealed && 'border-2 border-transparent soft-panel hover:brightness-[0.97]',
-                  // Unpicked rows AFTER the reveal are over — flatten them so
+                  // Unpicked rows AFTER the reveal are over, flatten them so
                   // the two that carry a verdict are the only ones read.
                   revealed && !isPicked && !showCorrect && 'border-2 border-transparent soft-panel opacity-70',
                 )}

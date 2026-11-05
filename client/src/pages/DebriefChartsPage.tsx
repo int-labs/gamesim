@@ -10,41 +10,13 @@ import {
   type ChartDraft,
 } from "./ChartConfigForm";
 
-/**
- * Which charts a simulation type's debrief shows, and where.
- *
- * ⚠ AN OPERATOR SURFACE. Nothing here is authored by writing a shape — a shape
- * is PICKED from the gallery, which is the developer's page. If the dropdown is
- * empty, the gallery is empty; that is the thing to fix, not this page.
- *
- * ⚠ `category` and `name` HERE are the SLIDE's — where this renders and what it
- * is called in this sim. The gallery's two fields of the same names are the
- * chart FAMILY and VARIANT. Different axes entirely.
- *
- * A type with no charts has an EMPTY debrief — the starting state of a type
- * nobody has configured, not a failure. An incomplete chart is not one either:
- * the axes may be blank and it still saves and renders. The only thing that
- * hides a chart from a team is a missing description, written on the Round
- * Debrief page because copy is per round.
- */
+/** Which charts a simulation type's debrief shows, and where. An operator surface: shapes are picked from the gallery, never authored here. */
 
 const box = { border: "1px solid #ddd", padding: 12, marginBottom: 24 };
 const th  = { textAlign: "left" as const, fontSize: 11, color: "#888", padding: "4px 6px" };
 const td  = { padding: "3px 6px", verticalAlign: "top" as const };
 
-/**
- * Render the draft binding against a real round.
- *
- * ⚠ THE SVG COMES FROM THE SERVER, already rendered. Injecting it is safe for
- * the reason the whole architecture exists: the console never receives a spec,
- * only output that `assertSafeSpec` and Vega have both been through. If this
- * ever starts receiving a spec instead, this `dangerouslySetInnerHTML` becomes
- * the hole.
- *
- * NOT automatic. It needs a simulation and round the operator picks, and firing
- * on every keystroke would render a chart per character against real decision
- * data.
- */
+/** Render the draft binding against a real round. The SVG arrives already drawn by the server; the console never receives a spec. */
 function Preview({ draft }: { draft: ChartDraft }) {
   const [simulationId, setSimulationId] = useState("");
   const [roundNumber, setRoundNumber] = useState("");
@@ -67,7 +39,7 @@ function Preview({ draft }: { draft: ChartDraft }) {
         xAxis: draft.xAxis || null,
         yAxis: draft.yAxis,
         grouping: draft.grouping || null,
-        // ⚠ WITHOUT THIS the preview shows the summary alone while the slide
+        // !important WITHOUT THIS the preview shows the summary alone while the slide
         // ships N + 1. The point of previewing is that they match.
         scope: draft.scope,
       });
@@ -109,9 +81,7 @@ function Preview({ draft }: { draft: ChartDraft }) {
                 a claim about what the numbers mean, not a heading. */}
             {inst.productName ?? "Overall — every notebook at once"}
             {" · "}
-            {/* ROW COUNT IS THE DIAGNOSTIC, and it is PER INSTANCE. One
-                notebook matching no data while its siblings draw is the exact
-                failure a single count used to hide. */}
+            {/* The row count is the diagnostic, and it is per instance. */}
             <span style={{ color: inst.rows === 0 ? "#b00" : "#888" }}>
               {inst.rows} row(s){inst.rows === 0 ? " — the bindings matched no data" : ""}
             </span>
@@ -153,9 +123,7 @@ export default function DebriefChartsPage() {
 
   useEffect(() => { load(); }, [selectedSimType]);
 
-  // PER TYPE, so it reloads with the gate. The notebooks, lever keys and cost
-  // bands differ by type, and offering another type's would be worse than
-  // offering none.
+  // Per type, so it reloads with the gate: notebooks and lever keys differ by type.
   useEffect(() => {
     if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [] }); return; }
     getDebriefDimensions(selectedSimType)
@@ -170,7 +138,7 @@ export default function DebriefChartsPage() {
     try {
       const res = await fn();
       if (ok) setNotice(ok);
-      // The delete reports how many descriptions went with the chart — worth
+      // The delete reports how many descriptions went with the chart, worth
       // surfacing, since that is data the operator cannot get back.
       const gone = res?.data?.descriptionsDeleted;
       if (typeof gone === "number" && gone > 0) {
@@ -252,7 +220,7 @@ export default function DebriefChartsPage() {
                           : <span style={{ color: "#b00" }}>none</span>}
                     </td>
                     <td style={td}>{dimLabel(dims, c.xAxis)}</td>
-                    {/* Every measure, comma-separated — a column showing only
+                    {/* Every measure, comma-separated, a column showing only
                         the first would hide half of what the chart plots. */}
                     <td style={td}>
                       {c.yAxis.length === 0

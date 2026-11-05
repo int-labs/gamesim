@@ -1,26 +1,4 @@
-/**
- * A chart shape, made safe to store.
- *
- * ── WHY NOT `sanitizeSegmentsHtml` ──────────────────────────────────────────
- * That one is right for flavour prose and wrong for a chart. It strips `href`
- * and `xlink:href` outright and drops any `style` carrying `url(` — which in
- * SVG are `<use xlink:href="#marker">`, gradients, patterns and markers, not
- * links. Reusing it would quietly break every shape that uses a gradient.
- *
- * So the rule here is INTERNAL REFERENCES ONLY: a reference into this same
- * document (`#id`) is kept, anything naming an external target is removed. That
- * covers `javascript:`, `data:` and remote fetches by covering every scheme
- * other than the local fragment.
- *
- * SHARED WITH SEGMENTS: DOMParser rather than a regex (markup nests, and a
- * regex that looks like it strips `<script>` loses to `<scr<script>ipt>`), and
- * a document containing `<script>` is ESCAPED WHOLE rather than repaired — it
- * is stored as its own source text so the author sees exactly what they typed.
- *
- * ⚠ THE API IS NOT THE BOUNDARY. A row written straight to
- * `/debrief-chart-styles` never passes through here. That is an accepted limit
- * of doing this console-side, and the reason those writes are admin-only.
- */
+/** A chart shape, made safe to store. Sanitised at the console boundary, never at render. */
 
 /** Removed with their subtrees. `foreignObject` is the SVG-specific one: it
  *  reopens arbitrary HTML inside an otherwise safe drawing. */
