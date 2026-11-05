@@ -15,6 +15,10 @@ import { buildChartRows, chartInstances, toMeasures } from "../services/debriefC
 import { renderChartToSvg } from "../services/chartRenderer";
 import { axisLabel, measureLabel } from "../services/debriefDimensions";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
+import TeamRunReport from "../models/teamRunReport";
+import LeaderboardConfig, { type LeaderboardMetric } from "../models/leaderboardConfig";
+import { scoreAllRounds } from "../services/leaderboard";
+import type { ScoredLeaderboard } from "../services/reportMatrix";
 
 interface TokenUser {
   id?:     string;
@@ -48,8 +52,50 @@ interface DebriefChartDto {
 }
 
 /** The wire shape: the numbers plus the round's charts. */
+/** One team's cell in a metric's column. */
+interface LeaderboardScoreDto {
+  value:  number | null;
+  rank:   number | null;
+  points: number | null;
+}
+
+/** One metric, ranked across the teams that have a figure for it this round. */
+interface LeaderboardBlockDto {
+  metricKey: string;
+  label:     string;
+  format:    LeaderboardMetric["format"];
+  weight:    number;
+  /** teamId → that team's cell. */
+  scores: Record<string, LeaderboardScoreDto>;
+}
+
+/** !important the cumulative half is POINTS ONLY; everything else is this round's. */
+interface LeaderboardDto {
+  blocks: LeaderboardBlockDto[];
+  /** teamId → points across every round up to this one. */
+  totals: Record<string, number>;
+  /** teamId → placing on those totals, ties sharing the better one. */
+  standing: Record<string, number>;
+}
+
+/** Maps do not survive `JSON.stringify`, so the wire shape is plain objects. */
+const toLeaderboardDto = (b: ScoredLeaderboard | null): LeaderboardDto | null =>
+  b == null ? null : {
+    blocks: b.round.blocks.map((blk) => ({
+      metricKey: blk.metricKey,
+      label:     blk.label,
+      format:    blk.format,
+      weight:    blk.weight,
+      scores:    Object.fromEntries(blk.scores),
+    })),
+    totals:   Object.fromEntries(b.totals),
+    standing: Object.fromEntries(b.standing),
+  };
+
 interface RoundDebriefResponse extends DebriefPayload {
   charts: DebriefChartDto[];
+  /** Null when the operator has configured no metrics. */
+  leaderboard: LeaderboardDto | null;
 }
 
 /** The type's charts with this round's descriptions joined on; no charts is an empty debrief. */
@@ -227,14 +273,18 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
     const simulationTypeId = (simulation as { simulationTypeId?: unknown }).simulationTypeId;
 
     // No GlobalInput load: the decision snapshots every lever figure the debrief needs.
-    const [teams, products, allDecisions, playerConfig] = await Promise.all([
-      Team.find({ simulationId }).lean(),
-      Product.find({ simulationTypeId }).lean(),
-      // EVERY round up to this one: the progress lines and the cash walk both
-      // need the run, not the round.
-      Decision.find({ simulationId, roundNumber: { $lte: round } }).lean(),
-      PlayerConfig.findOne({ simulationTypeId }).lean(),
-    ]);
+    const [teams, products, allDecisions, playerConfig, allRunReports, lbConfig] =
+      await Promise.all([
+        Team.find({ simulationId }).lean(),
+        Product.find({ simulationTypeId }).lean(),
+        // EVERY round up to this one: the progress lines and the cash walk both
+        // need the run, not the round.
+        Decision.find({ simulationId, roundNumber: { $lte: round } }).lean(),
+        PlayerConfig.findOne({ simulationTypeId }).lean(),
+        // The leaderboard's client-origin half, and the metrics that rank on it.
+        TeamRunReport.find({ simulationId, roundNumber: { $lte: round } }).lean(),
+        LeaderboardConfig.findOne({ simulationTypeId }).lean(),
+      ]);
 
     if (teams.length === 0) {
       res.status(404).json({ message: "No teams on this simulation." });
@@ -259,7 +309,21 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
       payload,
     );
 
-    const body: RoundDebriefResponse = { ...payload, charts };
+    // Same scorer the round reports run, so the two cannot disagree on points.
+    const byRoundDecisions = groupByRound(allDecisions);
+    const board = scoreAllRounds(
+      (lbConfig as { metrics?: LeaderboardMetric[] } | null)?.metrics ?? [],
+      round,
+      teams.map((t) => String((t as { _id: unknown })._id)),
+      byRoundDecisions as never,
+      groupByRound(allRunReports) as never,
+    );
+
+    const body: RoundDebriefResponse = {
+      ...payload,
+      charts,
+      leaderboard: toLeaderboardDto(board),
+    };
     res.status(200).json(body);
   } catch (err: unknown) {
     res.status(500).json({

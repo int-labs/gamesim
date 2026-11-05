@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { getRoundDebrief, getStoredSession, GamesimApiError } from '@/gamesim/client';
-import type { DebriefChartDto, DebriefTeamRoundDto, RoundDebriefDto } from '@/gamesim/types';
+import type {
+  DebriefChartDto,
+  DebriefTeamRoundDto,
+  LeaderboardBlockDto,
+  RoundDebriefDto,
+} from '@/gamesim/types';
 import { PixelPanel } from '@/components/primitives';
 import { ChartLegend, type LegendEntry } from '@/components/charts/ChartLegend';
 import { PixelVocPlot, type VocRow } from '@/components/charts/PixelVocPlot';
@@ -14,7 +19,7 @@ import {
 import { diminishingReturnsFactor } from '@/engine/finlit/core/mathUtils';
 import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
-import { fmt$, fmtPct } from '@/utils/format';
+import { fmt$, fmtInt, fmtPct } from '@/utils/format';
 
 /** Limbo: the round debrief, read after the operator calculates and before the next phase. Arranges only; the server draws. */
 
@@ -168,6 +173,8 @@ function DebriefBody({
         )}
 
         <ProfitAndLoss data={data} />
+
+        <Leaderboard data={data} />
 
         {onContinue && (
           <div className="flex justify-end pt-2 pb-4">
@@ -462,6 +469,93 @@ function ProfitAndLoss({ data }: { data: RoundDebriefDto }) {
                 })}
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </PixelPanel>
+  );
+}
+
+/**
+ * The standings, closing the debrief.
+ * !important only `totals` and `standing` are cumulative. Every block below is
+ * ranked within THIS round, which is why a rank can move while points only rise.
+ */
+function Leaderboard({ data }: { data: RoundDebriefDto }) {
+  const board = data.leaderboard;
+  if (!board || board.blocks.length === 0) return null;
+
+  const fmtValue = (v: number | null, format: LeaderboardBlockDto['format']) => {
+    if (v == null || !Number.isFinite(v)) return '--';
+    if (format === 'money') return fmt$(v);
+    if (format === 'percent') return fmtPct(v, 1);
+    return fmtInt(v);
+  };
+
+  // By standing, so the winner reads first. Ties share a placing, so the
+  // secondary sort keeps the roster order stable rather than arbitrary.
+  const ranked = [...data.teams].sort(
+    (a, b) =>
+      (board.standing[String(a.teamId)] ?? 99) - (board.standing[String(b.teamId)] ?? 99),
+  );
+
+  return (
+    <PixelPanel title="Leaderboard">
+      <div className="w-full overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="eyebrow eyebrow-sm text-left text-ink-700 py-1.5 pr-3">Team</th>
+              <th className="eyebrow eyebrow-sm text-right text-ink-700 py-1.5 px-2">Rank</th>
+              {board.blocks.map((b) => (
+                <th
+                  key={b.metricKey}
+                  className="eyebrow eyebrow-sm text-right text-ink-700 py-1.5 px-2 whitespace-nowrap"
+                >
+                  {b.label}
+                </th>
+              ))}
+              <th className="eyebrow eyebrow-sm text-right text-ink-900 py-1.5 pl-2">Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ranked.map((t) => {
+              const key = String(t.teamId);
+              const you = t.teamId === data.you;
+              return (
+                <tr
+                  key={key}
+                  className={clsx('border-t border-border-soft', you && 'bg-cream-50')}
+                >
+                  <td className={clsx(
+                    'item-name py-1.5 pr-3 whitespace-nowrap',
+                    you ? 'text-ink-900' : 'text-text',
+                  )}>
+                    {t.teamName}{you ? ' (you)' : ''}
+                  </td>
+                  <td className="num-sm text-right py-1.5 px-2 tabular-nums text-text-2">
+                    {board.standing[key] ? `#${board.standing[key]}` : '--'}
+                  </td>
+                  {board.blocks.map((b) => {
+                    const cell = b.scores[key];
+                    return (
+                      <td
+                        key={b.metricKey}
+                        className="num-sm text-right py-1.5 px-2 tabular-nums text-text-2 whitespace-nowrap"
+                      >
+                        {fmtValue(cell?.value ?? null, b.format)}
+                      </td>
+                    );
+                  })}
+                  <td className={clsx(
+                    'num-sm text-right py-1.5 pl-2 tabular-nums',
+                    you ? 'text-ink-900' : 'text-text',
+                  )}>
+                    {fmtInt(board.totals[key] ?? 0)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

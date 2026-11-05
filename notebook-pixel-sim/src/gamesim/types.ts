@@ -478,6 +478,30 @@ export interface DebriefChartDto {
   svg: string | null;
 }
 
+/** One team's cell in a metric's column. `null` is "did not compete", not zero. */
+export interface LeaderboardScoreDto {
+  value: number | null;
+  rank: number | null;
+  points: number | null;
+}
+
+/** One metric, ranked among the teams that have a figure for it this round. */
+export interface LeaderboardBlockDto {
+  metricKey: string;
+  label: string;
+  format: 'money' | 'number' | 'percent';
+  weight: number;
+  /** teamId → that team's cell. */
+  scores: Record<string, LeaderboardScoreDto>;
+}
+
+/** !important only POINTS accumulate; every other figure here is this round's. */
+export interface LeaderboardDto {
+  blocks: LeaderboardBlockDto[];
+  totals: Record<string, number>;
+  standing: Record<string, number>;
+}
+
 export interface RoundDebriefDto {
   simulationId: Id;
   roundNumber: number;
@@ -489,4 +513,6 @@ export interface RoundDebriefDto {
   rounds: DebriefRoundDto[];
   /** The slide's own slots, server-owned. Sort a copy, `[...charts].sort()`. */
   charts: DebriefChartDto[];
+  /** Null when the operator has configured no leaderboard metrics. */
+  leaderboard: LeaderboardDto | null;
 }
