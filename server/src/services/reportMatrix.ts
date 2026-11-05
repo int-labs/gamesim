@@ -1,33 +1,7 @@
 /**
- * The round reports, as MATRICES. Pure: data in, rows out, no I/O.
- *
- * TEAMS ACROSS THE TOP, everything else cascading down the side. Two reports
- * share this shape because they answer two halves of one question:
- *
- *   analysis report    — what did each team CHOOSE, and what did it score
- *   competitor report   — how did they DO, and who won
- *
- * ── IF A FIGURE IS STORED, READ IT ──────────────────────────────────────────
- * This is the rule the file exists to enforce, and it has been broken twice.
- * An earlier export attributed revenue across channels with a hardcoded genre ×
- * channel matrix the server never computed; a later one derived a figure by
- * normalising customers, which contradicted the stored one it sat three rows
- * above (66.9%/33.1% against 59.1%/40.9% for the same round) because
- * `customersObtained` is `marketFit × availableMarket × productScore ×
- * customersObtainedAugment`, so `productScore` enters twice.
- *
- * ── FIT AND SHARE ARE DIFFERENT FIGURES ─────────────────────────────────────
- * `scored[].marketFit`   normalised productScore — what a team's decisions
- *                        EARNED it of the market. The allocation.
- * `scored[].marketShare` customersObtained / Σ customersObtained — the share of
- *                        CUSTOMERS WON. What the decisions achieved after
- *                        `productScore` and the globalInput augmentation.
- * They were one name until 2026-09-24. Whether a team could DELIVER what it won
- * is a third thing — the Demand block shows it, demand against Customers
- * Fulfilled.
- *
- * Exactly ONE figure here is derived — the channel apportionment — and it is
- * marked. Everything else is read.
+ * Round reports as matrices: teams across the top. Pure, no I/O.
+ * If a figure is stored, read it. Only the channel apportionment is derived.
+ * `marketFit` = normalised productScore. `marketShare` = share of customers won.
  */
 
 import { SELLING_PRICE_KEY } from "../constants/impacts";
@@ -36,20 +10,15 @@ import type { LeaderboardMetric } from "../models/leaderboardConfig";
 import type { RoundScore, Standings } from "./leaderboard";
 
 /**
- * A scored leaderboard, ready to render: THIS round's ranked metrics plus the
- * standings accumulated across every round up to it.
- *
- * Scored by the caller, not here — the cumulative half needs every prior
- * round's decisions, and this module does no I/O.
+ * This round's ranked metrics plus the standings accumulated up to it.
+ * Scored by the caller: the cumulative half needs every prior round.
  */
 export interface ScoredLeaderboard extends Standings {
   round: RoundScore;
 }
 
-// ── The shapes this module needs, and nothing more ───────────────────────────
-//
-// Structural on purpose: the caller may hand over lean Mongoose documents or
-// plain JSON from an HTTP fetch, and neither should have to be converted first.
+// Structural types on purpose: the caller may pass lean Mongoose documents or
+// plain JSON, and neither should need converting first.
 
 export interface ReportTeam { _id: unknown; teamName?: string | null }
 
@@ -58,14 +27,12 @@ export interface ReportProductField {
   key?:   string;
   label?: string;
   order?: number;
-  /** `money` / `number` / `percentage` — WHICH FORMULA applies, not an input
-   *  widget. The debrief's VoC filter keys off it. */
+  /** Which formula applies, not an input widget. The VoC filter keys off it. */
   type?:  string;
   minValue?: number | null;
   maxValue?: number | null;
-  /** The vocFit weight this field carries in `calcMarketModel`'s score. Bounded
-   *  0..1 on the model, `required` with a default of 1 — so a field never lacks
-   *  one, and 0 is the only way to say "this does not compete". */
+  /** vocFit weight in `calcMarketModel`. 0..1, defaults to 1; 0 means the
+   *  field does not compete. */
   direction?: number;
 }
 
@@ -81,8 +48,7 @@ export interface ReportGlobalInputItem {
   key?:     string;
   label?:   string;
   impacts?: Record<string, unknown>;
-  /** stepKey → multiplier. Absent on a BINARY lever, which has no ladder.
-   *  Read for the top rung, which is a lever's optimum. */
+  /** stepKey → multiplier. Absent on a binary lever. Read for the top rung. */
   options?: Record<string, number>;
 }
 
@@ -100,14 +66,14 @@ export interface ReportDecision {
   inputs?: Array<{
     productId: unknown;
     produced?: number | null;
-    /** `name` is the chosen option's display name, snapshotted at submission.
-     *  The reports print it instead of `value`, which is a bare score. */
+    /** `name` is the option's display name at submission; reports print it
+     *  rather than `value`, which is a bare score. */
     fields?: Array<{ fieldId: unknown; value?: unknown; name?: string | null }>;
   }>;
   globalInputs?: Array<{
     globalInputItemId: unknown;
     selectedStepKey?:  string | null;
-    /** SNAPSHOT of the item's energy at submission — not the live config's.
+    /** SNAPSHOT of the item's energy at submission, not the live config's.
      *  Editing a lever must not rewrite what a past round cost. */
     energy?:           number;
     /** The parent container's name, snapshotted the same way. */
@@ -121,12 +87,12 @@ export interface ReportDecision {
   }>;
   /** Written by roundCalculation at round close, keyed by productId. */
   scored?: Record<string, Record<string, number>> | null;
-  /** CLIENT-ORIGIN leaderboard figures for this round — insight answers and
+  /** CLIENT-ORIGIN leaderboard figures for this round, insight answers and
    *  anything else only the browser can compute. Submitted with the decision. */
   clientMetrics?: Record<string, number> | null;
 }
 
-/** `TeamRunReport.metrics` for one team — the client-origin half. */
+/** `TeamRunReport.metrics` for one team, the client-origin half. */
 export type ReportRunMetrics = Record<string, number>;
 
 export interface ReportMatrix {
@@ -143,7 +109,7 @@ export interface ReportMatrix {
  *  mistaken for a missing column. */
 export const BLANK = "-";
 
-/** Exported so the debrief builder resolves ids identically — a lean document
+/** Exported so the debrief builder resolves ids identically, a lean document
  *  and an HTTP-fetched one spell an ObjectId differently. */
 export const id = (v: unknown): string => String((v as { $oid?: string })?.$oid ?? v);
 
@@ -161,27 +127,17 @@ export const pct = (n: number | null | undefined, dp = 1): string =>
   n == null ? BLANK : `${(Number(n) * 100).toFixed(dp)}%`;
 
 /**
- * A field's `direction`, for the Weight column — ANALYSIS REPORT ONLY. It was
- * on the competitor report too until 2026-09-24; there it was noise.
- *
- * EMPTY rather than `BLANK`: most rows in that column are not product fields at
- * all, and "-" here means "the team submitted nothing", which is a claim about a
- * TEAM. A row with no weight is making no claim about anybody.
- *
- * A direction of 0 reads as empty too — it is the model's own way of saying the
- * field does not compete (`selling_price` carries it), so printing "0.000"
- * against it would suggest a weight that lost rather than one that never ran.
- *
- * 3dp: every live direction is authored to 3 or fewer, so this is lossless
- * today. A finer-grained weight WOULD round here.
+ * A field's `direction`, for the analysis report's Weight column.
+ * Empty, not "-": "-" claims the team submitted nothing. 0 is also empty, since
+ * it means the field does not compete. 3dp is lossless for every live weight.
  */
 const weightCell = (n: number | null | undefined): string => {
   const v = Number(n);
   return n == null || !Number.isFinite(v) || v === 0 ? "" : v.toFixed(3);
 };
 
-/** Points can be fractional — a per-product metric splits its weight across
- *  notebooks — but a trailing `.00` on a whole number is noise. */
+/** Points can be fractional (a per-product metric splits its weight), but a
+ *  trailing `.00` on a whole number is noise. */
 const round2 = (n: number): string => {
   const r = Math.round(n * 100) / 100;
   return Number.isInteger(r) ? String(r) : r.toFixed(2);
@@ -193,20 +149,11 @@ const FORMATTERS: Record<LeaderboardMetric["format"], (n: number | null) => stri
   percent: (n) => pct(n),
 };
 
-// `SELLING_PRICE_KEY` is imported from constants/impacts.ts — one definition, so
-// a rename cannot leave this file matching a key nobody sends.
-//
-// `PROJECTED_MARKET_SHARE_KEY` was imported too, to swap that field's row for
-// the competed `scored[].marketShare` (every team submits 1, so the raw row said
-// nothing). No longer needed: the driver cascade admits only `direction > 0`
-// money fields, which excludes it, and the Market Result block prints the
-// competed share directly.
+// `SELLING_PRICE_KEY` comes from constants/impacts.ts so a rename cannot leave
+// this file matching a key nobody sends.
 
-// ── Shared readers ───────────────────────────────────────────────────────────
-
-/** Summed across a team's products, because a column is a TEAM. `null` for a
- *  round nobody has calculated — `scored` is absent until then, and a zero
- *  would read as a scored round that earned nothing. */
+/** Summed across a team's products, because a column is a team. `null` before
+ *  the round is calculated; zero would read as "scored and earned nothing". */
 export function sumScored(
   dec: ReportDecision | null,
   field: string,
@@ -220,11 +167,8 @@ export const scoredFor = (dec: ReportDecision | null, productId: unknown) =>
   dec?.scored?.[id(productId)] ?? null;
 
 /**
- * The per-field weighted scores calcFinancials captured — `resolved ×
- * bellFactor × direction`, summing to `dynamicPrice`.
- *
- * READ, never derived. calcFinancials computes these and now keeps them
- * precisely so this file does not re-run a market-model line.
+ * Per-field weighted scores from calcFinancials: `resolved × bellFactor ×
+ * direction`, summing to `dynamicPrice`. Read, never derived here.
  */
 function scoreTerms(
   dec: ReportDecision | null,
@@ -240,41 +184,14 @@ function scoreTerms(
 const scoreTermFor = (dec: ReportDecision | null, productId: unknown, fieldKey: string) =>
   scoreTerms(dec, productId).find((r) => r.key === fieldKey)?.value ?? null;
 
-// `scoreTotalFor` and `scoreSumFor` were here — Σ of the breakdown terms, whole
-// or restricted to a key set. Deleted 2026-09-28 with QA's cascade: the totals
-// are now summed from the DRIVER ROWS themselves (`grandScore`), which spans the
-// marketing and sales-channel groups too. Those levers have no
-// `productScoreBreakdown` entry, so a total read off the breakdown alone would
-// no longer match the rows printed above it.
+// Totals are summed from the driver rows (`grandScore`), not the breakdown:
+// marketing and sales-channel levers have no `productScoreBreakdown` entry, so
+// a breakdown total would not match the rows printed above it.
 
 /**
- * CASH, walked forward from the configured opening.
- *
- *   cashStart(0) = seed
- *   cashStart(r) = seed + Σ operatingProfit(i)   for every i < r
- *   cashEnd(r)   = cashStart(r) + operatingProfit(r)
- *
- * A SECOND COMPUTATION ON PURPOSE. The player client banks the same
- * `operatingProfit` into `player.cash` at each round boundary, so these two
- * derive one number twice from the same inputs. Owner's call to keep both as a
- * cross-check on what the client displays — if they ever disagree, THIS is the
- * one to trust.
- *
- * An uncalculated round contributes 0, not a gap: `sumScored` returns null
- * before a round is scored, and cash does not move on a round nobody ran.
- */
-/**
- * Units each team carried INTO the reported round, `teamId → productId → units`.
- *
- * READ from the previous round's stored `closingStock`, never derived from this
- * round's figures: `closingStock` is rounded to whole units on write, so
- * `closing + sold - produced` would reconstruct the opening with the rounding
- * error baked in. Empty for round 0, where nothing has been carried yet.
- *
- * It matters on the report because `Notebooks Produced` alone does not explain
- * what a team could sell — the ceiling is `Total Notebooks`, storage plus
- * production, and a reader who sees only production reads a fulfilled figure
- * above it as a defect.
+ * Units carried into the reported round, `teamId → productId → units`.
+ * Read from the previous round's stored `closingStock`, never derived: that
+ * value is rounded on write, so reconstructing it would bake the error in.
  */
 export type OpeningStock = Map<string, Map<string, number>>;
 
@@ -285,6 +202,11 @@ export interface CashWalk {
   closing: Map<string, number>;
 }
 
+/**
+ * Cash walked forward: `cashStart(r) = seed + Σ operatingProfit(i < r)`.
+ * Deliberately a second computation of what the client banks into
+ * `player.cash`. If the two disagree, this one is authoritative.
+ */
 export function buildCashWalk(
   seed: number,
   roundNumber: number,
@@ -317,20 +239,9 @@ export function buildCashWalk(
 }
 
 /**
- * THE ONE DERIVED FIGURE — a team's channel split for one product.
- *
- * SECOND IMPLEMENTATION WARNING: mirrors `calcFinancials`' own `channelTerms →
- * share` weighting, which exists only to blend the consignment rate and is
- * never persisted. If the two disagree, calcFinancials is right. The durable
- * fix is to persist the split on `scored` and delete this.
- *
- *   weight = max(0, impactValue × stepMultiplier)
- *   share  = weight / Σweight, RENORMALISED over the channels this team picked
- *
- * NOT filtered by `productsImpacted`: `roundCalculation` — the path that writes
- * the `scored` figures read here — passes every entry unfiltered, while
- * `/projections/recalc` filters. Mirroring the official path is correct; that
- * the two differ at all is a separate defect.
+ * The one derived figure: a team's channel split for one product, and a second
+ * implementation of `calcFinancials`' never-persisted weighting. If they
+ * disagree, calcFinancials wins. Unfiltered, matching `roundCalculation`.
  */
 export function channelSharesFor(
   dec: ReportDecision | null,
@@ -344,12 +255,9 @@ export function channelSharesFor(
 }
 
 /**
- * One lever entry's impact on a product, with the per-product override and the
- * step multiplier applied — `calcFinancials`' own resolution, in one place.
- *
- * No selection check: this reads the DECISION, so every entry in it was chosen.
- * `stepMultiplier` is the shared resolver, so a binary lever's presence IS its
- * selection and a stepped one carries its step's value.
+ * One lever's impact on a product, with per-product override and step
+ * multiplier applied. No selection check: this reads the decision, so every
+ * entry in it was chosen.
  */
 function leverWeight(
   gi: NonNullable<ReportDecision["globalInputs"]>[number],
@@ -366,8 +274,7 @@ function leverWeight(
     (s) => id(s.productId) === id(productId),
   )?.value;
   const base = Number(impact.value) || 0;
-  // RELATIVE multiplies the base, ABSOLUTE adds to it — the two rules kept
-  // apart, as in calcFinancials.
+  // `relative` multiplies the base, `absolute` adds to it, as in calcFinancials.
   const impactValue =
     override == null ? base
     : impact.type === "relative" ? base * Number(override)
@@ -394,34 +301,16 @@ function leverTerms(
 }
 
 /**
- * The two impacts declared `affects: "customersObtained"` in IMPACT_CONFIG —
- * used to decide which lever containers the notebook blocks already account
- * for, NOT to split demand.
- *
- * `demandSharesFor` was here and apportioned demand across BOTH of them,
- * `customersObtained x weight_i / Σ weight`. Deleted 2026-09-28: marketing
- * raises demand but routes no units, so including it in the denominator shrank
- * every channel figure against the report's existing split. Demand per channel
- * is `channelSharesFor`, which renormalises over channels alone.
+ * The impacts declaring `affects: "customersObtained"`. Used to decide which
+ * lever containers the notebook blocks already account for, not to split
+ * demand: demand per channel is `channelSharesFor`.
  */
 export const DEMAND_METRICS = ["sales_channel", "marketing"];
 
 /**
- * CAPACITY, split across the levers that raised it.
- *
- * `inventoryQty` is `base x Π(1 + w)` over every `inventoryRate` lever — the
- * Vendors container and Hiring's Production Team in the live config — so the
- * contributions COMPOUND and cannot simply be shared out.
- *
- * Walked incrementally instead, which is exact:
- *
- *   base      = inventoryQty / Π(1 + w)
- *   extra_j   = running x w_j,   running += extra_j
- *   base + Σ extra_j = inventoryQty
- *
- * Order-dependent where two levers are held at once — the second is credited
- * with the compounding on top of the first — and that is inherent to a product,
- * not a choice this makes. Entry order is the decision's own.
+ * Capacity split across the levers that raised it. `inventoryQty` is
+ * `base × Π(1 + w)`, so contributions compound and cannot be shared out; the
+ * incremental walk is exact. Order-dependent when two levers are held at once.
  */
 export function capacityTermsFor(
   dec: ReportDecision | null,
@@ -454,9 +343,8 @@ function collapseSectionRuns(rows: string[][]): void {
   }
 }
 
-/** Every globalInput item carrying one of `metricKeys`. DETECTED, not hardcoded
- *  to a container key, like every other axis in this file — which is what makes
- *  the Vendor and Production rows appear without naming them. */
+/** Every globalInput item carrying one of `metricKeys`. Detected, never
+ *  hardcoded to a container key. */
 function leverItemsOf(containers: ReportContainer[], metricKeys: string[]) {
   return containers.flatMap((gi) =>
     (gi.inputs ?? [])
@@ -476,17 +364,9 @@ const channelItemsOf = (containers: ReportContainer[]) =>
   leverItemsOf(containers, ["sales_channel"]);
 
 /**
- * A lever's CONFIGURED weight on one product — its impact value with the
- * per-product override applied, and NOTHING team-specific.
- *
- * The Weight column is configuration, the same as a product field's
- * `direction`: one number per row, identical down every team's column. The step
- * multiplier is deliberately absent — that is the team's own selection, and it
- * belongs in the team cells, not the weight.
- *
- * Owner, 2026-09-28: *"marketing and sales channel rows only need to show the
- * direction values"* — these levers move `customersObtained`, so their impact
- * value IS their direction, in the same sense a product field's is.
+ * A lever's configured weight on one product: impact value plus per-product
+ * override, nothing team-specific. The step multiplier is deliberately absent;
+ * that is the team's selection and belongs in the team cells.
  */
 function configWeightOf(
   item: ReportGlobalInputItem,
@@ -508,17 +388,9 @@ function configWeightOf(
 }
 
 /**
- * THE WEIGHT ANCHORS, one per family.
- *
- * `0.95` is 95% of customers — what the single heaviest SPEC driver IN THE
- * WHOLE CATALOGUE accounts for. Exactly one driver reaches it; every other
- * notebook's best spec lands lower, and that is the point — each archetype
- * yields a different driver factor and demands different planning.
- *
- * The lever families top out lower and are anchored where they actually max
- * out. Keyed by CONTAINER, so an operator renaming a label does not move a
- * scale, and so Vendors — which carries the same `marketing` impact but
- * computes it its own way — is left unscaled by having no entry here.
+ * Weight anchors, one per family. `0.95` is what the catalogue's heaviest spec
+ * driver accounts for. Keyed by container, so renaming a label cannot move a
+ * scale and Vendors stays unscaled by having no entry.
  */
 const DESIGN_ANCHOR = 0.95;
 const CONTAINER_ANCHOR: Record<string, number> = {
@@ -526,27 +398,15 @@ const CONTAINER_ANCHOR: Record<string, number> = {
   channel:   0.75,
 };
 
-/**
- * The spec group's heading — and the one group whose WEIGHTS are not shown.
- *
- * Owner, 2026-10-19: the design rows do not need their weights any more, the
- * weighted score alone carries it. The weight still DRIVES the score (it is
- * the row's scale), it is simply not a column the reader needs.
- */
+/** The spec group's heading, and the one group whose weights are not shown:
+ *  its weighted score alone carries it. */
 const DESIGN_GROUP = "Design Notebook";
 const showsWeight = (g: DriverGroup) => g.label !== DESIGN_GROUP;
 
 /**
- * The heaviest weight each family reaches ACROSS EVERY NOTEBOOK.
- *
- * ⚠ GLOBAL, NOT PER NOTEBOOK. Owner, 2026-10-16: only one thing can be the 0.95
- * driver. A per-notebook divisor pins every notebook's own top at the anchor
- * instead, which flattens exactly the difference the report exists to show —
- * and, because each notebook's directions already sum to 1, it also makes the
- * family totals differ per notebook rather than landing on one figure.
- *
- * Computed ONCE by the caller and passed down: `emitNotebookAnalysis` runs per
- * product and cannot see the others.
+ * The heaviest weight each family reaches across every notebook. !important
+ * global, not per notebook: a per-notebook divisor pins each at the anchor and
+ * flattens the difference the report exists to show. Computed by the caller.
  */
 export interface WeightTops {
   design: number;
@@ -571,13 +431,13 @@ export function weightTopsOf(
   const byContainer: Record<string, number> = {};
   for (const gi of containers) {
     const key = String(gi.key ?? gi.category ?? "");
-    if (CONTAINER_ANCHOR[key] == null) continue; // unanchored family — Vendors
+    if (CONTAINER_ANCHOR[key] == null) continue; // unanchored family: Vendors
     let top = 0;
     for (const item of gi.inputs ?? [])
       for (const metric of DEMAND_METRICS)
         if (item.impacts?.[metric])
           // THROUGH `leverMaxWeight`, so the per-product `selections` overrides
-          // AND the top step are both included — the divisor must measure the
+          // AND the top step are both included, the divisor must measure the
           // same quantity the weight column shows, or the anchor lands on the
           // wrong row. The base impacts look flat; the real ceilings are not.
           for (const p of products)
@@ -589,18 +449,9 @@ export function weightTopsOf(
 }
 
 /**
- * A lever's weight AT ITS TOP STEP — what the market pays if you max it.
- *
- * `configWeightOf` alone is the impact value with the step multiplier
- * deliberately absent, which is right for a per-step figure and wrong for a
- * WEIGHT. The weight column states what the driver is worth; a team that picks
- * the top rung then scores `impactValue × topMultiplier` and appeared to
- * out-deliver its own weight by the whole ladder — Web Marketing on Anime
- * weighed 0.2587 while a maxed team scored 0.4269.
- *
- * A lever's optimum IS its top step (the ladders are authored monotonic), so
- * the top rung is the right thing to measure against. A binary lever has no
- * `options` and multiplies by 1.
+ * A lever's weight at its top step: what the market pays if you max it.
+ * The ladders are authored monotonic, so the top rung is the right thing to
+ * measure a score against. A binary lever has no `options` and multiplies by 1.
  */
 function leverMaxWeight(
   item: ReportGlobalInputItem,
@@ -616,14 +467,13 @@ function leverMaxWeight(
 interface DriverRow {
   label:  string;
   weight: number;
-  /** The Decisions cell — what the team chose. */
+  /** The Decisions cell, what the team chose. */
   choice: (dec: ReportDecision | null) => string;
   /** The Weighted Score cell, and the numerator of the Market Fit cell. */
   score:  (dec: ReportDecision | null) => number | null;
 }
 
-/** A named group of drivers. Its weight is the SUM of its rows' — owner,
- *  2026-09-28: *"just the weight totals from each section"*. */
+/** A named group of drivers. Its weight is the sum of its rows'. */
 interface DriverGroup {
   label: string;
   rows:  DriverRow[];
@@ -631,21 +481,12 @@ interface DriverGroup {
 
 const groupWeight = (g: DriverGroup) => g.rows.reduce((a, r) => a + r.weight, 0);
 
-/**
- * The banner that separates the per-notebook blocks from the team-wide ones.
- *
- * ASCII only: the base-14 fonts the PDF uses are WinAnsi, and an em dash or a
- * minus would render as a substituted glyph. See the note in `reportPdf.ts`.
- */
+/** Separates the per-notebook blocks from the team-wide ones.
+ *  ASCII only: the PDF's base-14 fonts are WinAnsi. See `reportPdf.ts`. */
 const SUMMARY_HEADING = "All Notebooks";
 
-/**
- * A BANNER row: a section name with every other cell empty.
- *
- * `reportPdf` detects exactly that shape and draws it large, so this is the one
- * way to break the page into parts. Used for each notebook and for the summary
- * banner that separates the per-notebook blocks from the team-wide ones.
- */
+/** A banner row: a section name with every other cell empty. `reportPdf`
+ *  detects that shape and draws it large; it is the only page break. */
 function emitHeading(ctx: Ctx, text: string): void {
   ctx.rows.push([
     text,
@@ -673,15 +514,9 @@ interface Ctx {
 }
 
 /**
- * `weights` adds the Weight column — ANALYSIS REPORT ONLY.
- *
- * It belongs there and not on the competitor report: the analysis report is
- * where a reader is asking WHY a score came out as it did, and `direction` is
- * half that answer. The competitor report answers "who won", where a column of
- * coefficients is noise.
- *
- * The flag lives here rather than in the cascade because the cascade is shared:
- * one place decides the row width, so the header cannot disagree with it.
+ * `weights` adds the Weight column, on the analysis report only.
+ * The flag lives here rather than in the shared cascade so one place decides
+ * row width and the header cannot disagree with it.
  */
 function context(
   decisions: ReportDecision[],
@@ -706,13 +541,13 @@ function context(
 const leadHeader = (ctx: Ctx, labelCol: string): string[] =>
   ["Section", labelCol, ...(ctx.weights ? ["Weight"] : [])];
 
-// `emitLeaderboardWorking` was here — the analysis report's Actual / rank / N /
+// `emitLeaderboardWorking` was here, the analysis report's Actual / rank / N /
 // weight / points working behind each leaderboard figure. QA, 2026-09-28: the
 // leaderboard belongs to the COMPETITOR report only. That report builds its own
 // rows inline, so nothing else needs this.
 
 /** Cash rows, shared by both reports so they cannot drift on how it is shown.
- *  `null` when no opening was configured — see the seed read in roundReport. */
+ *  `null` when no opening was configured, see the seed read in roundReport. */
 function emitCashRows(ctx: Ctx, cash: CashWalk | null): void {
   if (!cash) return;
   ctx.emit("Cash", "Opening", (_d, c) => money(cash.opening.get(c.id) ?? null));
@@ -734,7 +569,7 @@ function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
   for (const item of gi.inputs ?? []) {
     ctx.emit(section, item.label ?? item.key ?? "", (dec) => {
       // "-" ONLY when the team submitted nothing at all. It used to mean both
-      // "no decision" and "decided against this lever" — a team that
+      // "no decision" and "decided against this lever", a team that
       // deliberately left a channel off read the same as one that never played.
       if (!dec) return BLANK;
       const sel = (dec.globalInputs ?? []).find(
@@ -751,34 +586,20 @@ function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
   ctx.rows.push([]);
 }
 
-// `emitDecisionCascade` was here — `Notebook: X` plus the lever containers,
-// shared by both reports. Deleted 2026-09-28: `emitNotebookAnalysis` below now
-// builds the notebook block for BOTH reports, differing only by `withScoring`,
-// so a cascade that produced a second, older row set had nothing left to serve.
-
 /**
- * ONE NOTEBOOK, as the analysis report tells it — QA's ordering, 2026-09-28.
- *
- *   Inventory   what could be sold: carried stock, the levers that raised
- *               capacity, the base, and the total
- *   Demand      what was won, decomposed: the channel and marketing levers that
- *               earned it, then the notebook's own decisions and their weighted
- *               scores, then the total score and the market share it took
- *   Fulfilled   what was actually served
- *
- * Financials and Cash are NOT here — they are one figure per TEAM, not per
- * notebook, and stay at the top of the report (owner, 2026-09-28).
+ * One notebook, in QA's order: Inventory (what could be sold), Demand (what was
+ * won, decomposed), Fulfilled (what was served).
+ * Financials and Cash are not here: they are per team, not per notebook.
  */
 function emitNotebookAnalysis(
   ctx: Ctx,
   p: ReportProduct,
   containers: ReportContainer[],
-  /** Catalogue-wide divisors — see `weightTopsOf`. */
+  /** Catalogue-wide divisors, see `weightTopsOf`. */
   tops: WeightTops,
   opening: OpeningStock | null,
-  /** ANALYSIS ONLY: the Weighted Score / Total Weighted Score / Market Effect
-   *  sections. The competitor report takes the same block in the same order
-   *  without them — it answers "how did they do", not "why". */
+  /** Analysis only: the Weighted Score / Total / Market Effect sections. The
+   *  competitor report takes the same block without them. */
   withScoring = true,
 ): void {
   const name    = p.productName ?? id(p._id);
@@ -788,11 +609,8 @@ function emitNotebookAnalysis(
   const qtyFor = (dec: ReportDecision | null) =>
     Number(scoredFor(dec, p._id)?.inventoryQty) || 0;
 
-  // THE NOTEBOOK IS THE HEADER, and the blocks under it keep their plain
-  // section names — `Inventory`, `Sales Channel`, `Decision`, `Weighted Score`.
-  // Naming each section `Weighted Score: <notebook>` instead (tried 2026-09-28)
-  // repeated the notebook on every row of a 40-character column and left nothing
-  // to scan down.
+  // The notebook is the header; sections under it keep plain names, so the
+  // 40-character column has something to scan down.
   emitHeading(ctx, name);
 
   // ── CAPACITY ─────────────────────────────────────────────────────────────
@@ -803,7 +621,7 @@ function emitNotebookAnalysis(
   ctx.emit(cap, "Raw Capacity", (dec) =>
     dec == null ? BLANK : plain(capacityTermsFor(dec, p._id, qtyFor(dec)).base));
 
-  // Grouped by CONTAINER — "Vendors", "Hiring Options" — not by item. A team
+  // Grouped by CONTAINER, "Vendors", "Hiring Options", not by item. A team
   // holds at most one of each, so a row per item would be mostly blank; this
   // shows each team's own contribution in one line. Detected, so an operator
   // adding a third capacity group gets a row without a code change.
@@ -832,7 +650,7 @@ function emitNotebookAnalysis(
     });
   }
 
-  // Base plus every contribution above — `inventoryQty`, the build ceiling.
+  // Base plus every contribution above, `inventoryQty`, the build ceiling.
   ctx.emit(cap, "Total Capacity", (dec) => (dec == null ? BLANK : plain(qtyFor(dec))));
   ctx.rows.push([]);
 
@@ -860,29 +678,17 @@ function emitNotebookAnalysis(
     dec == null ? BLANK : plain(storedFor(c) + (producedFor(dec) ?? 0)));
   ctx.rows.push([]);
 
-  // ── THE DRIVER CASCADE ───────────────────────────────────────────────────
-  //
-  // ONE tree, rendered THREE times. QA 2026-09-28: the sections are no longer
-  // Decisions / Sales Channel / Marketing — those are the GROUPS now, and the
-  // sections are what you want to know about them:
-  //
-  //   Decisions       what the team chose
-  //   Weighted Score  what that choice scored
-  //   Market Fit      that score as a share of the notebook's total
-  //
-  // Owner: *"all formats from decisions all the way to sales channel, for the
-  // section of WEIGHTED SCORE has the same format and input"* — so the label
-  // column is identical down all three, and only the cells differ.
-  //
-  // Weight DESCENDING within a group: the heaviest driver is most of the answer.
-  // `sort` is stable, so ties hold their authored order.
+  // The driver cascade: one tree rendered three times, as Decisions (what was
+  // chosen), Weighted Score (what it scored), Market Fit (that score as a share
+  // of the notebook's total). The label column is identical down all three.
+  // Weight descending within a group; `sort` is stable, so ties hold their
+  // authored order.
   const fields = [...(p.fields ?? [])]
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .sort((a, b) => (Number(b.direction) || 0) - (Number(a.direction) || 0));
 
-  /** A lever's realised weight for one team — the configured weight with that
-   *  team's step multiplier applied. Absent selection ⇒ null, not 0: the team
-   *  did not play it, which is not the same as playing it for nothing. */
+  /** A lever's realised weight for one team. No selection yields null, not 0:
+   *  not playing it differs from playing it for nothing. */
   const leverScoreFor = (
     dec: ReportDecision | null, itemId: string, metric: string,
   ): number | null => {
@@ -903,13 +709,12 @@ function emitNotebookAnalysis(
       : "Yes";
   };
 
-  /** A metric group that spans containers. Only `sales_channel` uses this, and
-   *  exactly one container carries it — so the anchor is named here rather than
-   *  resolved per row. */
+  /** A metric group spanning containers. Only `sales_channel` uses it, and one
+   *  container carries it, so the anchor is named rather than resolved. */
   const leverGroup = (label: string, metric: string, anchorKey: string): DriverGroup => {
     const items = leverItemsOf(containers, [metric]);
     const scale = scalerFor(CONTAINER_ANCHOR[anchorKey], tops.byContainer[anchorKey] ?? 0);
-    // SAME scaler as the weight — so a team on the top step scores exactly the
+    // Same scaler as the weight, so a team on the top step scores exactly the
     // weight shown beside it.
     const scaleScore = scoreScalerFor(
       CONTAINER_ANCHOR[anchorKey],
@@ -927,22 +732,9 @@ function emitNotebookAnalysis(
   };
 
   /**
-   * ONE GROUP PER CONTAINER for a metric, not one group for the metric.
-   *
-   * `leverGroup` collects by IMPACT alone, so every item carrying `marketing`
-   * landed under one "Marketing" heading — and the VENDORS container carries
-   * `marketing` alongside `inventory`, so vendors were filed under Marketing.
-   * Observed in the competitor report 2026-10-15.
-   *
-   * Detected from the containers, like the Capacity block above: a container
-   * supplies its own heading (`supply_chain` is labelled "Vendors", `marketing`
-   * "Marketing"), so an operator adding a third demand container gets its own
-   * section with no code change.
-   *
-   * ⚠ THE ROW SET IS UNCHANGED — the union across these groups is exactly what
-   * the single group held, each item once. `grandScore` sums every row of every
-   * group, so the Market Fit denominator and the total row are untouched by the
-   * split. Filing an item under two groups would double-count it.
+   * One group per container, not one per metric: collecting by impact alone
+   * filed Vendors under Marketing, which carries both. !important each item
+   * appears once, or `grandScore` double-counts it.
    */
   const leverGroupsByContainer = (metric: string): DriverGroup[] =>
     containers
@@ -957,12 +749,12 @@ function emitNotebookAnalysis(
         Number(String(b.gi.key ?? b.gi.category ?? "") === metric) -
         Number(String(a.gi.key ?? a.gi.category ?? "") === metric))
       .map(({ gi, items }) => {
-        // PER CONTAINER, so Marketing is anchored while Vendors — which carries
-        // the same `marketing` impact but computes it its own way — is left
+        // PER CONTAINER, so Marketing is anchored while Vendors, which carries
+        // the same `marketing` impact but computes it its own way, is left
         // exactly as configured, having no entry in CONTAINER_ANCHOR.
         const key = String(gi.key ?? gi.category ?? "");
         const scale = scalerFor(CONTAINER_ANCHOR[key], tops.byContainer[key] ?? 0);
-        // SAME scaler as the weight — see the note on `scalerFor`.
+        // SAME scaler as the weight, see the note on `scalerFor`.
         const scaleScore = scoreScalerFor(CONTAINER_ANCHOR[key], tops.byContainer[key] ?? 0);
         return {
           label: gi.label ?? gi.category ?? gi.key ?? "",
@@ -984,64 +776,16 @@ function emitNotebookAnalysis(
   );
 
   /**
-   * THE WEIGHT SCALE, and it is PER NOTEBOOK — every archetype gets its own
-   * divisor.
-   *
-   * `0.95` is 95% of customers, and the notebook's heaviest design driver is
-   * what earns it; every other weight and score on this notebook is then
-   * expressed against that same anchor, so a reader can compare a spec row to a
-   * lever row without converting between two scales.
-   *
-   * `Math.max` rather than `filterByMoney[0]`: the array is sorted by direction
-   * descending two statements above, so the first element IS the max today —
-   * but that is an invisible coupling, and re-sorting by `order` would silently
-   * make the divisor "whichever field happens to be first".
-   *
-   * The `topWeight > 0` guard is not theoretical. A product with no weighted
-   * money field divides by zero, and `factor` is applied to EVERY group below,
-   * so an Infinity would not stay in the Design section — it would take the
-   * whole analysis with it.
-   */
-  /**
-   * THE WEIGHT SCALE: `anchor / catalogue-wide top`. NO SIZE MULTIPLIER.
-   *
-   *   design    0.95
-   *   Marketing 0.77
-   *   Channels  0.75
-   *   Vendors   —     their own metric; left exactly as configured
-   *
-   * ⚠ EVERY FAMILY LANDS IN 0..1 AND STAYS THERE. Owner, 2026-10-16: the raw
-   * weights are already normalised — each notebook's `direction` values sum to
-   * 1 — so a multiplier only breaks that and makes the families incomparable.
-   * A `× SIZE` (the family's driver count) sat here and pushed design to a 27.2
-   * total against the levers' 3, which is the asymmetry this removes.
-   *
-   * The divisor is global (see `weightTopsOf`): exactly one driver in the
-   * catalogue reaches its family's anchor, and every other row is read against
-   * it. The debrief's VoC axis uses the same numbers, so the chart and the
-   * report finally plot the same figure.
-   *
-   * THE SCORE CELLS TAKE THE SAME SCALE AS THEIR WEIGHT. Owner, 2026-10-16:
-   * *"the function doesn't change, what needs to change is the visibility in
-   * the report"* — this file only READS `productScoreBreakdown`, so scaling
-   * here changes what a reader sees and nothing the model computes.
-   *
-   * With one scale for both columns, a lever on its top step scores exactly its
-   * weight: `SCORED_WEIGHT === MAX WEIGHT` at the optimum.
-   *
-   * ⚠ APPLIED AT THE ROW, never inside `grandScore`. That function sums every
-   * row of every group into one number serving both the Weighted Score Total
-   * and the Market Fit denominator. Scaling there leaves the parts raw while
-   * the total moves — measured on the Anime book, Market Fit summed to 3.67%
-   * against a comment promising 100%. Scaled per row, the parts and the total
-   * stay in one unit and the section still closes at 100%.
+   * The weight scale: `anchor / catalogue-wide top`, so every family lands in
+   * 0..1. !important applied at the ROW, never inside `grandScore`: that total
+   * feeds the Market Fit denominator and scaling it strands the parts.
    */
   const scalerFor = (anchor: number | undefined, top: number) =>
     anchor == null
       ? (w: number) => w
       : (w: number) => w * (top > 0 ? anchor / top : 1);
 
-  /** The same scale, null-safe — a missing score is unknown, not zero. */
+  /** The same scale, null-safe, a missing score is unknown, not zero. */
   const scoreScalerFor = (anchor: number | undefined, top: number) =>
     anchor == null
       ? (v: number | null): number | null => v
@@ -1051,15 +795,9 @@ function emitNotebookAnalysis(
   const scaleWeight = scalerFor(DESIGN_ANCHOR, tops.design);
 
   /**
-   * WHAT A DESIGN FIELD PAYS AT ITS OPTIMUM: `max × PEAK × direction`.
-   *
-   * The returns curve peaks at `maxValue` and returns `2 − e⁻²` there, so this
-   * is the largest contribution the field can make. A degenerate range
-   * (`max <= min`) makes the curve return 1 everywhere, and this matches it.
-   *
-   * ⚠ COUPLED TO `calcDiminishingReturnsCostFactor`. If that curve's peak or
-   * its centre moves, this number is wrong and every design score cell shifts
-   * with it.
+   * What a design field pays at its optimum: `max × PEAK × direction`.
+   * !important coupled to `calcDiminishingReturnsCostFactor`; if that curve's
+   * peak moves, every design score cell is wrong.
    */
   const PEAK_FACTOR = 2 - Math.exp(-2);
   const maxAttainable = (f: ReportProductField): number => {
@@ -1070,19 +808,9 @@ function emitNotebookAnalysis(
   };
 
   /**
-   * A DESIGN SCORE AS A SHARE OF WHAT WAS THERE, expressed on the weight scale.
-   *
-   *     displayed = (actual / maxAttainable) × the row's weight
-   *
-   * So a field played at its optimum reads exactly its own weight — the same
-   * identity the levers have at their top step — and the two columns answer one
-   * question: how much of this driver did you capture.
-   *
-   * ⚠ IT IS NOT `score × MULT`. `direction` is a SHARE of 1 while
-   * `resolved × bellFactor × direction` is a MAGNITUDE summing to
-   * `dynamicPrice`, so no common multiplier makes them meet — scaled that way
-   * the design column totalled 39.5 against weights totalling 3.4. Dividing by
-   * what was attainable is what converts the magnitude into a share.
+   * A design score as a share of what was attainable: `(actual /
+   * maxAttainable) × weight`. !important not `score × mult`: `direction` is a
+   * share of 1 and the score a magnitude, so only the division makes them meet.
    */
   const designScoreFor = (f: ReportProductField) => {
     const weight = scaleWeight(Number(f.direction) || 0);
@@ -1093,7 +821,7 @@ function emitNotebookAnalysis(
   const groups: DriverGroup[] = [
     {
       // The notebook's own spec. Mirrors calcFinancials' `priceFields` (money,
-      // direction > 0, not the selling price) — exactly the set
+      // direction > 0, not the selling price), exactly the set
       // `productScoreBreakdown` holds, so no row here can be permanently blank.
       label: DESIGN_GROUP,
       rows: filterByMoney
@@ -1105,7 +833,7 @@ function emitNotebookAnalysis(
             if (!inp) return BLANK;
             const hit = (inp.fields ?? []).find((x) => id(x.fieldId) === id(f._id));
             if (hit == null || hit.value == null || hit.value === "") return BLANK;
-            // THE OPTION'S NAME, snapshotted at submission — "8" tells a reader
+            // THE OPTION'S NAME, snapshotted at submission, "8" tells a reader
             // nothing where "Hard Cover" tells them everything.
             return hit.name ? String(hit.name) : String(hit.value);
           },
@@ -1113,7 +841,7 @@ function emitNotebookAnalysis(
             designScoreFor(f)(scoreTermFor(dec, p._id, String(f.key ?? ""))),
         })),
     },
-    // Marketing and Vendors each get their own heading — see the note on
+    // Marketing and Vendors each get their own heading, see the note on
     // `leverGroupsByContainer`. Sales Channel stays a metric group: exactly one
     // container carries `sales_channel`, so splitting it would only rename the
     // heading to that container's label.
@@ -1130,7 +858,7 @@ function emitNotebookAnalysis(
       for (const r of g.rows) {
         const v = r.score(dec);
         if (v == null) continue;
-        // Already scaled BY ITS OWN ROW, each with its family's factor — see
+        // Already scaled BY ITS OWN ROW, each with its family's factor, see
         // the note on `scalerFor`. Scaling again here would move the total away
         // from the parts, which is what broke Market Fit before.
         sum += v;
@@ -1141,7 +869,7 @@ function emitNotebookAnalysis(
 
   // `grandWeight` was here and is GONE (owner, 2026-10-19). With the design
   // group's weights hidden, a Total summing every group described a column the
-  // reader could no longer add up — and a Total over only the visible groups is
+  // reader could no longer add up, and a Total over only the visible groups is
   // a number nothing else in the report uses. The Total rows keep their VALUE
   // cells; they simply carry no weight.
 
@@ -1182,7 +910,7 @@ function emitNotebookAnalysis(
           any = true;
         }
         return any ? plain(sum) : BLANK;
-        // `showsWeight` — the design group's weights are omitted; the levers
+        // `showsWeight`, the design group's weights are omitted; the levers
         // keep theirs, where a weight and its score meet at the top step.
       }, showsWeight(g) ? groupWeight(g) : undefined);
       for (const r of g.rows) {
@@ -1198,12 +926,9 @@ function emitNotebookAnalysis(
     });
     ctx.rows.push([]);
 
-    // ── Market Fit ─────────────────────────────────────────────────────────
-    //
-    // Each driver's share of the notebook's TOTAL weighted score, so the section
-    // closes at 100%. A share of the SCORE, not of demand: a driver reaches
-    // demand through a non-linear path, so "this decision won N customers" is an
-    // attribution the model does not contain.
+    // Each driver's share of the notebook's total weighted score, so the
+    // section closes at 100%. A share of the score, not of demand: the model
+    // contains no "this decision won N customers" attribution.
     const fitOf = (dec: ReportDecision | null, value: number | null) => {
       const total = grandScore(dec);
       return value == null || total == null || total === 0 ? BLANK : pct(value / total);
@@ -1249,17 +974,10 @@ function emitNotebookAnalysis(
     plain(scoredFor(dec, p._id)?.unitsSold));
   ctx.rows.push([]);
 
-  // ── THIS NOTEBOOK'S MONEY ────────────────────────────────────────────────
-  //
-  // All three READ from `scored[productId]` — the same fields the closing PnL
-  // sums across notebooks, so the per-notebook rows and the statement at the
-  // foot cannot disagree.
-  //
-  // GROSS profit, and it stops there. Owner 2026-09-28: *"save the final net
-  // profit for the summarized PnL sheet"*. Gross profit is the deepest line that
-  // MEANS anything per notebook — `operatingExpenses` is a team cost and is
-  // never apportioned per product, so a net profit here would be a different
-  // figure wearing the same name.
+  // All three read from `scored[productId]`, the same fields the closing PnL
+  // sums, so the rows and the statement cannot disagree.
+  // Gross profit is the deepest line that means anything per notebook:
+  // `operatingExpenses` is a team cost and is never apportioned per product.
   ctx.emit("Financials", "Revenue",      (dec) => money(scoredFor(dec, p._id)?.revenue));
   ctx.emit("Financials", "COGS",         (dec) => money(scoredFor(dec, p._id)?.COGS));
   ctx.emit("Financials", "Gross Profit", (dec) => money(scoredFor(dec, p._id)?.grossProfit));
@@ -1267,19 +985,9 @@ function emitNotebookAnalysis(
 }
 
 /**
- * EVERY NOTEBOOK AT ONCE — the team-wide close, shared by both reports.
- *
- * QA 2026-09-29: one banner, then the headline figures with NO per-notebook
- * breakdown (each notebook's own block carries that), then the statement.
- *
- *   Market Fit / Demand / Customers Fulfilled / Revenue / Profit
- *   Revenue by channel   (analysis only — the competitor report has no
- *                         channel breakdown of its own)
- *   Revenue by notebook
- *   PnL
- *
- * Every figure is `sumScored`, the same per-product fields each notebook block
- * printed — so a reader can add a column up the page and land on these.
+ * The team-wide close: headline figures, revenue by channel (analysis only)
+ * and by notebook, then the PnL. Every figure is `sumScored` over the fields
+ * the notebook blocks printed, so a column adds up the page and lands here.
  */
 function emitAllNotebooks(
   ctx: Ctx,
@@ -1313,12 +1021,9 @@ function emitAllNotebooks(
     plain(sumScored(dec, "unitsSold")));
   rows.push([]);
 
-  // DELIBERATELY REPEATED. These are the same figures as the PnL block's
-  // Revenue / Gross Profit / Net Profit lines, and on the competitor report the
-  // leaderboard above may rank on them a third time. Owner 2026-09-29: all of it
-  // is intentional — the headline reads at a glance, the statement shows the
-  // working, and the leaderboard says what it was worth. Removed briefly on the
-  // 29th as a duplicate; do not remove again.
+  // !important deliberately repeated from the PnL block and the leaderboard.
+  // The headline reads at a glance, the statement shows the working, the
+  // leaderboard says what it was worth. Do not remove as a duplicate.
   emit("Revenue", "Revenue", (dec) => money(sumScored(dec, "revenue")));
   rows.push([]);
 
@@ -1352,7 +1057,7 @@ function emitAllNotebooks(
   rows.push([]);
 
   // THE CLOSING STATEMENT. The two revenue breakdowns above roll into its
-  // Revenue row. "Net Profit" is the server's `operatingProfit` — RENAMED, not
+  // Revenue row. "Net Profit" is the server's `operatingProfit`, RENAMED, not
   // recomputed; the player's P&L sheet calls the same field "Net Income".
   const FINANCIALS: Array<[string, string, (n: number | null) => string]> = [
     ["Revenue",            "revenue",           money],
@@ -1375,16 +1080,9 @@ function emitAllNotebooks(
 }
 
 /**
- * THE COMPETITOR REPORT — standings first, then the figures behind them, then
- * the decisions that produced them.
- *
- * A separate report from the analysis report on purpose: that one answers
- * "what did each team CHOOSE", this one "how did they DO". Same machinery,
- * different question.
- *
- * `metrics` is the operator's `LeaderboardConfig`. With none configured the
- * leaderboard blocks are simply absent and the rest of the report still
- * renders — an unconfigured simulation is a normal state, not an error.
+ * The competitor report: standings, the figures behind them, then decisions.
+ * `metrics` is the operator's `LeaderboardConfig`; with none configured the
+ * leaderboard blocks are absent and the rest still renders.
  */
 export function buildCompetitorMatrix(
   roundNumber: number,
@@ -1400,12 +1098,12 @@ export function buildCompetitorMatrix(
   const { emit, rows, cols } = ctx;
 
   if (board) {
-    // CUMULATIVE — and the only thing that is. These sum the points every round
+    // CUMULATIVE, and the only thing that is. These sum the points every round
     // up to and including this one paid out. Every row below them is THIS
     // round's figures, ranked against this round's competitors.
     emit("Leaderboard", "Total points", (_d, c) =>
       String(round2(board.totals.get(c.id) ?? 0)));
-    // "Rank", not "Standing" — every winning metric below prints a "Rank" row,
+    // "Rank", not "Standing", every winning metric below prints a "Rank" row,
     // and two words for one idea made them read as different things.
     emit("Leaderboard", "Rank", (_d, c) => `#${board.standing.get(c.id) ?? "-"}`);
     rows.push([]);
@@ -1431,29 +1129,15 @@ export function buildCompetitorMatrix(
 
   const ordered = [...products].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  // ── THE SUMMARY, DIRECTLY BELOW THE LEADERBOARD ──────────────────────────
-  //
-  // QA 2026-09-29. This report answers "who won", so the team-wide figures
-  // belong beside the standings they explain — the per-notebook blocks below
-  // are the detail behind them. The ANALYSIS report keeps the same summary at
-  // the FOOT, because there the working has to come first.
-  //
-  // `withChannelSplit: false` — the channel breakdown is the analysis report's.
+  // The summary sits directly below the leaderboard here, because this report
+  // answers "who won"; the analysis report keeps it at the foot, after the
+  // working. `withChannelSplit: false`: that breakdown is the analysis one's.
   emitAllNotebooks(ctx, ordered, containers, false);
 
-  // ── PER NOTEBOOK, in the analysis report's order ──────────────────────────
-  //
-  // SAME BLOCK, SAME ORDER, owner 2026-09-28 — Capacity, Production, Inventory,
-  // Sales Channel, Marketing, Decision, Market Fit, Customers Fulfilled — with
-  // `withScoring: false`, so the Weighted Score / Total Weighted Score / Market
-  // Effect sections stay on the analysis report. One function builds both, so
-  // the two reports cannot drift on what a notebook block contains.
-  //
-  // This replaced five per-notebook loops that each ran the full product list
-  // for one figure (Revenue / Demand / Customers Fulfilled / Market fit /
-  // Market share by notebook). The same figures are all here, grouped under the
-  // notebook they belong to instead of scattered across five blocks.
-  // ONCE, before the loop: the weight divisors span the whole catalogue.
+  // Same block and order as the analysis report, with `withScoring: false` so
+  // the scoring sections stay there. One function builds both, so the two
+  // cannot drift on what a notebook block contains.
+  // Computed once before the loop: the divisors span the whole catalogue.
   const tops = weightTopsOf(ordered, containers);
   for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, tops, opening, false);
 
@@ -1482,12 +1166,8 @@ export function buildCompetitorMatrix(
   };
 }
 
-/**
- * THE ANALYSIS REPORT — why each team's round came out as it did.
- *
- * NO `board`: the leaderboard is the COMPETITOR report's alone (QA,
- * 2026-09-28). This one answers "why", not "who won".
- */
+/** The analysis report: why each team's round came out as it did.
+ *  No `board`; the leaderboard belongs to the competitor report alone. */
 export function buildDecisionMatrix(
   roundNumber: number,
   decisions: ReportDecision[],
@@ -1497,7 +1177,7 @@ export function buildDecisionMatrix(
   cash: CashWalk | null,
   opening: OpeningStock | null,
 ): ReportMatrix {
-  // `true` — the Weight column. THIS report is where `direction` earns its
+  // `true`, the Weight column. THIS report is where `direction` earns its
   // place: the reader is asking why a score came out as it did.
   const ctx = context(decisions, teams, true);
   const { rows, cols } = ctx;
@@ -1527,14 +1207,9 @@ export function buildDecisionMatrix(
     if (!accounted.has(id(gi._id))) emitLeverRows(ctx, gi);
   }
 
-  // ── THE CLOSE: money, last ────────────────────────────────────────────────
-  //
-  // BOTTOM-MOST on THIS report, owner 2026-09-28: every block above explains how
-  // a team got here, and the summary closes it out. The competitor report puts
-  // the identical block directly under the leaderboard instead — it answers "who
-  // won", so the figures belong beside the standings.
-  //
-  // `withChannelSplit: true` — the channel breakdown is this report's alone.
+  // Money last here: every block above explains how a team got there, and the
+  // summary closes it. The competitor report puts the same block under the
+  // leaderboard. `withChannelSplit: true`: that breakdown is this report's.
   emitAllNotebooks(ctx, ordered, containers, true);
 
   collapseSectionRuns(rows);
