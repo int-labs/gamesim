@@ -1,34 +1,18 @@
 import type { DebriefChartStyle, DebriefDimension, DebriefDimensions } from "../types";
 
-/**
- * One chart's configuration, as a form.
- *
- * ── WHY THIS IS SHARED ──────────────────────────────────────────────────────
- * Two surfaces edit a chart: the Debrief Charts page, where a type's slide is
- * laid out, and the Round Debrief page, where copy is written and a chart that
- * reads wrong needs fixing on the spot. A second copy of these fields is a
- * second opinion about what a chart IS — the kind that drifts until one page
- * silently drops a field on save and the other keeps setting it.
- *
- * It renders the FIELDS only, not the buttons: "Add chart" and "Save" mean
- * different things and belong to the page that owns the action.
- */
+/** One chart's configuration as a form, shared by the Debrief Charts and Round Debrief pages. Fields only, not the buttons. */
 
-/** The form's own shape. Every slot is a string or number — `null` enters only
- *  at `chartPayload`, so an empty select and an unset binding stay the same
- *  thing while the operator is typing. */
+/** The form's own shape; `null` enters only at `chartPayload`. */
 export interface ChartDraft {
   name:       string;
   category:   string;
   order:      number;
   scope:      "overall" | "each";
   chartStyle: string;
-  /** A chart the player draws. Set, and the shape and bindings below are
-   *  inert — the form disables them rather than leaving them to be filled in
-   *  and silently ignored. */
+  /** Set means the player draws it, and the shape and bindings below are inert. */
   clientChart: string;
   xAxis:      string;
-  /** The measures plotted. Several means the series is the MEASURE — picking a
+  /** The measures plotted. Several means the series is the MEASURE, picking a
    *  second one is how "units sold vs customers obtained" is authored. */
   yAxis:      string[];
   grouping:   string;
@@ -39,9 +23,7 @@ export const EMPTY_CHART: ChartDraft = {
   chartStyle: "", clientChart: "", xAxis: "", yAxis: [], grouping: "",
 };
 
-/** Anything carrying a chart's configuration — the stored document, or one of
- *  the instances `/round-debrief` emits. Structural on purpose: the two differ
- *  in fields this form does not touch. */
+/** Anything carrying a chart's configuration; structural because the two sources differ elsewhere. */
 export interface ChartConfigLike {
   name:     string;
   category: string;
@@ -68,13 +50,7 @@ export const draftFromChart = (c: ChartConfigLike): ChartDraft => ({
   grouping:   c.grouping ?? "",
 });
 
-/**
- * The draft as the API takes it.
- *
- * ⚠ EMPTY STRING BECOMES NULL. The axes are nullable and `""` would store as a
- * configured dimension named nothing — which renders no rows and reads, in the
- * table, exactly like a binding that was never set.
- */
+/** !important empty string becomes null, or an axis stores as a dimension named nothing. */
 export const chartPayload = (d: ChartDraft) => ({
   name:       d.name,
   category:   d.category,
@@ -83,15 +59,13 @@ export const chartPayload = (d: ChartDraft) => ({
   chartStyle:  d.chartStyle || null,
   clientChart: d.clientChart || null,
   xAxis:      d.xAxis || null,
-  // An ARRAY even when empty — "no measures" is a valid half-configured chart,
+  // An ARRAY even when empty, "no measures" is a valid half-configured chart,
   // and null would reintroduce the two-shapes-for-one-field problem.
   yAxis:      d.yAxis,
   grouping:   d.grouping || null,
 });
 
-/** A binding's human label, or the raw field marked when the registry no longer
- *  offers it — the same rule the select follows, so a table and a form cannot
- *  disagree about whether a chart is bound to something real. */
+/** A binding's human label, or the raw field marked when the registry no longer offers it. */
 export function dimLabel(dims: DebriefDimensions, field: string | null) {
   if (!field) return <span style={{ color: "#bbb" }}>—</span>;
   const hit = [...dims.categorical, ...dims.measures].find((d) => d.field === field);
@@ -99,20 +73,13 @@ export function dimLabel(dims: DebriefDimensions, field: string | null) {
   return <span style={{ color: "#b00" }}>{field} (missing)</span>;
 }
 
-/**
- * One binding slot.
- *
- * ⚠ A SAVED VALUE THE REGISTRY NO LONGER OFFERS IS KEPT AND MARKED, not dropped
- * silently. A lever renamed on the GlobalInputs page takes its dimension with
- * it, and a select that simply showed blank would look like the operator had
- * never set one — then overwrite it on the next save.
- */
+/** !important a saved value the registry no longer offers is kept and marked, never dropped. */
 export function DimensionSelect({
   label, options, measures = [], value, onChange,
 }: {
   label: string;
   options: DebriefDimension[];
-  /** Offered under their own heading — x accepts one, which is what makes a
+  /** Offered under their own heading, x accepts one, which is what makes a
    *  scatter possible. Grouping passes none: a series is always a category. */
   measures?: DebriefDimension[];
   value: string;
@@ -132,9 +99,7 @@ export function DimensionSelect({
         <option key={o.field} value={o.field}>{o.label}</option>
       ))}
       {measures.length > 0 && (
-        // Grouped, because picking one here changes what KIND of chart this is:
-        // a measure on x makes the axis numeric, which only a scatter-ish shape
-        // draws sensibly.
+        // Grouped: a measure on x makes the axis numeric, which only a scatter draws sensibly.
         <optgroup label="— as a value (scatter) —">
           {measures.map((o) => (
             <option key={o.field} value={o.field}>{o.label}</option>
@@ -145,18 +110,7 @@ export function DimensionSelect({
   );
 }
 
-/**
- * The measures, as an add-one-at-a-time list.
- *
- * ⚠ THE SELECT NEVER HOLDS A VALUE. It is an ADD control, not a binding —
- * picking resets it to the placeholder and appends a chip. A select showing
- * "Revenue" while three measures are bound would be lying about which one it
- * meant, and it is the chips that say what the chart plots.
- *
- * Order is the pick order, and it is load-bearing: with several measures the
- * first is what a half-bound chart falls back to, and the series legend reads
- * in this sequence.
- */
+/** !important the select never holds a value; it is an add control, and the chips are the binding. */
 function MeasureList({
   options, value, onChange,
 }: {
@@ -187,9 +141,7 @@ function MeasureList({
               borderRadius: 10, padding: "1px 4px 1px 8px", fontSize: 12,
             }}
           >
-            {/* ⚠ A MEASURE THE REGISTRY NO LONGER OFFERS IS KEPT AND MARKED,
-                never dropped on open — otherwise it looks like it was never
-                set, and the next save removes it for real. */}
+            {/* !important a measure the registry no longer offers is kept and marked. */}
             {known ? labelFor(field) : `${field} (missing)`}
             <button
               onClick={() => onChange(value.filter((f) => f !== field))}
@@ -229,10 +181,7 @@ export function ChartConfigFields({
 }) {
   const set = (patch: Partial<ChartDraft>) => onChange({ ...draft, ...patch });
 
-  // ⚠ DISABLED, NOT HIDDEN. A client-drawn chart ignores the shape and the
-  // bindings, and controls that silently do nothing are how an operator spends
-  // ten minutes picking axes that were never going to be read. Greyed out with
-  // the reason stated is the honest version.
+  // !important disabled, not hidden: a client-drawn chart ignores these controls.
   const drawnByClient = draft.clientChart !== "";
   const chosen = dims.clientCharts?.find((c) => c.key === draft.clientChart);
 
@@ -284,9 +233,7 @@ export function ChartConfigFields({
           </option>
         ))}
       </select>
-      {/* X and GROUPING divide, Y is plotted — so they are drawn from different
-          halves of the registry. These were free text until the registry
-          existed, and a typo then saved fine and silently never resolved. */}
+      {/* X and grouping divide, Y is plotted, so they come from different halves of the registry. */}
       {drawnByClient ? (
         <span style={{ fontSize: 11, color: "#666", maxWidth: 420 }}>
           {chosen?.note ?? "Drawn by the player; it takes no shape and no axes."}

@@ -1,35 +1,10 @@
-/**
- * Seed THE CHART GALLERY — `npm run seed-db`.
- *
- * ── WHAT THIS REPLACED ──────────────────────────────────────────────────────
- * Until 2026-10-27 this script walked `seed-data/base` + `seed-data/development`
- * and ran `deleteMany({})` on every collection it found a file for. That is a
- * destructive import pretending to be a seed, and nothing used it any more.
- *
- * This one does one thing: make sure the gallery's shapes exist. It is
- * IDEMPOTENT and ADDITIVE — upserts by a fixed `_id`, deletes nothing, and
- * leaves any shape authored in the console alone.
- *
- * ── WHY THE IDS ARE HARDCODED ───────────────────────────────────────────────
- * `DebriefChart.chartStyle` is a ref. A run that minted fresh ObjectIds would
- * leave every configured chart pointing at nothing — a gallery that looks full
- * and a debrief that renders blank.
- *
- * ── THE SHAPES ARE AUTHORED AS OBJECTS, NOT TEXT ────────────────────────────
- * `DebriefChartStyle.shape` is a string, and hand-escaping a Vega-Lite spec
- * inside a JSON file is how a typo gets committed. They are written below as
- * plain objects and stringified on the way in.
- */
+/** Seed the chart gallery: `npm run seed-db`. Idempotent on fixed ids, deletes nothing. */
 
 import connectToDatabase from "../src/db/db";
 import DebriefChartStyle from "../src/models/debriefChartStyle";
 import { renderChartToSvg } from "../src/services/chartRenderer";
 
-/* ── The pixel sheet's vocabulary ──────────────────────────────────────── */
-// Mirrors `notebook-pixel-sim/src/components/charts/chartTheme.ts`. Two copies
-// of a palette across two repos, knowingly: the server cannot import the
-// player's module, and a chart that did not match the sheet would read as a
-// different KIND of thing rather than part of it.
+/** Mirrors `notebook-pixel-sim/src/components/charts/chartTheme`. */
 const INK = { frame: "#2a2017", grid: "#bfae90", label: "#5a4a37" };
 
 const SERIES = [
@@ -58,12 +33,7 @@ const CONFIG = {
   range: { category: SERIES },
 };
 
-/**
- * ⚠ `sort: null` MEANS DATA ORDER, and every categorical axis needs it.
- *
- * Vega-Lite sorts a nominal domain alphabetically by default, which puts
- * "Round 10" before "Round 2" and reorders the team roster from chart to chart.
- */
+/** !important `sort: null` means data order; without it a nominal domain sorts alphabetically. */
 const cat = (field: string, extra: object = {}) =>
   ({ field, type: "nominal", sort: null, ...extra });
 
@@ -84,14 +54,7 @@ const BASE = {
 
 const BAR = { type: "bar", stroke: INK.frame, strokeWidth: 1 };
 
-/**
- * Every shape the gallery ships with.
- *
- * ⚠ ALL FIVE ARE DRAWABLE FROM `{x, y, series}` — the only rows
- * `buildChartRows` emits. A shape needing anything else (the retired VoC plot's
- * per-row weights, a quantitative x) cannot be added here until the row builder
- * can express it.
- */
+/** Every shape the gallery ships with, all drawable from `{x, y, series}`. */
 export const STYLES: { _id: string; category: string; name: string; spec: object }[] = [
   {
     _id: "a11ca11c0000000000000001",
@@ -117,9 +80,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       mark: BAR,
       encoding: {
         x: cat("x", { axis: { labelAngle: 0 } }),
-        // ⚠ `stack` IS AN ENCODING PROPERTY, not a transform. `assertSafeSpec`
-        // denies `transform` outright, so a shape stacked the usual way would
-        // pass review and never render.
+        // !important `stack` is an encoding property; `transform` is denied by `assertSafeSpec`.
         y: qty({ stack: "zero" }),
         color: SERIES_ENC,
       },
@@ -166,14 +127,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       ...BASE,
       mark: { type: "point", filled: true, size: 110, stroke: INK.frame, strokeWidth: 1 },
       encoding: {
-        // ⚠ THE ONLY SHAPE WITH A QUANTITATIVE X, and the reason `ChartRow.x`
-        // is `string | number`. Bind x to a MEASURE — a categorical there puts
-        // labels on a numeric scale and every point lands on NaN.
-        //
-        // `zero: false` on BOTH axes, unlike every bar shape here. A bar is
-        // read by length so its scale must start at zero; a point is read by
-        // position, and forcing the origin in pushes a cluster of prices
-        // between 18 and 28 into the bottom inch of the plot.
+        // !important the only shape with a quantitative x; bind x to a measure, never a categorical.
         x: { field: "x", type: "quantitative", scale: { zero: false } },
         y: qty({ scale: { zero: false } }),
         color: SERIES_ENC,
@@ -205,7 +159,7 @@ const SCATTER_ROWS = [
   { x: 180, y: 27.5, series: "Studio B" },
 ];
 
-/** What `buildChartRows` actually emits, including a gap — a team that did not
+/** What `buildChartRows` actually emits, including a gap, a team that did not
  *  play a round is null, never zero. */
 const SAMPLE_ROWS = [
   { x: "Round 1", y: 4200, series: "Studio A" },
@@ -216,14 +170,7 @@ const SAMPLE_ROWS = [
   { x: "Round 3", y: null, series: "Studio B" },
 ];
 
-/**
- * Draw every shape before writing any of them.
- *
- * A gallery row that cannot render is worse than a missing one: the operator
- * picks it, the preview fails, and nothing says the shape itself was never
- * valid. This is the same renderer `/round-debrief` uses, so a pass here is the
- * real thing passing.
- */
+/** Draw every shape before writing any: an unrenderable row is worse than a missing one. */
 export async function verify(): Promise<void> {
   for (const s of STYLES) {
     // A shape's x encoding decides which sample it can draw: labels on a
@@ -232,9 +179,7 @@ export async function verify(): Promise<void> {
     const rows = xType === "quantitative" ? SCATTER_ROWS : SAMPLE_ROWS;
 
     const svg = await renderChartToSvg({ spec: s.spec, datasets: { rows } });
-    // Furniture alone — axes and labels with no marks — means the encoding
-    // never bound to the rows, which renders as a blank frame rather than an
-    // error.
+    // Furniture alone means the encoding never bound to the rows.
     const marks = svg.match(/<(path|rect|line|circle|symbol)\b/g)?.length ?? 0;
     if (marks <= 6) {
       throw new Error(
@@ -276,9 +221,7 @@ async function seed(): Promise<void> {
       else if (res.modifiedCount) updated++;
     }
 
-    // The `{category, name}` uniqueness is declared on the schema and only
-    // exists in Mongo once something builds it. A seeded box may never have
-    // started the app.
+    // The `{category, name}` index only exists in Mongo once something builds it.
     await DebriefChartStyle.syncIndexes();
 
     const total = await DebriefChartStyle.countDocuments();
