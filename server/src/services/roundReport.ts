@@ -21,10 +21,9 @@ import {
   type CashWalk,
   type OpeningStock,
   type ReportMatrix,
-  type ReportRunMetrics,
   type ScoredLeaderboard,
 } from "./reportMatrix";
-import { accumulate, scoreRound, type RoundScore } from "./leaderboard";
+import { scoreAllRounds } from "./leaderboard";
 
 /** Bucket documents carrying a `roundNumber` by that round. */
 export function groupByRound<T extends { roundNumber?: unknown }>(docs: T[]): Map<number, T[]> {
@@ -192,38 +191,17 @@ export async function buildRoundReport(
   // team's points.
   let board: ScoredLeaderboard | null = null;
 
-  if (metrics.length > 0) {
+  {
     // `teamIds` and `byRoundDecisions` are the ones built for the cash walk —
     // both halves rank the same roster over the same rounds, and building a
     // second copy here is how the two would drift.
-    const byRoundRunMetrics = groupByRound(allRunReports);
-
-    const perRound: Array<Map<string, number>> = [];
-    let thisRound: RoundScore | null = null;
-
-    // Ascending, so `thisRound` ends on the round being reported.
-    for (const r of [...byRoundDecisions.keys()].sort((a, b) => a - b)) {
-      const decs = new Map(
-        (byRoundDecisions.get(r) ?? []).map((d) => [String((d as never as { teamId: unknown }).teamId), d]),
-      );
-      const runs = new Map(
-        (byRoundRunMetrics.get(r) ?? []).map((x) => [
-          String((x as never as { teamId: unknown }).teamId),
-          ((x as never as { metrics?: ReportRunMetrics }).metrics ?? {}),
-        ]),
-      );
-      const scored = scoreRound(metrics, {
-        teamIds,
-        decisionFor: (t) => (decs.get(t) as never) ?? null,
-        runMetricsFor: (t) => runs.get(t) ?? null,
-      });
-      perRound.push(scored.points);
-      if (r === roundNumber) thisRound = scored;
-    }
-
-    if (thisRound) {
-      board = { round: thisRound, ...accumulate(teamIds, perRound) };
-    }
+    board = scoreAllRounds(
+      metrics,
+      roundNumber,
+      teamIds,
+      byRoundDecisions as never,
+      groupByRound(allRunReports) as never,
+    );
   }
 
   if (kind === "competitor") {

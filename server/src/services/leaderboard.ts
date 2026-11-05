@@ -46,6 +46,7 @@ import {
   sumScored,
   type ReportDecision,
   type ReportRunMetrics,
+  type ScoredLeaderboard,
 } from "./reportMatrix";
 
 export interface TeamScore {
@@ -188,4 +189,48 @@ export function accumulate(
   );
 
   return { totals, standing };
+}
+
+/**
+ * Score every round 0..N and accumulate. The ONE scoring run.
+ * !important both the round reports and the player debrief call this; scoring
+ * twice is how the two would disagree about a team's points.
+ */
+export function scoreAllRounds(
+  metrics: LeaderboardMetric[],
+  roundNumber: number,
+  teamIds: string[],
+  byRoundDecisions: Map<number, unknown[]>,
+  byRoundRunMetrics: Map<number, unknown[]>,
+): ScoredLeaderboard | null {
+  if (metrics.length === 0) return null;
+
+  const perRound: Array<Map<string, number>> = [];
+  let thisRound: RoundScore | null = null;
+
+  // Ascending, so `thisRound` ends on the round being reported.
+  for (const r of [...byRoundDecisions.keys()].sort((a, b) => a - b)) {
+    const decs = new Map(
+      (byRoundDecisions.get(r) ?? []).map((d) => [
+        String((d as { teamId?: unknown }).teamId),
+        d,
+      ]),
+    );
+    const runs = new Map(
+      (byRoundRunMetrics.get(r) ?? []).map((x) => [
+        String((x as { teamId?: unknown }).teamId),
+        ((x as { metrics?: ReportRunMetrics }).metrics ?? {}),
+      ]),
+    );
+    const scored = scoreRound(metrics, {
+      teamIds,
+      decisionFor: (t) => (decs.get(t) as ReportDecision) ?? null,
+      runMetricsFor: (t) => runs.get(t) ?? null,
+    });
+    perRound.push(scored.points);
+    if (r === roundNumber) thisRound = scored;
+  }
+
+  if (!thisRound) return null;
+  return { round: thisRound, ...accumulate(teamIds, perRound) };
 }
