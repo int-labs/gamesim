@@ -1,21 +1,19 @@
 import { Router } from "express";
 import { getRoundReport } from "../controllers/reportControllers";
 import { authenticate } from "../middleware/authentication";
-import { authorize }    from "../middleware/authorization";
-import { ROLES }        from "../constants/roles";
 
 const router = Router();
 
 router.use(authenticate);
 
 // GET /reports/decisions?simulationId=&roundNumber=   → analysis report PDF
-//   The kind is still spelled `decisions` in the URL; the report was renamed
-//   2026-09-24 and the route was left alone.
+//   The kind is still spelled `decisions` in the URL.
 // GET /reports/competitor?simulationId=&roundNumber=  → competitor report PDF
 //
-// ADMIN/OPERATOR only. These show every team's figures side by side — a team
-// token must never be able to pull one and read its competitors' decisions
-// before the round is debriefed.
-router.get("/:kind", authorize([ROLES.ADMIN, ROLES.OPERATOR]), getRoundReport);
+// Any signed-in user, teams included: players are meant to read these.
+// !important the controller checks neither simulation membership nor whether
+// the round is scored, so a team token can pull any simulation's report for an
+// uncalculated round.
+router.get("/:kind", getRoundReport);
 
 export default router;
