@@ -846,36 +846,32 @@ export const clearFinlitHire = (s: GameState, item?: GlobalInputItemDto): void =
   s.globalInputSelections = s.globalInputSelections.filter((sel) => !matches(sel));
 };
 
-/** Set one marketing item's step (e.g. "1", "-2", "0"). Keyed by `inputId`:
- *  the container may hold several items, each with its own selection row. */
-export const setFinlitMarketingBudget = (
+/** Set one lever item's step. Keyed by `inputId`, so a container holding
+ *  several items gets a selection row each. */
+export const setFinlitLeverStep = (
   s: GameState,
+  containerKey: string,
   item: GlobalInputItemDto,
   stepKey: string,
 ): boolean => {
-  console.log('[decision] setFinlitMarketingBudget', stepKey);
-  // `stepKey` must be a key of the item's own `options` map — the caller reads it
-  // from there. It used to be a raw slider integer (0…40, from a hardcoded
-  // frontend BUDGET_MAX) that the server could not look up.
-  //
-  // ENERGY: this used to charge nothing, on the since-outdated grounds that
-  // marketing had `energy: 0` in the schema. Energy now comes from the item and
-  // scales with the step, exactly like a hire, and only the DELTA is charged so
-  // moving between steps costs the difference and stepping back down refunds.
+  // !important `stepKey` must be a key of the item's own `options` map, or the
+  // server's `options[selectedStepKey] ?? 0` misses and the lever scores zero.
+  // Energy scales with the step and only the DELTA is charged, so stepping back
+  // down refunds.
   const stepEnergy = (key: string | null | undefined): number =>
     key == null ? 0 : Math.ceil((item.energy ?? 0) * (item.options?.[key] ?? 0));
 
-  // Matched on inputId, NOT on key alone: keying by 'marketing' gave the
-  // container one selection row, so a second item overwrote the first instead
-  // of sitting beside it.
+  // Matched on inputId, NOT on key alone: keying by the container gave it one
+  // selection row, so a second item overwrote the first instead of sitting
+  // beside it.
   const itemId = String(item._id);
   const idx = s.globalInputSelections.findIndex(
-    (sel) => sel.key === 'marketing' && sel.inputId === itemId,
+    (sel) => sel.key === containerKey && sel.inputId === itemId,
   );
   const oldEnergy = idx >= 0 ? stepEnergy(s.globalInputSelections[idx].selectedStepKey) : 0;
-  if (!applyEnergyDelta(s, stepEnergy(stepKey) - oldEnergy, 'marketing')) return false;
+  if (!applyEnergyDelta(s, stepEnergy(stepKey) - oldEnergy, containerKey)) return false;
 
-  const entry = { key: 'marketing', selectedStepKey: stepKey, inputId: itemId };
+  const entry = { key: containerKey, selectedStepKey: stepKey, inputId: itemId };
   if (idx >= 0) Object.assign(s.globalInputSelections[idx], entry);
   else s.globalInputSelections.push(entry);
   return true;

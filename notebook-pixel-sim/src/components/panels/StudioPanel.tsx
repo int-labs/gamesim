@@ -2,15 +2,9 @@ import { useState } from 'react';
 import { useGame } from '@/state/store';
 import {
   engageFinlitHire, clearFinlitHire, engageFinlitVendor, clearFinlitVendor,
-  setFinlitMarketingBudget,
-  finlitCompanyChannels, toggleFinlitChannelAll, channelEnergyCost
+  setFinlitLeverStep,
 } from '@/engine/mockEngine';
-import {
-  CHANNEL_META, channelRow,
-  type ChannelId,
-} from '@/data/finlit';
 import { hireSteps, hireStep, CANDIDATE_IMAGE, type HireStep } from '@/engine/finlit/core/config/hiring';
-import { MARKETING_IMAGE } from '@/engine/finlit/core/config/marketing';
 import {
   vendorStep, vendorQuality, vendorCoversProduct, VENDOR_IMAGE,
 } from '@/engine/finlit/core/config/vendors';
@@ -30,7 +24,6 @@ import type { PixelIconKind } from '@/components/icons/PixelIcon';
 import { A } from '@/assets';
 import { studyFor, type CaseStudy } from '@/content/finlitCaseStudies';
 import { OpsSection, StatChip } from './OperationsKit';
-import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { EnergyValue } from '@/components/primitives/EnergyValue';
 
@@ -43,16 +36,6 @@ const SECTION_ICON = {
   vendor: A.ui.studioOps.supplier,
 };
 
-/** Per-channel art for the three bundled ids. A channel the operator adds has
- *  no mark of its own, so `channelIcon` falls back rather than rendering an
- *  empty `src`. Closest existing marks; purpose-built ones would be better. */
-const CHANNEL_ICON: Record<string, string> = {
-  offline: A.ui.commercial.bulk_order,
-  online: A.ui.commercial.social_media,
-  retail: A.ui.studioOps.inventory_shelf,
-};
-const channelIcon = (ch: ChannelId): string =>
-  CHANNEL_ICON[ch] ?? A.ui.commercial.bulk_order;
 
 // A distinct studio-operations portrait per candidate, so each hire reads at a
 // glance (the visual hook for the hiring cards).
@@ -160,10 +143,9 @@ export function StudioPanel({
     s.globalInputSelections.filter((sel) => sel.key === 'hiring' && sel.inputId != null),
   );
   // One row per item, same as hiring — see the note above `hireSelections`.
-  const marketingSelections = useGame((s) =>
-    s.globalInputSelections.filter((sel) => sel.key === 'marketing' && sel.inputId != null),
+  const channelSelections = useGame((s) =>
+    s.globalInputSelections.filter((sel) => sel.key === 'channel' && sel.inputId != null),
   );
-  const marketingGI = useGame((s) => s.availableGlobalInputs.find((g) => g.key === 'marketing'));
   const phase = useGame((s) => s.meta.phase);
   const activeLine = useGame((s) =>
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
@@ -197,8 +179,6 @@ export function StudioPanel({
   //
   // The `genresKey` subscription that sat here is gone with the genre × channel
   // matrix: it existed only to pick a genre for `channelRow`.
-  const channelsKey = useGame((s) => finlitCompanyChannels(s).join(','));
-  const companyChannels = new Set(channelsKey.split(',') as ChannelId[]);
   const apply = useGame((s) => s.apply);
   const availableGlobalInputs = useGame((s) => s.availableGlobalInputs);
   const channelGI = availableGlobalInputs.find((g) => g.key === 'channel');
@@ -210,47 +190,7 @@ export function StudioPanel({
   // step is the off step is not one, so this counts live selections rather than
   // the length of `hireSelections`.
   const hiringActiveCount = hireSelections.filter((sel) => sel.selectedStepKey != null).length;
-  // ── Marketing budget ────────────────────────────────────────────────────
-  //
-  // The lever's domain is the ITEM'S OWN `options` keys. It used to be a raw
-  // `0…BUDGET_MAX` integer slider (a hardcoded frontend 40) whose value was
-  // submitted as `selectedStepKey` — so unless the operator happened to key
-  // options "0".."40", the server's `options[selectedStepKey] ?? 0` missed,
-  // yielded 0, and skipped every marketing impact. The slider is now an INDEX
-  // into the configured steps and submits the step's own key.
-  // EVERY item in the container, not `inputs[0]` — the operator can author
-  // several marketing options and the server sums them all, so rendering only
-  // the first hid levers that the P&L would still have charged for.
-  const marketingLevers = (marketingGI?.inputs ?? []).map((item) => {
-    const itemId = String(item._id);
-    const sel = marketingSelections.find((s) => s.inputId === itemId);
-    const stepKeys = Object.keys(item.options ?? {});
-    const idx = Math.max(0, stepKeys.indexOf(sel?.selectedStepKey ?? ''));
-    const stepKey = stepKeys[idx] ?? null;
-    const mult = stepKey != null ? item.options?.[stepKey] ?? 0 : 0;
-    // At a zero step the chip reads "To activate", so it must quote the NEXT
-    // step's energy — `energy × 0` advertised activation as free while the
-    // mutator charged the delta to the step actually moved to.
-    const energyMult = mult !== 0
-      ? mult
-      : item.options?.[stepKeys[idx + 1] ?? ''] ?? 0;
-    return {
-      item, itemId, stepKeys, idx, stepKey,
-      /** The step's own multiplier — 0 means this lever is switched off.
-       *  `energy` cannot answer that any more: it previews the next step. */
-      active: mult !== 0,
-      // Through the shared util rather than open-coded, so a lever cannot drift
-      // from the server's rule. Marketing is company-wide, hence productId null.
-      demandLift: impactFor(item, 'marketing', stepKey, null),
-      spend:  (item.cost ?? 0) * mult,
-      // Scaled by the step, matching what setFinlitMarketingBudget charges. A
-      // flat `item.energy` would show a figure the mutator never deducts.
-      energy: Math.ceil((item.energy ?? 0) * energyMult),
-    };
-  });
-  const marketingMaxSelections = marketingGI?.maxSelections ?? marketingLevers.length;
-  // A lever already at a paid step stays editable so it can be wound back down.
-  const marketingActiveCount = marketingLevers.filter((l) => l.active).length;
+
 
   const [pending, setPending] = useState<Pending | null>(null);
   // `levelDraft` held the raw text of the typed level/investment field so it
@@ -280,6 +220,34 @@ export function StudioPanel({
   // per-product override are resolved against. The LINE knows this now; it no
   // longer has to be recovered from the server's projection ordering.
   const activeProductId = activeLine?.productId ?? null;
+
+  // Channels are STEPPED now, like marketing was: the DB gives each an options
+  // ladder, so a binary selection sends `selectedStepKey: null` and the
+  // server's `options[null] ?? 0` zeroes every impact the channel carries.
+  const channelLevers = (channelGI?.inputs ?? []).map((item) => {
+    const itemId = String(item._id);
+    const sel = channelSelections.find((s) => s.inputId === itemId);
+    const stepKeys = Object.keys(item.options ?? {});
+    const idx = Math.max(0, stepKeys.indexOf(sel?.selectedStepKey ?? ''));
+    const stepKey = stepKeys[idx] ?? null;
+    const mult = stepKey != null ? item.options?.[stepKey] ?? 0 : 0;
+    // At a zero step the energy chip reads "To activate", so it quotes the NEXT
+    // step rather than advertising activation as free.
+    const energyMult = mult !== 0 ? mult : item.options?.[stepKeys[idx + 1] ?? ''] ?? 0;
+    return {
+      item, itemId, stepKeys, idx, stepKey,
+      active: mult !== 0,
+      /** Per notebook: `sell_rate` carries per-product `selections[]`. */
+      sellRate: impactFor(item, 'sell_rate', stepKey, activeProductId),
+      // !important NOT through `impactFor` with the step: the cut is a rate and
+      // calcFinancials deliberately does not scale it. Read the base value.
+      consignment: Number(item.impacts?.consignment?.value ?? 0),
+      spend:  (item.cost ?? 0) * mult,
+      energy: Math.ceil((item.energy ?? 0) * energyMult),
+    };
+  });
+  const channelActiveCount = channelLevers.filter((l) => l.active).length;
+
   const vendorRefund = vendorSelections.reduce((sum, sel) => {
     const item = vendorGI?.inputs.find((i) => String(i._id) === sel.inputId);
     return sum + (item ? vendorStep(item, sel.selectedStepKey ?? null)?.energy ?? 0 : 0);
@@ -410,238 +378,62 @@ export function StudioPanel({
 
       {/* ── Sales channels — WHERE you sell. Company-wide: every notebook ships
            through the same channels, so this is one decision, not one per SKU. ── */}
+      {/* Sales channels: WHERE you sell. Company-wide, so one decision for
+           every notebook, and STEPPED, so how hard each is pushed is part of
+           it. !important the step must be a key of the item's own options. */}
       {shows('channels') && (
       <OpsSection
         icon={SECTION_ICON.channels}
         title="Sales Channels"
-        hint="Where you sell. Applies to every notebook."
+        hint="Where you sell, and how hard. Applies to every notebook."
       >
-        {/* ONE per row. The `sm:grid-cols-3` here keyed off the VIEWPORT, which
-            is almost always past `sm` — but this now sits in a rail capped at
-            40vw, so it split a narrow column three ways and squeezed every
-            card. Stacked, the section grows downwards instead. */}
+        {/* One per row: this sits in a rail capped at 40vw. */}
         <div className="grid grid-cols-1 gap-3">
-          {(Object.keys(CHANNEL_META) as ChannelId[]).map((ch) => {
-            const on = companyChannels.has(ch);
-            const isLastOn = on && companyChannels.size <= 1;
-            // No genre argument any more — channel economics are per channel,
-            // not per genre × channel. See channels.ts.
-            const row = channelRow(ch);
-            const channelItem = channelGI?.inputs.find((item) => item.key === ch);
-            return (
-              <motion.button
-                key={ch}
-                onClick={() => {
-                  if (isLastOn) { playSfx('fail'); return; }
-                  // No backend item ⇒ nothing the server could resolve, so the
-                  // toggle is refused rather than writing an unsendable selection.
-                  if (!channelItem) { playSfx('fail'); return; }
-                  let ok = true;
-                  apply((s) => {
-                    // Binary, so the whole cost applies — but only when turning
-                    // ON. Switching a channel off is a refund and never gated.
-                    if (!on && !canSpend(s, channelItem.cost ?? 0, cashByProduct, cashBase)) {
-                      ok = false;
-                      s.toast = {
-                        id: 'cash-short-channel-' + ch,
-                        kind: 'warning',
-                        text: `Not enough cash to open ${CHANNEL_META[ch]?.name ?? ch}.`,
-                        until: Date.now() + 1900,
-                      };
-                      return;
-                    }
-                    toggleFinlitChannelAll(s, channelItem, channelMaxSelections);
-                  });
-                  playSfx(ok ? 'click-soft' : 'fail');
-                  if (!ok) return;
-                  // A button click has no separate interaction end.
-                  recalc?.(`channel toggled · ${channelItem.key}`);
-                }}
-                title={isLastOn ? 'You need at least one channel to sell through.' : undefined}
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.97 }}
-                transition={{ type: 'spring', stiffness: 340, damping: 20 }}
-                className={clsx(
-                  // On/off used to be carried by FILL ALONE — #D4ECDB against
-                  // #FBF6E9, two pale tints that read as the same light card,
-                  // while the readout chips inside stayed fully coloured in
-                  // BOTH states. So an "off" card still contained a green
-                  // tile, and clients could not tell the two apart.
-                  //
-                  // State is now four reinforcing signals, only one of which
-                  // is colour: accent BORDER, fill, a solid-vs-hollow badge
-                  // carrying a ✓/✕ GLYPH (so it survives colour-blindness and
-                  // greyscale), and desaturated art + muted chips when off.
-                  // INK FRAME EITHER WAY. An "off" switch is still a switch,
-                  // and RULE 5 gives every control the full 2px border — fading
-                  // it to /35 made an off channel look like a static card, which
-                  // is the opposite of the problem being solved. Same weight in
-                  // both states; only the COLOUR changes, plus fill, badge glyph
-                  // and desaturated art.
-                  'ctl-btn flex flex-col gap-2 p-3 border-2 text-left cursor-pointer transition-colors',
-                  on
-                    ? 'border-primary-strong bg-surface'
-                    : 'border-ink-900 bg-surface hover:bg-cream-100',
-                )}
-              >
-                {/* OFF fades the whole CONTENT in one move rather than
-                    bleaching each part separately. Per-element receding left
-                    the chips on almost no fill, which read as a missing
-                    background, and still needed a rule per element. The
-                    BORDER stays outside this wrapper at full strength - an
-                    off switch is still a control. */}
-                <div className={clsx('contents', !on && '[&>*]:opacity-60')}>
-                {/* ⚠ ART BESIDE THE TEXT, not stacked above it. This card had
-                    the image on its own row with the name and blurb beneath,
-                    while the spend levers two sections down put the art to the
-                    left of the same pair — two layouts for one kind of object.
-                    Image-beside is the shape everything converges on, through
-                    the levers and the hiring cards and on to the debrief
-                    slides, so this is the one that moved.
-
-                    `w-16 h-16` is the lever's size; it was `w-28 h-28`, which
-                    is what forced the stack in the first place.
-
-                    Text recedes with the card. Dimming only the ART left the
-                    name and the figures at full strength, so an off channel
-                    read as "available" rather than "not running". --c-text-3
-                    still measures ~10:1 on cream, so receding costs no
-                    legibility. */}
-                <div className="flex items-start gap-3">
-                  <img
-                    src={channelIcon(ch)}
-                    alt=""
-                    className={clsx(
-                      'w-16 h-16 object-contain shrink-0 transition-[filter,opacity]',
-                      !on && 'grayscale',
-                    )}
-                    style={{ imageRendering: 'pixelated' }}
-                    draggable={false}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="h3 uppercase text-ink-900">{CHANNEL_META[ch].name}</span>
-                      {/* Solid + ✓ when on, hollow + ✕ when off. The glyph is
-                          the part that still works in greyscale or at a
-                          glance. */}
-                      <span className={clsx(
-                        'shrink-0 inline-flex items-center gap-1 px-2 py-1 border-2',
-                        on
-                          ? 'bg-primary-strong border-primary-strong text-cream-50'
-                          : 'bg-transparent border-ink-900/40 text-text-3',
-                      )}>
-                        <span aria-hidden className="btn-label-sm leading-none">{on ? '✓' : '✕'}</span>
-                        <span className="eyebrow eyebrow-sm text-inherit">{on ? 'On' : 'Off'}</span>
-                      </span>
-                    </div>
-                    <p className="body-xs text-text-2 mt-1 measure">{CHANNEL_META[ch].blurb}</p>
-                  </div>
-                </div>
-
-                {/* The numbers you're actually choosing between get to look
-                    like values, not footnotes.
-
-                    Offline takes no consignment, and omitting the chip left a
-                    hole in that card where its siblings had a third row — it
-                    read as a rendering fault rather than as "this one is
-                    cheaper". "None" is the actual answer, and it's the whole
-                    reason to pick offline, so it says so. */}
-                {/* Chips carry their semantic tint only while the channel is
-                    ON. Tinted in both states they out-shouted the card's own
-                    state — a green "Per sale: None" tile sat inside every OFF
-                    card, which is exactly the colour that is supposed to mean
-                    "this one is running". */}
-                {/* Wraps rather than holding three fixed thirds — see the note
-                    on the same row in OperationsKit's detail modal. */}
-                <div className="flex flex-wrap gap-2 mt-auto">
-                  <StatChip className="grow basis-[104px]" label="Per phase" value={channelItem ? fmt$(channelItem.cost) : '–'} tone="money" />
-                  {/* A RATE on the selling price, not a dollar fee — retail's
-                      0.2 is 20% of every sale. `fmt$` rendered it "$0.20". */}
-                  <StatChip
-                    className="grow basis-[104px]"
-                    label="Per sale"
-                    value={row.consignment > 0 ? fmtPct(row.consignment) : 'None'}
-                    tone={row.consignment > 0 ? 'money' : 'good'}
-                  />
-                  {/* Opening a channel SPENDS ENERGY, and the card never said
-                      so — the only way to find out was to click and watch the
-                      meter drop, or be refused. Same expression the mutator
-                      charges (`item.energy || CHANNEL_ENERGY`), so the figure
-                      quoted here cannot disagree with what is taken. */}
-                  <StatChip
-                    className="grow basis-[104px]"
-                    label="Energy"
-                    value={channelItem ? <EnergyValue amount={channelEnergyCost(channelItem)} size={13} /> : '–'}
-                    tone="energy"
-                  />
-                </div>
-                </div>
-              </motion.button>
-            );
-          })}
-        </div>
-      </OpsSection>
-      )}
-
-      {shows('budget') && (
-      <OpsSection
-        icon={SECTION_ICON.budget}
-        title="Marketing Budget"
-        hint="Budget to grow, shown per phase. Set back to $0 to switch off and refund the energy."
-      >
-        {/* One per row — see the note on the channel grid above. */}
-        <div className="grid grid-cols-1 gap-3">
-          {marketingLevers.map((lv) => {
-            // At the cap, only levers already paid for stay editable, so the
-            // player can always wind one back down to free a slot.
-            const atCap = marketingActiveCount >= marketingMaxSelections && !lv.active;
+          {channelLevers.map((lv) => {
+            const atCap = channelActiveCount >= channelMaxSelections && !lv.active;
             return (
               <BudgetLever
                 key={lv.itemId}
-                // Keyed by the backend item's `key`, like the hiring portraits.
-                img={MARKETING_IMAGE[lv.item.key]}
-                label={lv.item.label ?? 'Marketing budget'}
-                hint={lv.item.description ?? 'Awareness - lifts DEMAND (more people want it).'}
+                label={lv.item.label ?? 'Channel'}
+                hint={lv.item.description ?? 'Where this notebook sells.'}
                 value={lv.idx}
                 max={Math.max(0, lv.stepKeys.length - 1)}
-                // stepLabel={lv.stepKey ?? '—'}
                 spend={lv.spend}
                 energy={lv.energy}
-                effectLabel="Level"
-                effect={`${lv.stepKey ?? '—'}`}
-                // The affordability decision belongs to the mutator, which knows
-                // the step it is moving TO and charges only the delta. Gating here
-                // on the CURRENT step's energy would let every move through, since
-                // the current step is free once already paid for.
+                fallbackIcon="sales"
+                effectLabel="Sell rate"
+                effect={lv.sellRate ? fmtPct(lv.sellRate) : '--'}
+                extraLabel="Per sale"
+                extra={lv.consignment > 0 ? fmtPct(lv.consignment) : 'None'}
+                extraTone={lv.consignment > 0 ? 'money' : 'good'}
                 canActivate={lv.stepKeys.length > 0 && !atCap}
                 onChange={(i) => {
                   const key = lv.stepKeys[i];
                   if (key == null) return;
-                  // Cash bounds the round. Only the DELTA against this lever's
-                  // current step is tested, so stepping back down is free.
                   const nextSpend = (lv.item.cost ?? 0) * (lv.item.options?.[key] ?? 0);
                   let ok = false;
                   apply((s) => {
                     if (!canSpend(s, nextSpend - lv.spend, cashByProduct, cashBase)) {
                       s.toast = {
-                        id: 'cash-short-marketing-' + lv.itemId,
+                        id: 'cash-short-channel-' + lv.itemId,
                         kind: 'warning',
-                        text: `Not enough cash for ${lv.item.label ?? 'marketing'} at that step.`,
+                        text: `Not enough cash for ${lv.item.label ?? 'that channel'} at that step.`,
                         until: Date.now() + 1900,
                       };
                       return;
                     }
-                    ok = setFinlitMarketingBudget(s, lv.item, key);
+                    ok = setFinlitLeverStep(s, 'channel', lv.item, key);
                   });
                   playSfx(ok ? 'tick' : 'fail');
                 }}
-                onCommit={() => recalc?.('marketing lever released')}
+                onCommit={() => recalc?.('channel lever released')}
               />
             );
           })}
         </div>
       </OpsSection>
       )}
+
 
       {shows('hiring') && (
       <OpsSection
@@ -972,11 +764,18 @@ function BudgetLever({
   effectLabel,
   effect,
   stepLabel,
+  extraLabel,
+  extra,
+  extraTone,
   fallbackIcon = 'megaphone',
   canActivate,
   onChange,
   onCommit,
 }: {
+  /** A second effect chip, for a step that buys more than one thing. */
+  extraLabel?: string;
+  extra?: React.ReactNode;
+  extraTone?: 'money' | 'good' | 'muted' | 'energy' | 'reach';
   /** Operator art from PlayerConfig, keyed by the backend item's `key`.
    *  Undefined renders the fallback icon, same as the hiring rows. */
   img?: string;
@@ -1042,15 +841,17 @@ function BudgetLever({
         </div>
       </div>
 
-      {/* Three chips, because dragging the slider used to change exactly one
-          number — the spend — and say nothing about what that money bought.
-          The effect chip is the whole point of the lever. */}
-      <div className="grid grid-cols-3 gap-2">
-        {/* `spend` is already a per-phase figure — the step's configured cost —
-            so it is NOT run through perPhase() the way the old daily-dollar
-            slider value was. */}
+      {/* The effect chips are the point of the lever: the slider otherwise
+          changes one number and says nothing about what it bought. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {/* `spend` is already a per-phase figure, the step's configured cost,
+            so it is NOT run through perPhase(). */}
         <StatChip label={`Spend / phase`} value={fmt$(spend)} tone={active ? 'money' : 'muted'} />
         <StatChip label={effectLabel} value={effect} tone={active ? 'good' : 'muted'} />
+        {/* A second effect, for a lever whose step buys more than one thing. */}
+        {extraLabel != null && (
+          <StatChip label={extraLabel} value={extra ?? '--'} tone={extraTone ?? 'money'} />
+        )}
         <StatChip
           label={active ? 'Running on' : 'To activate'}
           value={<EnergyValue amount={energy} size={13} />}

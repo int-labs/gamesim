@@ -621,11 +621,9 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
         }
 
         if (config.affects === "consignment") {
-          // `impactValue`, not `× effectiveMultiplier`: a channel is binary, so
-          // that term is always 1 here. Live data carries no per-product
-          // `selections[]` on this key, so `impactValue` is the base rate — but
-          // it is read through the same override path as everything else, so
-          // adding one later needs no change here.
+          // !important NOT scaled by the step: the cut a channel takes is a rate
+          // and does not change with how hard it is pushed. Its SHARE does,
+          // through `entryWeight` above, so more volume still pays more cut.
           entryRate += impactValue;
         }
       });
