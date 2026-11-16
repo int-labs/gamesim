@@ -1,0 +1,93 @@
+{
+  "component": {
+    "$description": "Component tokens: measurements specific to one component, exposed as CSS variables named --<component>-<property> (the 'component.' prefix is dropped). Values come from the final Figma screens and the Preline tokens they resolve to (research 08c, 08d, 08f).",
+    "sidebar": {
+      "width": { "$type": "dimension", "$value": "268px", "$description": "Sidebar width (admin and player)." },
+      "width-collapsed": { "$type": "dimension", "$value": "74px", "$description": "Collapsed icon rail." },
+      "padding": { "$type": "dimension", "$value": "{spacing.2_5}" },
+      "menu-padding": { "$type": "dimension", "$value": "{spacing.6}", "$description": "The sidebar opened as the small-screen menu (Figma drawer frames: 24)." },
+      "gap": { "$type": "dimension", "$value": "{spacing.4}" },
+      "account-height": { "$type": "dimension", "$value": "{spacing.10}", "$description": "The account chip: one line and the edit pencil (Figma 248x40)." },
+      "profile-height": { "$type": "dimension", "$value": "54px", "$description": "The account chip with a second line or an avatar (the player team card, Figma 248x54)." },
+      "item-height": { "$type": "dimension", "$value": "46px", "$description": "A navigation item: the highlighted link, on the full sidebar and the collapsed rail (Figma Item:margin 248x48 around a 240x46 link)." },
+      "item-radius": { "$type": "dimension", "$value": "{radius.md}", "$description": "Active item highlight radius." },
+      "item-padding-x": { "$type": "dimension", "$value": "{spacing.2}" },
+      "item-padding-x-collapsed": { "$type": "dimension", "$value": "13px", "$description": "Centres the 20 px icon in the 46 px item of the collapsed rail." },
+      "item-gap": { "$type": "dimension", "$value": "{spacing.3}", "$description": "Icon to label." },
+      "sub-item-height": { "$type": "dimension", "$value": "{spacing.9}" },
+      "sub-item-gap": { "$type": "dimension", "$value": "{spacing.1_5}", "$description": "Between sub items (Figma pitch 42 for 36 px items)." },
+      "sub-list-indent": { "$type": "dimension", "$value": "{spacing.6}", "$description": "Preline Navigations/Sidebar/List/Sub Dropdown Spacing X." },
+      "sub-list-gap": { "$type": "dimension", "$value": "{spacing.2_5}", "$description": "Between the divider and the sub items (Preline Navigations/Sidebar/List/Sub Dropdown Gap Between)." },
+      "divider-width": { "$type": "dimension", "$value": "2px", "$description": "The vertical rule beside a sub list (Preline Navigations/Sidebar/List/Divider Width)." },
+      "icon-size": { "$type": "dimension", "$value": "{spacing.5}" }
+    },
+    "kpi-bar": {
+      "padding-y": { "$type": "dimension", "$value": "{spacing.2}", "$description": "The player's KPI bar (Navbar Variant2 2097:161669): 8 above and below, 16 at the sides." },
+      "padding-x": { "$type": "dimension", "$value": "{spacing.4}" },
+      "gap": { "$type": "dimension", "$value": "{spacing.4}", "$description": "From the KPIs to the energy pill and Submit." },
+      "column-gap": { "$type": "dimension", "$value": "{spacing.4}", "$description": "The least room between two KPIs of the two-row bar; they spread apart when it is wider (Figma: 27 at 1172 px, 92 at 1366)." },
+      "row-height": { "$type": "dimension", "$value": "31px", "$description": "A row of KPIs (Figma rows 31 tall at y 0 and 52)." },
+      "row-gap": { "$type": "dimension", "$value": "10px", "$description": "Each side of the white line between the two rows." },
+      "action-width": { "$type": "dimension", "$value": "102px", "$description": "The energy pill and Submit, from 640 px (the desktop bar and the tablet top bar)." },
+      "action-width-phone": { "$type": "dimension", "$value": "72px", "$description": "The energy pill and Submit in the phone top bar (1370:60522)." },
+      "action-gap": { "$type": "dimension", "$value": "{spacing.3}" },
+      "delta-width": { "$type": "dimension", "$value": "52px", "$description": "The slot of a KPI's change badge, so the values line up." },
+      "delta-zero-bg": { "$type": "color", "$value": "{palette.gray.200}", "$description": "An unchanged KPI's badge (0%), and one without a figure (N/A)." },
+      "fold-padding-y": { "$type": "dimension", "$value": "{spacing.3}", "$description": "Below 1024 px: the Winning Metrics row, 12 above and below (Figma phone 1370:61191)." },
+      "tablet-padding-y": { "$type": "dimension", "$value": "18px", "$description": "From 1024 px: the two rows of chips, centred in Figma's 108 px bar (1369:59214: 12, and 6 more either side)." },
+      "chip-gap": { "$type": "dimension", "$value": "{spacing.2}", "$description": "Between the chips on tablets and phones." },
+      "group-gap": { "$type": "dimension", "$value": "{spacing.4}", "$description": "Under Winning Metrics: 16 from the company's figures to the line under them, and 16 after the 8 px gap before the segment's (the sheet 1370:60541)." },
+      "energy-over-bg": { "$type": "color", "$value": "{palette.red.200}", "$description": "The energy pill when the decisions cost more energy than is left (today's; Figma draws no such state)." }
+    },
+    "decision": {
+      "panel-padding": { "$type": "dimension", "$value": "{spacing.5}", "$description": "The player's 'Set Your Strategy Inputs' panel: slate 100, radius 16, 20 inside, the title 16 above the rows (Figma Frame 38752)." },
+      "panel-gap": { "$type": "dimension", "$value": "{spacing.4}" },
+      "panel-width": { "$type": "dimension", "$value": "640px", "$description": "The panel beside the product's charts on a desktop page (Figma: 640 fixed, the charts filling the rest)." },
+      "row-gap": { "$type": "dimension", "$value": "{spacing.3}", "$description": "From a decision row's line to the next row (Figma rows 830:87100)." },
+      "row-padding": { "$type": "dimension", "$value": "11px", "$description": "Under a row's content, to its line: Figma's 12, which draws the 1 px line inside it (a number row is 78 tall, a slider row 117)." },
+      "text-width": { "$type": "dimension", "$value": "300px", "$description": "A decision's title chip and description." },
+      "field-gap": { "$type": "dimension", "$value": "{spacing.8}", "$description": "At least this between the text and a field; the field sits at the end." },
+      "slider-width": { "$type": "dimension", "$value": "260px", "$description": "A slider, its ticks and its chips (Figma 832:92216)." },
+      "slider-gap": { "$type": "dimension", "$value": "{spacing.10}" },
+      "label-bg": { "$type": "color", "$value": "{palette.slate.200}", "$description": "The chip behind a decision's title." },
+      "label-width": { "$type": "dimension", "$value": "320px", "$description": "A decision's title and caption when it has a column per sub-product (Figma's ShopLink and GrowthLab rows, 2709:179069)." },
+      "columns-width": { "$type": "dimension", "$value": "620px", "$description": "A decision's columns share this (Figma 2709:179099): three of 174 or two of 285.5, 49 apart." },
+      "column-gutter": { "$type": "dimension", "$value": "{spacing.6}", "$description": "Each side of the 1 px line between two columns." },
+      "header-padding": { "$type": "dimension", "$value": "15px", "$description": "Under a section's header, to its line: Figma's 16, which draws the 1 px line inside it (2709:179051)." },
+      "tiles-gap": { "$type": "dimension", "$value": "{spacing.4}", "$description": "Between the segment card's tiles (Figma 870:34335)." },
+      "tile-min-width": { "$type": "dimension", "$value": "341px", "$description": "A tile at least: Figma's Training tile (870:34335), and 16, the figures, 32, today's narrowest field and 16. A narrower card puts fewer tiles in a row." },
+      "tile-gap": { "$type": "dimension", "$value": "{spacing.8}", "$description": "Between a tile's figures, its field or slider, and its chips." },
+      "tile-field-min-width": { "$type": "dimension", "$value": "105px", "$description": "A tile's field at least (today's 105); with less room it goes under the figures." },
+      "figures-width": { "$type": "dimension", "$value": "172px", "$description": "The read-only figures beside a tile's field (Figma 864:34269)." }
+    },
+    "slides": {
+      "padding": { "$type": "dimension", "$value": "{spacing.5}", "$description": "The frame around a slide deck (Figma slides viewer, 3344:153504): white, a black 16% edge, 12 px corners, 20 inside." },
+      "radius": { "$type": "dimension", "$value": "{radius.xl}" },
+      "gap": { "$type": "dimension", "$value": "{spacing.4}", "$description": "From the slide to Previous, the slide's number and Next under it." },
+      "slide-width": { "$type": "dimension", "$value": "809px", "$description": "The size a slide is laid out at (Figma's 16:9 card, 3344:153505). It grows to fit the frame, or the screen in full screen; on a computer it never shrinks below it, on a phone it fits the width." },
+      "slide-height": { "$type": "dimension", "$value": "455px" },
+      "slide-padding": { "$type": "dimension", "$value": "{spacing.4}" },
+      "slide-radius": { "$type": "dimension", "$value": "{radius.2xl}" },
+      "slide-gap": { "$type": "dimension", "$value": "{spacing.4}", "$description": "Between a slide's title, its content and its footer." },
+      "button-width": { "$type": "dimension", "$value": "120px", "$description": "Previous and Next (Figma: 120)." }
+    },
+    "page": {
+      "padding": { "$type": "dimension", "$value": "{spacing.4}", "$description": "Admin content padding." },
+      "gap": { "$type": "dimension", "$value": "{spacing.8}", "$description": "Between page blocks (admin)." },
+      "player-padding-x": { "$type": "dimension", "$value": "{spacing.6}" },
+      "player-padding-bottom": { "$type": "dimension", "$value": "{spacing.16}" },
+      "player-gap": { "$type": "dimension", "$value": "{spacing.6}" },
+      "content-max-width": { "$type": "dimension", "$value": "1150px", "$description": "Inner column of a 1440 frame (1140 to 1150 in Figma)." }
+    },
+    "app-shell": {
+      "height": { "$type": "dimension", "$value": "100dvh", "$description": "The frame's height: the window's. An app that zooms its page (CSS zoom scales viewport units with it) sets it to fill the window again, as calc(100dvh / zoom)." }
+    },
+    "card": {
+      "radius": { "$type": "dimension", "$value": "{radius.2xl}", "$description": "Chart cards, tables, panels." },
+      "radius-summary": { "$type": "dimension", "$value": "{radius.3xl}", "$description": "Admin summary cards (Frame 39111)." },
+      "radius-container": { "$type": "dimension", "$value": "{radius.4xl}", "$description": "Large containers: statement cards, login card, round detail." },
+      "padding": { "$type": "dimension", "$value": "{spacing.4}" },
+      "padding-lg": { "$type": "dimension", "$value": "{spacing.6}" }
+    }
+  }
+}

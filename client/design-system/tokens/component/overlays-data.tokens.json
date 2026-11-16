@@ -1,0 +1,151 @@
+{
+  "component": {
+    "tooltip": {
+      "padding-x": { "$type": "dimension", "$value": "{spacing.2_5}", "$description": "Preline Overlays/Tooltips/Spacing X." },
+      "padding-y": { "$type": "dimension", "$value": "{spacing.2}", "$description": "Preline Overlays/Tooltips/Spacing Y." },
+      "radius": { "$type": "dimension", "$value": "{radius.lg}", "$description": "The chart tooltip (3310:177953). The KPI tooltip (2184:242826) keeps Preline's 4 px default; one radius serves both." },
+      "max-width": { "$type": "dimension", "$value": "280px", "$description": "Figma's tooltips are one line; longer text wraps at this width." },
+      "gap": { "$type": "dimension", "$value": "{spacing.1}", "$description": "Between a chart tooltip's lines (Preline Overlays/Tooltips/Gap Between)." },
+      "offset": { "$type": "dimension", "$value": "11px", "$description": "From the anchor to the body: the KPI tooltip sits 11 px from its info icon, its beak's tip about 1.5 px from it." },
+      "arrow-width": { "$type": "dimension", "$value": "18.25px", "$description": "The beak (Figma Top and Bottom Beak): a sharp triangle 18.2 wide and 10.8 tall, its base 1.25 px inside the body, so 9.5 px of it shows." },
+      "arrow-height": { "$type": "dimension", "$value": "10.75px" },
+      "arrow-inset": { "$type": "dimension", "$value": "1.25px", "$description": "How far the beak's base sits inside the body, so no seam shows between them." },
+      "delay": { "$type": "duration", "$value": "100ms", "$description": "How long the pointer rests on the anchor before the tooltip opens: today's MUI tooltips' 100 ms. Focus opens it at once." }
+    },
+    "modal": {
+      "width": { "$type": "dimension", "$value": "520px", "$description": "Admin modals." },
+      "width-lg": { "$type": "dimension", "$value": "1025px", "$description": "Player event modal." },
+      "radius": { "$type": "dimension", "$value": "{radius.3xl}" },
+      "padding": { "$type": "dimension", "$value": "{spacing.8}" },
+      "gap": { "$type": "dimension", "$value": "{spacing.8}" },
+      "edge": { "$type": "color", "$value": "{palette.lime.100}", "$description": "The pale lime 2 px edge inside the modal (Figma: lime 100 fading to lime 50)." },
+      "edge-width": { "$type": "dimension", "$value": "2px" },
+      "action-width": { "$type": "dimension", "$value": "120px", "$description": "The destructive dialog's Cancel and Delete share one width." },
+      "confirm-width": { "$type": "dimension", "$value": "140px", "$description": "The confirming primary button (Start Round, Change Password)." }
+    },
+    "round-starting": {
+      "illustration-size": { "$type": "dimension", "$value": "236px", "$description": "Figma's drawing on the round's interstitial (2546:398410), 24 above its words." },
+      "width": { "$type": "dimension", "$value": "600px", "$description": "The interstitial's column; a narrower screen wraps the words." },
+      "ink": { "$type": "color", "$value": "#001434", "$description": "The drawing's outlines and dark fills, as Figma draws them." },
+      "accent": { "$type": "color", "$value": "#3d9cfb", "$description": "The drawing's blue (the hair and the lightbulb), as Figma draws it." }
+    },
+    "menu": {
+      "width": { "$type": "dimension", "$value": "210px", "$description": "Dropdown panel (Frame 38717): the first level of the Sort and Filter menus; a submenu hugs its labels." },
+      "offset": { "$type": "dimension", "$value": "{spacing.3}", "$description": "A menu opens 12 px below its trigger, and a submenu 12 px beside its menu, top to top with the row that opened it." },
+      "parent-item-height": { "$type": "dimension", "$value": "46px", "$description": "A row that opens a submenu: a 46 px highlight inset 4 px at the sides, 2 px above the next row, as the sidebar's items." },
+      "parent-item-width": { "$type": "dimension", "$value": "178px", "$description": "Its highlight is 178 wide, which makes the first level 210." },
+      "parent-item-inset": { "$type": "dimension", "$value": "{spacing.1}" },
+      "parent-item-radius": { "$type": "dimension", "$value": "{radius.md}" },
+      "parent-item-padding-x": { "$type": "dimension", "$value": "{spacing.2}" },
+      "padding": { "$type": "dimension", "$value": "{spacing.3}" },
+      "gap": { "$type": "dimension", "$value": "{spacing.1}" },
+      "radius": { "$type": "dimension", "$value": "{radius.xl}" },
+      "item-height": { "$type": "dimension", "$value": "{spacing.12}" },
+      "item-radius": { "$type": "dimension", "$value": "{radius.lg}" },
+      "item-padding-x": { "$type": "dimension", "$value": "{spacing.3}" },
+      "option-gap": { "$type": "dimension", "$value": "5px", "$description": "Between the options of a select's list (the Select Event list); the dropdown menu's items are 4 apart." },
+      "list-max-height": { "$type": "dimension", "$value": "400px", "$description": "A long list to type into stops at about eight options, the next one cut to show there are more." }
+    },
+    "alert": {
+      "radius": { "$type": "dimension", "$value": "{radius.xl}", "$description": "Preline Alert (Soft, Rounded), inline and in toasts." },
+      "padding": { "$type": "dimension", "$value": "{spacing.4}" },
+      "gap": { "$type": "dimension", "$value": "{spacing.2_5}", "$description": "Icon to message." }
+    },
+    "toast": {
+      "$description": "The Figma toasts (measured on the Admin and player screens): a soft fill, 12 px corners, no shadow, a 16/24 message 20 px after the icon, centred on the window near its bottom. The Admin shows the Preline soft alert; the player a bolder pill with the icon in a ringed circle.",
+      "radius": { "$type": "dimension", "$value": "{radius.xl}", "$description": "Preline Alert (Soft, Rounded)." },
+      "padding": { "$type": "dimension", "$value": "{spacing.4}", "$description": "Admin: 16 all round." },
+      "padding-y-player": { "$type": "dimension", "$value": "{spacing.2}", "$description": "Player: 8 above and below the ringed icon." },
+      "gap": { "$type": "dimension", "$value": "{spacing.5}", "$description": "Icon to message." },
+      "offset": { "$type": "dimension", "$value": "{spacing.10}", "$description": "Above the bottom of the window (42 in the Admin frames, 30 in the player's)." },
+      "max-width": { "$type": "dimension", "$value": "{container.lg}", "$description": "A toast hugs its message up to this width, then wraps." },
+      "border-width-player": { "$type": "dimension", "$value": "2px" },
+      "ring-size": { "$type": "dimension", "$value": "38px", "$description": "The player's icon circle." },
+      "ring-width": { "$type": "dimension", "$value": "5px", "$description": "The pale ring around the player's icon." },
+      "duration": { "$type": "duration", "$value": "2000ms", "$description": "Figma note: alerts disappear after 2 seconds." },
+      "success-text": { "$type": "color", "$value": "{palette.teal.700}", "$description": "The message on the success fill (4.9:1); the icon keeps success.soft-fg." },
+      "success-border-player": { "$type": "color", "$value": "{palette.teal.500}" },
+      "success-ring": { "$type": "color", "$value": "{palette.teal.50}" },
+      "danger-text": { "$type": "color", "$value": "{palette.red.700}", "$description": "5.3:1 on the danger fill." },
+      "danger-ring": { "$type": "color", "$value": "{palette.red.50}" },
+      "info-text": { "$type": "color", "$value": "{palette.blue.700}", "$description": "Figma's customised blue 700 (7.1:1); the icon is the brand blue (fg.info)." },
+      "info-ring": { "$type": "color", "$value": "{palette.blue.50}" },
+      "warning-text": { "$type": "color", "$value": "{palette.yellow.700}", "$description": "Not in the Figma file (its warnings are red); 4.6:1 on the warning fill." },
+      "warning-ring": { "$type": "color", "$value": "{palette.yellow.50}" }
+    },
+    "table": {
+      "cell-padding-x": { "$type": "dimension", "$value": "{spacing.5}", "$description": "Preline Table/Cell Spacing X." },
+      "cell-padding-y": { "$type": "dimension", "$value": "{spacing.3}", "$description": "Preline Table/Cell Spacing Y." },
+      "row-height": { "$type": "dimension", "$value": "52px" },
+      "row-height-compact": { "$type": "dimension", "$value": "{spacing.10}", "$description": "A compact table (a slide's, a dense list): 40 px rows, 12 px at the sides, 14/20 text." },
+      "cell-padding-x-compact": { "$type": "dimension", "$value": "{spacing.3}" },
+      "radius": { "$type": "dimension", "$value": "{radius.xl}", "$description": "The table's frame, which clips the header's top corners." },
+      "link-width": { "$type": "dimension", "$value": "30px", "$description": "The row's arrow: a 30 x 26 ghost button with the 14 px arrow 8 px from its left, 20 px into the last column." },
+      "link-height": { "$type": "dimension", "$value": "26px" },
+      "link-shift": { "$type": "dimension", "$value": "{spacing.2_5}", "$description": "How far a row's arrow moves right while the row is hovered." },
+      "search-width": { "$type": "dimension", "$value": "340px", "$description": "The list toolbar's search field." },
+      "scrollbar-track": { "$type": "color", "$value": "#fafafa", "$description": "The Figma table's scrollbar (the macOS one): track, the line along its inner edge and the 8 px thumb." },
+      "scrollbar-line": { "$type": "color", "$value": "#e8e8e8" },
+      "scrollbar-thumb": { "$type": "color", "$value": "#c1c1c1" },
+      "gap": { "$type": "dimension", "$value": "{spacing.2_5}", "$description": "Preline Table/Cell Gap Between." }
+    },
+    "statement": {
+      "radius": { "$type": "dimension", "$value": "{radius.2xl}", "$description": "The statement tables' frame (Figma Tables 904:131713): a gray 200 edge inside, clipped, the default drop shadow." },
+      "row-height": { "$type": "dimension", "$value": "44px", "$description": "Figma's statement rows and header." },
+      "cell-padding-y": { "$type": "dimension", "$value": "9.5px", "$description": "A line of 16/24 and the 1 px rule fill the 44 px row, as Figma's; a label that wraps grows its row." },
+      "value-width": { "$type": "dimension", "$value": "164px", "$description": "Figma's figure columns; a narrower table narrows them to their figures." },
+      "label-min-width": { "$type": "dimension", "$value": "220px", "$description": "The labels' column never narrower than today's statements' 220; short of it the table scrolls sideways, the labels kept in view." },
+      "indent": { "$type": "dimension", "$value": "{spacing.5}", "$description": "A line under a parent (Salary under Operating Expense) sits 20 further in per level, in italic." },
+      "gap-height": { "$type": "dimension", "$value": "22px", "$description": "The slate 200 band that parts a statement's groups (Figma's spacer row)." }
+    },
+    "initiative": {
+      "radius": { "$type": "dimension", "$value": "{radius.2xl}", "$description": "The initiative table's frame and its history's (Figma 2101:491037, 2101:486664): a gray 200 edge inside, clipped." },
+      "header-height": { "$type": "dimension", "$value": "44px", "$description": "The picker's header: Regular 14/20 with 12 above and below. The history's is 48, in SemiBold 16/24." },
+      "history-header-height": { "$type": "dimension", "$value": "48px" },
+      "max-height": { "$type": "dimension", "$value": "484px", "$description": "The picker scrolls within Figma's 484, its header kept in view (today's 530)." },
+      "min-width": { "$type": "dimension", "$value": "650px", "$description": "The picker's columns need today's 650: short of it the table scrolls sideways, and on a phone its rows stack." },
+      "check-width": { "$type": "dimension", "$value": "52px", "$description": "The check column: 16 before the 28 box and 8 after it." },
+      "name-width": { "$type": "dimension", "$value": "320px" },
+      "cost-width": { "$type": "dimension", "$value": "104px", "$description": "20, a 64 chip, 20." },
+      "chip-width": { "$type": "dimension", "$value": "64px", "$description": "The cost and energy chips, flat, stacked 10 apart." },
+      "history-column-width": { "$type": "dimension", "$value": "210px", "$description": "The history's round and date columns; the initiatives take the rest." },
+      "chosen-bg": { "$type": "color", "$value": "{palette.slate.200}", "$description": "A chosen initiative's row, every cell of it (Figma 2107:219929); the box stays white." }
+    },
+    "chart": {
+      "plot-height": { "$type": "dimension", "$value": "270px", "$description": "Preline Charts/Bar Chart/Chart Content Height." },
+      "plot-inset": { "$type": "dimension", "$value": "12px", "$description": "The top grid line's distance from the top of the plot: centred in the 24 px row of its label, as Figma draws it." },
+      "axis-gap": { "$type": "dimension", "$value": "{spacing.2_5}", "$description": "Y labels to the plot, and the plot to the x labels (Preline Charts/Bar Chart/Spacing Between)." },
+      "bar-max-width": { "$type": "dimension", "$value": "40px", "$description": "A bar is three tenths of its team's column (Figma: 25 px in 85), up to this on wide cards." },
+      "bar-gap": { "$type": "dimension", "$value": "{spacing.2_5}" },
+      "stack-max-width": { "$type": "dimension", "$value": "64px", "$description": "A stacked bar is two fifths of its team's column, up to this, so the values written inside it fit." },
+      "segment-min-height": { "$type": "dimension", "$value": "20px", "$description": "A stacked bar's segment shorter than its value's line (14/20) gives its value in the tooltip only." },
+      "legend-dot": { "$type": "dimension", "$value": "{spacing.2}", "$description": "A series' dot in the legend (Figma _legend-indicator: 8 px, round)." },
+      "legend-gap": { "$type": "dimension", "$value": "{spacing.5}", "$description": "Between the legend's series (Figma 5204:98482: 20)." },
+      "legend-item-gap": { "$type": "dimension", "$value": "{spacing.2_5}", "$description": "A series' dot to its name." },
+      "legend-offset": { "$type": "dimension", "$value": "{spacing.4}", "$description": "From the chart to its legend under it." },
+      "legend-swatch-width": { "$type": "dimension", "$value": "29px", "$description": "A bar series' swatch in the legend over the plot (Figma's charge-offs, 5204:98482: 29 x 15)." },
+      "legend-swatch-height": { "$type": "dimension", "$value": "15px" },
+      "plot-height-sm": { "$type": "dimension", "$value": "140px", "$description": "The plot of a chart beside the player's decisions (Figma's charge-offs, 5204:98482: 141 in its 294 card)." },
+      "histogram-gap": { "$type": "dimension", "$value": "{spacing.0_5}", "$description": "Between the combo chart's bars, which fill their columns (Figma: 2)." },
+      "line-width": { "$type": "dimension", "$value": "2px", "$description": "A line series. Figma draws 1 px; 2 reads where the line crosses the bars." },
+      "point-size": { "$type": "dimension", "$value": "{spacing.1_5}", "$description": "A point on a line series, in its colour inside a white edge (Figma's Pointer: 6 px)." },
+      "horizontal-bar-height": { "$type": "dimension", "$value": "60px", "$description": "A horizontal bar (Figma's Account, 5204:98482: 60 tall)." },
+      "horizontal-bar-gap": { "$type": "dimension", "$value": "{spacing.4}", "$description": "Inside the axis lines, above and below each horizontal bar and between two (Figma: 16 above and below the Account bar)." },
+      "row-label-width": { "$type": "dimension", "$value": "72px", "$description": "A horizontal bar's name, at its start, wraps within this: Figma's \"Number of Accounts\" on two lines." },
+      "donut-size": { "$type": "dimension", "$value": "141px", "$description": "The donut (Figma's Revenue Breakdown, 2193:396973: 141 across, its ring a quarter of that radius)." },
+      "donut-gap": { "$type": "dimension", "$value": "6px", "$description": "Between two of the donut's segments, along the middle of its ring (Figma: about 5 degrees, 6 px there)." },
+      "donut-legend-gap": { "$type": "dimension", "$value": "{spacing.16}", "$description": "The donut to its legend beside it (Figma: 64)." },
+      "donut-legend-row-gap": { "$type": "dimension", "$value": "{spacing.2}", "$description": "Between the series of the legend beside the donut (Figma: 8)." }
+    },
+    "heat": {
+      "$description": "A table value's place in its row, in today's revenue table's four bands (green, lime, orange, red), a shade lighter so the value reads on it.",
+      "high": { "$type": "color", "$value": "{palette.green.300}", "$description": "Near the top of its row: a score over 0.85." },
+      "good": { "$type": "color", "$value": "{palette.lime.300}", "$description": "A score over 0.6." },
+      "fair": { "$type": "color", "$value": "{palette.orange.300}", "$description": "A score over 0.3." },
+      "low": { "$type": "color", "$value": "{palette.red.300}", "$description": "Near the bottom of its row." }
+    },
+    "round-chip": {
+      "height": { "$type": "dimension", "$value": "31px", "$description": "'Round: 1' chip under the player wordmark (Frame 38965)." }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+/* Self-hosted fonts (decision D17). Each file declares its subsets with a unicode-range, so the
+   browser downloads a file only when the page uses that weight and one of its characters. */
+
+/* Source Sans 3: all UI text. One variable file covers every weight; italic is for hints. */
+@import "@fontsource-variable/source-sans-3/wght.css";
+@import "@fontsource-variable/source-sans-3/wght-italic.css";
+
+/* Poppins: titles, tabs, KPI numbers, wordmarks. Static files, only the weights the design uses:
+   light (round timer), regular, medium, semibold, extrabold (player wordmark), black (wordmark). */
+@import "@fontsource/poppins/300.css";
+@import "@fontsource/poppins/400.css";
+@import "@fontsource/poppins/500.css";
+@import "@fontsource/poppins/600.css";
+@import "@fontsource/poppins/800.css";
+@import "@fontsource/poppins/900.css";
+
+/* Thai, which neither family covers (the clients ship a Thai translation). */
+@import "@fontsource-variable/noto-sans-thai/wght.css";
+
+/* Arial resized to each web font's metrics, used until the web font arrives. */
+@import "./generated/font-fallbacks.css";

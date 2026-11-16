@@ -2,7 +2,7 @@
 # DOCKERFILE FOR SINGLE SERVICE (Frontend + Backend)
 # File: Dockerfile
 # =============================================================================
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Install system dependencies
 RUN apk add --no-cache curl
@@ -14,6 +14,8 @@ WORKDIR /app
 # =============================================================================
 # Copy and install client dependencies
 COPY client/package*.json ./client/
+# The design system is a file: dependency, so npm ci needs it present
+COPY client/design-system/ ./client/design-system/
 RUN cd client && npm ci
 
 # Copy client source and build

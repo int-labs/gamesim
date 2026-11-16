@@ -1,0 +1,34 @@
+/* The design system's stylesheet: the tokens, the Tailwind utilities they allow, the fonts, and the
+   reset and base styles. Import it once, from the app's CSS entry, instead of "tailwindcss":
+
+     @import "@stratagem/design-system/styles.css";
+
+   The reset and base styles apply only inside [data-ds-root]: put the attribute on <html> in an
+   app without MUI, or on the root of each migrated screen while MUI is still on the page. The
+   design system's popups (dialogs, menus, tooltips, selects, toasts) carry it on their portals,
+   so they are styled wherever they open. */
+
+/* Cascade order. "mui" stays empty unless MUI's enableCssLayer fills it; naming it here keeps
+   MUI's styles below the design system's components and utilities while both are on a page. */
+@layer theme, base, mui, components, utilities;
+
+@import "./generated/theme.css" layer(theme);
+@import "./generated/utilities.css";
+@import "./generated/preflight.css" layer(base);
+@import "./base.css";
+@import "./fonts.css";
+@import "./variants.css";
+@import "./effects.css";
+@import "./components.css";
+
+/* Tailwind's utilities (what "tailwindcss/utilities.css" contains, written here so the app's
+   Tailwind compiles it without resolving the tailwindcss package from this folder). */
+@layer utilities {
+  @tailwind utilities;
+}
+
+/* The classes the design system's own components use. Stories and tests are not shipped. */
+@source "../";
+@source not "../**/*.stories.tsx";
+@source not "../**/*.test.ts";
+@source not "../**/*.test.tsx";

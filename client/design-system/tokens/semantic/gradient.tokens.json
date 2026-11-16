@@ -1,0 +1,42 @@
+{
+  "gradient": {
+    "$type": "gradient",
+    "$description": "Gradients, written as CSS background images (the build keeps them as strings; references to palette colours are resolved). Each becomes a utility bg-gradient-<name>. Values are read from the Figma nodes (gradient transforms converted to CSS angles).",
+    "wordmark": {
+      "$value": "linear-gradient(90deg, {palette.brand.wordmark-start} 0%, {palette.brand.wordmark-end} 100%)",
+      "$description": "Wordmark text fill ('intlabs.', 'LIFE Bank.'): pink to blue, left to right."
+    },
+    "sheen": {
+      "$value": "linear-gradient(180deg, #ffffff3d 0%, #ffffff00 100%)",
+      "$description": "The white sheen over solid buttons (btnPublish: a white-to-pink gradient at 24% over the fill, which reads as white 24% fading out)."
+    },
+    "sheen-hover": {
+      "$value": "linear-gradient(180deg, #f86faa52 0%, #f9137d52 100%)",
+      "$description": "The hover sheen of the primary button (btnPublish Variant9: #f86faa to #f9137d at 32%)."
+    },
+    "rim": {
+      "$value": "linear-gradient(180deg, #ffffff40 0%, #ffffff00 100%)",
+      "$description": "The 3 px inner highlight rim of solid buttons ('1px Highlight' stroke: white 25% to 0%)."
+    },
+    "glow": {
+      "$value": "linear-gradient(180deg, {palette.brand.glow-violet} 0%, {palette.brand.glow-orchid} 100%)",
+      "$description": "The blurred blobs behind the primary button ('Background Blur', 5% at rest, 32% on hover)."
+    },
+    "indigo": {
+      "$value": "linear-gradient(180deg, {palette.brand.indigo-bright} 0%, {palette.brand.indigo} 100%)",
+      "$description": "The indigo button fill (Figma 'Primary button', unused in the final screens)."
+    },
+    "kpi-bar": {
+      "$value": "linear-gradient(180deg, #cbd5e127 0%, #f1f5f900 49.362%, #cbd5e169 49.656%, #f1f5f9a3 100.09%)",
+      "$description": "The player KPI bar over white (Navbar Variant2): slate 300 at 15% fading out, then a hard stop about halfway that greys the second row (slate 300 at 41% to slate 100 at 64%). Today's KPI bar uses the same stops."
+    },
+    "chart-area-blue": {
+      "$value": "linear-gradient(180deg, #3b82f6 0%, #3b82f600 100%)",
+      "$description": "Area chart fill (blue)."
+    },
+    "chart-area-teal": {
+      "$value": "linear-gradient(180deg, {palette.teal.500} 0%, #14b8a600 100%)",
+      "$description": "Area chart fill (teal)."
+    }
+  }
+}

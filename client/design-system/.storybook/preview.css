@@ -1,0 +1,5 @@
+/* The design system's stylesheet, plus the classes the stories and the workbench's own
+   documentation blocks use (the package stylesheet scans only src/). */
+@import "../src/styles/index.css";
+
+@source "../stories";

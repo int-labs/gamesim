@@ -1,0 +1,6 @@
+# Build and test output of the design system (node_modules, dist and coverage are ignored at the root).
+storybook-static/
+test-results/
+playwright-report/
+blob-report/
+*.tsbuildinfo

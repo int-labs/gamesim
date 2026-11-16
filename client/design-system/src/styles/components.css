@@ -1,0 +1,433 @@
+/* Component recipes that utilities cannot express: CSS variables set by Base UI at run time (swipe
+   distances, panel heights), and transitions that give properties different durations. Every value
+   comes from a token. */
+
+/* A sheet sliding in from the left (the mobile sidebar): follows the finger while it is swiped,
+   and slides in and out otherwise (pair it with motion-reduce:transition-none). */
+@utility sheet-left {
+  transform: translateX(var(--drawer-swipe-movement-x, 0));
+  transition: transform var(--transition-duration-base) var(--ease-standard);
+
+  &[data-swiping] {
+    transition-duration: var(--transition-duration-instant);
+    user-select: none;
+  }
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    transform: translateX(-100%);
+  }
+}
+
+/* The dimmed page behind a sheet or dialog: fades with the sheet as it is swiped away. */
+@utility scrim {
+  opacity: calc(1 - var(--drawer-swipe-progress, 0));
+  transition: opacity var(--transition-duration-base) var(--ease-standard);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+  }
+}
+
+/* A toast: rises in, follows the finger while it is swiped, and leaves the way it was swiped
+   (Base UI sets the swipe variables and direction). Pair it with motion-reduce:transition-none. */
+@utility toast-motion {
+  transform: translate(var(--toast-swipe-movement-x, 0), var(--toast-swipe-movement-y, 0));
+  transition:
+    transform var(--transition-duration-base) var(--ease-standard),
+    opacity var(--transition-duration-base) var(--ease-standard);
+
+  &[data-swiping] {
+    transition-duration: var(--transition-duration-instant);
+    user-select: none;
+  }
+
+  &[data-starting-style] {
+    opacity: 0;
+    transform: translateY(var(--spacing-2));
+  }
+
+  &[data-ending-style] {
+    opacity: 0;
+  }
+
+  &[data-ending-style][data-swipe-direction="down"] {
+    transform: translateY(calc(var(--toast-swipe-movement-y, 0px) + 100%));
+  }
+
+  &[data-ending-style][data-swipe-direction="right"] {
+    transform: translateX(calc(var(--toast-swipe-movement-x, 0px) + 100%));
+  }
+}
+
+/* A dialog: fades and settles in, and fades out (the Figma modal animates in over 200 ms). */
+@utility dialog-motion {
+  transition:
+    opacity var(--transition-duration-fast) var(--ease-standard),
+    transform var(--transition-duration-fast) var(--ease-standard);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* A floating list or menu: grows from its anchor and fades (Base UI sets the origin). */
+@utility popover-motion {
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--transition-duration-fast) var(--ease-standard),
+    transform var(--transition-duration-fast) var(--ease-standard);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* A tooltip's beak (Figma Top and Bottom Beak): drawn pointing up, its base inside the body so no
+   seam shows. Base UI centres it on the anchor along the side; here it moves to the side the
+   tooltip opened on and turns to point at the anchor. Turned a quarter, its box keeps its layout
+   size, so the sideways offsets count from the box's centre. */
+@utility tooltip-arrow {
+  width: var(--tooltip-arrow-width);
+  height: var(--tooltip-arrow-height);
+
+  &[data-side="bottom"] {
+    top: calc(var(--tooltip-arrow-inset) - var(--tooltip-arrow-height));
+  }
+
+  &[data-side="top"] {
+    bottom: calc(var(--tooltip-arrow-inset) - var(--tooltip-arrow-height));
+    rotate: 180deg;
+  }
+
+  &[data-side="right"] {
+    left: calc(var(--tooltip-arrow-inset) - var(--tooltip-arrow-height) / 2 - var(--tooltip-arrow-width) / 2);
+    rotate: -90deg;
+  }
+
+  &[data-side="left"] {
+    right: calc(var(--tooltip-arrow-inset) - var(--tooltip-arrow-height) / 2 - var(--tooltip-arrow-width) / 2);
+    rotate: 90deg;
+  }
+}
+
+/* A chart's bar. Its top and height come from the data, set as variables where it is drawn: it
+   grows in from the zero line when it first appears, one bar after another (--bar-delay), and
+   moves to each new value. Pair it with motion-reduce:transition-none. */
+@utility chart-bar {
+  top: var(--bar-top);
+  height: var(--bar-height);
+  transition:
+    top var(--transition-duration-slow) var(--ease-standard) var(--bar-delay, 0ms),
+    height var(--transition-duration-slow) var(--ease-standard) var(--bar-delay, 0ms),
+    filter var(--transition-duration-fast) var(--ease-standard);
+
+  /* stylelint-disable no-invalid-position-declaration -- nested rules of the utility's own class */
+  @starting-style {
+    top: var(--bar-zero);
+    height: 0;
+  }
+  /* stylelint-enable no-invalid-position-declaration */
+}
+
+/* chart-bar on its side, for a horizontal bar's segment: its start and width come from the data
+   (--bar-start, --bar-width); it grows in from the zero line (--bar-zero) and moves to each new
+   value. Pair it with motion-reduce:transition-none. */
+@utility chart-bar-horizontal {
+  left: var(--bar-start);
+  width: var(--bar-width);
+  transition:
+    left var(--transition-duration-slow) var(--ease-standard) var(--bar-delay, 0ms),
+    width var(--transition-duration-slow) var(--ease-standard) var(--bar-delay, 0ms),
+    filter var(--transition-duration-fast) var(--ease-standard);
+
+  /* stylelint-disable no-invalid-position-declaration -- nested rules of the utility's own class */
+  @starting-style {
+    left: var(--bar-zero);
+    width: 0;
+  }
+  /* stylelint-enable no-invalid-position-declaration */
+}
+
+/* A donut's segment: a stroke along the middle of the ring, its length and where it starts coming
+   from the data (--arc-length, --arc-offset; --arc-rest is the rest of the ring). It grows in from
+   its start and moves to each new value. Pair it with motion-reduce:transition-none. */
+@utility chart-arc {
+  stroke-dasharray: var(--arc-length) var(--arc-rest);
+  stroke-dashoffset: var(--arc-offset);
+  transition:
+    stroke-dasharray var(--transition-duration-slow) var(--ease-standard) var(--arc-delay, 0ms),
+    stroke-dashoffset var(--transition-duration-slow) var(--ease-standard) var(--arc-delay, 0ms),
+    filter var(--transition-duration-fast) var(--ease-standard);
+
+  /* stylelint-disable no-invalid-position-declaration -- nested rules of the utility's own class */
+  @starting-style {
+    stroke-dasharray: 0 var(--arc-ring);
+  }
+  /* stylelint-enable no-invalid-position-declaration */
+}
+
+/* A value axis's name up the side of a chart ("Growth in Deposits"), read from the bottom up. */
+@utility chart-axis-label {
+  writing-mode: vertical-rl;
+  rotate: 180deg;
+}
+
+/* The KPI bar's columns, which KpiBar works out from its figures and sets as variables: one set
+   for tablets (the chips) and one for the desktop bar, whose figures are laid out differently. */
+@utility kpi-columns {
+  grid-template-columns: var(--kpi-columns);
+
+  /* stylelint-disable no-invalid-position-declaration -- nested rules of the utility's own class */
+  @variant xl {
+    grid-template-columns: var(--kpi-columns-xl);
+  }
+  /* stylelint-enable no-invalid-position-declaration */
+}
+
+/* The underline under the active tab: slides to it (Base UI measures the tab). */
+@utility tab-indicator {
+  left: var(--active-tab-left);
+  width: var(--active-tab-width);
+  transition:
+    left var(--transition-duration-base) var(--ease-standard),
+    width var(--transition-duration-base) var(--ease-standard);
+}
+
+/* A strip of tabs that do not fit: it scrolls sideways within itself, without a scrollbar under the
+   rule, and a swipe that reaches its end does not move the page. */
+@utility tabs-scroller {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* A select's list: at least as wide as its field, and never taller than the room left on screen. */
+@utility select-popup {
+  min-width: var(--anchor-width);
+  max-height: var(--available-height);
+  overflow-y: auto;
+}
+
+/* A combobox's list: at least as wide as its field, and no taller than about eight options or the
+   room left on screen. The list inside scrolls, so what follows it (how many more match) stays. */
+@utility combobox-popup {
+  display: flex;
+  flex-direction: column;
+  min-width: var(--anchor-width);
+  max-height: min(var(--available-height), var(--menu-list-max-height));
+}
+
+/* A field's message (a number refused): at most its token's width, and never wider than the room
+   on screen, which Base UI measures. */
+@utility field-message {
+  max-width: min(var(--number-field-message-max-width), var(--available-width));
+}
+
+/* A slider (Slider). The thumb's centre travels between two insets from the rail's ends: half a
+   thumb when the marks are numbers, so the thumb stays on the rail (Figma 832:87599), and half a
+   mark's column when they are words, so each word sits over its tick (1368:48785). Slider sets
+   the numbers: how many marks (--slider-marks), and where the fill starts and ends as shares of
+   the scale, from 0 to 1 (--slider-fill-start, --slider-fill-end). */
+@utility slider-inset-thumb {
+  --slider-inset: calc(var(--slider-thumb-size) / 2);
+}
+
+@utility slider-inset-column {
+  --slider-inset: calc(50% / var(--slider-marks));
+}
+
+/* The control's content box is the scale, so Base UI maps the pointer onto it; the rail runs on to
+   the control's edges, level with the thumb's centre. */
+@utility slider-control {
+  padding-inline: var(--slider-inset);
+}
+
+@utility slider-rail {
+  top: calc(var(--slider-thumb-size) / 2);
+  translate: 0 -50%;
+}
+
+/* The indigo fill between two values. From an end of the scale it runs on to the rail's end, which
+   rounds it. */
+@utility slider-fill {
+  inset-inline:
+    calc(var(--slider-inset) + (100% - 2 * var(--slider-inset)) * var(--slider-fill-start))
+    calc(var(--slider-inset) + (100% - 2 * var(--slider-inset)) * (1 - var(--slider-fill-end)));
+
+  &[data-from-start] {
+    inset-inline-start: 0;
+  }
+
+  &[data-to-end] {
+    inset-inline-end: 0;
+  }
+}
+
+/* The marks: a column each, centred on the thumb's stops, so the row reaches half a step past the
+   scale at each end. The ticks start 8 under the rail, a pixel into the thumb's row, as Figma's
+   69 px slider draws them. */
+@utility slider-marks {
+  grid-template-columns: repeat(var(--slider-marks), minmax(0, 1fr));
+  margin-inline: calc(-50% / (var(--slider-marks) - 1));
+  margin-top: calc(var(--slider-track-height) / 2 + var(--slider-marker-offset) - var(--slider-thumb-size) / 2);
+}
+
+/* A word under its tick may reach past its column by the gap under the tick (Figma's "Very Low" is
+   55 wide in a 52 column) before it wraps. */
+@utility slider-word {
+  max-width: calc(100% + var(--slider-label-gap));
+}
+
+/* The segment card's tiles (DecisionTiles): as many in a row as the segment's columns
+   (--decision-tiles-columns, which the card sets), each at least a tile's width, so a narrower card
+   takes fewer and a phone takes one. Tracks stay when there are fewer tiles, as today's grid. */
+@utility decision-tiles {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      min(
+        100%,
+        max(
+          var(--decision-tile-min-width),
+          (100% - (var(--decision-tiles-columns) - 1) * var(--decision-tiles-gap)) / var(--decision-tiles-columns)
+        )
+      ),
+      1fr
+    )
+  );
+}
+
+/* A menu: never taller than the room left on screen (a submenu hugs its labels, unlike a select's list). */
+@utility menu-popup {
+  max-height: var(--available-height);
+  overflow-y: auto;
+}
+
+/* The scrollbar of the Figma table (the macOS one): a pale track with a line along its inner edge
+   and an 8 px rounded thumb. The vertical track starts under the sticky header, whose slate runs on
+   over the gutter, as Figma draws it. Chrome ignores these WebKit parts wherever scrollbar-color
+   is set, inherited too, so it is reset here and given only to browsers without them (Firefox). */
+@utility table-scrollbar {
+  scrollbar-color: initial;
+
+  @supports not selector(::-webkit-scrollbar) {
+    /* stylelint-disable-next-line no-invalid-position-declaration -- a nested rule of the utility's own class */
+    scrollbar-color: var(--table-scrollbar-thumb) var(--table-scrollbar-track);
+  }
+
+  &::-webkit-scrollbar {
+    width: 15px;
+    height: 15px;
+    background-color: var(--color-surface-header);
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: var(--table-scrollbar-track);
+  }
+
+  &::-webkit-scrollbar-track:vertical {
+    margin-top: var(--table-header-height, var(--table-row-height));
+    border-left: 1px solid var(--table-scrollbar-line);
+  }
+
+  &::-webkit-scrollbar-track:horizontal {
+    border-top: 1px solid var(--table-scrollbar-line);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border: 4px solid transparent;
+    border-radius: var(--radius-full);
+    background-color: var(--table-scrollbar-thumb);
+    background-clip: padding-box;
+  }
+
+  &::-webkit-scrollbar-thumb:vertical {
+    border-right-width: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:horizontal {
+    border-bottom-width: 3px;
+  }
+
+  &::-webkit-scrollbar-corner {
+    background-color: var(--table-scrollbar-track);
+  }
+}
+
+/* The initiative table's scrolling body (InitiativeTable): Figma's 484, its scrollbar starting
+   under the 44 px header. On a phone the rows stack and the page scrolls them, not the table. */
+@utility initiative-scroller {
+  --table-header-height: var(--initiative-header-height);
+
+  /* stylelint-disable no-invalid-position-declaration -- nested rules of the utility's own class */
+  @variant sm {
+    max-height: var(--initiative-max-height);
+  }
+  /* stylelint-enable no-invalid-position-declaration */
+}
+
+/* An initiative's row on a phone (InitiativeTable): the box, and beside it the name, the
+   description and the chips one under another, rather than four columns to scroll across. */
+@utility initiative-row {
+  /* stylelint-disable no-invalid-position-declaration -- nested rules of the utility's own class */
+  @variant max-sm {
+    display: grid;
+    grid-template-columns: var(--initiative-check-width) minmax(0, 1fr);
+  }
+  /* stylelint-enable no-invalid-position-declaration */
+}
+
+/* A statement's label (StatementTable): the cell's 20 px, and 20 more per level under a parent
+   (--statement-level, set on the cell). */
+@utility statement-indent {
+  padding-inline-start: calc(var(--table-cell-padding-x) + var(--statement-indent) * var(--statement-level, 0));
+}
+
+/* A panel that opens and closes by its height (Base UI Collapsible measures it). */
+@utility collapse-height {
+  height: var(--collapsible-panel-height);
+  overflow: hidden;
+  transition: height var(--transition-duration-base) var(--ease-standard);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    height: 0;
+  }
+}
+
+/* A sidebar link: its colours answer the pointer quickly, while its padding and gap move with the
+   sidebar as it collapses to the rail (the Figma smart animate, 300 ms ease out). */
+@utility nav-transition {
+  transition:
+    color var(--transition-duration-fast) var(--ease-standard),
+    background-color var(--transition-duration-fast) var(--ease-standard),
+    padding-inline-start var(--transition-duration-base) var(--ease-standard),
+    gap var(--transition-duration-base) var(--ease-standard);
+}
+
+/* The avatar builder's variant tiles: as many to a row as fit, each at least the option size. */
+@utility avatar-options {
+  grid-template-columns: repeat(auto-fill, minmax(var(--avatar-option-size), 1fr));
+}
+
+/* A team's photo in the cropper: centred on the circle, then moved, turned and zoomed by the crop.
+   PhotoCropper sets --photo-x and --photo-y as shares of the photo's own box, --photo-rotate and
+   --photo-zoom; cropPhoto draws the same on the canvas. */
+@utility photo-crop {
+  transform: translate(-50%, -50%) translate(var(--photo-x), var(--photo-y)) rotate(var(--photo-rotate)) scale(var(--photo-zoom));
+}
+
+/* Dims the photo outside the circle: the circle's shadow reaches every edge of the cropper. */
+@utility photo-crop-mask {
+  box-shadow: 0 0 0 var(--avatar-crop-mask-spread) var(--color-surface-overlay);
+}

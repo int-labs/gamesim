@@ -34,6 +34,7 @@
     "@mui/icons-material": "^6.5.0",
     "@mui/material": "^6.4.2",
     "@mui/system": "^6.4.12",
+    "@stratagem/design-system": "file:./design-system",
     "axios": "1.14.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.4.2",
@@ -56,6 +57,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.54.2",
+    "@tailwindcss/vite": "4.3.3",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^14.3.0",
     "@types/cypress": "^1.1.6",
@@ -80,6 +82,7 @@
     "postcss": "^8.4.49",
     "prettier": "^3.5.3",
     "prettier-plugin-organize-imports": "^4.1.0",
+    "tailwindcss": "4.3.3",
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3",
     "vite": "^6.4.1",

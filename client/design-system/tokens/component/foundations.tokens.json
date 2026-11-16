@@ -1,0 +1,19 @@
+{
+  "component": {
+    "icon": {
+      "size-xs": { "$type": "dimension", "$value": "{spacing.3}", "$description": "12 px: icons inside captions and badges." },
+      "size-sm": { "$type": "dimension", "$value": "{spacing.3_5}", "$description": "14 px: the most common Figma icon size (resource chips, info icons, KPI chips)." },
+      "size-md": { "$type": "dimension", "$value": "{spacing.4}", "$description": "16 px: buttons, inputs, table actions. The default." },
+      "size-lg": { "$type": "dimension", "$value": "{spacing.5}", "$description": "20 px: navigation items and the KPI bar." },
+      "size-xl": { "$type": "dimension", "$value": "{spacing.6}", "$description": "24 px." },
+      "size-2xl": { "$type": "dimension", "$value": "{spacing.7}", "$description": "28 px: section header icons." },
+      "stroke-thin": { "$type": "number", "$value": 1, "$description": "The Figma stroke: 1 px at 16 to 20 px. Icons are drawn with an absolute stroke, so it stays 1 px at every size." },
+      "stroke-regular": { "$type": "number", "$value": 1.5, "$description": "For small icons that must stay legible on low-density screens and projectors." },
+      "stroke-bold": { "$type": "number", "$value": 2, "$description": "Emphasis, and icons on solid buttons." }
+    },
+    "focus-ring": {
+      "width": { "$type": "dimension", "$value": "2px", "$description": "Keyboard focus outline (the colour is color.focus-ring)." },
+      "offset": { "$type": "dimension", "$value": "2px" }
+    }
+  }
+}

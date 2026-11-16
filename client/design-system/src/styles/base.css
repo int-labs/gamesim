@@ -1,0 +1,26 @@
+/* Base styles of design-system surfaces, scoped like the reset to [data-ds-root]. */
+@layer base {
+  :where([data-ds-root]) {
+    color: var(--color-fg-body);
+    font-synthesis: none; /* a missing weight never renders as faux bold */
+    text-rendering: optimizelegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* The page itself, when the design system owns the whole document. */
+  html:where([data-ds-root]) {
+    background-color: var(--color-surface-page);
+    color-scheme: light;
+  }
+
+  :where([data-ds-root]) ::selection {
+    background-color: var(--color-primary-soft);
+  }
+
+  /* One visible keyboard focus style everywhere; components with their own ring replace it. */
+  :where([data-ds-root]) :focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}

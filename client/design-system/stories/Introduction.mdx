@@ -1,0 +1,44 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction" />
+
+# Stratagem design system
+
+The design system of the modular simulations (ET Prime, Product, Banking, Mall) and the Admin. It is built from the Figma file
+"Bank Simulation (Copy)" and replaces MUI, screen by screen, without breaking the running apps.
+
+It is built bottom-up: foundations (tokens, fonts, icons, motion, numbers) first, then micro components, then the
+building blocks of screens, then motion and delight. This workbench shows each layer as it lands.
+
+## Using it in an app
+
+1. Depend on the package (`"@stratagem/design-system": "file:../../../../design-system"` from a sim client, `"file:../design-system"` from `admin/`, until the workspace arrives) and
+   dedupe React in Vite: `resolve: { dedupe: ["react", "react-dom"] }`.
+2. Import the stylesheet once, from the app's CSS entry, instead of `tailwindcss`:
+   `@import "@stratagem/design-system/styles.css";` with the `@tailwindcss/vite` plugin in the app's Vite config.
+3. Mark where the design system owns the page with `data-ds-root`: on `<html>` in an app without MUI; on the root of each
+   migrated screen while MUI is still on the page. The reset and base styles apply only inside it.
+4. Mount `MotionProvider` (and `NumberFormatProvider` with the simulation's currency) at the root of the app.
+5. While MUI is present, give MUI's styles their layer: `<StyledEngineProvider enableCssLayer>` with
+   `<GlobalStyles styles="@layer theme, base, mui, components, utilities;" />`, so design-system classes win without `!important`.
+
+## The rules
+
+- **Only tokens exist.** The Tailwind theme is generated from the tokens with every default removed: `bg-red-500` or
+  `p-13` do not exist. Arbitrary values (`w-[137px]`), the `!` modifier, bare numbers where tokens have names (`z-50`,
+  `duration-300`) and alpha steps outside the scale fail lint. A component measurement is read as a token variable:
+  `h-(--button-height-md)`.
+- **No raw colours** in TypeScript or CSS. Charts and canvas read `tokens.color` from the package.
+- **No MUI, emotion or framer-motion** in new code (`motion/react`, with `m` components).
+- **Text uses roles**: `type-body`, `type-label`, `type-page-title`, or the `Text` and `Heading` components.
+- **Motion respects people**: everything honours reduced motion and the app's Reduce effects switch.
+
+## Commands (in `design-system/`)
+
+| Command | What it does |
+| --- | --- |
+| `npm run generate` | Rebuilds the generated theme, utilities, token map, merge config, reset and font fallbacks from their sources. |
+| `npm run check` | Generated files up to date, typecheck, lint and unit tests (what CI runs). |
+| `npm run storybook` | This workbench on port 6106. |
+| `npm run test:stories` | Renders every story in Chromium and runs its accessibility check. |
+| `npm run test:visual:docker` | Screenshots every story in the Playwright Linux image and compares with the committed baselines. |

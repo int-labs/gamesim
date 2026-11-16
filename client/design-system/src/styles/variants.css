@@ -1,0 +1,24 @@
+/* Reduced motion comes from the operating system setting or from the app's "Reduce effects"
+   switch, which MotionProvider reflects as data-motion="reduced" on <html>. Both built-in motion
+   variants are redefined so that either source counts. */
+@custom-variant motion-reduce {
+  @media (prefers-reduced-motion: reduce) {
+    @slot;
+  }
+
+  &:where([data-motion="reduced"], [data-motion="reduced"] *) {
+    @slot;
+  }
+}
+
+@custom-variant motion-safe {
+  @media (prefers-reduced-motion: no-preference) {
+    &:where(:not([data-motion="reduced"], [data-motion="reduced"] *)) {
+      @slot;
+    }
+  }
+}
+
+/* A field whose own input is disabled. A disabled button beside the text (a stepper's plus at its
+   maximum) leaves the field as it is, which has-disabled would not. */
+@custom-variant control-disabled (&:has(> input:disabled));

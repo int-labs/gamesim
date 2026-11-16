@@ -1,0 +1,55 @@
+/* Effects that tokens alone cannot express. */
+
+@theme static {
+  /* The loading spinner: one turn over the Figma loader's four 200 ms frames. */
+  --animate-spin: spin var(--transition-duration-slower) linear infinite;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* A loading skeleton breathing: full, then 40%, then full (today's MUI Skeleton pulse). */
+  --animate-pulse: pulse var(--transition-duration-pulse) var(--ease-in-out) infinite;
+
+  @keyframes pulse {
+    50% {
+      opacity: 0.4;
+    }
+  }
+}
+
+/* Hides the browser's own show-password button (Edge), where the design system draws its own. */
+@utility no-reveal {
+  &::-ms-reveal {
+    display: none;
+  }
+}
+
+/* A gradient stroke just inside the edge that follows the corner radius: the "1px Highlight" of
+   solid buttons in Figma (3 px, white 25% to 0 from top to bottom). The element must be
+   positioned; the stroke is drawn above the element's content, and never takes the pointer. */
+@utility rim {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: var(--button-rim-width);
+    background: var(--gradient-rim);
+    pointer-events: none;
+
+    /* Keep only the padding ring: the content box is cut out of the full box. The prefixed
+       form is for Chrome before 120, which has no standard mask compositing. */
+    /* stylelint-disable-next-line property-no-vendor-prefix */
+    -webkit-mask:
+      linear-gradient(var(--palette-black-a100) 0 0) content-box,
+      linear-gradient(var(--palette-black-a100) 0 0);
+    /* stylelint-disable-next-line property-no-vendor-prefix */
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(var(--palette-black-a100) 0 0) content-box exclude,
+      linear-gradient(var(--palette-black-a100) 0 0);
+  }
+}

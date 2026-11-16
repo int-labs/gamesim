@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AppShell, Sidebar, SidebarHeader, SidebarItem, SidebarNav, SidebarSection, Wordmark } from "@stratagem/design-system";
 import SimulationsPage from "./pages/SimulationsPage";
 import SimulationTypesPage from "./pages/SimulationTypesPage";
 import RoundsPage from "./pages/RoundsPage";
@@ -64,9 +65,7 @@ const NAV: { label: string; view: View }[] = [
   { label: "Param List", view: "param-list" },
   { label: "Projections", view: "projections" },
   { label: "Results", view: "results" },
-  // Narrowest audience first: the gallery is a DEVELOPER surface (authoring a
-  // shape means writing one), then the operator picks from it, then the
-  // facilitator writes each chart's copy per round.
+  // Narrowest audience first: developer, then operator, then facilitator.
   { label: "Chart Gallery", view: "chart-gallery" },
   { label: "Debrief Charts", view: "debrief-charts" },
   { label: "Round Debrief", view: "round-debrief" },
@@ -109,33 +108,32 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <nav style={{ width: 200, borderRight: "1px solid #ccc", padding: 8, flexShrink: 0 }}>
-        <strong>Admin Dashboard</strong>
-        <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
-          {NAV.map(({ label, view: v }) => (
-            <li key={v} style={{ marginBottom: 4 }}>
-              <button
-                onClick={() => setView(v)}
-                style={{
-                  background: view === v ? "#eee" : "none",
-                  border: "none",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  width: "100%",
-                  padding: "4px 6px",
-                  fontWeight: view === v ? "bold" : "normal",
-                }}
-              >
-                {label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <main style={{ padding: 16, flex: 1, overflow: "auto" }}>
-        {renderView()}
-      </main>
-    </div>
+    <AppShell
+      mobileBrand={<Wordmark>intlabs.</Wordmark>}
+      sidebar={
+        <Sidebar>
+          <SidebarHeader brand={<Wordmark>intlabs.</Wordmark>} />
+          <SidebarNav>
+            <SidebarSection>
+              {NAV.map(({ label, view: v }) => (
+                <SidebarItem
+                  key={v}
+                  label={label}
+                  active={view === v}
+                  // A link, so choosing it closes the small-screen menu; preventDefault keeps the URL unchanged
+                  href={`#${v}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setView(v);
+                  }}
+                />
+              ))}
+            </SidebarSection>
+          </SidebarNav>
+        </Sidebar>
+      }
+    >
+      {renderView()}
+    </AppShell>
   );
 }

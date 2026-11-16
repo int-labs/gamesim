@@ -1,0 +1,114 @@
+{
+  "color": {
+    "$type": "color",
+    "$description": "Semantic colours: the only colours components and screens use. Each becomes a Tailwind utility (bg-surface-card, text-fg-primary, border-line, bg-primary ...). A token named DEFAULT takes its group's name (color.primary.DEFAULT is --color-primary, used as bg-primary). Roles come from how the final Figma screens use each colour (research 08f, section 4, and the resolved Preline tokens).",
+    "surface": {
+      "page": { "$value": "{palette.slate.100}", "$description": "Page background (every final screen)." },
+      "card": { "$value": "{palette.white.a100}", "$description": "Cards, tables, sidebar, modals, inputs." },
+      "panel": { "$value": "{palette.slate.100}", "$description": "A panel inside a card: strategy form, event panel." },
+      "header": { "$value": "{palette.slate.200}", "$description": "Admin table header row." },
+      "header-subtle": { "$value": "{palette.gray.50}", "$description": "Statement table header (Preline Table/Header Bg Color)." },
+      "zebra": { "$value": "{palette.slate.100}", "$description": "Alternate table rows." },
+      "hover": { "$value": "{palette.slate.200}", "$description": "Hovered tab and rows." },
+      "selected": { "$value": "#ddd8ff7a", "$description": "Active navigation item: brand lavender at 48%." },
+      "selected-subtle": { "$value": "#ddd8ff52", "$description": "Active sub navigation item: brand lavender at 32%." },
+      "expanded": { "$value": "{palette.brand.lavender}", "$description": "A control whose menu is open: the list toolbar's Filter turns solid lavender." },
+      "inverse": { "$value": "{palette.gray.900}", "$description": "Tooltips and other dark surfaces (Preline Overlays/Tooltips/Bg Color)." },
+      "disabled": { "$value": "{palette.gray.100}", "$description": "Disabled controls." },
+      "overlay": { "$value": "{palette.black.a64}", "$description": "The scrim behind modals and the menu drawer (Preline Overlay: black at 64%, blurred with blur.overlay)." }
+    },
+    "fg": {
+      "primary": { "$value": "{palette.gray.900}", "$description": "Titles, values, navigation labels." },
+      "body": { "$value": "{palette.gray.800}", "$description": "Table cells, form labels, inputs (Preline Text/Title Color)." },
+      "muted": { "$value": "{palette.gray.600}", "$description": "Descriptions, breadcrumb links." },
+      "subtle": { "$value": "{palette.gray.500}", "$description": "Subtitles, table header titles, placeholders, input icons." },
+      "faint": { "$value": "{palette.gray.400}", "$description": "Inactive tabs, group labels, slider markers." },
+      "disabled": { "$value": "{palette.gray.400}", "$description": "Disabled text." },
+      "on-primary": { "$value": "{palette.white.a100}", "$description": "Text on the pink primary." },
+      "on-accent": { "$value": "{palette.white.a100}", "$description": "Text on the indigo accent." },
+      "on-energy": { "$value": "{palette.gray.950}", "$description": "Text on the yellow energy colour (Start Round label is Gray 950)." },
+      "on-danger": { "$value": "{palette.white.a100}", "$description": "Text on the red End Round and Delete buttons." },
+      "on-inverse": { "$value": "{palette.white.a100}", "$description": "Text on dark surfaces." },
+      "on-inverse-muted": { "$value": "{palette.gray.300}", "$description": "Secondary text on dark surfaces (Preline Overlays/Tooltips/Secondary Text Color)." },
+      "link": { "$value": "{palette.brand.pink-deep}", "$description": "Links and text buttons. Figma draws them in brand pink (3.5:1 on the page, below AA); the deeper brand pink reads 4.6:1 on the page and 5.0:1 on white. Pink fills and outlines keep color.primary." },
+      "accent": { "$value": "{palette.brand.indigo}", "$description": "Active tab labels and emphasised values." },
+      "success": { "$value": "{palette.green.700}", "$description": "Positive deltas as text. Figma's green 500 measures 2.1:1 on the page; green 700 reads 4.7:1 (icons and fills keep color.success)." },
+      "danger": { "$value": "{palette.red.700}", "$description": "Negative deltas, errors, Log Out as text. Figma's red 500 measures 3.4:1 on the page; red 700 (the clients' over-budget red) reads 5.9:1 (icons and fills keep color.danger)." },
+      "info": { "$value": "{palette.blue.500}", "$description": "Informational text (Figma's customised brand blue)." },
+      "warning": { "$value": "{palette.yellow.800}", "$description": "Warning text." }
+    },
+    "line": {
+      "DEFAULT": { "$value": "{palette.gray.200}", "$description": "Default borders and dividers: tables, inputs, cards, sidebar edge (Preline Border/Border Color)." },
+      "strong": { "$value": "{palette.black.a16}", "$description": "Outer containers, dropdowns, login and admin cards." },
+      "hairline": { "$value": "{palette.black.a12}", "$description": "Button hairlines." },
+      "subtle": { "$value": "{palette.black.a8}", "$description": "Soft card outlines, the KPI delta badge." },
+      "card": { "$value": "{palette.slate.200}", "$description": "A card resting on a slate panel: the chart cards." },
+      "control": { "$value": "{palette.gray.400}", "$description": "The list toolbar's search, Sort and Filter: a gray 400 edge outside the box." },
+      "field": { "$value": "{color.line.DEFAULT}", "$description": "A form field's idle edge: Input, Select, TextArea, the date field and the checkbox's box. It follows line (Figma's Preline gray 200) wherever an app leaves it alone, and is its own token so an app can raise its fields' edge where they sit beside gray 400 controls (a list toolbar) without touching its dividers." },
+      "button": { "$value": "{palette.slate.300}", "$description": "White outlined buttons (Preline _button_icon_small): the menu button, the phone's Winning Metrics." },
+      "faint": { "$value": "{palette.black.a4}", "$description": "KPI chip outline." },
+      "primary": { "$value": "{palette.brand.pink}", "$description": "Outline buttons." },
+      "accent": { "$value": "{palette.brand.indigo}", "$description": "Active tab underline, level tag outline." },
+      "accent-soft": { "$value": "#211c8466", "$description": "Decision inputs: brand indigo at 40%." },
+      "danger": { "$value": "{palette.red.500}", "$description": "Invalid inputs." },
+      "success-soft": { "$value": "{palette.teal.200}", "$description": "Border of a success alert." },
+      "danger-soft": { "$value": "{palette.red.200}", "$description": "Border of an error alert." },
+      "info-soft": { "$value": "{palette.blue.200}", "$description": "Border of an info alert." },
+      "warning-soft": { "$value": "{palette.yellow.200}", "$description": "Border of a warning alert." }
+    },
+    "primary": {
+      "DEFAULT": { "$value": "{palette.brand.pink}", "$description": "Primary actions (Submit, + New Simulation), cost chips, links." },
+      "hover": { "$value": "#e0106f", "$description": "Brand pink darkened for solid hover states. The Figma primary button hovers with a gradient and glow instead (see component.button)." },
+      "soft": { "$value": "#f9137d29", "$description": "Brand pink at 16%: read-only pink inputs, subtle pink backgrounds." }
+    },
+    "accent": {
+      "DEFAULT": { "$value": "{palette.brand.indigo}", "$description": "Selection, slider fill, level chips, primary chart series." },
+      "secondary": { "$value": "{palette.brand.indigo-soft}", "$description": "Secondary chart series, level tiles." },
+      "soft": { "$value": "#211c841a", "$description": "Brand indigo at 10% for subtle selected backgrounds." }
+    },
+    "energy": {
+      "DEFAULT": { "$value": "{palette.brand.yellow}", "$description": "Energy (the second currency), Start Round, the round counter." }
+    },
+    "success": {
+      "DEFAULT": { "$value": "{palette.green.500}" },
+      "soft": { "$value": "{palette.teal.100}", "$description": "Preline soft green is teal: badge COMPLETED, positive delta badge, success alert." },
+      "soft-fg": { "$value": "{palette.teal.800}" }
+    },
+    "danger": {
+      "DEFAULT": { "$value": "{palette.red.500}" },
+      "strong": { "$value": "{palette.brand.red}", "$description": "The End Round button (#ff2f33). The flat Delete button of dialogs is danger (red 500)." },
+      "soft": { "$value": "{palette.red.100}", "$description": "Negative delta badge, error alert." },
+      "soft-fg": { "$value": "{palette.red.800}" }
+    },
+    "info": {
+      "DEFAULT": { "$value": "{palette.blue.500}" },
+      "soft": { "$value": "{palette.blue.100}", "$description": "Badge ACTIVE, info alert." },
+      "soft-fg": { "$value": "{palette.blue.800}" }
+    },
+    "warning": {
+      "DEFAULT": { "$value": "{palette.yellow.500}", "$description": "Not used by the Figma file (yellow is energy there); defined for warnings." },
+      "soft": { "$value": "{palette.yellow.100}" },
+      "soft-fg": { "$value": "{palette.yellow.800}" }
+    },
+    "neutral": {
+      "soft": { "$value": "{palette.gray.50}", "$description": "Badge DRAFT and other neutral soft surfaces (Preline soft gray)." },
+      "soft-fg": { "$value": "{palette.gray.800}" }
+    },
+    "focus-ring": { "$value": "{palette.brand.indigo-soft}", "$description": "Keyboard focus outline. The Figma file draws no focus states; brand indigo-soft reads on white, slate and pink." },
+    "chart": {
+      "$description": "Data visualisation. Series colours in order of use; the Figma charts use brand indigo, indigo-soft, pink and the customised blue.",
+      "1": { "$value": "{palette.brand.indigo}" },
+      "2": { "$value": "{palette.brand.indigo-soft}" },
+      "3": { "$value": "{palette.brand.pink}" },
+      "4": { "$value": "{palette.blue.500}" },
+      "5": { "$value": "{palette.teal.500}" },
+      "6": { "$value": "{palette.brand.yellow}" },
+      "7": { "$value": "{palette.violet.400}" },
+      "8": { "$value": "{palette.gray.400}" },
+      "grid": { "$value": "{palette.gray.200}", "$description": "Grid lines (Preline Charts/Bar Chart/Grid Line Color)." },
+      "axis": { "$value": "{palette.gray.500}", "$description": "Axis labels." },
+      "label": { "$value": "{palette.gray.800}", "$description": "Legend labels (Preline Components/Legend Indicator/Placeholder Color)." },
+      "muted": { "$value": "{palette.gray.300}", "$description": "De-emphasised bars." }
+    }
+  }
+}

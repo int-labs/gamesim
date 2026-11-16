@@ -1,0 +1,113 @@
+{
+  "shadow": {
+    "$type": "shadow",
+    "$description": "Drop shadows. xs to lg are the Preline effect styles the final screens use (Drop Shadow/sm, /default, /md, /lg); the rest are the file's own effects.",
+    "xs": {
+      "$description": "Preline Drop Shadow/sm: small cards.",
+      "$value": [{ "color": "#0000000d", "offsetX": "0px", "offsetY": "1px", "blur": "2px", "spread": "0px" }]
+    },
+    "sm": {
+      "$description": "Preline Drop Shadow/default: primary buttons, tables.",
+      "$value": [
+        { "color": "#0000000f", "offsetX": "0px", "offsetY": "1px", "blur": "1px", "spread": "0px" },
+        { "color": "#0000001a", "offsetX": "0px", "offsetY": "1px", "blur": "2px", "spread": "0px" }
+      ]
+    },
+    "md": {
+      "$description": "Preline Drop Shadow/md.",
+      "$value": [
+        { "color": "#0000000f", "offsetX": "0px", "offsetY": "2px", "blur": "2px", "spread": "0px" },
+        { "color": "#00000012", "offsetX": "0px", "offsetY": "4px", "blur": "3px", "spread": "0px" }
+      ]
+    },
+    "lg": {
+      "$description": "Preline Drop Shadow/lg: dropdowns, slider tooltips.",
+      "$value": [
+        { "color": "#0000001a", "offsetX": "0px", "offsetY": "4px", "blur": "3px", "spread": "0px" },
+        { "color": "#0000000a", "offsetX": "0px", "offsetY": "10px", "blur": "8px", "spread": "0px" }
+      ]
+    },
+    "menu": {
+      "$description": "The Admin's open Filter menu: black 7%, 8 px down, 16 px blur (Figma also shifts it 3 px left; centred here). Only a menu's first level has it.",
+      "$value": [{ "color": "#00000012", "offsetX": "0px", "offsetY": "8px", "blur": "16px", "spread": "0px" }]
+    },
+    "refusal": {
+      "$description": "The red glow of a refused move (today's energy pill: a 2 px red ring at 55% and this 16 px glow at 35%; the ring is drawn with ring-danger/50).",
+      "$value": [{ "color": "#ef444459", "offsetX": "0px", "offsetY": "0px", "blur": "16px", "spread": "0px" }]
+    },
+    "card": {
+      "$description": "Figma 'card shadow'.",
+      "$value": [{ "color": "#8d96aa66", "offsetX": "0px", "offsetY": "1px", "blur": "4px", "spread": "0px" }]
+    },
+    "thumb": {
+      "$description": "Preline 'Input / Range Slider Touch Area': the slider thumb.",
+      "$value": [
+        { "color": "#0000000f", "offsetX": "0px", "offsetY": "2px", "blur": "2px", "spread": "0px" },
+        { "color": "#9ca3af59", "offsetX": "0px", "offsetY": "3px", "blur": "6px", "spread": "0px" }
+      ]
+    },
+    "modal": {
+      "$description": "The drop parts of the Figma modal glass stack.",
+      "$value": [
+        { "color": "#00000014", "offsetX": "0px", "offsetY": "8px", "blur": "5px", "spread": "0px" },
+        { "color": "#00000008", "offsetX": "0px", "offsetY": "20px", "blur": "13px", "spread": "0px" }
+      ]
+    },
+    "button": {
+      "$description": "Solid buttons (btnPublish): the outer half of the centred 12% black stroke as a 1 px ring, over Preline's default drop shadow.",
+      "$value": [
+        { "color": "#0000001f", "offsetX": "0px", "offsetY": "0px", "blur": "0px", "spread": "1px" },
+        { "color": "#0000000f", "offsetX": "0px", "offsetY": "1px", "blur": "1px", "spread": "0px" },
+        { "color": "#0000001a", "offsetX": "0px", "offsetY": "1px", "blur": "2px", "spread": "0px" }
+      ]
+    }
+  },
+  "drop-shadow": {
+    "$type": "shadow",
+    "$description": "Shadows that follow the shape of the content (CSS drop-shadow filters), as Figma draws the effect of a frame without a fill.",
+    "glow": {
+      "$description": "The cyan glow around a solid button's label (btnPublish 'Btn/large': 0 2 10 at 8%).",
+      "$value": { "color": "#62e2ff14", "offsetX": "0px", "offsetY": "2px", "blur": "10px", "spread": "0px" }
+    },
+    "glow-strong": {
+      "$description": "The same glow while the button is loading or has succeeded (50%).",
+      "$value": { "color": "#62e2ff80", "offsetX": "0px", "offsetY": "2px", "blur": "10px", "spread": "0px" }
+    }
+  },
+  "inset-shadow": {
+    "$type": "shadow",
+    "$description": "Inner shadows.",
+    "glass": {
+      "$description": "CSS approximation of the Figma 'Glass Shadow' effect style (six inner shadows with blend modes CSS box-shadow cannot express): a soft white inner glow and 1 px light rims. Used by the resource chips and the round counter.",
+      "$value": [
+        { "color": "#ffffff80", "offsetX": "0px", "offsetY": "0px", "blur": "3px", "spread": "0px", "inset": true },
+        { "color": "#ffffffcc", "offsetX": "1px", "offsetY": "1px", "blur": "0.5px", "spread": "-1px", "inset": true },
+        { "color": "#ffffffcc", "offsetX": "-1px", "offsetY": "-1px", "blur": "0.5px", "spread": "-1px", "inset": true },
+        { "color": "#ffffff33", "offsetX": "0px", "offsetY": "0px", "blur": "0px", "spread": "1px", "inset": true }
+      ]
+    },
+    "kpi-bar": {
+      "$description": "The player KPI bar's Glass Shadow (Navbar Variant2), its two soft layers as today's KPI bar draws them: a gray inner glow and a white inner haze. The file's light and dark 1 px rims use blend modes box-shadow cannot express.",
+      "$value": [
+        { "color": "#f2f2f2", "offsetX": "0px", "offsetY": "0px", "blur": "16px", "spread": "0px", "inset": true },
+        { "color": "#ffffff80", "offsetX": "0px", "offsetY": "0px", "blur": "3px", "spread": "0px", "inset": true }
+      ]
+    },
+    "highlight": {
+      "$description": "A 1 px top highlight.",
+      "$value": [{ "color": "#ffffff40", "offsetX": "0px", "offsetY": "1px", "blur": "0px", "spread": "0px", "inset": true }]
+    },
+    "button": {
+      "$description": "Solid buttons: the inner half of the centred 12% black stroke.",
+      "$value": [{ "color": "#0000001f", "offsetX": "0px", "offsetY": "0px", "blur": "0px", "spread": "1px", "inset": true }]
+    }
+  },
+  "blur": {
+    "$type": "dimension",
+    "$description": "Blur radii for backdrop and layer blurs.",
+    "sm": { "$value": "4px", "$description": "Early scrim frame." },
+    "md": { "$value": "16px", "$description": "Modal background blur." },
+    "glow": { "$value": "38px", "$description": "Glow blobs behind the primary button." },
+    "overlay": { "$value": "16px", "$description": "The modal and drawer scrim. Figma's Background Blur 40 renders like a 16 to 17 px CSS blur (fitted on three dialog frames); a 40 px CSS blur would be over twice as strong." }
+  }
+}

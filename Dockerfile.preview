@@ -2,7 +2,7 @@
 # DOCKERFILE FOR RENDER.COM PREVIEW ENVIRONMENT (Frontend + Backend + MongoDB Atlas)
 # File: Dockerfile.preview
 # =============================================================================
-FROM node:18-bullseye
+FROM node:22-bullseye
 
 # Install system dependencies and MongoDB client tools (for Atlas operations)
 RUN apt-get update && \
@@ -35,6 +35,8 @@ WORKDIR /app
 # =============================================================================
 # Copy and install client dependencies first (better caching)
 COPY client/package*.json ./client/
+# The design system is a file: dependency, so npm ci needs it present
+COPY client/design-system/ ./client/design-system/
 RUN cd client && npm ci && npm cache clean --force
 
 # Copy client source and build

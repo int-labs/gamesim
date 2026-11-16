@@ -1,0 +1,100 @@
+{
+  "typography": {
+    "$type": "typography",
+    "$description": "Text roles, each a utility class type-<role> that sets family, weight, size, line height and letter spacing together. The Figma file has no text styles; these are the styles its final admin and player screens actually use (research 08f, section 5). Adjust weight with font-* only where a role says so (for example an active tab).",
+    "wordmark": {
+      "$description": "Admin wordmark 'intlabs.' (Poppins Black 32 on Poppins' own 1.5 line, the 48 px Figma text box; the gradient fill comes from the Wordmark component).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.black}", "fontSize": "{text.5xl.size}", "lineHeight": "{leading.normal}", "letterSpacing": "{tracking.none}" }
+    },
+    "wordmark-player": {
+      "$description": "Player wordmark 'LIFE Bank.' (Poppins ExtraBold 28 on a 1.5 line, the 42 px Figma text box).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.extrabold}", "fontSize": "{text.3xl.size}", "lineHeight": "{leading.normal}", "letterSpacing": "{tracking.none}" }
+    },
+    "page-title": {
+      "$description": "Page titles: 'Simulations', 'Retail Mass - Loan' (Poppins 30; SemiBold, where Figma draws Regular, so the title leads the page, with -1% tracking).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.4xl.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.tight}" }
+    },
+    "modal-title": {
+      "$description": "Modal titles: 'Start Round?', 'Change your password' (Poppins SemiBold 30).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.4xl.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.normal}" }
+    },
+    "section-title": {
+      "$description": "Section titles inside a page: 'Event', 'Team List' (Poppins 24; SemiBold, where Figma draws Regular, with -1% tracking).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.2xl.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.tight}" }
+    },
+    "panel-title": {
+      "$description": "Titles of the player's panels and cards: 'Set Your Strategy Inputs', 'Select your Initiatives' (Poppins SemiBold 20, Figma 'XL (poppins)/Semi Bold').",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.xl.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.normal}" }
+    },
+    "heading": {
+      "$description": "Card titles: 'Simulation Summary', the segment card's panels (Poppins SemiBold 18).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.lg.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.normal}" }
+    },
+    "heading-sm": {
+      "$description": "Small card titles: chart titles (Poppins Medium 16).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.medium}", "fontSize": "{text.base.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.normal}" }
+    },
+    "tab": {
+      "$description": "Underline tabs (Poppins Medium 18, where Figma draws Regular; the active tab adds font-semibold).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.medium}", "fontSize": "{text.lg.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.normal}" }
+    },
+    "kpi-label": {
+      "$description": "KPI bar labels: 'Overall Revenue' (Poppins Regular 16, letter spacing -1%).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.base.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.tight}" }
+    },
+    "kpi-value": {
+      "$description": "KPI bar values: '$99.99 Bn' (Poppins SemiBold 16, letter spacing -1% as the labels, measured on Navbar Variant2).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.base.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.tight}" }
+    },
+    "stat": {
+      "$description": "Large numbers in tiles and summaries (Poppins SemiBold 24).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.2xl.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.normal}" }
+    },
+    "timer": {
+      "$description": "The round timer '01:24:59' (Poppins Light 30).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.light}", "fontSize": "{text.4xl.size}", "lineHeight": "{leading.display}", "letterSpacing": "{tracking.normal}" }
+    },
+    "interstitial": {
+      "$description": "A message across the screen while the game moves on: 'New round is starting!' (Figma's Inter Regular 48, set in Poppins Regular, the display family, on a 1.2 line).",
+      "$value": { "fontFamily": "{font.family.display}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.6xl.size}", "lineHeight": "{leading.tight}", "letterSpacing": "{tracking.normal}" }
+    },
+    "body-lg": {
+      "$description": "Table cells, inputs, descriptions in decision rows (Source Sans Regular 16/24).",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.base.size}", "lineHeight": "{text.base.line-height}", "letterSpacing": "{tracking.normal}" }
+    },
+    "body": {
+      "$description": "Navigation items, descriptions, breadcrumb (Source Sans Regular 14/20).",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.sm.size}", "lineHeight": "{text.sm.line-height}", "letterSpacing": "{tracking.normal}" }
+    },
+    "label": {
+      "$description": "Form labels, values and placeholders: 'Current Password*' (Source Sans Regular 15 on the 19 px line the Figma text boxes measure; a label, 10 px, then the 47 px field make Figma's 76 px field).",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.md.size}", "lineHeight": "19px", "letterSpacing": "{tracking.normal}" }
+    },
+    "button": {
+      "$description": "Button labels: '+ New Simulation', 'Submit' (Source Sans SemiBold 15). Figma sets outline buttons in Inter; the design system uses Source Sans for every button.",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.md.size}", "lineHeight": "{text.md.line-height}", "letterSpacing": "{tracking.normal}" }
+    },
+    "caption": {
+      "$description": "Emails, ids, tooltips, chart axes (Source Sans Regular 12/16).",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.xs.size}", "lineHeight": "{text.xs.line-height}", "letterSpacing": "{tracking.normal}" }
+    },
+    "badge": {
+      "$description": "Status badges: 'ACTIVE' (Source Sans Regular 10/16; the text is written in capitals).",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.2xs.size}", "lineHeight": "{text.2xs.line-height}", "letterSpacing": "{tracking.normal}" }
+    },
+    "overline": {
+      "$description": "Group labels: 'SIMULATION MANAGEMENT' (Source Sans SemiBold 10/16, uppercase, 1.2 px letter spacing).",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.semibold}", "fontSize": "{text.2xs.size}", "lineHeight": "{text.2xs.line-height}", "letterSpacing": "{tracking.wide}" },
+      "$extensions": { "com.stratagem": { "textTransform": "uppercase" } }
+    },
+    "hint": {
+      "$description": "'Previous: $5k' under a decision input (Source Sans Italic 14/20).",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.sm.size}", "lineHeight": "{text.sm.line-height}", "letterSpacing": "{tracking.normal}" },
+      "$extensions": { "com.stratagem": { "fontStyle": "italic" } }
+    },
+    "modal-body": {
+      "$description": "Modal body text: 'Choose a new password...' (Source Sans Regular 18 on the 23 px line of the Figma text box).",
+      "$value": { "fontFamily": "{font.family.body}", "fontWeight": "{font.weight.normal}", "fontSize": "{text.lg.size}", "lineHeight": "23px", "letterSpacing": "{tracking.normal}" }
+    }
+  }
+}
