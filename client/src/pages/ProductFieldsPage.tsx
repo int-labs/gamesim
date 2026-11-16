@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Alert, Button, Card, Checkbox, DataTable, Heading, Input, PageHeader, Select, TextField, type DataTableColumn } from "@stratagem/design-system";
 import {
   getSimulationTypes,
   getProducts,
@@ -151,237 +152,242 @@ export default function ProductFieldsPage() {
     const [optKey, setOptKey]         = useState("");
     const [multiplier, setMultiplier] = useState(0);
     return (
-      <div style={{ marginTop: 4 }}>
-        <input placeholder="option key (e.g. B5)" value={optKey} onChange={e => setOptKey(e.target.value)} />
-        <input type="number" step="0.01" placeholder="multiplier" value={multiplier} onChange={e => setMultiplier(Number(e.target.value))} style={{ width: 80 }} />
-        <button onClick={() => { if (optKey) { onAdd(optKey, multiplier); setOptKey(""); setMultiplier(0); } }}>Add Option</button>
+      <div className="flex flex-wrap items-end gap-2">
+        <Input size="sm" aria-label="option key" placeholder="option key (e.g. B5)" value={optKey} onChange={e => setOptKey(e.target.value)} />
+        <Input size="sm" className="w-24" aria-label="multiplier" type="number" step="0.01" placeholder="multiplier" value={multiplier} onChange={e => setMultiplier(Number(e.target.value))} />
+        <Button variant="outline" size="sm" onClick={() => { if (optKey) { onAdd(optKey, multiplier); setOptKey(""); setMultiplier(0); } }}>Add Option</Button>
       </div>
     );
   };
 
+  const nullableNumber = (raw: string) => {
+    const parsed = parseFloat(raw);
+    return raw === "" || isNaN(parsed) ? null : parsed;
+  };
+
   return (
-    <div>
-      <h2>Product Fields</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Product Fields" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <div style={{ marginBottom: 12 }}>
-        <label>
-          Simulation Type:{" "}
-          <select value={selectedSimType} onChange={e => setSelectedSimType(e.target.value)}>
-            <option value="">-- select --</option>
-            {simulationTypes.map((st: any) => (
-              <option key={st._id} value={st._id}>{st.name ?? st._id}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <label>
-          Product:{" "}
-          <select
-            value={selectedProductId}
-            onChange={e => { setSelectedProductId(e.target.value); resetForm(); }}
-            disabled={!selectedSimType}
-          >
-            <option value="">-- select --</option>
-            {products.map((p: any) => (
-              <option key={p._id} value={p._id}>{p.productName}</option>
-            ))}
-          </select>
-        </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Select
+          label="Simulation Type"
+          placeholder="-- select --"
+          value={selectedSimType || null}
+          onValueChange={v => setSelectedSimType(v ?? "")}
+          options={simulationTypes.map((st: any) => ({ value: st._id, label: st.name ?? st._id }))}
+        />
+        <Select
+          label="Product"
+          placeholder="-- select --"
+          value={selectedProductId || null}
+          onValueChange={v => { setSelectedProductId(v ?? ""); resetForm(); }}
+          disabled={!selectedSimType}
+          options={products.map((p: any) => ({ value: p._id, label: p.productName }))}
+        />
       </div>
 
       {selectedProductId && (
         <>
-          <h3>Fields</h3>
-          <table border={1} cellPadding={4}>
-            <thead>
-              <tr>
-                <th>key</th><th>label</th><th>type</th><th>order</th><th>required</th><th>Min</th><th>Max</th><th>Unit Cost</th><th>order</th><th>direction</th><th>tightening</th><th>coefficient</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map((f: any) => (
-                <tr key={f._id}>
-                  <td>{f.key}</td>
-                  <td>{f.label}</td>
-                  <td>{f.type}</td>
-                  <td>{f.order}</td>
-                  <td>{f.required ? "yes" : "no"}</td>
-                  <td>{f.minValue}</td>
-                  <td>{f.maxValue}</td>
-                  <td>{f.unitCost}</td>
-                  <td>{f.order}</td>
-                  <td>{f.direction}</td>
-                  <td>{f.tightening}</td>
-                  <td>
-                    {f.coefficients && Object.keys(f.coefficients).length > 0
-                      ? Object.entries(f.coefficients).map(([year, val]) => `${year}: ${val}`).join(", ")
-                      : "—"}
-                  </td>
-                  <td>
-                    <button onClick={() => handleEdit(f)}>Edit</button>{" "}
-                    <button onClick={() => handleDelete(f._id)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <h4>{editingFieldId ? "Edit Field" : "Add Field"}</h4>
-          <div>
-            <input
-              placeholder="key"
-              value={form.key}
-              onChange={e => setForm({ ...form, key: e.target.value })}
-              disabled={!!editingFieldId}
+          <Card>
+            <Heading level={3}>Fields</Heading>
+            <DataTable
+              label="Fields"
+              density="compact"
+              columns={FIELD_COLUMNS}
+              rows={fields}
+              rowKey={(f: any) => f._id}
+              rowActions={(f: any) => (
+                <>
+                  <Button variant="text" onClick={() => handleEdit(f)}>Edit</Button>
+                  <Button variant="text" tone="danger" onClick={() => handleDelete(f._id)}>Delete</Button>
+                </>
+              )}
             />
-            <input
-              placeholder="label"
-              value={form.label}
-              onChange={e => setForm({ ...form, label: e.target.value })}
-            />
-            <input
-              placeholder="type"
-              value={form.type}
-              onChange={e => setForm({ ...form, type: e.target.value })}
-            />
-            {["percentage", "cost", "money", "number"].includes(form.type) && (
-              <input
-                type="number"
-                placeholder="No minimum"
-                value={form.minValue ?? ""}
-                onChange={(e) => {
-                  const parsed = parseFloat(e.target.value);
-                  setForm((f) => ({
-                    ...f,
-                    minValue: e.target.value === "" || isNaN(parsed) ? null : parsed,
-                  }));
-                }}
+          </Card>
+
+          <Card>
+            <Heading level={4}>{editingFieldId ? "Edit Field" : "Add Field"}</Heading>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <TextField
+                label="key"
+                placeholder="key"
+                value={form.key}
+                onChange={e => setForm({ ...form, key: e.target.value })}
+                disabled={!!editingFieldId}
               />
-            )}
-            {["percentage", "cost", "money", "number"].includes(form.type) && (
-              <input
-                type="number"
-                placeholder="No maximum"
-                value={form.maxValue ?? ""}
-                onChange={(e) => {
-                  const parsed = parseFloat(e.target.value);
-                  setForm((f) => ({
-                    ...f,
-                    maxValue: e.target.value === "" || isNaN(parsed) ? null : parsed,
-                  }));
-                }}
+              <TextField
+                label="label"
+                placeholder="label"
+                value={form.label}
+                onChange={e => setForm({ ...form, label: e.target.value })}
               />
-            )}
-            {form.type === "money" && (
-              <input
+              <TextField
+                label="type"
+                placeholder="type"
+                value={form.type}
+                onChange={e => setForm({ ...form, type: e.target.value })}
+              />
+              {["percentage", "cost", "money", "number"].includes(form.type) && (
+                <TextField
+                  label="Min"
+                  type="number"
+                  placeholder="No minimum"
+                  value={form.minValue ?? ""}
+                  onChange={(e) => {
+                    const minValue = nullableNumber(e.target.value);
+                    setForm((f) => ({ ...f, minValue }));
+                  }}
+                />
+              )}
+              {["percentage", "cost", "money", "number"].includes(form.type) && (
+                <TextField
+                  label="Max"
+                  type="number"
+                  placeholder="No maximum"
+                  value={form.maxValue ?? ""}
+                  onChange={(e) => {
+                    const maxValue = nullableNumber(e.target.value);
+                    setForm((f) => ({ ...f, maxValue }));
+                  }}
+                />
+              )}
+              {form.type === "money" && (
+                <TextField
+                  label="Unit Cost"
+                  type="number"
+                  placeholder="unit cost (optional)"
+                  value={form.unitCost ?? ""}
+                  onChange={e => {
+                    const unitCost = nullableNumber(e.target.value);
+                    setForm(f => ({ ...f, unitCost }));
+                  }}
+                />
+              )}
+              <TextField
+                label="order"
                 type="number"
-                placeholder="unit cost (optional)"
-                value={form.unitCost ?? ""}
+                placeholder="order"
+                value={form.order}
+                onChange={e => setForm({ ...form, order: Number(e.target.value) })}
+              />
+              <TextField
+                label="direction (0–1)"
+                type="number"
+                placeholder="direction (0–1)"
+                min={0}
+                max={1}
+                step={0.05}
+                value={form.direction}
                 onChange={e => {
-                  const parsed = parseFloat(e.target.value);
-                  setForm(f => ({
-                    ...f,
-                    unitCost: e.target.value === "" || isNaN(parsed) ? null : parsed,
-                  }));
+                  const direction = Number(e.target.value);
+                  setForm(f => ({ ...f, direction }));
                 }}
               />
-            )}
-            <input
-              type="number"
-              placeholder="order"
-              value={form.order}
-              onChange={e => setForm({ ...form, order: Number(e.target.value) })}
-            />
-            <input
-              type="number"
-              placeholder="direction (0–1)"
-              min={0}
-              max={1}
-              step={0.05}
-              value={form.direction}
-              onChange={e => setForm(f => ({ ...f, direction: Number(e.target.value) }))}
-            />
-            <input
-              type="number"
-              placeholder="Tightening (default: 3)"
-              value={form.tightening}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, tightening: parseFloat(e.target.value) || 3 }))
-              }
-            />
+              <TextField
+                label="Tightening"
+                type="number"
+                placeholder="Tightening (default: 3)"
+                value={form.tightening}
+                onChange={(e) => {
+                  const tightening = parseFloat(e.target.value) || 3;
+                  setForm((f) => ({ ...f, tightening }));
+                }}
+              />
+            </div>
 
             {/* Coefficients — dynamic per simulation year */}
             {yearKeys.length === 0 ? (
-              <p style={{ color: "orange", fontSize: 11 }}>
+              <Alert tone="warning">
                 Selected simulation type has no yearRange set — coefficients can't be entered yet.
-              </p>
+              </Alert>
             ) : (
-              <div>
+              <div className="flex flex-wrap gap-2">
                 {yearKeys.map(y => (
-                  <span key={y} style={{ marginRight: 4 }}>
-                    {y}:{" "}
-                    <input
-                      type="number"
-                      style={{ width: 60 }}
-                      value={form.coefficients?.[y] ?? 0}
-                      onChange={e => setForm(f => ({ ...f, coefficients: { ...f.coefficients, [y]: Number(e.target.value) } }))}
-                    />
-                  </span>
+                  <TextField
+                    key={y}
+                    label={y}
+                    type="number"
+                    className="w-24"
+                    value={form.coefficients?.[y] ?? 0}
+                    onChange={e => {
+                      const value = Number(e.target.value);
+                      setForm(f => ({ ...f, coefficients: { ...f.coefficients, [y]: value } }));
+                    }}
+                  />
                 ))}
               </div>
             )}
 
             {/* Options — only for enum type fields */}
             {form.type === "enum" && (
-              <div style={{ marginTop: 8 }}>
-                <strong style={{ fontSize: 11 }}>Options</strong>
-                {Object.keys(form.options ?? {}).length === 0 && (
-                  <p style={{ color: "#888", fontSize: 11 }}>No options added yet.</p>
-                )}
-                <table border={1} cellPadding={2} style={{ fontSize: 11, marginBottom: 4 }}>
-                  <thead>
-                    <tr><th>key</th><th>multiplier</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(form.options ?? {}).map(([optKey, multiplier]) => (
-                      <tr key={optKey}>
-                        <td>{optKey}</td>
-                        <td>{multiplier}</td>
-                        <td>
-                          <button onClick={() => setForm(f => {
-                            const next = { ...f.options };
-                            delete next[optKey];
-                            return { ...f, options: next };
-                          })}>Remove</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <Card variant="panel">
+                <Heading level={5}>Options</Heading>
+                <DataTable
+                  label="Options"
+                  density="compact"
+                  columns={OPTION_COLUMNS}
+                  rows={Object.entries(form.options ?? {})}
+                  rowKey={([optKey]) => optKey}
+                  empty="No options added yet."
+                  rowActions={([optKey]) => (
+                    <Button variant="text" tone="danger" onClick={() => setForm(f => {
+                      const next = { ...f.options };
+                      delete next[optKey];
+                      return { ...f, options: next };
+                    })}>Remove</Button>
+                  )}
+                />
                 <OptionEntryRow
                   onAdd={(optKey, multiplier) =>
                     setForm(f => ({ ...f, options: { ...f.options, [optKey]: multiplier } }))
                   }
                 />
-              </div>
+              </Card>
             )}
 
-            <label>
-              <input
-                type="checkbox"
+            <label className="flex items-center gap-2 type-label">
+              <Checkbox
                 checked={form.required}
-                onChange={e => setForm({ ...form, required: e.target.checked })}
+                onCheckedChange={checked => setForm({ ...form, required: checked })}
               />
-              {" "}required
+              required
             </label>
-            <button onClick={handleSubmit}>{editingFieldId ? "Update" : "Add"} Field</button>
-            {editingFieldId && <button onClick={resetForm}>Cancel</button>}
-
-          </div>
+            <div className="flex gap-2">
+              <Button onClick={handleSubmit}>{editingFieldId ? "Update" : "Add"} Field</Button>
+              {editingFieldId && <Button variant="outline" onClick={resetForm}>Cancel</Button>}
+            </div>
+          </Card>
         </>
       )}
-    </div>
+    </>
   );
 }
+
+const FIELD_COLUMNS: DataTableColumn<any>[] = [
+  { id: "key", header: "key", cell: f => f.key, primary: true },
+  { id: "label", header: "label", cell: f => f.label },
+  { id: "type", header: "type", cell: f => f.type },
+  { id: "order", header: "order", cell: f => f.order },
+  { id: "required", header: "required", cell: f => (f.required ? "yes" : "no") },
+  { id: "minValue", header: "Min", cell: f => f.minValue },
+  { id: "maxValue", header: "Max", cell: f => f.maxValue },
+  { id: "unitCost", header: "Unit Cost", cell: f => f.unitCost },
+  { id: "order-2", header: "order", cell: f => f.order },
+  { id: "direction", header: "direction", cell: f => f.direction },
+  { id: "tightening", header: "tightening", cell: f => f.tightening },
+  {
+    id: "coefficients",
+    header: "coefficient",
+    cell: f =>
+      f.coefficients && Object.keys(f.coefficients).length > 0
+        ? Object.entries(f.coefficients).map(([year, val]) => `${year}: ${val}`).join(", ")
+        : "—",
+  },
+];
+
+const OPTION_COLUMNS: DataTableColumn<[string, number]>[] = [
+  { id: "key", header: "key", cell: ([optKey]) => optKey, primary: true },
+  { id: "multiplier", header: "multiplier", cell: ([, multiplier]) => multiplier },
+];

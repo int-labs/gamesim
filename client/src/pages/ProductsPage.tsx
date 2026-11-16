@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, Checkbox, DataTable, Heading, Input, PageHeader, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getProducts, createProduct, deleteProduct } from "../api";
 import type { Product } from "../types";
 
@@ -98,105 +99,98 @@ export default function ProductsPage() {
   };
 
   return (
-    <div>
-      <h2>Products</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Products" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label>Filter Simulation Type ID: <input value={filterSimType} onChange={e => setFilterSimType(e.target.value)} /></label>
-      {" "}
-      <label>Filter Segment ID: <input value={filterSegment} onChange={e => setFilterSegment(e.target.value)} /></label>
+      <div className="flex flex-wrap items-end gap-4">
+        <TextField label="Filter Simulation Type ID" value={filterSimType} onChange={e => setFilterSimType(e.target.value)} />
+        <TextField label="Filter Segment ID" value={filterSegment} onChange={e => setFilterSegment(e.target.value)} />
+      </div>
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr><td>Simulation Type ID</td><td><input value={form.simulationTypeId} onChange={e => setForm(f => ({ ...f, simulationTypeId: e.target.value }))} /></td></tr>
-          <tr><td>Segment ID</td><td><input value={form.segmentId} onChange={e => setForm(f => ({ ...f, segmentId: e.target.value }))} /></td></tr>
-          <tr><td>Product Name</td><td><input value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} /></td></tr>
-          <tr><td>Product Type</td><td><input value={form.productType} onChange={e => setForm(f => ({ ...f, productType: e.target.value }))} /></td></tr>
-          <tr><td>Description</td><td><input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></td></tr>
-          <tr>
-            <td>Base Variables</td>
-              <td>
-                <table border={1} cellPadding={4}>
-                  <thead>
-                    <tr><th>key</th><th>value</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(baseVariables).map(([key, value]) => (
-                      <tr key={key}>
-                        <td>{key}</td>
-                        <td>{value}</td>
-                        <td>
-                          <button onClick={() => handleEdit(key)}>Edit</button>{" "}
-                          <button onClick={() => handleRemove(key)}>Delete</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={{ marginTop: 4 }}>
-                  <input
-                    placeholder="key"
-                    value={bvForm.key}
-                    onChange={e => setBvForm(f => ({ ...f, key: e.target.value }))}
-                    disabled={!!editingBvKey}
-                  />
-                  <input
-                    type="number"
-                    placeholder="value"
-                    value={bvForm.value}
-                    onChange={e => setBvForm(f => ({ ...f, value: Number(e.target.value) }))}
-                  />
-                  <button onClick={handleAdd}>{editingBvKey ? "Update" : "Add"} Variable</button>
-                  {editingBvKey && <button onClick={resetBvForm}>Cancel</button>}
-                </div>
-              </td>
-            </tr>
-          <tr>
-            <td>Use Chargeoff Rate</td>
-            <td>
-              <input
-                type="checkbox"
-                checked={useChargeoffRate}
-                onChange={e => setUseChargeoffRate(e.target.checked)}
-              />
-              {useChargeoffRate && (
-                <>
-                  {" "}Rate:{" "}
-                  <input
-                    type="number"
-                    value={chargeoffRate}
-                    onChange={e => setChargeoffRate(Number(e.target.value))}
-                    style={{ width: 100 }}
-                  />
-                </>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Simulation Type ID" value={form.simulationTypeId} onChange={e => setForm(f => ({ ...f, simulationTypeId: e.target.value }))} />
+          <TextField label="Segment ID" value={form.segmentId} onChange={e => setForm(f => ({ ...f, segmentId: e.target.value }))} />
+          <TextField label="Product Name" value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
+          <TextField label="Product Type" value={form.productType} onChange={e => setForm(f => ({ ...f, productType: e.target.value }))} />
+          <TextField label="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+        </div>
 
-      <h3>All Products</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>_id</th><th>SimTypeId</th><th>SegmentId</th><th>Name</th><th>Type</th><th>Active</th><th>Order</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.simulationTypeId}</td>
-              <td>{r.segmentId}</td>
-              <td>{r.productName}</td>
-              <td>{r.productType}</td>
-              <td>{r.active ? "✓" : "✗"}</td>
-              <td>{r.order}</td>
-              <td><button onClick={() => handleDelete(r._id)}>Delete</button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        <Card variant="panel">
+          <Heading level={4}>Base Variables</Heading>
+          <DataTable
+            label="Base Variables"
+            density="compact"
+            columns={BV_COLUMNS}
+            rows={Object.entries(baseVariables)}
+            rowKey={([key]) => key}
+            rowActions={([key]) => (
+              <>
+                <Button variant="text" onClick={() => handleEdit(key)}>Edit</Button>
+                <Button variant="text" tone="danger" onClick={() => handleRemove(key)}>Delete</Button>
+              </>
+            )}
+          />
+          <div className="flex flex-wrap items-end gap-2">
+            <Input
+              aria-label="key"
+              placeholder="key"
+              value={bvForm.key}
+              onChange={e => setBvForm(f => ({ ...f, key: e.target.value }))}
+              disabled={!!editingBvKey}
+            />
+            <Input
+              aria-label="value"
+              type="number"
+              placeholder="value"
+              value={bvForm.value}
+              onChange={e => setBvForm(f => ({ ...f, value: Number(e.target.value) }))}
+            />
+            <Button variant="outline" onClick={handleAdd}>{editingBvKey ? "Update" : "Add"} Variable</Button>
+            {editingBvKey && <Button variant="text" onClick={resetBvForm}>Cancel</Button>}
+          </div>
+        </Card>
+
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 type-label">
+            <Checkbox checked={useChargeoffRate} onCheckedChange={checked => setUseChargeoffRate(checked)} />
+            Use Chargeoff Rate
+          </label>
+          {useChargeoffRate && (
+            <TextField label="Rate" type="number" value={chargeoffRate} onChange={e => setChargeoffRate(Number(e.target.value))} />
+          )}
+        </div>
+
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
+
+      <Card>
+        <Heading level={3}>All Products</Heading>
+        <DataTable
+          label="All Products"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>}
+        />
+      </Card>
+    </>
   );
 }
+
+const BV_COLUMNS: DataTableColumn<[string, number]>[] = [
+  { id: "key", header: "key", cell: ([key]) => key, primary: true },
+  { id: "value", header: "value", cell: ([, value]) => value },
+];
+
+const COLUMNS: DataTableColumn<Product>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "simulationTypeId", header: "SimTypeId", cell: r => r.simulationTypeId },
+  { id: "segmentId", header: "SegmentId", cell: r => r.segmentId },
+  { id: "productName", header: "Name", cell: r => r.productName, primary: true },
+  { id: "productType", header: "Type", cell: r => r.productType },
+  { id: "active", header: "Active", cell: r => (r.active ? "✓" : "✗") },
+  { id: "order", header: "Order", cell: r => r.order },
+];

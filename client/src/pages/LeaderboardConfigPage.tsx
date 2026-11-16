@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Badge, Button, Card, DataTable, Heading, Input, PageHeader, Select, Text, TextField, type DataTableColumn } from "@stratagem/design-system";
 import {
   getLeaderboardConfig,
   putLeaderboardConfig,
@@ -154,153 +155,158 @@ export default function LeaderboardConfigPage() {
     }
   };
 
-  return (
-    <div>
-      <h2>Leaderboard Config</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {note && <p style={{ color: "#333" }}>{note}</p>}
-
-      <label>
-        Simulation Type ID:{" "}
-        <input value={simTypeId} onChange={(e) => setSimTypeId(e.target.value)} style={{ width: 260 }} />
-      </label>{" "}
-      <button onClick={load} disabled={!simTypeId}>Load</button>
-
-      {/* WHAT THE SERVER HOLDS, beside the editor rather than instead of it.
-          Without this the page cannot show whether an edit has been saved, and
-          a PATCH would be merging into something invisible. */}
-      {stored !== null && (
-        <div style={{ marginTop: 12, padding: 8, border: "1px solid #ddd", background: "#fafafa" }}>
-          <strong>Stored config</strong>{" "}
-          <span style={{ fontSize: 12, color: "#555" }}>
-            ({stored.length} metric{stored.length === 1 ? "" : "s"}, weights total{" "}
-            {stored.reduce((a, m) => a + (Number(m.weight) || 0), 0)})
+  const storedColumns: DataTableColumn<Metric>[] = [
+    {
+      id: "key",
+      header: "Key",
+      primary: true,
+      cell: (m) => {
+        const now = metrics.find((x) => x.key === m.key);
+        const edited = !now || JSON.stringify(now) !== JSON.stringify(m);
+        // Marked rather than merely listed: the point of showing this is to see what a save would change
+        return (
+          <span className="flex items-center gap-2">
+            {m.key}{!now && " (removed)"}
+            {edited && <Badge tone="warning">edited</Badge>}
           </span>
+        );
+      },
+    },
+    { id: "label", header: "Label", cell: (m) => m.label },
+    { id: "origin", header: "Computed by", cell: (m) => m.origin },
+    { id: "source", header: "Source", cell: (m) => m.source },
+    { id: "weight", header: "Weight", cell: (m) => m.weight },
+    { id: "format", header: "Format", cell: (m) => m.format },
+    { id: "direction", header: "Rank by", cell: (m) => (m.direction === "asc" ? "lowest wins" : "highest wins") },
+  ];
+
+  // Rows keyed by array position, exactly as before; see the flag in the handover
+  const editRows = metrics.map((m, i) => ({ m, i }));
+
+  const editColumns: DataTableColumn<{ m: Metric; i: number }>[] = [
+    { id: "key", header: "Key", cell: ({ m, i }) => <Input size="sm" className="w-28" aria-label="Key" value={m.key} onChange={(e) => patch(i, "key", e.target.value)} /> },
+    { id: "label", header: "Label", cell: ({ m, i }) => <Input size="sm" className="w-36" aria-label="Label" value={m.label} onChange={(e) => patch(i, "label", e.target.value)} /> },
+    {
+      id: "origin",
+      header: "Computed by",
+      cell: ({ m, i }) => (
+        <Select size="sm" width="fit" aria-label="Computed by" value={m.origin} onValueChange={(v) => v && patch(i, "origin", v)} options={ORIGIN_OPTIONS} />
+      ),
+    },
+    {
+      id: "source",
+      header: "Source",
+      // A dropdown for server metrics (a field calcFinancials produces); free text for client ones, declared here
+      cell: ({ m, i }) => m.origin === "server" ? (
+        <Select
+          size="sm"
+          width="fit"
+          aria-label="Source"
+          value={m.source || null}
+          onValueChange={(v) => v && patch(i, "source", v)}
+          options={serverSources.map((s) => ({ value: s, label: s }))}
+        />
+      ) : (
+        <Input size="sm" className="w-40" aria-label="Source" value={m.source} onChange={(e) => patch(i, "source", e.target.value)} placeholder="e.g. insightCorrect" />
+      ),
+    },
+    { id: "weight", header: "Weight", cell: ({ m, i }) => <Input size="sm" className="w-20" aria-label="Weight" type="number" value={m.weight} onChange={(e) => patch(i, "weight", e.target.value)} /> },
+    {
+      id: "format",
+      header: "Format",
+      cell: ({ m, i }) => (
+        <Select size="sm" width="fit" aria-label="Format" value={m.format} onValueChange={(v) => v && patch(i, "format", v)} options={FORMAT_OPTIONS} />
+      ),
+    },
+    {
+      id: "direction",
+      header: "Rank by",
+      cell: ({ m, i }) => (
+        <Select size="sm" width="fit" aria-label="Rank by" value={m.direction} onValueChange={(v) => v && patch(i, "direction", v)} options={DIRECTION_OPTIONS} />
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader title="Leaderboard Config" />
+      {error && <Alert tone="danger">{error}</Alert>}
+      {note && <Alert tone="info">{note}</Alert>}
+
+      <div className="flex flex-wrap items-end gap-4">
+        <TextField label="Simulation Type ID" value={simTypeId} onChange={(e) => setSimTypeId(e.target.value)} />
+        <Button variant="outline" onClick={load} disabled={!simTypeId}>Load</Button>
+      </div>
+
+      {/* What the server holds, beside the editor, so a save and a PATCH target are visible */}
+      {stored !== null && (
+        <Card variant="panel">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <Heading level={3} variant="heading-sm">Stored config</Heading>
+            <Text as="span" variant="caption" tone="muted">
+              ({stored.length} metric{stored.length === 1 ? "" : "s"}, weights total{" "}
+              {stored.reduce((a, m) => a + (Number(m.weight) || 0), 0)})
+            </Text>
+          </div>
           {stored.length === 0 ? (
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#555" }}>
+            <Text variant="caption" tone="muted">
               Nothing saved for this simulation type yet — use <strong>Replace</strong> for the first save.
-            </p>
+            </Text>
           ) : (
-            <table border={1} cellPadding={3} style={{ marginTop: 6, fontSize: 12 }}>
-              <thead>
-                <tr><th>Key</th><th>Label</th><th>Computed by</th><th>Source</th><th>Weight</th><th>Format</th><th>Rank by</th></tr>
-              </thead>
-              <tbody>
-                {stored.map((m) => {
-                  const now = metrics.find((x) => x.key === m.key);
-                  const edited = !now || JSON.stringify(now) !== JSON.stringify(m);
-                  return (
-                    // Marked rather than merely listed: the point of showing
-                    // this is to see what a save would actually change.
-                    <tr key={m.key} style={edited ? { background: "#fff6d6" } : undefined}>
-                      <td>{m.key}{!now && " (removed)"}</td>
-                      <td>{m.label}</td>
-                      <td>{m.origin}</td>
-                      <td>{m.source}</td>
-                      <td>{m.weight}</td>
-                      <td>{m.format}</td>
-                      <td>{m.direction === "asc" ? "lowest wins" : "highest wins"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <DataTable label="Stored config" density="compact" columns={storedColumns} rows={stored} rowKey={(m) => m.key} />
           )}
-        </div>
+        </Card>
       )}
 
       {simTypeId && (
-        <>
-          <h3 style={{ marginTop: 16 }}>
-            Metrics{" "}
-            <span style={{ color: totalOk ? "green" : "red", fontWeight: "normal" }}>
+        <Card>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <Heading level={3}>Metrics</Heading>
+            <Text as="span" tone={totalOk ? "success" : "danger"}>
               (weights total {total}{totalOk ? "" : " — must be 100"})
-            </span>
-          </h3>
+            </Text>
+          </div>
 
-          <table border={1} cellPadding={4}>
-            <thead>
-              <tr>
-                <th>Key</th><th>Label</th><th>Computed by</th><th>Source</th>
-                <th>Weight</th><th>Format</th><th>Rank by</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.map((m, i) => (
-                <tr key={i}>
-                  <td><input value={m.key} onChange={(e) => patch(i, "key", e.target.value)} style={{ width: 110 }} /></td>
-                  <td><input value={m.label} onChange={(e) => patch(i, "label", e.target.value)} style={{ width: 140 }} /></td>
-                  <td>
-                    <select value={m.origin} onChange={(e) => patch(i, "origin", e.target.value)}>
-                      <option value="server">server (calcFinancials)</option>
-                      <option value="client">client (run report)</option>
-                    </select>
-                  </td>
-                  <td>
-                    {/* A DROPDOWN for server metrics — the value has to be a
-                        field calcFinancials produces. A free text box for
-                        client ones — the key is declared here and the player
-                        reads it back, so this is where it is invented. */}
-                    {m.origin === "server" ? (
-                      <select value={m.source} onChange={(e) => patch(i, "source", e.target.value)}>
-                        {serverSources.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    ) : (
-                      <input
-                        value={m.source}
-                        onChange={(e) => patch(i, "source", e.target.value)}
-                        placeholder="e.g. insightCorrect"
-                        style={{ width: 150 }}
-                      />
-                    )}
-                  </td>
-                  <td>
-                    <input
-                      type="number" value={m.weight}
-                      onChange={(e) => patch(i, "weight", e.target.value)}
-                      style={{ width: 70 }}
-                    />
-                  </td>
-                  <td>
-                    <select value={m.format} onChange={(e) => patch(i, "format", e.target.value)}>
-                      <option value="money">money</option>
-                      <option value="number">number</option>
-                      <option value="percent">percent</option>
-                    </select>
-                  </td>
-                  <td>
-                    <select value={m.direction} onChange={(e) => patch(i, "direction", e.target.value)}>
-                      <option value="desc">highest wins</option>
-                      <option value="asc">lowest wins</option>
-                    </select>
-                  </td>
-                  <td>
-                    <button onClick={() => setMetrics((p) => p.filter((_, j) => j !== i))}>Remove</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            label="Metrics"
+            density="compact"
+            columns={editColumns}
+            rows={editRows}
+            rowKey={({ i }) => String(i)}
+            rowActions={({ i }) => (
+              <Button variant="text" tone="danger" onClick={() => setMetrics((p) => p.filter((_, j) => j !== i))}>Remove</Button>
+            )}
+          />
 
-          <div style={{ marginTop: 8 }}>
-            <button onClick={() => setMetrics((p) => [...p, { ...BLANK }])}>+ Add metric</button>{" "}
-            {/* PATCH merges only what changed; REPLACE sends the whole set.
-                Patch is disabled with nothing stored — the server 404s there,
-                because PUT creates and PATCH edits. */}
-            <button onClick={patchChanges} disabled={loading || !totalOk || !stored?.length}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => setMetrics((p) => [...p, { ...BLANK }])}>+ Add metric</Button>
+            {/* PATCH merges what changed and needs something stored (the server 404s otherwise); REPLACE sends the whole set */}
+            <Button variant="outline" onClick={patchChanges} disabled={loading || !totalOk || !stored?.length}>
               {loading ? "Saving…" : "Patch changes"}
-            </button>{" "}
-            <button onClick={save} disabled={loading || !totalOk}>
+            </Button>
+            <Button onClick={save} disabled={loading || !totalOk}>
               {loading ? "Saving…" : "Replace all"}
-            </button>
+            </Button>
             {stored !== null && (
-              <span style={{ marginLeft: 8, fontSize: 12, color: "#555" }}>
+              <Text as="span" variant="caption" tone="muted">
                 {changedMetrics().length} changed, {removedKeys().length} removed
-              </span>
+              </Text>
             )}
           </div>
-        </>
+        </Card>
       )}
-    </div>
+    </>
   );
 }
+
+const ORIGIN_OPTIONS = [
+  { value: "server", label: "server (calcFinancials)" },
+  { value: "client", label: "client (run report)" },
+];
+
+const FORMAT_OPTIONS = ["money", "number", "percent"].map((f) => ({ value: f, label: f }));
+
+const DIRECTION_OPTIONS = [
+  { value: "desc", label: "highest wins" },
+  { value: "asc", label: "lowest wins" },
+];

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, PageHeader, TextArea, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getInitiatives, createInitiative, deleteInitiative } from "../api";
 import type { Initiative } from "../types";
 
@@ -50,39 +51,39 @@ export default function InitiativesPage() {
   };
 
   return (
-    <div>
-      <h2>Initiatives</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Initiatives" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr><td>Name</td><td><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></td></tr>
-          <tr><td>Details</td><td><textarea value={form.details} rows={2} cols={40} onChange={e => setForm(f => ({ ...f, details: e.target.value }))} /></td></tr>
-          <tr><td>Cost Consumption</td><td><input type="number" value={form.costConsumption} onChange={e => setForm(f => ({ ...f, costConsumption: Number(e.target.value) }))} /></td></tr>
-          <tr><td>Energy Consumption</td><td><input type="number" value={form.energyConsumption} onChange={e => setForm(f => ({ ...f, energyConsumption: Number(e.target.value) }))} /></td></tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <TextField label="Cost Consumption" type="number" value={form.costConsumption} onChange={e => setForm(f => ({ ...f, costConsumption: Number(e.target.value) }))} />
+          <TextField label="Energy Consumption" type="number" value={form.energyConsumption} onChange={e => setForm(f => ({ ...f, energyConsumption: Number(e.target.value) }))} />
+        </div>
+        <TextArea label="Details" value={form.details} minRows={2} onChange={e => setForm(f => ({ ...f, details: e.target.value }))} />
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
 
-      <h3>All Initiatives</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>_id</th><th>Name</th><th>Details</th><th>Cost</th><th>Energy</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.name}</td>
-              <td>{r.details}</td>
-              <td>{r.costConsumption}</td>
-              <td>{r.energyConsumption}</td>
-              <td><button onClick={() => handleDelete(r._id)}>Delete</button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Initiatives</Heading>
+        <DataTable
+          label="All Initiatives"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>}
+        />
+      </Card>
+    </>
   );
 }
+
+const COLUMNS: DataTableColumn<Initiative>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "name", header: "Name", cell: r => r.name, primary: true },
+  { id: "details", header: "Details", cell: r => r.details },
+  { id: "costConsumption", header: "Cost", cell: r => r.costConsumption },
+  { id: "energyConsumption", header: "Energy", cell: r => r.energyConsumption },
+];

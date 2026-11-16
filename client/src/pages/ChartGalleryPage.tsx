@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, PageHeader, Text, TextArea, TextField, type DataTableColumn } from "@stratagem/design-system";
 import {
   createDebriefChartStyle, deleteDebriefChartStyle,
   getDebriefChartStyles, updateDebriefChartStyle,
@@ -8,9 +9,11 @@ import { sanitizeChartShape } from "./sanitizeChartShape";
 
 /** The chart gallery as data. !important a developer surface: authoring a shape means writing Vega-Lite. */
 
-const box = { border: "1px solid #ddd", padding: 12, marginBottom: 24 };
-const th  = { textAlign: "left" as const, fontSize: 11, color: "#888", padding: "4px 6px" };
-const td  = { padding: "3px 6px", verticalAlign: "top" as const };
+const COLUMNS: DataTableColumn<DebriefChartStyle>[] = [
+  { id: "category", header: "FAMILY", cell: (s) => s.category || <Text as="span" tone="faint">—</Text> },
+  { id: "name", header: "VARIANT", cell: (s) => s.name, primary: true },
+  { id: "shape", header: "SHAPE", cell: (s) => <Text as="span" variant="caption" tone="muted">{s.shape ? `${s.shape.length} chars` : "empty"}</Text> },
+];
 
 export default function ChartGalleryPage() {
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
@@ -47,86 +50,75 @@ export default function ChartGalleryPage() {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Chart Gallery</h2>
-      <p style={{ maxWidth: 720, color: "#555" }}>
-        Every chart shape the app can draw. Global — every simulation type picks from
-        this one list, on the Debrief Charts page. Adding a shape here is what makes a
-        new kind of chart available without a deploy.
-      </p>
+    <>
+      <PageHeader
+        title="Chart Gallery"
+        description="Every chart shape the app can draw. Global — every simulation type picks from this one list, on the Debrief Charts page. Adding a shape here is what makes a new kind of chart available without a deploy."
+      />
 
-      {error && <div style={{ color: "#b00", marginBottom: 8 }}>{error}</div>}
-      {notice && <div style={{ color: "#2a7", marginBottom: 8 }}>{notice}</div>}
+      {error && <Alert tone="danger">{error}</Alert>}
+      {notice && <Alert tone="success">{notice}</Alert>}
 
-      <div style={box}>
-        <div style={{ color: "#666", fontSize: 12, marginBottom: 10 }}>
+      <Card>
+        <Text variant="caption" tone="muted">
           <code>category</code> is the family (bar chart, line chart), <code>name</code> the
           variant (Stacked Bar, Cluster). A shape cannot be deleted while a configured
           chart still uses it.
-        </div>
+        </Text>
 
-        <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 10 }}>
-          <thead>
-            <tr>
-              <th style={th}>FAMILY</th><th style={th}>VARIANT</th>
-              <th style={th}>SHAPE</th><th style={th} />
-            </tr>
-          </thead>
-          <tbody>
-            {styles.map((s) => (
-              <tr key={s._id} style={{ borderTop: "1px solid #eee" }}>
-                <td style={td}>{s.category || <span style={{ color: "#bbb" }}>—</span>}</td>
-                <td style={td}>{s.name}</td>
-                <td style={{ ...td, fontSize: 11, color: "#888" }}>
-                  {s.shape ? `${s.shape.length} chars` : "empty"}
-                </td>
-                <td style={td}>
-                  <button
-                    onClick={() => {
-                      setEditing(s._id);
-                      setForm({ name: s.name, category: s.category, shape: s.shape });
-                    }}
-                  >
-                    Edit
-                  </button>{" "}
-                  <button onClick={() => run(() => deleteDebriefChartStyle(s._id), "Shape deleted.")}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {styles.length === 0 && (
-              <tr><td style={{ ...td, color: "#999" }} colSpan={4}>No shapes yet.</td></tr>
-            )}
-          </tbody>
-        </table>
+        <DataTable
+          label="Chart shapes"
+          columns={COLUMNS}
+          rows={styles}
+          rowKey={(s) => s._id}
+          empty="No shapes yet."
+          rowActions={(s) => (
+            <>
+              <Button
+                variant="text"
+                onClick={() => {
+                  setEditing(s._id);
+                  setForm({ name: s.name, category: s.category, shape: s.shape });
+                }}
+              >
+                Edit
+              </Button>
+              <Button variant="text" tone="danger" onClick={() => run(() => deleteDebriefChartStyle(s._id), "Shape deleted.")}>
+                Delete
+              </Button>
+            </>
+          )}
+        />
 
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <input
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            label="Family"
             placeholder="family, e.g. bar chart"
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
-            style={{ width: 170 }}
           />
-          <input
+          <TextField
+            label="Variant"
             placeholder="variant, e.g. Stacked Bar"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            style={{ width: 200 }}
           />
-          <textarea
-            placeholder="shape — sanitised on save"
-            value={form.shape}
-            onChange={(e) => setForm({ ...form, shape: e.target.value })}
-            rows={4}
-            style={{ flex: 1, minWidth: 280, fontFamily: "monospace", fontSize: 12 }}
-          />
-          <button onClick={submit} disabled={!form.name.trim()}>
-            {editing ? "Save" : "Add"}
-          </button>
-          {editing && <button onClick={reset}>Cancel</button>}
         </div>
-      </div>
-    </div>
+        <TextArea
+          label="Shape"
+          placeholder="shape — sanitised on save"
+          value={form.shape}
+          onChange={(e) => setForm({ ...form, shape: e.target.value })}
+          minRows={4}
+          className="font-mono"
+        />
+        <div className="flex gap-2">
+          <Button onClick={submit} disabled={!form.name.trim()}>
+            {editing ? "Save" : "Add"}
+          </Button>
+          {editing && <Button variant="outline" onClick={reset}>Cancel</Button>}
+        </div>
+      </Card>
+    </>
   );
 }

@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import {
+  Alert, Button, Card, DataTable, Heading, Input, PageHeader, Select, Text, TextArea, TextField,
+  type DataTableColumn,
+} from "@stratagem/design-system";
 import { getBaseData, createBaseData, getSegments, getProducts, getGlobalInputs } from "../api";
 import type { BaseData } from "../types";
 import { getSimulationTypes } from "../api";
@@ -326,78 +330,92 @@ export default function BaseDataPage() {
       if (editingKey === key) resetForm();
     };
 
-    return (
-      <div style={{ marginTop: 6 }}>
-        <table border={1} cellPadding={2} style={{ fontSize: 10, width: "100%" }}>
-          <thead>
-            <tr>
-              <th>level</th><th>key</th><th>label</th><th>productId</th><th>globalInputId</th><th>choiceKey</th>
-              {yearKeys.map(y => <th key={y}>{y}</th>)}
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {drivers.map(d => (
-              <tr key={d.key}>
-                <td>{d.level}</td>
-                <td>{d.key}</td>
-                <td>{d.label}</td>
-                <td>{d.productId ?? ""}</td>
-                <td>{d.globalInputId ?? ""}</td>
-                <td>{d.choiceKey ?? ""}</td>
-                {yearKeys.map(y => <td key={y}>{d.coefficients?.[y] ?? 0}</td>)}
-                <td>
-                  <button onClick={() => handleEdit(d)}>Edit</button>{" "}
-                  <button onClick={() => handleDelete(d.key)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    const columns: DataTableColumn<CsatDriver>[] = [
+      { id: "level", header: "level", cell: d => d.level },
+      { id: "key", header: "key", cell: d => d.key, primary: true },
+      { id: "label", header: "label", cell: d => d.label },
+      { id: "productId", header: "productId", cell: d => d.productId ?? "" },
+      { id: "globalInputId", header: "globalInputId", cell: d => d.globalInputId ?? "" },
+      { id: "choiceKey", header: "choiceKey", cell: d => d.choiceKey ?? "" },
+      ...yearKeys.map(y => ({ id: `y${y}`, header: y, align: "end" as const, cell: (d: CsatDriver) => d.coefficients?.[y] ?? 0 })),
+    ];
 
-        <div style={{ marginTop: 4 }}>
-          <select value={form.level} onChange={e => setForm(f => ({ ...f, level: e.target.value }))}>
-            <option value="global">global</option>
-            <option value="product">product</option>
-          </select>
-          <input placeholder="key" value={form.key} onChange={e => setForm(f => ({ ...f, key: e.target.value }))} disabled={!!editingKey} />
-          <input placeholder="label" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
-          <input placeholder="choiceKey (optional)" value={form.choiceKey} onChange={e => setForm(f => ({ ...f, choiceKey: e.target.value }))} />
+    return (
+      <div className="flex flex-col gap-2">
+        <DataTable
+          label="CSAT drivers"
+          density="compact"
+          columns={columns}
+          rows={drivers}
+          rowKey={d => d.key}
+          rowActions={d => (
+            <>
+              <Button variant="text" onClick={() => handleEdit(d)}>Edit</Button>
+              <Button variant="text" tone="danger" onClick={() => handleDelete(d.key)}>Delete</Button>
+            </>
+          )}
+        />
+
+        <div className="flex flex-wrap items-end gap-2">
+          <Select
+            size="sm"
+            width="fit"
+            aria-label="level"
+            value={form.level}
+            onValueChange={v => v && setForm(f => ({ ...f, level: v }))}
+            options={[
+              { value: "global", label: "global" },
+              { value: "product", label: "product" },
+            ]}
+          />
+          <Input size="sm" aria-label="key" placeholder="key" value={form.key} onChange={e => setForm(f => ({ ...f, key: e.target.value }))} disabled={!!editingKey} />
+          <Input size="sm" aria-label="label" placeholder="label" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+          <Input size="sm" aria-label="choiceKey" placeholder="choiceKey (optional)" value={form.choiceKey} onChange={e => setForm(f => ({ ...f, choiceKey: e.target.value }))} />
 
           {form.level === "product" && (
-            <select value={form.productId} onChange={e => setForm(f => ({ ...f, productId: e.target.value }))}>
-              <option value="">-- select product --</option>
-              {productOptions.map((p: any) => (
-                <option key={p._id} value={p._id}>{p.productName}</option>
-              ))}
-            </select>
+            <Select
+              size="sm"
+              width="fit"
+              aria-label="product"
+              placeholder="-- select product --"
+              value={form.productId || null}
+              onValueChange={v => setForm(f => ({ ...f, productId: v ?? "" }))}
+              options={productOptions.map((p: any) => ({ value: p._id, label: p.productName }))}
+            />
           )}
 
           {form.level === "global" && (
-            <select value={form.globalInputId} onChange={e => setForm(f => ({ ...f, globalInputId: e.target.value }))}>
-              <option value="">-- select global input --</option>
-              {globalInputOptions.map((gi: any) => (
-                <option key={gi._id} value={gi._id}>[{gi.category}] {gi.label}</option>
-              ))}
-            </select>
+            <Select
+              size="sm"
+              width="fit"
+              aria-label="global input"
+              placeholder="-- select global input --"
+              value={form.globalInputId || null}
+              onValueChange={v => setForm(f => ({ ...f, globalInputId: v ?? "" }))}
+              options={globalInputOptions.map((gi: any) => ({ value: gi._id, label: `[${gi.category}] ${gi.label}` }))}
+            />
           )}
+        </div>
 
-          <div>
-            {yearKeys.map(y => (
-              <span key={y} style={{ marginRight: 4 }}>
-                {y}:{" "}
-                <input
-                  type="number"
-                  style={{ width: 60 }}
-                  value={form.coefficients?.[y] ?? 0}
-                  onChange={e => setForm(f => ({ ...f, coefficients: { ...f.coefficients, [y]: Number(e.target.value) } }))}
-                />
-              </span>
-            ))}
-          </div>
+        <div className="flex flex-wrap gap-2">
+          {yearKeys.map(y => (
+            <TextField
+              key={y}
+              label={y}
+              type="number"
+              className="w-24"
+              value={form.coefficients?.[y] ?? 0}
+              onChange={e => {
+                const value = Number(e.target.value);
+                setForm(f => ({ ...f, coefficients: { ...f.coefficients, [y]: value } }));
+              }}
+            />
+          ))}
+        </div>
 
-          <button onClick={handleAdd} disabled={yearKeys.length === 0}>{editingKey ? "Update" : "Add"} Driver</button>
-          {editingKey && <button onClick={resetForm}>Cancel</button>}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleAdd} disabled={yearKeys.length === 0}>{editingKey ? "Update" : "Add"} Driver</Button>
+          {editingKey && <Button variant="text" size="sm" onClick={resetForm}>Cancel</Button>}
         </div>
       </div>
     );
@@ -414,33 +432,26 @@ export default function BaseDataPage() {
       new Set(drivers.flatMap(d => Object.keys(d.coefficients || {})))
     ).sort((a, b) => Number(a) - Number(b));
 
+    const columns: DataTableColumn<{ d: any; i: number }>[] = [
+      { id: "key", header: "key", cell: ({ d }) => d.key, primary: true },
+      { id: "label", header: "label", cell: ({ d }) => d.label },
+      { id: "choiceKey", header: "choiceKey", cell: ({ d }) => d.choiceKey ?? "" },
+      ...yearKeys.map(y => ({
+        id: `y${y}`,
+        header: y,
+        align: "end" as const,
+        cell: ({ d }: { d: any }) => (d.coefficients?.[y] !== undefined ? String(d.coefficients[y]) : ""),
+      })),
+    ];
+
     return (
-      <table style={{ fontSize: 10, borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr>
-            <th style={{ border: "1px solid #ccc", padding: 2, textAlign: "left" }}>key</th>
-            <th style={{ border: "1px solid #ccc", padding: 2, textAlign: "left" }}>label</th>
-            <th style={{ border: "1px solid #ccc", padding: 2 }}>choiceKey</th>
-            {yearKeys.map(y => (
-              <th key={y} style={{ border: "1px solid #ccc", padding: 2 }}>{y}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {drivers.map((d, i) => (
-            <tr key={`${d.key}-${i}`}>
-              <td style={{ border: "1px solid #ccc", padding: 2 }}>{d.key}</td>
-              <td style={{ border: "1px solid #ccc", padding: 2 }}>{d.label}</td>
-              <td style={{ border: "1px solid #ccc", padding: 2 }}>{d.choiceKey ?? ""}</td>
-              {yearKeys.map(y => (
-                <td key={y} style={{ border: "1px solid #ccc", padding: 2, textAlign: "right" }}>
-                  {d.coefficients?.[y] !== undefined ? String(d.coefficients[y]) : ""}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        label="CSAT drivers"
+        density="compact"
+        columns={columns}
+        rows={drivers.map((d, i) => ({ d, i }))}
+        rowKey={({ d, i }) => `${d.key}-${i}`}
+      />
     );
   };
 
@@ -457,25 +468,25 @@ export default function BaseDataPage() {
     });
 
     return (
-      <div style={{ paddingLeft: 8 }}>
+      <div className="flex flex-col gap-2 ps-2">
         {globalDrivers.length > 0 && (
-          <div style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 11 }}>Global — affects PnL globally</strong>
+          <div className="flex flex-col gap-1">
+            <Text as="strong" variant="caption" weight="semibold">Global — affects PnL globally</Text>
             <CsatDriversTable drivers={globalDrivers} />
           </div>
         )}
         {segmentDrivers.length > 0 && (
-          <div style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 11 }}>Segment — affects this segment</strong>
+          <div className="flex flex-col gap-1">
+            <Text as="strong" variant="caption" weight="semibold">Segment — affects this segment</Text>
             <CsatDriversTable drivers={segmentDrivers} />
           </div>
         )}
         {Object.keys(productGroups).length > 0 && (
-          <div style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 11 }}>Product — affects specific products</strong>
+          <div className="flex flex-col gap-1">
+            <Text as="strong" variant="caption" weight="semibold">Product — affects specific products</Text>
             {Object.entries(productGroups).map(([productId, ds]) => (
-              <div key={productId} style={{ paddingLeft: 8, marginBottom: 4 }}>
-                <em style={{ fontSize: 10 }}>Product {productId}</em>
+              <div key={productId} className="flex flex-col gap-1 ps-2">
+                <Text as="em" variant="caption">Product {productId}</Text>
                 <CsatDriversTable drivers={ds} />
               </div>
             ))}
@@ -489,22 +500,22 @@ export default function BaseDataPage() {
     const [openSegments, setOpenSegments] = useState<Record<string, boolean>>({});
 
     if (!csatMarketModel || !csatMarketModel.segments?.length) {
-      return <span style={{ color: "#888" }}>—</span>;
+      return <Text as="span" tone="faint">—</Text>;
     }
 
     const toggleSegment = (id: string) =>
       setOpenSegments(prev => ({ ...prev, [id]: !prev[id] }));
 
     return (
-      <div style={{ maxWidth: 480, maxHeight: 280, overflow: "auto", fontSize: 11 }}>
+      <div className="flex max-h-72 max-w-96 flex-col gap-1 overflow-auto">
         {csatMarketModel.segments.map((segment: any) => {
           const segmentId = segment.segmentId?.$oid ?? segment.segmentId;
           const segOpen = !!openSegments[segmentId];
           return (
-            <div key={segmentId} style={{ marginBottom: 4 }}>
-              <button onClick={() => toggleSegment(segmentId)} style={{ fontSize: 11, cursor: "pointer" }}>
+            <div key={segmentId} className="flex flex-col gap-1">
+              <Button variant="text" size="xs" className="self-start" onClick={() => toggleSegment(segmentId)}>
                 {segOpen ? "▾" : "▸"} Segment {segmentId}
-              </button>
+              </Button>
               {segOpen && <SegmentDriversBlock drivers={segment.drivers || []} />}
             </div>
           );
@@ -520,52 +531,38 @@ export default function BaseDataPage() {
       new Set(fields.flatMap(f => Object.keys(f.coefficients || {})))
     ).sort((a, b) => Number(a) - Number(b));
 
+    const columns: DataTableColumn<any>[] = [
+      { id: "field", header: "field", primary: true, cell: (f: any) => <span title={f.key}>{f.label}</span> },
+      { id: "direction", header: "direction", align: "end", cell: (f: any) => f.direction },
+      { id: "tightening", header: "tightening", align: "end", cell: (f: any) => f.tightening },
+      { id: "elasticity", header: "elasticity", align: "end", cell: (f: any) => f.elasticity },
+      ...yearKeys.map(y => ({
+        id: `y${y}`,
+        header: y,
+        align: "end" as const,
+        cell: (f: any) => (f.coefficients?.[y] !== undefined ? String(f.coefficients[y]) : ""),
+      })),
+    ];
+
     return (
-      <div style={{ marginBottom: 6 }}>
-        <strong style={{ fontSize: 11 }}>{title}</strong>
-        <table style={{ fontSize: 10, borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr>
-              <th style={{ border: "1px solid #ccc", padding: 2, textAlign: "left" }}>field</th>
-              <th style={{ border: "1px solid #ccc", padding: 2 }}>direction</th>
-              <th style={{ border: "1px solid #ccc", padding: 2 }}>tightening</th>
-              <th style={{ border: "1px solid #ccc", padding: 2 }}>elasticity</th>
-              {yearKeys.map(y => (
-                <th key={y} style={{ border: "1px solid #ccc", padding: 2 }}>{y}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {fields.map(f => (
-              <tr key={f.key}>
-                <td style={{ border: "1px solid #ccc", padding: 2 }} title={f.key}>{f.label}</td>
-                <td style={{ border: "1px solid #ccc", padding: 2, textAlign: "right" }}>{f.direction}</td>
-                <td style={{ border: "1px solid #ccc", padding: 2, textAlign: "right" }}>{f.tightening}</td>
-                <td style={{ border: "1px solid #ccc", padding: 2, textAlign: "right" }}>{f.elasticity}</td>
-                {yearKeys.map(y => (
-                  <td key={y} style={{ border: "1px solid #ccc", padding: 2, textAlign: "right" }}>
-                    {f.coefficients?.[y] !== undefined ? String(f.coefficients[y]) : ""}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex flex-col gap-1">
+        <Text as="strong" variant="caption" weight="semibold">{title}</Text>
+        <DataTable label={title} density="compact" columns={columns} rows={fields} rowKey={(f: any) => f.key} />
       </div>
     );
   };
 
   const ProductFieldsBlock = ({ product }: { product: any }) => (
-    <div style={{ paddingLeft: 8 }}>
+    <div className="flex flex-col gap-2 ps-2">
       <FieldsTable title="Fields" fields={product.fields} />
       <FieldsTable title="Segment Fields" fields={product.segmentFields} />
       <FieldsTable title="Global Fields" fields={product.globalFields} />
       {(product.subProducts || []).length > 0 && (
-        <div style={{ marginTop: 4 }}>
-          <strong style={{ fontSize: 11 }}>Sub-products</strong>
+        <div className="flex flex-col gap-1">
+          <Text as="strong" variant="caption" weight="semibold">Sub-products</Text>
           {product.subProducts.map((sp: any) => (
-            <div key={sp._id?.$oid ?? sp._id ?? sp.key} style={{ marginBottom: 4, paddingLeft: 8 }}>
-              <span style={{ fontSize: 11 }}>↳ {sp.key}{sp.name ? ` (${sp.name})` : ""}</span>
+            <div key={sp._id?.$oid ?? sp._id ?? sp.key} className="flex flex-col gap-1 ps-2">
+              <Text as="span" variant="caption">↳ {sp.key}{sp.name ? ` (${sp.name})` : ""}</Text>
               <FieldsTable title="Fields" fields={sp.fields} />
             </div>
           ))}
@@ -583,7 +580,7 @@ export default function BaseDataPage() {
     const [openProducts, setOpenProducts] = useState<Record<string, boolean>>({});
 
     if (!marketModel || !marketModel.segments?.length) {
-      return <span style={{ color: "#888" }}>—</span>;
+      return <Text as="span" tone="faint">—</Text>;
     }
 
     const toggleSegment = (id: string) =>
@@ -592,24 +589,24 @@ export default function BaseDataPage() {
       setOpenProducts(prev => ({ ...prev, [key]: !prev[key] }));
 
     return (
-      <div style={{ maxWidth: 480, maxHeight: 280, overflow: "auto", fontSize: 11 }}>
+      <div className="flex max-h-72 max-w-96 flex-col gap-1 overflow-auto">
         {marketModel.segments.map((segment: any) => {
           const segOpen = !!openSegments[segment.segmentId];
           return (
-            <div key={segment.segmentId} style={{ marginBottom: 4 }}>
-              <button onClick={() => toggleSegment(segment.segmentId)} style={{ fontSize: 11, cursor: "pointer" }}>
+            <div key={segment.segmentId} className="flex flex-col gap-1">
+              <Button variant="text" size="xs" className="self-start" onClick={() => toggleSegment(segment.segmentId)}>
                 {segOpen ? "▾" : "▸"} Segment {segment.segmentId}
-              </button>
+              </Button>
               {segOpen && (
-                <div style={{ paddingLeft: 12 }}>
+                <div className="flex flex-col gap-1 ps-3">
                   {(segment.products || []).map((product: any) => {
                     const productKey = `${segment.segmentId}:${product.productId}`;
                     const prodOpen = !!openProducts[productKey];
                     return (
-                      <div key={productKey} style={{ marginBottom: 4 }}>
-                        <button onClick={() => toggleProduct(productKey)} style={{ fontSize: 11, cursor: "pointer" }}>
+                      <div key={productKey} className="flex flex-col gap-1">
+                        <Button variant="text" size="xs" className="self-start" onClick={() => toggleProduct(productKey)}>
                           {prodOpen ? "▾" : "▸"} Product {product.productId}
-                        </button>
+                        </Button>
                         {prodOpen && <ProductFieldsBlock product={product} />}
                       </div>
                     );
@@ -713,67 +710,77 @@ export default function BaseDataPage() {
       if (editingKey === key) resetForm();
     };
 
-    return (
-      <div style={{ marginTop: 6 }}>
-        <strong style={{ fontSize: 11 }}>{title}</strong>
-        <table border={1} cellPadding={2} style={{ fontSize: 10, width: "100%" }}>
-          <thead>
-            <tr>
-              <th>key</th><th>label</th><th>level</th><th>direction</th><th>tightening</th><th>elasticity</th>
-              {yearKeys.map(y => <th key={y}>{y}</th>)}
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {fields.map(f => (
-              <tr key={f.key}>
-                <td>{f.key}</td>
-                <td>{f.label}</td>
-                <td>{f.formula}</td>
-                <td>{f.type}</td>
-                <td>{f.level}</td>
-                <td>{f.direction}</td>
-                <td>{f.tightening}</td>
-                <td>{f.elasticity}</td>
-                {yearKeys.map(y => <td key={y}>{f.coefficients?.[y] ?? 0}</td>)}
-                <td>
-                  <button onClick={() => handleEdit(f)}>Edit</button>{" "}
-                  <button onClick={() => handleDelete(f.key)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    // One header per rendered cell; the old table listed 6 headers over 8 cells
+    const columns: DataTableColumn<MarketModelField>[] = [
+      { id: "key", header: "key", cell: f => f.key, primary: true },
+      { id: "label", header: "label", cell: f => f.label },
+      { id: "formula", header: "formula", cell: f => f.formula },
+      { id: "type", header: "type", cell: f => f.type },
+      { id: "level", header: "level", cell: f => f.level },
+      { id: "direction", header: "direction", align: "end", cell: f => f.direction },
+      { id: "tightening", header: "tightening", align: "end", cell: f => f.tightening },
+      { id: "elasticity", header: "elasticity", align: "end", cell: f => f.elasticity },
+      ...yearKeys.map(y => ({ id: `y${y}`, header: y, align: "end" as const, cell: (f: MarketModelField) => f.coefficients?.[y] ?? 0 })),
+    ];
 
-        <div style={{ marginTop: 4 }}>
-          <input placeholder="key" value={form.key} onChange={e => setForm(f => ({ ...f, key: e.target.value }))} disabled={!!editingKey} />
-          <input placeholder="label" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
-          <input placeholder="formula (optional)" value={form.formula} onChange={e => setForm(f => ({ ...f, formula: e.target.value }))} />
-          <input placeholder="type (optional)" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} />
-          <select value={form.level} onChange={e => setForm(f => ({ ...f, level: e.target.value }))}>
-            <option value="">-- none --</option>
-            <option value="global">global</option>
-            <option value="segment">segment</option>
-            <option value="product">product</option>
-          </select>
-          <input type="number" placeholder="direction" style={{ width: 70 }} value={form.direction} onChange={e => setForm(f => ({ ...f, direction: Number(e.target.value) }))} />
-          <input type="number" placeholder="tightening" style={{ width: 70 }} value={form.tightening} onChange={e => setForm(f => ({ ...f, tightening: Number(e.target.value) }))} />
-          <input type="number" placeholder="elasticity (optional)" style={{ width: 70 }} value={form.elasticity} onChange={e => setForm(f => ({ ...f, elasticity: Number(e.target.value) }))} />
-          <div>
-            {yearKeys.map(y => (
-              <span key={y} style={{ marginRight: 4 }}>
-                {y}:{" "}
-                <input
-                  type="number"
-                  style={{ width: 60 }}
-                  value={form.coefficients?.[y] ?? 0}
-                  onChange={e => setForm(f => ({ ...f, coefficients: { ...f.coefficients, [y]: Number(e.target.value) } }))}
-                />
-              </span>
-            ))}
-          </div>
-          <button onClick={handleAdd} disabled={yearKeys.length === 0}>{editingKey ? "Update" : "Add"} Field</button>
-          {editingKey && <button onClick={resetForm}>Cancel</button>}
+    return (
+      <div className="flex flex-col gap-2">
+        <Text as="strong" variant="caption" weight="semibold">{title}</Text>
+        <DataTable
+          label={title}
+          density="compact"
+          columns={columns}
+          rows={fields}
+          rowKey={f => f.key}
+          rowActions={f => (
+            <>
+              <Button variant="text" onClick={() => handleEdit(f)}>Edit</Button>
+              <Button variant="text" tone="danger" onClick={() => handleDelete(f.key)}>Delete</Button>
+            </>
+          )}
+        />
+
+        <div className="flex flex-wrap items-end gap-2">
+          <Input size="sm" aria-label="key" placeholder="key" value={form.key} onChange={e => setForm(f => ({ ...f, key: e.target.value }))} disabled={!!editingKey} />
+          <Input size="sm" aria-label="label" placeholder="label" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+          <Input size="sm" aria-label="formula" placeholder="formula (optional)" value={form.formula} onChange={e => setForm(f => ({ ...f, formula: e.target.value }))} />
+          <Input size="sm" aria-label="type" placeholder="type (optional)" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} />
+          <Select
+            size="sm"
+            width="fit"
+            aria-label="level"
+            placeholder="-- none --"
+            value={form.level || null}
+            onValueChange={v => setForm(f => ({ ...f, level: v ?? "" }))}
+            options={[
+              { value: "", label: "-- none --" },
+              { value: "global", label: "global" },
+              { value: "segment", label: "segment" },
+              { value: "product", label: "product" },
+            ]}
+          />
+          <Input size="sm" className="w-20" aria-label="direction" type="number" placeholder="direction" value={form.direction} onChange={e => setForm(f => ({ ...f, direction: Number(e.target.value) }))} />
+          <Input size="sm" className="w-20" aria-label="tightening" type="number" placeholder="tightening" value={form.tightening} onChange={e => setForm(f => ({ ...f, tightening: Number(e.target.value) }))} />
+          <Input size="sm" className="w-20" aria-label="elasticity" type="number" placeholder="elasticity (optional)" value={form.elasticity} onChange={e => setForm(f => ({ ...f, elasticity: Number(e.target.value) }))} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {yearKeys.map(y => (
+            <TextField
+              key={y}
+              label={y}
+              type="number"
+              className="w-24"
+              value={form.coefficients?.[y] ?? 0}
+              onChange={e => {
+                const value = Number(e.target.value);
+                setForm(f => ({ ...f, coefficients: { ...f.coefficients, [y]: value } }));
+              }}
+            />
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleAdd} disabled={yearKeys.length === 0}>{editingKey ? "Update" : "Add"} Field</Button>
+          {editingKey && <Button variant="text" size="sm" onClick={resetForm}>Cancel</Button>}
         </div>
       </div>
     );
@@ -784,7 +791,7 @@ export default function BaseDataPage() {
     const [openProducts, setOpenProducts] = useState<Record<string, boolean>>({});
 
     if (!marketData || !marketData.segments?.length) {
-      return <span style={{ color: "#888" }}>—</span>;
+      return <Text as="span" tone="faint">—</Text>;
     }
 
     const toggleSegment = (segmentId: string) =>
@@ -794,16 +801,16 @@ export default function BaseDataPage() {
       setOpenProducts(prev => ({ ...prev, [key]: !prev[key] }));
 
     return (
-      <div style={{ maxWidth: 420, maxHeight: 280, overflow: "auto", fontSize: 11 }}>
+      <div className="flex max-h-72 max-w-96 flex-col gap-1 overflow-auto">
         {marketData.segments.map((segment: any) => {
           const segOpen = !!openSegments[segment.segmentId];
           return (
-            <div key={segment.segmentId} style={{ marginBottom: 4 }}>
-              <button onClick={() => toggleSegment(segment.segmentId)} style={{ fontSize: 11, cursor: "pointer" }}>
+            <div key={segment.segmentId} className="flex flex-col gap-1">
+              <Button variant="text" size="xs" className="self-start" onClick={() => toggleSegment(segment.segmentId)}>
                 {segOpen ? "▾" : "▸"} Segment {segment.segmentId}
-              </button>
+              </Button>
               {segOpen && (
-                <div style={{ paddingLeft: 12 }}>
+                <div className="flex flex-col gap-1 ps-3">
                   {(segment.products || []).map((product: any) => {
                     const productKey = `${segment.segmentId}:${product.productId}`;
                     const prodOpen = !!openProducts[productKey];
@@ -813,35 +820,23 @@ export default function BaseDataPage() {
                     const propertyKeys = Array.from(
                       new Set(yearKeys.flatMap(y => Object.keys(product.yearlyData[y] || {})))
                     );
+                    const columns: DataTableColumn<string>[] = [
+                      { id: "year", header: "year", cell: y => y, primary: true },
+                      ...propertyKeys.map(p => ({
+                        id: p,
+                        header: p,
+                        align: "end" as const,
+                        cell: (y: string) => (product.yearlyData[y]?.[p] !== undefined ? String(product.yearlyData[y][p]) : ""),
+                      })),
+                    ];
 
                     return (
-                      <div key={productKey} style={{ marginBottom: 4 }}>
-                        <button onClick={() => toggleProduct(productKey)} style={{ fontSize: 11, cursor: "pointer" }}>
+                      <div key={productKey} className="flex flex-col gap-1">
+                        <Button variant="text" size="xs" className="self-start" onClick={() => toggleProduct(productKey)}>
                           {prodOpen ? "▾" : "▸"} Product {product.productId}
-                        </button>
+                        </Button>
                         {prodOpen && (
-                          <table style={{ fontSize: 10, borderCollapse: "collapse", width: "100%" }}>
-                            <thead>
-                              <tr>
-                                <th style={{ border: "1px solid #ccc", padding: 2, textAlign: "left" }}>year</th>
-                                {propertyKeys.map(p => (
-                                  <th key={p} style={{ border: "1px solid #ccc", padding: 2 }}>{p}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {yearKeys.map(y => (
-                                <tr key={y}>
-                                  <td style={{ border: "1px solid #ccc", padding: 2 }}>{y}</td>
-                                  {propertyKeys.map(p => (
-                                    <td key={p} style={{ border: "1px solid #ccc", padding: 2, textAlign: "right" }}>
-                                      {product.yearlyData[y]?.[p] !== undefined ? String(product.yearlyData[y][p]) : ""}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                          <DataTable label={`Product ${product.productId}`} density="compact" columns={columns} rows={yearKeys} rowKey={y => y} />
                         )}
                       </div>
                     );
@@ -857,225 +852,248 @@ export default function BaseDataPage() {
 
   useEffect(() => { load(); }, [filterSimType]);
 
+  const segmentPicker = (
+    label: string,
+    value: string,
+    onValue: (v: string) => void,
+    taken: { segmentId: string }[],
+  ) => (
+    <Select
+      size="sm"
+      width="fit"
+      aria-label={label}
+      placeholder="-- select segment to add --"
+      value={value || null}
+      onValueChange={v => onValue(v ?? "")}
+      disabled={!newSimTypeId}
+      options={segmentOptions
+        .filter((seg: any) => !taken.some(s => s.segmentId === seg._id))
+        .map((seg: any) => ({ value: seg._id, label: seg.name ?? seg._id }))}
+    />
+  );
+
+  const productPicker = (
+    label: string,
+    segmentId: string,
+    value: string,
+    onValue: (v: string) => void,
+    taken: { productId: string }[],
+  ) => (
+    <Select
+      size="sm"
+      width="fit"
+      aria-label={label}
+      placeholder="-- select product to add --"
+      value={value || null}
+      onValueChange={v => onValue(v ?? "")}
+      options={(productOptionsBySegment[segmentId] || [])
+        .filter((p: any) => !taken.some(sp => sp.productId === p._id))
+        .map((p: any) => ({ value: p._id, label: p.productName }))}
+    />
+  );
+
+  const recordColumns: DataTableColumn<any>[] = [
+    { id: "_id", header: "_id", cell: (r: any) => r._id },
+    { id: "simulationTypeId", header: "SimTypeId", cell: (r: any) => r.simulationTypeId },
+    { id: "constants", header: "constants", cell: (r: any) => <pre className="m-0 max-w-52 overflow-auto type-caption">{JSON.stringify(r.constants, null, 2)}</pre> },
+    { id: "marketData", header: "marketData", cell: (r: any) => <MarketDataView marketData={r.marketData} /> },
+    { id: "marketModel", header: "marketModel", cell: (r: any) => <MarketModelView marketModel={r.marketModel} /> },
+    { id: "csatMarketModel", header: "csatMarketModel", cell: (r: any) => <CsatMarketModelView csatMarketModel={r.csatMarketModel} /> },
+    // The old table rendered this cell without a header of its own
+    { id: "csatJson", header: "csatMarketModel (JSON)", cell: (r: any) => <pre className="m-0 max-w-52 overflow-auto type-caption">{JSON.stringify(r.csatMarketModel, null, 2)}</pre> },
+  ];
+
   return (
-    <div>
-      <h2>Base Data</h2>
-      <h3>Create Base Data</h3>
-        {createError && <p style={{ color: "red" }}>{createError}</p>}
-        {createSuccess && <p style={{ color: "green" }}>{createSuccess}</p>}
-        <table>
-          <tbody>
-            <tr>
-              <td>Simulation Type</td>
-              <td>
-                <select value={newSimTypeId} onChange={e => setNewSimTypeId(e.target.value)}>
-                  <option value="">-- select --</option>
-                  {simulationTypes.map((st: any) => (
-                    <option key={st._id} value={st._id}>{st.name ?? st._id}</option>
-                  ))}
-                </select>
-              </td>
-            </tr>
-            <tr>
-              <td>Constants (JSON)</td>
-              <td><textarea value={constantsJson} onChange={e => setConstantsJson(e.target.value)} rows={4} style={{ width: "100%", fontFamily: "monospace", fontSize: 11 }} /></td>
-            </tr>
-            <tr>
-              <td>Market Data</td>
-              <td>
-                <select value={selectedSegmentToAdd} onChange={e => setSelectedSegmentToAdd(e.target.value)} disabled={!newSimTypeId}>
-                  <option value="">-- select segment to add --</option>
-                  {segmentOptions
-                    .filter((seg: any) => !marketDataSegments.some(s => s.segmentId === seg._id))
-                    .map((seg: any) => (
-                      <option key={seg._id} value={seg._id}>{seg.name ?? seg._id}</option>
-                    ))}
-                </select>
-                <button onClick={handleAddMarketDataSegment} disabled={!selectedSegmentToAdd}>Add Segment</button>
+    <>
+      <PageHeader title="Base Data" />
 
-                {marketDataSegments.map(seg => (
-                  <div key={seg.segmentId} style={{ border: "1px solid #ccc", padding: 8, marginTop: 8 }}>
-                    <strong>Segment {seg.segmentName}</strong>{" "}
-                    <button onClick={() => handleRemoveMarketDataSegment(seg.segmentId)}>Remove Segment</button>
+      <Card>
+        <Heading level={3}>Create Base Data</Heading>
+        {createError && <Alert tone="danger">{createError}</Alert>}
+        {createSuccess && <Alert tone="success">{createSuccess}</Alert>}
 
-                    <div style={{ marginTop: 4 }}>
-                      <select
-                        value={selectedProductToAddBySegment[seg.segmentId] ?? ""}
-                        onChange={e => setSelectedProductToAddBySegment(prev => ({ ...prev, [seg.segmentId]: e.target.value }))}
-                      >
-                        <option value="">-- select product to add --</option>
-                        {(productOptionsBySegment[seg.segmentId] || [])
-                          .filter((p: any) => !seg.products.some(sp => sp.productId === p._id))
-                          .map((p: any) => (
-                            <option key={p._id} value={p._id}>{p.productName}</option>
-                          ))}
-                      </select>
-                      <button onClick={() => handleAddMarketDataProduct(seg.segmentId)} disabled={!selectedProductToAddBySegment[seg.segmentId]}>
-                        Add Product
-                      </button>
+        <Select
+          label="Simulation Type"
+          placeholder="-- select --"
+          value={newSimTypeId || null}
+          onValueChange={v => setNewSimTypeId(v ?? "")}
+          options={simulationTypes.map((st: any) => ({ value: st._id, label: st.name ?? st._id }))}
+        />
+        <TextArea label="Constants (JSON)" className="font-mono" value={constantsJson} onChange={e => setConstantsJson(e.target.value)} minRows={4} />
+
+        {/* ── Market Data ── */}
+        <Card variant="panel">
+          <Heading level={4}>Market Data</Heading>
+          <div className="flex flex-wrap items-center gap-2">
+            {segmentPicker("segment to add", selectedSegmentToAdd, setSelectedSegmentToAdd, marketDataSegments)}
+            <Button variant="outline" size="sm" onClick={handleAddMarketDataSegment} disabled={!selectedSegmentToAdd}>Add Segment</Button>
+          </div>
+
+          {marketDataSegments.map(seg => (
+            <Card key={seg.segmentId} variant="nested">
+              <div className="flex flex-wrap items-center gap-2">
+                <Text as="strong" weight="semibold">Segment {seg.segmentName}</Text>
+                <Button variant="text" tone="danger" size="sm" onClick={() => handleRemoveMarketDataSegment(seg.segmentId)}>Remove Segment</Button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {productPicker(
+                  "product to add",
+                  seg.segmentId,
+                  selectedProductToAddBySegment[seg.segmentId] ?? "",
+                  v => setSelectedProductToAddBySegment(prev => ({ ...prev, [seg.segmentId]: v })),
+                  seg.products,
+                )}
+                <Button variant="outline" size="sm" onClick={() => handleAddMarketDataProduct(seg.segmentId)} disabled={!selectedProductToAddBySegment[seg.segmentId]}>
+                  Add Product
+                </Button>
+              </div>
+
+              {seg.products.map(prod => {
+                const key = `${seg.segmentId}:${prod.productId}`;
+                const yf = yearFormByProduct[key] ?? { year: "", marketSize: 0, marketGrowth: 0 };
+                return (
+                  <Card key={prod.productId} variant="panel" className="ms-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Text as="strong" weight="semibold">{prod.productName}</Text>
+                      <Button variant="text" tone="danger" size="sm" onClick={() => handleRemoveMarketDataProduct(seg.segmentId, prod.productId)}>Remove Product</Button>
                     </div>
 
-                    {seg.products.map(prod => {
-                      const key = `${seg.segmentId}:${prod.productId}`;
-                      const yf = yearFormByProduct[key] ?? { year: "", marketSize: 0, marketGrowth: 0 };
-                      return (
-                        <div key={prod.productId} style={{ border: "1px solid #ddd", padding: 6, marginTop: 6, marginLeft: 8 }}>
-                          <strong>{prod.productName}</strong>{" "}
-                          <button onClick={() => handleRemoveMarketDataProduct(seg.segmentId, prod.productId)}>Remove Product</button>
-
-                          <table border={1} cellPadding={2} style={{ fontSize: 11, marginTop: 4 }}>
-                            <thead><tr><th>year</th><th>marketSize</th><th>marketGrowth</th><th></th></tr></thead>
-                            <tbody>
-                              {Object.entries(prod.yearlyData).map(([year, data]: [string, any]) => (
-                                <tr key={year}>
-                                  <td>{year}</td>
-                                  <td>{data.marketSize}</td>
-                                  <td>{data.marketGrowth}</td>
-                                  <td><button onClick={() => handleRemoveYearRow(seg.segmentId, prod.productId, year)}>Remove</button></td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-
-                          <div style={{ marginTop: 4 }}>
-                            <input placeholder="year" style={{ width: 60 }} value={yf.year} onChange={e => updateYearForm(seg.segmentId, prod.productId, "year", e.target.value)} />
-                            <input type="number" placeholder="marketSize" style={{ width: 100 }} value={yf.marketSize} onChange={e => updateYearForm(seg.segmentId, prod.productId, "marketSize", Number(e.target.value))} />
-                            <input type="number" step="0.01" placeholder="marketGrowth" style={{ width: 100 }} value={yf.marketGrowth} onChange={e => updateYearForm(seg.segmentId, prod.productId, "marketGrowth", Number(e.target.value))} />
-                            <button onClick={() => handleAddYearRow(seg.segmentId, prod.productId)} disabled={yf.year === ""}>Add Year</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </td>
-            </tr>
-            <tr>
-              <tr>
-                <td>Market Model</td>
-              </tr>
-              <td>
-                <select value={selectedMMSegmentToAdd} onChange={e => setSelectedMMSegmentToAdd(e.target.value)} disabled={!newSimTypeId}>
-                  <option value="">-- select segment to add --</option>
-                  {segmentOptions
-                    .filter((seg: any) => !marketModelSegments.some(s => s.segmentId === seg._id))
-                    .map((seg: any) => (
-                      <option key={seg._id} value={seg._id}>{seg.name ?? seg._id}</option>
-                    ))}
-                </select>
-                <button onClick={handleAddMMSegment} disabled={!selectedMMSegmentToAdd}>Add Segment</button>
-
-                {newSimTypeId && yearKeys.length === 0 && (
-                  <p style={{ color: "orange", fontSize: 11 }}>
-                    Selected simulation type has no yearRange set — coefficients can't be entered until it does.
-                  </p>
-                )}
-
-                {marketModelSegments.map(seg => (
-                  <div key={seg.segmentId} style={{ border: "1px solid #ccc", padding: 8, marginTop: 8 }}>
-                    <strong>Segment {seg.segmentName}</strong>{" "}
-                    <button onClick={() => handleRemoveMMSegment(seg.segmentId)}>Remove Segment</button>
-
-                    <div style={{ marginTop: 4 }}>
-                      <select
-                        value={selectedMMProductToAddBySegment[seg.segmentId] ?? ""}
-                        onChange={e => setSelectedMMProductToAddBySegment(prev => ({ ...prev, [seg.segmentId]: e.target.value }))}
-                      >
-                        <option value="">-- select product to add --</option>
-                        {(productOptionsBySegment[seg.segmentId] || [])
-                          .filter((p: any) => !seg.products.some(sp => sp.productId === p._id))
-                          .map((p: any) => (
-                            <option key={p._id} value={p._id}>{p.productName}</option>
-                          ))}
-                      </select>
-                      <button onClick={() => handleAddMMProduct(seg.segmentId)} disabled={!selectedMMProductToAddBySegment[seg.segmentId]}>
-                        Add Product
-                      </button>
-                    </div>
-
-                    {seg.products.map(prod => (
-                      <div key={prod.productId} style={{ border: "1px solid #ddd", padding: 6, marginTop: 6, marginLeft: 8 }}>
-                        <strong>{prod.productName}</strong>{" "}
-                        <button onClick={() => handleRemoveMMProduct(seg.segmentId, prod.productId)}>Remove Product</button>
-
-                        <MarketModelFieldsEditor title="Fields" fields={prod.fields} yearKeys={yearKeys}
-                          onChange={next => updateMMProductFieldList(seg.segmentId, prod.productId, "fields", next)} />
-                        <MarketModelFieldsEditor title="Segment Fields" fields={prod.segmentFields} yearKeys={yearKeys}
-                          onChange={next => updateMMProductFieldList(seg.segmentId, prod.productId, "segmentFields", next)} />
-                        <MarketModelFieldsEditor title="Global Fields" fields={prod.globalFields} yearKeys={yearKeys}
-                          onChange={next => updateMMProductFieldList(seg.segmentId, prod.productId, "globalFields", next)} />
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </td>
-            </tr>
-            <tr>
-              <td>CSAT Market Model</td>
-              <td>
-                <select value={selectedCsatSegmentToAdd} onChange={e => setSelectedCsatSegmentToAdd(e.target.value)} disabled={!newSimTypeId}>
-                  <option value="">-- select segment to add --</option>
-                  {segmentOptions
-                    .filter((seg: any) => !csatSegments.some(s => s.segmentId === seg._id))
-                    .map((seg: any) => (
-                      <option key={seg._id} value={seg._id}>{seg.name ?? seg._id}</option>
-                    ))}
-                </select>
-                <button onClick={handleAddCsatSegment} disabled={!selectedCsatSegmentToAdd}>Add Segment</button>
-
-                {newSimTypeId && yearKeys.length === 0 && (
-                  <p style={{ color: "orange", fontSize: 11 }}>Selected simulation type has no yearRange set — coefficients can't be entered yet.</p>
-                )}
-                {newSimTypeId && globalInputOptions.length === 0 && (
-                  <p style={{ color: "orange", fontSize: 11 }}>No Global Inputs exist yet for this simulation type — "global"-level drivers won't have anything to pick from.</p>
-                )}
-
-                {csatSegments.map(seg => (
-                  <div key={seg.segmentId} style={{ border: "1px solid #ccc", padding: 8, marginTop: 8 }}>
-                    <strong>Segment {seg.segmentName}</strong>{" "}
-                    <button onClick={() => handleRemoveCsatSegment(seg.segmentId)}>Remove Segment</button>
-
-                    <CsatDriversEditor
-                      drivers={seg.drivers}
-                      yearKeys={yearKeys}
-                      productOptions={productOptionsBySegment[seg.segmentId] || []}
-                      globalInputOptions={globalInputOptions}
-                      onChange={next => updateCsatSegmentDrivers(seg.segmentId, next)}
+                    <DataTable
+                      label={`${prod.productName} yearly data`}
+                      density="compact"
+                      columns={YEAR_COLUMNS}
+                      rows={Object.entries(prod.yearlyData) as [string, any][]}
+                      rowKey={([year]) => year}
+                      rowActions={([year]) => (
+                        <Button variant="text" tone="danger" onClick={() => handleRemoveYearRow(seg.segmentId, prod.productId, year)}>Remove</Button>
+                      )}
                     />
-                  </div>
-                ))}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <button onClick={handleCreateBaseData} disabled={creating}>Create</button>
-      {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <label>Filter Simulation Type ID: <input value={filterSimType} onChange={e => setFilterSimType(e.target.value)} /></label>
-      {" "}
-      <button onClick={load}>Refresh</button>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <Input size="sm" className="w-20" aria-label="year" placeholder="year" value={yf.year} onChange={e => updateYearForm(seg.segmentId, prod.productId, "year", e.target.value)} />
+                      <Input size="sm" className="w-28" aria-label="marketSize" type="number" placeholder="marketSize" value={yf.marketSize} onChange={e => updateYearForm(seg.segmentId, prod.productId, "marketSize", Number(e.target.value))} />
+                      <Input size="sm" className="w-28" aria-label="marketGrowth" type="number" step="0.01" placeholder="marketGrowth" value={yf.marketGrowth} onChange={e => updateYearForm(seg.segmentId, prod.productId, "marketGrowth", Number(e.target.value))} />
+                      <Button variant="outline" size="sm" onClick={() => handleAddYearRow(seg.segmentId, prod.productId)} disabled={yf.year === ""}>Add Year</Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </Card>
+          ))}
+        </Card>
 
-      <h3>All Base Data</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr>
-            <th>_id</th><th>SimTypeId</th><th>constants</th><th>marketData</th><th>marketModel</th><th>csatMarketModel</th>
-          </tr>
-        </thead>
-        <tbody>
-          {record && (
-            <tr key={record._id}>
-              <td>{record._id}</td>
-              <td>{record.simulationTypeId}</td>
-              <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(record.constants, null, 2)}</pre></td>
-              <td><MarketDataView marketData={record.marketData} /></td>
-              <td><MarketModelView marketModel={record.marketModel} /></td>
-              <td><CsatMarketModelView csatMarketModel={record.csatMarketModel} /></td>
-              <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(record.csatMarketModel, null, 2)}</pre></td>
-            </tr>
+        {/* ── Market Model ── */}
+        <Card variant="panel">
+          <Heading level={4}>Market Model</Heading>
+          <div className="flex flex-wrap items-center gap-2">
+            {segmentPicker("market model segment to add", selectedMMSegmentToAdd, setSelectedMMSegmentToAdd, marketModelSegments)}
+            <Button variant="outline" size="sm" onClick={handleAddMMSegment} disabled={!selectedMMSegmentToAdd}>Add Segment</Button>
+          </div>
+
+          {newSimTypeId && yearKeys.length === 0 && (
+            <Alert tone="warning">
+              Selected simulation type has no yearRange set — coefficients can't be entered until it does.
+            </Alert>
           )}
-        </tbody>
-      </table>
-    </div>
+
+          {marketModelSegments.map(seg => (
+            <Card key={seg.segmentId} variant="nested">
+              <div className="flex flex-wrap items-center gap-2">
+                <Text as="strong" weight="semibold">Segment {seg.segmentName}</Text>
+                <Button variant="text" tone="danger" size="sm" onClick={() => handleRemoveMMSegment(seg.segmentId)}>Remove Segment</Button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {productPicker(
+                  "market model product to add",
+                  seg.segmentId,
+                  selectedMMProductToAddBySegment[seg.segmentId] ?? "",
+                  v => setSelectedMMProductToAddBySegment(prev => ({ ...prev, [seg.segmentId]: v })),
+                  seg.products,
+                )}
+                <Button variant="outline" size="sm" onClick={() => handleAddMMProduct(seg.segmentId)} disabled={!selectedMMProductToAddBySegment[seg.segmentId]}>
+                  Add Product
+                </Button>
+              </div>
+
+              {seg.products.map(prod => (
+                <Card key={prod.productId} variant="panel" className="ms-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Text as="strong" weight="semibold">{prod.productName}</Text>
+                    <Button variant="text" tone="danger" size="sm" onClick={() => handleRemoveMMProduct(seg.segmentId, prod.productId)}>Remove Product</Button>
+                  </div>
+
+                  <MarketModelFieldsEditor title="Fields" fields={prod.fields} yearKeys={yearKeys}
+                    onChange={next => updateMMProductFieldList(seg.segmentId, prod.productId, "fields", next)} />
+                  <MarketModelFieldsEditor title="Segment Fields" fields={prod.segmentFields} yearKeys={yearKeys}
+                    onChange={next => updateMMProductFieldList(seg.segmentId, prod.productId, "segmentFields", next)} />
+                  <MarketModelFieldsEditor title="Global Fields" fields={prod.globalFields} yearKeys={yearKeys}
+                    onChange={next => updateMMProductFieldList(seg.segmentId, prod.productId, "globalFields", next)} />
+                </Card>
+              ))}
+            </Card>
+          ))}
+        </Card>
+
+        {/* ── CSAT Market Model ── */}
+        <Card variant="panel">
+          <Heading level={4}>CSAT Market Model</Heading>
+          <div className="flex flex-wrap items-center gap-2">
+            {segmentPicker("CSAT segment to add", selectedCsatSegmentToAdd, setSelectedCsatSegmentToAdd, csatSegments)}
+            <Button variant="outline" size="sm" onClick={handleAddCsatSegment} disabled={!selectedCsatSegmentToAdd}>Add Segment</Button>
+          </div>
+
+          {newSimTypeId && yearKeys.length === 0 && (
+            <Alert tone="warning">Selected simulation type has no yearRange set — coefficients can't be entered yet.</Alert>
+          )}
+          {newSimTypeId && globalInputOptions.length === 0 && (
+            <Alert tone="warning">No Global Inputs exist yet for this simulation type — "global"-level drivers won't have anything to pick from.</Alert>
+          )}
+
+          {csatSegments.map(seg => (
+            <Card key={seg.segmentId} variant="nested">
+              <div className="flex flex-wrap items-center gap-2">
+                <Text as="strong" weight="semibold">Segment {seg.segmentName}</Text>
+                <Button variant="text" tone="danger" size="sm" onClick={() => handleRemoveCsatSegment(seg.segmentId)}>Remove Segment</Button>
+              </div>
+
+              <CsatDriversEditor
+                drivers={seg.drivers}
+                yearKeys={yearKeys}
+                productOptions={productOptionsBySegment[seg.segmentId] || []}
+                globalInputOptions={globalInputOptions}
+                onChange={next => updateCsatSegmentDrivers(seg.segmentId, next)}
+              />
+            </Card>
+          ))}
+        </Card>
+
+        <Button className="self-start" onClick={handleCreateBaseData} disabled={creating}>Create</Button>
+      </Card>
+
+      {error && <Alert tone="danger">{error}</Alert>}
+
+      <div className="flex flex-wrap items-end gap-4">
+        <TextField label="Filter Simulation Type ID" value={filterSimType} onChange={e => setFilterSimType(e.target.value)} />
+        <Button variant="outline" onClick={load}>Refresh</Button>
+      </div>
+
+      <Card>
+        <Heading level={3}>All Base Data</Heading>
+        <DataTable
+          label="All Base Data"
+          columns={recordColumns}
+          rows={record ? [record] : []}
+          rowKey={(r: any) => r._id}
+        />
+      </Card>
+    </>
   );
 }
+
+const YEAR_COLUMNS: DataTableColumn<[string, any]>[] = [
+  { id: "year", header: "year", cell: ([year]) => year, primary: true },
+  { id: "marketSize", header: "marketSize", align: "end", cell: ([, data]) => data.marketSize },
+  { id: "marketGrowth", header: "marketGrowth", align: "end", cell: ([, data]) => data.marketGrowth },
+];

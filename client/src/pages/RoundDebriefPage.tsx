@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Alert, Button, Card, Heading, PageHeader, Select, Text, TextArea, TextField } from "@stratagem/design-system";
 import {
   createRoundNote, deleteRoundNote, getDebriefChartStyles, getDebriefDimensions,
   getRoundDebrief, getRoundNotes, getSimulations, getSimulationTypes,
@@ -79,61 +80,48 @@ export default function RoundDebriefPage() {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Round Debrief</h2>
-      <p style={{ maxWidth: 680, color: "#555" }}>
-        What the teams see on their limbo screen after a round is closed. The figures
-        below are read-only. The descriptions above them are not — a chart with no
-        description is hidden from the players entirely — and each chart's own
-        configuration can be corrected here without leaving the round.
-      </p>
+    <>
+      <PageHeader
+        title="Round Debrief"
+        description="What the teams see on their limbo screen after a round is closed. The figures below are read-only. The descriptions above them are not — a chart with no description is hidden from the players entirely — and each chart's own configuration can be corrected here without leaving the round."
+      />
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "12px 0", flexWrap: "wrap" }}>
-        <label>
-          Simulation Type:{" "}
-          <select
-            value={selectedSimType}
-            // Clearing the chosen simulation is load-bearing: one from the previous type stays selectable otherwise.
-            onChange={(e) => {
-              setSelectedSimType(e.target.value);
-              setFilterSim("");
-              setData(null);
-            }}
-          >
-            <option value="">-- select --</option>
-            {simulationTypes.map((st: any) => (
-              <option key={st._id} value={st._id}>{st.name ?? st._id}</option>
-            ))}
-          </select>
-        </label>
+      <div className="flex flex-wrap items-end gap-4">
+        <Select
+          label="Simulation Type"
+          placeholder="-- select --"
+          value={selectedSimType || null}
+          // Clearing the chosen simulation is load-bearing: one from the previous type stays selectable otherwise.
+          onValueChange={(v) => {
+            setSelectedSimType(v ?? "");
+            setFilterSim("");
+            setData(null);
+          }}
+          options={simulationTypes.map((st: any) => ({ value: st._id, label: st.name ?? st._id }))}
+        />
 
-        <label>
-          Simulation:{" "}
-          <select
-            value={filterSim}
-            onChange={(e) => { setFilterSim(e.target.value); setData(null); }}
-            disabled={!selectedSimType}
-          >
-            <option value="">-- select --</option>
-            {simulations.map((s: any) => (
-              <option key={s._id} value={s._id}>{s.name ?? s._id}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Simulation"
+          placeholder="-- select --"
+          value={filterSim || null}
+          onValueChange={(v) => { setFilterSim(v ?? ""); setData(null); }}
+          disabled={!selectedSimType}
+          options={simulations.map((s: any) => ({ value: s._id, label: s.name ?? s._id }))}
+        />
 
-        <input
+        <TextField
+          label="Round"
           placeholder="roundNumber (0-based)"
           value={filterRound}
           onChange={(e) => setFilterRound(e.target.value)}
           disabled={!filterSim}
-          style={{ width: 170 }}
         />
-        <button onClick={load} disabled={!canLoad || loading}>
+        <Button onClick={load} disabled={!canLoad || loading}>
           {loading ? "Loading…" : "Load debrief"}
-        </button>
+        </Button>
       </div>
 
-      {error && <div style={{ color: "#b00", marginBottom: 12 }}>{error}</div>}
+      {error && <Alert tone="danger">{error}</Alert>}
       {data && (
         <ChartDescriptions
           simulationId={filterSim}
@@ -145,13 +133,13 @@ export default function RoundDebriefPage() {
         />
       )}
       {data && data.charts.length === 0 && (
-        <div style={{ color: "#b00" }}>
+        <Alert tone="danger">
           This simulation type has no charts configured, so its debrief is empty for
           every round. Add them on the Debrief Charts page, or import the original
           slide with <code>npm run import-debrief-charts -- &lt;simulationTypeId&gt;</code>.
-        </div>
+        </Alert>
       )}
-    </div>
+    </>
   );
 }
 
@@ -259,16 +247,16 @@ function ChartDescriptions({
   let lastChartId = "";
 
   return (
-    <div style={{ border: "1px solid #ddd", padding: 12, marginBottom: 28 }}>
-      <strong>Chart descriptions</strong>
-      <div style={{ color: "#666", fontSize: 12, margin: "4px 0 12px" }}>
+    <Card>
+      <Heading level={3}>Chart descriptions</Heading>
+      <Text variant="caption" tone="muted">
         A chart with no description is hidden from the players. Clearing a box and
         saving removes that chart from their debrief. <em>Edit chart</em> changes the
         chart for every round and every simulation of this type — only the
         description is per round.
-      </div>
+      </Text>
 
-      {error && <div style={{ color: "#b00", marginBottom: 8 }}>{error}</div>}
+      {error && <Alert tone="danger">{error}</Alert>}
 
       {ordered.map((c) => {
         // Grouped by `category`, which arrives with the chart, a heading per
@@ -283,120 +271,110 @@ function ChartDescriptions({
         const isBreakdown = c.productId !== null;
 
         return (
-          <div key={k}>
+          <div key={k} className="flex flex-col gap-2">
             {heading && (
-              <div style={{
-                textTransform: "uppercase", fontSize: 11, color: "#888",
-                borderBottom: "1px solid #eee", margin: "14px 0 6px", paddingBottom: 2,
-              }}>
+              <Text variant="overline" tone="subtle" className="border-b border-line pb-1">
                 {heading}
-              </div>
+              </Text>
             )}
-            <div style={{
-              display: "flex", gap: 8, alignItems: "flex-start", margin: "6px 0",
-              ...(firstOfChart ? {} : { marginLeft: 18, borderLeft: "2px solid #eee", paddingLeft: 10 }),
-            }}>
-              <div style={{ width: 230, paddingTop: 4 }}>
-                <div style={{ fontSize: 13 }}>
+            <div className={`flex items-start gap-2 ${firstOfChart ? "" : "ms-4 border-s-2 border-line ps-3"}`}>
+              <div className="flex w-56 shrink-0 flex-col gap-1 pt-1">
+                <Text variant="body">
                   {firstOfChart && c.name}
                   {isBreakdown && (
-                    <span style={{ color: "#666" }}>
+                    <Text as="span" tone="muted">
                       {firstOfChart ? " · " : ""}{c.productName ?? "notebook"}
-                    </span>
+                    </Text>
                   )}
-                </div>
-                <div style={{ fontSize: 11, color: "#888" }}>
+                </Text>
+                <Text variant="caption" tone="subtle">
                   {c.clientChart
                     ? "drawn by the player"
                     : c.chartStyle ? c.chartStyle.name : "no shape chosen"}
                   {c.scope === "overall" ? " · every notebook at once" : ""}
-                </div>
-                <div style={{ fontSize: 11, color: c.resolved ? "#2a7" : "#b00" }}>
+                </Text>
+                <Text variant="caption" tone={c.resolved ? "success" : "danger"}>
                   {c.resolved ? "described" : "no description — ships without one"}
-                </div>
+                </Text>
                 {/* Once per chart: every instance is the same stored document. */}
                 {firstOfChart && (
-                  <button
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="self-start"
                     onClick={() => (editing === c._id ? closeEditor() : openEditor(c))}
-                    style={{
-                      fontSize: 11, marginTop: 3, padding: "1px 5px",
-                      background: "none", border: "1px solid #ddd", cursor: "pointer",
-                    }}
                   >
                     {editing === c._id ? "Close" : "Edit chart"}
-                  </button>
+                  </Button>
                 )}
               </div>
-              <textarea
+              <TextArea
+                aria-label={`Description of ${c.name}`}
+                className="min-w-0 flex-1"
                 value={textFor(c)}
                 onChange={(e) => setDrafts((d) => ({ ...d, [k]: e.target.value }))}
-                rows={2}
-                style={{ flex: 1, minWidth: 0 }}
+                minRows={2}
                 placeholder={
                   isBreakdown
                     ? `What a team should take from "${c.name}" for ${c.productName ?? "this notebook"}`
                     : `What a team should take from "${c.name}"`
                 }
               />
-              <button onClick={() => save(c)} disabled={busy === k || !dirty}>
+              <Button onClick={() => save(c)} disabled={busy === k || !dirty}>
                 {busy === k ? "Saving…" : "Save"}
-              </button>
+              </Button>
             </div>
 
             {/* The server drew this; the console never receives a spec. */}
-            <div style={{
-              margin: "0 0 18px 0", overflowX: "auto",
-              ...(isBreakdown ? { marginLeft: 28 } : {}),
-            }}>
+            <div className={`overflow-x-auto ${isBreakdown ? "ms-7" : ""}`}>
               {c.svg
                 ? <div dangerouslySetInnerHTML={{ __html: c.svg }} />
                 : (
-                  <div style={{ fontSize: 11, color: "#b00" }}>
+                  <Text variant="caption" tone="danger">
                     {c.chartStyle
                       ? "This chart did not render — check its bindings with Edit chart."
                       : "No shape chosen, so there is nothing to draw."}
-                  </div>
+                  </Text>
                 )}
             </div>
 
             {editing === c._id && draft && firstOfChart && (
-              <div style={{
-                display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap",
-                background: "#fafafa", border: "1px solid #eee",
-                padding: 8, margin: "0 0 10px 18px",
-              }}>
-                <ChartConfigFields
-                  draft={draft} styles={styles} dims={dims} onChange={setDraft}
-                />
-                <button
-                  onClick={() => saveChart(c._id)}
-                  disabled={busy === `chart:${c._id}` || !draft.name.trim()}
-                >
-                  {busy === `chart:${c._id}` ? "Saving…" : "Save chart"}
-                </button>
-                <button onClick={closeEditor}>Cancel</button>
+              <Card variant="panel" className="ms-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <ChartConfigFields
+                    draft={draft} styles={styles} dims={dims} onChange={setDraft}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => saveChart(c._id)}
+                    disabled={busy === `chart:${c._id}` || !draft.name.trim()}
+                  >
+                    {busy === `chart:${c._id}` ? "Saving…" : "Save chart"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={closeEditor}>Cancel</Button>
+                </div>
 
                 {/* !important changing scope strands copy in either direction, and nothing cascades. */}
                 {c.scope !== draft.scope && (
-                  <div style={{ color: "#b00", fontSize: 11, flexBasis: "100%" }}>
+                  <Text variant="caption" tone="danger">
                     {draft.scope === "overall"
                       ? "Switching to “overall” drops the per-notebook rows."
                       : "Switching to “each notebook” drops the overall row."}
                     {" "}Their descriptions are kept but become unreachable — switch
                     back to edit or clear them first.
-                  </div>
+                  </Text>
                 )}
                 {styles.length === 0 && (
-                  <div style={{ color: "#b00", fontSize: 11, flexBasis: "100%" }}>
+                  <Text variant="caption" tone="danger">
                     The chart gallery is empty, so no shape can be picked.
-                  </div>
+                  </Text>
                 )}
-              </div>
+              </Card>
             )}
           </div>
         );
       })}
-    </div>
+    </Card>
   );
 }
 

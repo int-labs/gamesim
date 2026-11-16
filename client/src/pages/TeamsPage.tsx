@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, PageHeader, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getTeams, createTeam, deleteTeam } from "../api";
 import type { Team } from "../types";
 
@@ -47,43 +48,43 @@ export default function TeamsPage() {
   };
 
   return (
-    <div>
-      <h2>Teams</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Teams" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label>Filter by Simulation ID: <input value={filterSim} onChange={e => setFilterSim(e.target.value)} /></label>
+      <TextField label="Filter by Simulation ID" value={filterSim} onChange={e => setFilterSim(e.target.value)} />
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr><td>Simulation ID</td><td><input value={form.simulationId} onChange={e => setForm(f => ({ ...f, simulationId: e.target.value }))} /></td></tr>
-          <tr><td>Team Name</td><td><input value={form.teamName} onChange={e => setForm(f => ({ ...f, teamName: e.target.value }))} /></td></tr>
-          <tr><td>Team Leader</td><td><input value={form.teamLeader} onChange={e => setForm(f => ({ ...f, teamLeader: e.target.value }))} /></td></tr>
-          <tr><td>Score</td><td><input type="number" value={form.score} onChange={e => setForm(f => ({ ...f, score: Number(e.target.value) }))} /></td></tr>
-          <tr><td>Market Share</td><td><input type="number" value={form.marketShare} onChange={e => setForm(f => ({ ...f, marketShare: Number(e.target.value) }))} /></td></tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Simulation ID" value={form.simulationId} onChange={e => setForm(f => ({ ...f, simulationId: e.target.value }))} />
+          <TextField label="Team Name" value={form.teamName} onChange={e => setForm(f => ({ ...f, teamName: e.target.value }))} />
+          <TextField label="Team Leader" value={form.teamLeader} onChange={e => setForm(f => ({ ...f, teamLeader: e.target.value }))} />
+          <TextField label="Score" type="number" value={form.score} onChange={e => setForm(f => ({ ...f, score: Number(e.target.value) }))} />
+          <TextField label="Market Share" type="number" value={form.marketShare} onChange={e => setForm(f => ({ ...f, marketShare: Number(e.target.value) }))} />
+        </div>
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
 
-      <h3>All Teams</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>_id</th><th>SimId</th><th>Name</th><th>Leader</th><th>Score</th><th>Market Share</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.simulationId}</td>
-              <td>{r.teamName}</td>
-              <td>{r.teamLeader}</td>
-              <td>{r.score}</td>
-              <td>{r.marketShare}</td>
-              <td><button onClick={() => handleDelete(r._id)}>Delete</button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Teams</Heading>
+        <DataTable
+          label="All Teams"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>}
+        />
+      </Card>
+    </>
   );
 }
+
+const COLUMNS: DataTableColumn<Team>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "simulationId", header: "SimId", cell: r => r.simulationId },
+  { id: "teamName", header: "Name", cell: r => r.teamName, primary: true },
+  { id: "teamLeader", header: "Leader", cell: r => r.teamLeader },
+  { id: "score", header: "Score", cell: r => r.score },
+  { id: "marketShare", header: "Market Share", cell: r => r.marketShare },
+];

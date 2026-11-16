@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, PageHeader, Text, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getResults, downloadRoundReport } from "../api";
 import type { Result } from "../types";
 
@@ -52,65 +53,57 @@ export default function ResultsPage() {
   useEffect(() => { load(); }, [filterSim, filterRound, filterProduct, filterSegment]);
 
   return (
-    <div>
-      <h2>Results</h2>
-      <p>Read only.</p>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {note && <p style={{ color: "green" }}>{note}</p>}
+    <>
+      <PageHeader title="Results" description="Read only." />
+      {error && <Alert tone="danger">{error}</Alert>}
+      {note && <Alert tone="success">{note}</Alert>}
 
-      <label>Filter Sim ID: <input value={filterSim} onChange={e => setFilterSim(e.target.value)} /></label>
-      {" "}
-      <label>Filter Round#: <input type="number" value={filterRound} onChange={e => setFilterRound(e.target.value)} style={{ width: 60 }} /></label>
-      {" "}
-      <label>Filter Product ID: <input value={filterProduct} onChange={e => setFilterProduct(e.target.value)} /></label>
-      {" "}
-      <label>Filter Segment ID: <input value={filterSegment} onChange={e => setFilterSegment(e.target.value)} /></label>
-      {" "}
-      <button onClick={load}>Refresh</button>
+      <div className="flex flex-wrap items-end gap-4">
+        <TextField label="Filter Sim ID" value={filterSim} onChange={e => setFilterSim(e.target.value)} />
+        <TextField label="Filter Round#" type="number" value={filterRound} onChange={e => setFilterRound(e.target.value)} />
+        <TextField label="Filter Product ID" value={filterProduct} onChange={e => setFilterProduct(e.target.value)} />
+        <TextField label="Filter Segment ID" value={filterSegment} onChange={e => setFilterSegment(e.target.value)} />
+        <Button variant="outline" onClick={load}>Refresh</Button>
+      </div>
 
-      {/* Exports, driven by the Sim ID and Round# filters above so the PDF
-          always covers what the table is showing. */}
-      <div style={{ marginTop: 12, padding: 8, border: "1px solid #ddd", background: "#fafafa" }}>
-        <strong>Export round reports</strong>
-        <div style={{ marginTop: 6 }}>
-          <button onClick={() => exportReport("competitor")} disabled={!canExport || downloading !== null}>
+      {/* Exports use the Sim ID and Round# filters above so the PDF covers what the table shows */}
+      <Card variant="panel">
+        <Heading level={3} variant="heading-sm">Export round reports</Heading>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => exportReport("competitor")} disabled={!canExport || downloading !== null}>
             {downloading === "competitor" ? "Building…" : "↓ Competitor report (PDF)"}
-          </button>{" "}
-          <button onClick={() => exportReport("decisions")} disabled={!canExport || downloading !== null}>
+          </Button>
+          <Button variant="outline" onClick={() => exportReport("decisions")} disabled={!canExport || downloading !== null}>
             {downloading === "decisions" ? "Building…" : "↓ Analysis report (PDF)"}
-          </button>
+          </Button>
         </div>
-        <p style={{ margin: "6px 0 0", fontSize: 12, color: "#555" }}>
+        <Text variant="caption" tone="muted">
           {canExport
             ? <>Uses <strong>Sim ID</strong> and <strong>Round#</strong> above. The competitor report&apos;s
               leaderboard is scored from <strong>Leaderboard Config</strong> for this simulation&apos;s type.</>
             : <>Set <strong>Filter Sim ID</strong> and <strong>Filter Round#</strong> to enable.</>}
-        </p>
-      </div>
+        </Text>
+      </Card>
 
-      <h3>All Results</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr>
-            <th>_id</th><th>SimId</th><th>TeamId</th><th>Round</th>
-            <th>ProductId</th><th>SegmentId</th><th>Weighted Scores</th><th>Market Fit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.simulationId}</td>
-              <td>{r.teamId}</td>
-              <td>{r.roundNumber}</td>
-              <td>{r.productId}</td>
-              <td>{r.segmentId}</td>
-              <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(r.weightedScores, null, 2)}</pre></td>
-              <td><pre style={{ margin: 0, maxWidth: 200, overflow: "auto", fontSize: 11 }}>{JSON.stringify(r.marketFit, null, 2)}</pre></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Results</Heading>
+        <DataTable label="All Results" columns={COLUMNS} rows={rows} rowKey={r => r._id} />
+      </Card>
+    </>
   );
 }
+
+const jsonCell = (value: unknown) => (
+  <pre className="m-0 max-w-52 overflow-auto type-caption">{JSON.stringify(value, null, 2)}</pre>
+);
+
+const COLUMNS: DataTableColumn<Result>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "simulationId", header: "SimId", cell: r => r.simulationId },
+  { id: "teamId", header: "TeamId", cell: r => r.teamId },
+  { id: "roundNumber", header: "Round", cell: r => r.roundNumber },
+  { id: "productId", header: "ProductId", cell: r => r.productId },
+  { id: "segmentId", header: "SegmentId", cell: r => r.segmentId },
+  { id: "weightedScores", header: "Weighted Scores", cell: r => jsonCell(r.weightedScores) },
+  { id: "marketFit", header: "Market Fit", cell: r => jsonCell(r.marketFit) },
+];

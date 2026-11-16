@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, PageHeader, Select, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getRounds, createRound, patchRound, deleteRound, calculateRound, endRound, deleteDecisionsByRound, deleteResultsByRound, deleteProjectionsByRound } from "../api";
 import type { Round } from "../types";
 
@@ -129,85 +130,68 @@ export default function RoundsPage() {
   };
 
   return (
-    <div>
-      <h2>Rounds</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {calcResult && <p style={{ color: "green" }}>{calcResult}</p>}
+    <>
+      <PageHeader title="Rounds" />
+      {error && <Alert tone="danger">{error}</Alert>}
+      {calcResult && <Alert tone="success">{calcResult}</Alert>}
 
-      <label>Filter by Simulation ID: <input value={filterSim} onChange={e => setFilterSim(e.target.value)} /></label>
+      <TextField label="Filter by Simulation ID" value={filterSim} onChange={e => setFilterSim(e.target.value)} />
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr>
-            <td>Simulation ID</td>
-            <td><input value={form.simulationId} onChange={e => setForm(f => ({ ...f, simulationId: e.target.value }))} /></td>
-          </tr>
-          <tr>
-            <td>Round Number</td>
-            <td><input type="number" value={form.roundNumber} onChange={e => setForm(f => ({ ...f, roundNumber: Number(e.target.value) }))} /></td>
-          </tr>
-          <tr>
-            <td>Status</td>
-            <td>
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option>Pending</option>
-                <option>Active</option>
-                <option>Completed</option>
-              </select>
-            </td>
-          </tr>
-          <tr>
-            <td>Duration (minutes)</td>
-            <td><input type="number" value={form.durationMinutes} onChange={e => setForm(f => ({ ...f, durationMinutes: e.target.value }))} /></td>
-          </tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Simulation ID" value={form.simulationId} onChange={e => setForm(f => ({ ...f, simulationId: e.target.value }))} />
+          <TextField label="Round Number" type="number" value={form.roundNumber} onChange={e => setForm(f => ({ ...f, roundNumber: Number(e.target.value) }))} />
+          <Select label="Status" options={STATUS_OPTIONS} value={form.status} onValueChange={v => v && setForm(f => ({ ...f, status: v }))} />
+          <TextField label="Duration (minutes)" type="number" value={form.durationMinutes} onChange={e => setForm(f => ({ ...f, durationMinutes: e.target.value }))} />
+        </div>
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
 
-      <h3>All Rounds</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr>
-            <th>_id</th><th>SimId</th><th>Round#</th><th>Status</th><th>Start</th><th>Duration</th><th>End</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.simulationId}</td>
-              <td>{r.roundNumber}</td>
-              <td>{r.status}</td>
-              <td>{r.timer?.startDate ? new Date(r.timer.startDate).toLocaleString() : ""}</td>
-              <td>{r.timer?.durationMinutes ?? ""}</td>
-              <td>{r.timer?.endDate ? new Date(r.timer.endDate).toLocaleString() : ""}</td>
-              <td>
-                {r.status === "Active" && (
-                  <button onClick={() => handleCalculate(r._id)} title="Recalculate — leaves the round Active, so it can be run again">⚡ Calculate</button>
-                )}
-                {r.status === "Active" && (
-                  <button onClick={() => handleCloseRound(r._id)} title="Calculate, mark Completed and advance the simulation">🔒 Close round</button>
-                )}
-                {r.status === "Pending" && (
-                  <button onClick={() => handlePatch(r._id, "Active")}>→ Active</button>
-                )}
-                {r.status === "Active" && (
-                  <button onClick={() => handlePatch(r._id, "Completed")}>→ Completed</button>
-                )}
-                {r.status === "Completed" && (
-                  <button onClick={() => handlePatch(r._id, "Active")}>← Active</button>
-                )}
-                {(r.status === "Active" || r.status === "Completed") && (
-                  <button onClick={() => handleReset(r)} style={{ marginLeft: 4, color: "red" }}>↺ Reset</button>
-                )}
-                {" "}
-                <button onClick={() => handleDelete(r._id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Rounds</Heading>
+        <DataTable
+          label="All Rounds"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => (
+            <div className="flex flex-wrap justify-end gap-1">
+              {r.status === "Active" && (
+                <Button variant="text" onClick={() => handleCalculate(r._id)} title="Recalculate — leaves the round Active, so it can be run again">⚡ Calculate</Button>
+              )}
+              {r.status === "Active" && (
+                <Button variant="text" onClick={() => handleCloseRound(r._id)} title="Calculate, mark Completed and advance the simulation">🔒 Close round</Button>
+              )}
+              {r.status === "Pending" && (
+                <Button variant="text" onClick={() => handlePatch(r._id, "Active")}>→ Active</Button>
+              )}
+              {r.status === "Active" && (
+                <Button variant="text" onClick={() => handlePatch(r._id, "Completed")}>→ Completed</Button>
+              )}
+              {r.status === "Completed" && (
+                <Button variant="text" onClick={() => handlePatch(r._id, "Active")}>← Active</Button>
+              )}
+              {(r.status === "Active" || r.status === "Completed") && (
+                <Button variant="text" tone="danger" onClick={() => handleReset(r)}>↺ Reset</Button>
+              )}
+              <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>
+            </div>
+          )}
+        />
+      </Card>
+    </>
   );
 }
+
+const STATUS_OPTIONS = ["Pending", "Active", "Completed"].map(s => ({ value: s, label: s }));
+
+const COLUMNS: DataTableColumn<Round>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "simulationId", header: "SimId", cell: r => r.simulationId },
+  { id: "roundNumber", header: "Round#", cell: r => r.roundNumber, primary: true },
+  { id: "status", header: "Status", cell: r => r.status },
+  { id: "start", header: "Start", cell: r => (r.timer?.startDate ? new Date(r.timer.startDate).toLocaleString() : "") },
+  { id: "duration", header: "Duration", cell: r => r.timer?.durationMinutes ?? "" },
+  { id: "end", header: "End", cell: r => (r.timer?.endDate ? new Date(r.timer.endDate).toLocaleString() : "") },
+];

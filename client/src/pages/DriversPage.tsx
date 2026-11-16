@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, PageHeader, Text, TextArea, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getDrivers, createDriver, deleteDriver } from "../api";
 import type { Driver } from "../types";
 
@@ -48,85 +49,72 @@ export default function DriversPage() {
     }
   };
 
-  const YearsTable = ({ years }: { years?: Record<string, any> | null }) => {
-    if (!years) return <span style={{ color: "#888" }}>—</span>;
+  return (
+    <>
+      <PageHeader title="Drivers" />
+      {error && <Alert tone="danger">{error}</Alert>}
+      <TextField label="Filter Product ID" value={filterProduct} onChange={e => setFilterProduct(e.target.value)} />
 
-    const yearKeys = Object.keys(years);
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <TextField label="Product ID" value={form.productId} onChange={e => setForm(f => ({ ...f, productId: e.target.value }))} />
+        <TextArea label="Years (JSON)" value={form.years} minRows={3} onChange={e => setForm(f => ({ ...f, years: e.target.value }))} />
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
 
-    return (
-      <div style={{ maxWidth: 420, maxHeight: 280, overflow: "auto" }}>
-        {yearKeys.map(yearKey => {
-          const metrics = years[yearKey] || {};
-          const metricKeys = Object.keys(metrics);
+      <Card>
+        <Heading level={3}>All Drivers</Heading>
+        <DataTable
+          label="All Drivers"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>}
+        />
+      </Card>
+    </>
+  );
+}
 
-          // union of property keys across this year's metrics, in case they differ
-          const propertyKeys = Array.from(
-            new Set(metricKeys.flatMap(m => Object.keys(metrics[m] || {})))
-          );
+function YearsTable({ years }: { years?: Record<string, any> | null }) {
+  if (!years) return <Text as="span" tone="faint">—</Text>;
 
-          return (
-            <div key={yearKey} style={{ marginBottom: 8 }}>
-              <strong style={{ fontSize: 11 }}>{yearKey}</strong>
-              <table style={{ fontSize: 10, borderCollapse: "collapse", width: "100%" }}>
-                <thead>
-                  <tr>
-                    <th style={{ border: "1px solid #ccc", padding: 2, textAlign: "left" }}>metric</th>
-                    {propertyKeys.map(p => (
-                      <th key={p} style={{ border: "1px solid #ccc", padding: 2 }}>{p}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {metricKeys.map(m => (
-                    <tr key={m}>
-                      <td style={{ border: "1px solid #ccc", padding: 2 }}>{m}</td>
-                      {propertyKeys.map(p => (
-                        <td key={p} style={{ border: "1px solid #ccc", padding: 2, textAlign: "right" }}>
-                          {metrics[m]?.[p] !== undefined ? String(metrics[m][p]) : ""}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+  const yearKeys = Object.keys(years);
 
   return (
-    <div>
-      <h2>Drivers</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <label>Filter Product ID: <input value={filterProduct} onChange={e => setFilterProduct(e.target.value)} /></label>
+    <div className="flex max-h-72 max-w-96 flex-col gap-2 overflow-auto">
+      {yearKeys.map(yearKey => {
+        const metrics = years[yearKey] || {};
+        const metricKeys = Object.keys(metrics);
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr><td>Product ID</td><td><input value={form.productId} onChange={e => setForm(f => ({ ...f, productId: e.target.value }))} /></td></tr>
-          <tr><td>Years (JSON)</td><td><textarea value={form.years} onChange={e => setForm(f => ({ ...f, years: e.target.value }))} rows={3} cols={40} /></td></tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+        // union of property keys across this year's metrics, in case they differ
+        const propertyKeys = Array.from(
+          new Set(metricKeys.flatMap(m => Object.keys(metrics[m] || {})))
+        );
 
-      <h3>All Drivers</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>_id</th><th>ProductId</th><th>Years (preview)</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.productId}</td>
-              <td><YearsTable years={r.years} /></td>
-              <td><button onClick={() => handleDelete(r._id)}>Delete</button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        const columns: DataTableColumn<string>[] = [
+          { id: "metric", header: "metric", cell: m => m, primary: true },
+          ...propertyKeys.map(p => ({
+            id: p,
+            header: p,
+            align: "end" as const,
+            cell: (m: string) => (metrics[m]?.[p] !== undefined ? String(metrics[m][p]) : ""),
+          })),
+        ];
+
+        return (
+          <div key={yearKey} className="flex flex-col gap-1">
+            <Text as="strong" variant="caption" weight="semibold">{yearKey}</Text>
+            <DataTable label={yearKey} columns={columns} rows={metricKeys} rowKey={m => m} density="compact" />
+          </div>
+        );
+      })}
     </div>
   );
 }
+
+const COLUMNS: DataTableColumn<Driver>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "productId", header: "ProductId", cell: r => r.productId },
+  { id: "years", header: "Years (preview)", cell: r => <YearsTable years={r.years} /> },
+];

@@ -1,3 +1,4 @@
+import { Badge, FilterChip, Input, Select, Text } from "@stratagem/design-system";
 import type { DebriefChartStyle, DebriefDimension, DebriefDimensions } from "../types";
 
 /** One chart's configuration as a form, shared by the Debrief Charts and Round Debrief pages. Fields only, not the buttons. */
@@ -67,10 +68,10 @@ export const chartPayload = (d: ChartDraft) => ({
 
 /** A binding's human label, or the raw field marked when the registry no longer offers it. */
 export function dimLabel(dims: DebriefDimensions, field: string | null) {
-  if (!field) return <span style={{ color: "#bbb" }}>—</span>;
+  if (!field) return <Text as="span" tone="faint">—</Text>;
   const hit = [...dims.categorical, ...dims.measures].find((d) => d.field === field);
   if (hit) return hit.label;
-  return <span style={{ color: "#b00" }}>{field} (missing)</span>;
+  return <Text as="span" tone="danger">{field} (missing)</Text>;
 }
 
 /** !important a saved value the registry no longer offers is kept and marked, never dropped. */
@@ -87,26 +88,21 @@ export function DimensionSelect({
 }) {
   const known = [...options, ...measures].some((o) => o.field === value);
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{ maxWidth: 190, ...(value && !known ? { color: "#b00" } : {}) }}
-      title={value && !known ? `"${value}" is not offered by this type any more` : undefined}
-    >
-      <option value="">-- {label} --</option>
-      {value && !known && <option value={value}>{value} (missing)</option>}
-      {options.map((o) => (
-        <option key={o.field} value={o.field}>{o.label}</option>
-      ))}
-      {measures.length > 0 && (
-        // Grouped: a measure on x makes the axis numeric, which only a scatter draws sensibly.
-        <optgroup label="— as a value (scatter) —">
-          {measures.map((o) => (
-            <option key={o.field} value={o.field}>{o.label}</option>
-          ))}
-        </optgroup>
-      )}
-    </select>
+    <Select
+      size="sm"
+      width="fit"
+      aria-label={label}
+      placeholder={`-- ${label} --`}
+      value={value || null}
+      onValueChange={(v) => onChange(v ?? "")}
+      error={value && !known ? `"${value}" is not offered by this type any more` : undefined}
+      options={[
+        ...(value && !known ? [{ value, label: `${value} (missing)` }] : []),
+        ...options.map((o) => ({ value: o.field, label: o.label })),
+        // A measure on x makes the axis numeric, which only a scatter draws sensibly
+        ...measures.map((o) => ({ value: o.field, label: o.label, detail: <Badge tone="info">scatter</Badge> })),
+      ]}
+    />
   );
 }
 
@@ -126,47 +122,31 @@ function MeasureList({
   const remaining = options.filter((o) => !value.includes(o.field));
 
   return (
-    <span style={{ display: "inline-flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+    <span className="inline-flex flex-wrap items-center gap-1">
       {value.map((field) => {
         const known = options.some((o) => o.field === field);
         return (
-          <span
+          <FilterChip
             key={field}
             title={known ? field : `"${field}" is not offered by this type any more`}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              border: `1px solid ${known ? "#ccd" : "#b00"}`,
-              background: known ? "#eef2f8" : "#fdeaea",
-              color: known ? "#334" : "#b00",
-              borderRadius: 10, padding: "1px 4px 1px 8px", fontSize: 12,
-            }}
+            onRemove={() => onChange(value.filter((f) => f !== field))}
+            removeLabel="remove this measure"
           >
             {/* !important a measure the registry no longer offers is kept and marked. */}
-            {known ? labelFor(field) : `${field} (missing)`}
-            <button
-              onClick={() => onChange(value.filter((f) => f !== field))}
-              title="remove this measure"
-              style={{
-                border: "none", background: "none", cursor: "pointer",
-                fontSize: 13, lineHeight: 1, padding: "0 2px", color: "inherit",
-              }}
-            >
-              ×
-            </button>
-          </span>
+            {known ? labelFor(field) : <Text as="span" tone="danger">{field} (missing)</Text>}
+          </FilterChip>
         );
       })}
-      <select
-        value=""
-        onChange={(e) => { if (e.target.value) onChange([...value, e.target.value]); }}
+      <Select
+        size="sm"
+        width="fit"
+        aria-label="y"
+        placeholder={value.length ? "-- add y --" : "-- y --"}
+        value={null}
+        onValueChange={(v) => { if (v) onChange([...value, v]); }}
         disabled={remaining.length === 0}
-        style={{ maxWidth: 190 }}
-      >
-        <option value="">{value.length ? "-- add y --" : "-- y --"}</option>
-        {remaining.map((o) => (
-          <option key={o.field} value={o.field}>{o.label}</option>
-        ))}
-      </select>
+        options={remaining.map((o) => ({ value: o.field, label: o.label }))}
+      />
     </span>
   );
 }
@@ -187,57 +167,67 @@ export function ChartConfigFields({
 
   return (
     <>
-      <input
+      <Input
+        size="sm" className="w-20" aria-label="order"
         type="number" placeholder="order" value={draft.order}
         onChange={(e) => set({ order: Number(e.target.value) })}
-        style={{ width: 70 }}
       />
-      <input
+      <Input
+        size="sm" className="w-36" aria-label="slide group"
         placeholder="slide group" value={draft.category}
         onChange={(e) => set({ category: e.target.value })}
-        style={{ width: 130 }}
       />
-      <input
+      <Input
+        size="sm" className="w-44" aria-label="chart name"
         placeholder="chart name" value={draft.name}
         onChange={(e) => set({ name: e.target.value })}
-        style={{ width: 180 }}
       />
-      <select
-        value={draft.scope}
-        onChange={(e) => set({ scope: e.target.value as "overall" | "each" })}
-        title="each = one chart per notebook, each needing its own description. A summary is a separate chart with scope overall."
-      >
-        <option value="overall">overall</option>
-        <option value="each">each notebook</option>
-      </select>
-      <select
-        value={draft.clientChart}
-        onChange={(e) => set({ clientChart: e.target.value })}
-        title="charts the player draws itself — they take no shape and no axes"
-      >
-        <option value="">-- server-drawn --</option>
-        {(dims.clientCharts ?? []).map((c) => (
-          <option key={c.key} value={c.key}>{c.label} (player-drawn)</option>
-        ))}
-      </select>
+      <span title="each = one chart per notebook, each needing its own description. A summary is a separate chart with scope overall.">
+        <Select<"overall" | "each">
+          size="sm"
+          width="fit"
+          aria-label="scope"
+          value={draft.scope}
+          onValueChange={(v) => v && set({ scope: v })}
+          options={[
+            { value: "overall", label: "overall" },
+            { value: "each", label: "each notebook" },
+          ]}
+        />
+      </span>
+      <span title="charts the player draws itself — they take no shape and no axes">
+        <Select
+          size="sm"
+          width="fit"
+          aria-label="drawn by"
+          placeholder="-- server-drawn --"
+          value={draft.clientChart || null}
+          onValueChange={(v) => set({ clientChart: v ?? "" })}
+          options={[
+            { value: "", label: "-- server-drawn --" },
+            ...(dims.clientCharts ?? []).map((c) => ({ value: c.key, label: `${c.label} (player-drawn)` })),
+          ]}
+        />
+      </span>
 
-      <select
-        value={draft.chartStyle}
-        onChange={(e) => set({ chartStyle: e.target.value })}
+      <Select
+        size="sm"
+        width="fit"
+        aria-label="shape"
+        placeholder="-- shape --"
+        value={draft.chartStyle || null}
+        onValueChange={(v) => set({ chartStyle: v ?? "" })}
         disabled={drawnByClient}
-      >
-        <option value="">-- shape --</option>
-        {styles.map((s) => (
-          <option key={s._id} value={s._id}>
-            {s.category ? `${s.category} / ${s.name}` : s.name}
-          </option>
-        ))}
-      </select>
+        options={[
+          { value: "", label: "-- shape --" },
+          ...styles.map((s) => ({ value: s._id, label: s.category ? `${s.category} / ${s.name}` : s.name })),
+        ]}
+      />
       {/* X and grouping divide, Y is plotted, so they come from different halves of the registry. */}
       {drawnByClient ? (
-        <span style={{ fontSize: 11, color: "#666", maxWidth: 420 }}>
+        <Text as="span" variant="caption" tone="muted" className="max-w-96">
           {chosen?.note ?? "Drawn by the player; it takes no shape and no axes."}
-        </span>
+        </Text>
       ) : (
         <>
           <DimensionSelect label="x" options={dims.categorical} measures={dims.measures}

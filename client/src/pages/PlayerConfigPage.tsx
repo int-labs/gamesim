@@ -1,4 +1,5 @@
-import { useState, useEffect, type CSSProperties } from "react";
+import { useState, useEffect } from "react";
+import { Alert, Badge, Button, Card, DataTable, Heading, PageHeader, Select, Tabs, Text, TextArea, TextField, type DataTableColumn } from "@stratagem/design-system";
 import {
   getSimulationTypes,
   getGlobalInputs,
@@ -68,13 +69,8 @@ const BLANK_FORM: EntryForm = {
 
 /** Table-cell helpers. The entry table shows what a section actually stores, so
  *  a copy-only section is not rendered against case-study columns. */
-const dash = <span style={{ color: "#aaa" }}>—</span>;
-const cellClamp: CSSProperties = {
-  maxWidth: 220,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
+const dash = <Text as="span" tone="faint">—</Text>;
+const cellClamp = "block max-w-56 truncate";
 /** Bullet lists preview as "a · b · c" — the cell is one line, and joining on a
  *  separator keeps it readable without hiding that there are several. */
 const bullets = (v: string[] | undefined) => (v?.length ? v.join(" · ") : dash);
@@ -462,366 +458,274 @@ export default function PlayerConfigPage() {
       ? fieldsByProduct[entryForm.productId] ?? []
       : availableIds[activeSection];
 
-  return (
-    <div>
-      <h2>Player Config</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {saved && <p style={{ color: "green" }}>Saved.</p>}
+  const fields = sectionFields(activeSection);
 
-      <label>
-        Simulation Type:{" "}
-        <select value={selectedSimTypeId} onChange={e => { setSelectedSimTypeId(e.target.value); resetForm(); }}>
-          <option value="">-- select --</option>
-          {simTypes.map((st: any) => (
-            <option key={st._id} value={st._id}>{st.name ?? st._id}</option>
-          ))}
-        </select>
-      </label>
+  // Columns follow the section, so a copy-only section is not rendered against empty case-study columns
+  const entryColumns: DataTableColumn<{ row: ConfigEntry; i: number }>[] = [
+    {
+      id: "id",
+      header: "ID",
+      primary: true,
+      cell: ({ row, i }) => (
+        <span className="flex items-center gap-2">
+          <code>{row.id}</code>
+          {editingIndex === i && <Badge tone="warning">editing</Badge>}
+        </span>
+      ),
+    },
+    // Without this two drivers on the same field key, one per notebook, are indistinguishable
+    ...(activeSection === "drivers" ? [{
+      id: "notebook",
+      header: "Notebook",
+      cell: ({ row }: { row: ConfigEntry }) => (
+        <span className={cellClamp}>
+          {row.productId
+            ? (availableIds.products.find(p => p.id === row.productId)?.label ?? row.productId)
+            : <Text as="em" tone="subtle">all notebooks</Text>}
+        </span>
+      ),
+    }] : []),
+    ...(fields.includes("image") ? [{
+      id: "image",
+      header: "Image Asset ID",
+      cell: ({ row }: { row: ConfigEntry }) => <span className="block max-w-40 truncate">{row.imageAssetId || dash}</span>,
+    }] : []),
+    ...(fields.includes("copy") ? [
+      {
+        id: "label",
+        header: activeSection === "products" ? "Name override" : "Label override",
+        cell: ({ row }: { row: ConfigEntry }) => row.label || dash,
+      },
+      {
+        id: "hint",
+        header: activeSection === "products" ? "Blurb" : "Hint",
+        cell: ({ row }: { row: ConfigEntry }) => <span className={cellClamp}>{row.hint || dash}</span>,
+      },
+    ] : []),
+    ...(activeSection === "products" ? [
+      { id: "description", header: "Description", cell: ({ row }: { row: ConfigEntry }) => <span className={cellClamp}>{row.description || dash}</span> },
+      { id: "bestFor", header: "Best for", cell: ({ row }: { row: ConfigEntry }) => <span className={cellClamp}>{bullets(row.bestFor)}</span> },
+      { id: "watchOut", header: "Watch out", cell: ({ row }: { row: ConfigEntry }) => <span className={cellClamp}>{bullets(row.watchOut)}</span> },
+    ] : []),
+    ...(fields.includes("caseStudy") ? [
+      { id: "csTitle", header: "Case Study Title", cell: ({ row }: { row: ConfigEntry }) => row.caseStudy.title || dash },
+      { id: "csBestWhen", header: "Best When", cell: ({ row }: { row: ConfigEntry }) => row.caseStudy.bestWhen || dash },
+      { id: "csWatchOut", header: "Watch Out", cell: ({ row }: { row: ConfigEntry }) => row.caseStudy.watchOut || dash },
+    ] : []),
+  ];
+
+  return (
+    <>
+      <PageHeader title="Player Config" />
+      {error && <Alert tone="danger">{error}</Alert>}
+      {saved && <Alert tone="success">Saved.</Alert>}
+
+      <Select
+        label="Simulation Type"
+        placeholder="-- select --"
+        value={selectedSimTypeId || null}
+        onValueChange={v => { setSelectedSimTypeId(v ?? ""); resetForm(); }}
+        options={simTypes.map((st: any) => ({ value: st._id, label: st.name ?? st._id }))}
+      />
 
       {selectedSimTypeId && (
         <>
-          <p style={{ fontSize: 12, color: "#666" }}>
+          <Text variant="caption" tone="muted">
             Config ID: {configId ?? "(none — will be created on first save)"}
-          </p>
+          </Text>
 
           {/* ── Section tabs ── */}
-          <div style={{ marginTop: 12, marginBottom: 8 }}>
-            {SECTIONS.map(s => (
-              <button
-                key={s.key}
-                onClick={() => { setActiveSection(s.key); resetForm(); }}
-                style={{
-                  marginRight: 4,
-                  fontWeight: activeSection === s.key ? "bold" : "normal",
-                  background: activeSection === s.key ? "#eef" : "none",
-                  border: "1px solid #aaa",
-                  padding: "4px 10px",
-                  cursor: "pointer",
-                }}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
+          <Tabs<Section>
+            label="Sections"
+            tabs={SECTIONS.map(s => ({ value: s.key, label: s.label }))}
+            value={activeSection}
+            onValueChange={key => { setActiveSection(key); resetForm(); }}
+          />
 
-          {/* ── Available IDs, from whichever source this section declares ── */}
-          {availableIds[activeSection].length > 0 && (
-            <p style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
-              Available IDs from <code>{sectionMeta.idsFrom}</code>:{" "}
-              {availableIds[activeSection].map((a) => a.label).join(", ")}
-            </p>
-          )}
+          <Card>
+            {/* ── Available IDs, from whichever source this section declares ── */}
+            {availableIds[activeSection].length > 0 && (
+              <Text variant="caption" tone="subtle">
+                Available IDs from <code>{sectionMeta.idsFrom}</code>:{" "}
+                {availableIds[activeSection].map((a) => a.label).join(", ")}
+              </Text>
+            )}
 
-          {/* ── Entry table ── */}
-          <table border={1} cellPadding={4} style={{ fontSize: 12, marginBottom: 12 }}>
-            <thead>
-              <tr>
-                <th>ID</th>
-                {activeSection === "drivers" && <th>Notebook</th>}
-                {sectionFields(activeSection).includes("image") && <th>Image Asset ID</th>}
-                {/* Columns follow the section, or a copy-only section like
-                    products/drivers showed three case-study columns that are
-                    always empty for it — the saved values were invisible. */}
-                {sectionFields(activeSection).includes("copy") && (
-                  <>
-                    <th>{activeSection === "products" ? "Name override" : "Label override"}</th>
-                    <th>{activeSection === "products" ? "Blurb" : "Hint"}</th>
-                  </>
-                )}
-                {activeSection === "products" && (
-                  <>
-                    <th>Description</th>
-                    <th>Best for</th>
-                    <th>Watch out</th>
-                  </>
-                )}
-                {sectionFields(activeSection).includes("caseStudy") && (
-                  <>
-                    <th>Case Study Title</th>
-                    <th>Best When</th>
-                    <th>Watch Out</th>
-                  </>
-                )}
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sectionRows.length === 0 && (
-                <tr><td colSpan={9} style={{ color: "#aaa" }}>No entries yet.</td></tr>
+            {/* ── Entry table, rows keyed by array position as before ── */}
+            <DataTable
+              label={`${sectionMeta.label} entries`}
+              density="compact"
+              columns={entryColumns}
+              rows={sectionRows.map((row, i) => ({ row, i }))}
+              rowKey={({ i }) => String(i)}
+              empty="No entries yet."
+              rowActions={({ i }) => (
+                <>
+                  <Button variant="text" onClick={() => handleEdit(i)}>Edit</Button>
+                  <Button variant="text" tone="danger" onClick={() => handleRemove(i)}>Remove</Button>
+                </>
               )}
-              {sectionRows.map((row, i) => (
-                <tr key={i} style={{ background: editingIndex === i ? "#fffbe6" : "transparent" }}>
-                  <td><code>{row.id}</code></td>
-                  {/* Without this two drivers on the same field key — one per
-                      notebook — are indistinguishable in the list. */}
-                  {activeSection === "drivers" && (
-                    <td style={cellClamp}>
-                      {row.productId
-                        ? (availableIds.products.find(p => p.id === row.productId)?.label ?? row.productId)
-                        : <em style={{ color: "#888" }}>all notebooks</em>}
-                    </td>
-                  )}
-                  {sectionFields(activeSection).includes("image") && (
-                    <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {row.imageAssetId || dash}
-                    </td>
-                  )}
-                  {sectionFields(activeSection).includes("copy") && (
-                    <>
-                      <td>{row.label || dash}</td>
-                      <td style={cellClamp}>{row.hint || dash}</td>
-                    </>
-                  )}
-                  {activeSection === "products" && (
-                    <>
-                      <td style={cellClamp}>{row.description || dash}</td>
-                      <td style={cellClamp}>{bullets(row.bestFor)}</td>
-                      <td style={cellClamp}>{bullets(row.watchOut)}</td>
-                    </>
-                  )}
-                  {sectionFields(activeSection).includes("caseStudy") && (
-                    <>
-                      <td>{row.caseStudy.title || dash}</td>
-                      <td>{row.caseStudy.bestWhen || dash}</td>
-                      <td>{row.caseStudy.watchOut || dash}</td>
-                    </>
-                  )}
-                  <td>
-                    <button onClick={() => handleEdit(i)}>Edit</button>{" "}
-                    <button onClick={() => handleRemove(i)}>Remove</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            />
+          </Card>
 
           {/* ── Entry form ── */}
-          <h4 style={{ marginBottom: 4 }}>{editingIndex !== null ? "Edit Entry" : "Add Entry"} — {sectionMeta.label}</h4>
-          <table>
-            <tbody>
-              {/* PARENT — drivers only. A field key alone does not identify a
-                  driver: the same key sits on every notebook and means something
-                  different on each, so the copy is scoped to a Product and the
-                  key list below narrows to that product's own fields.
+          <Card>
+            <Heading level={4}>{editingIndex !== null ? "Edit Entry" : "Add Entry"} — {sectionMeta.label}</Heading>
 
-                  Left blank the row is UNSCOPED, which is what every row written
-                  before 2026-09-30 is: the player client falls back to it for any
-                  product without a row of its own. */}
-              {activeSection === "drivers" && (
-                <tr>
-                  <td>Notebook (parent)</td>
-                  <td>
-                    <select
-                      value={entryForm.productId}
-                      disabled={editingIndex !== null}
-                      onChange={e => setEntryForm(f => ({
-                        ...f,
-                        productId: e.target.value,
-                        // The key list changes with the parent, so a key picked
-                        // against the previous one would silently not exist.
-                        id: "",
-                      }))}
-                      style={{ width: 300 }}
-                    >
-                      <option value="">(all notebooks - fallback)</option>
-                      {availableIds.products.map(p => (
-                        <option key={p.id} value={p.id}>{p.label}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
+            {/* Drivers only: a field key means something different on each notebook, so copy is scoped to a
+                Product; blank is the unscoped fallback the player uses for any product without its own row */}
+            {activeSection === "drivers" && (
+              <Select
+                label="Notebook (parent)"
+                value={entryForm.productId}
+                disabled={editingIndex !== null}
+                onValueChange={v => setEntryForm(f => ({
+                  ...f,
+                  productId: v ?? "",
+                  // The key list changes with the parent, so a key picked
+                  // against the previous one would silently not exist.
+                  id: "",
+                }))}
+                options={[
+                  { value: "", label: "(all notebooks - fallback)" },
+                  ...availableIds.products.map(p => ({ value: p.id, label: p.label })),
+                ]}
+              />
+            )}
+
+            <div className="flex flex-wrap items-end gap-2">
+              <TextField
+                label="ID (input key)"
+                value={entryForm.id}
+                onChange={e => setEntryForm(f => ({ ...f, id: e.target.value }))}
+                disabled={editingIndex !== null}
+              />
+              {idOptions.length > 0 && editingIndex === null && (
+                <Select
+                  aria-label="pick from list"
+                  width="fit"
+                  placeholder="pick from list…"
+                  value={null}
+                  onValueChange={v => v && setEntryForm(f => ({ ...f, id: v }))}
+                  options={idOptions.map(a => ({ value: a.id, label: a.label }))}
+                />
               )}
-              <tr>
-                <td>ID (input key)</td>
-                <td>
-                  <input
-                    value={entryForm.id}
-                    onChange={e => setEntryForm(f => ({ ...f, id: e.target.value }))}
-                    disabled={editingIndex !== null}
-                    style={{ width: 200 }}
+            </div>
+
+            {/* The NAME always comes from the backend object; these overrides
+                exist for when the player-facing wording should differ from the
+                one the operator administers by. */}
+            {fields.includes("copy") && (
+              <>
+                <TextField
+                  label="Label override"
+                  placeholder={
+                    activeSection === "products"
+                      ? "blank = use the Product's own productName"
+                      : "blank = use the ProductField's own label"
+                  }
+                  value={entryForm.label}
+                  onChange={e => setEntryForm(f => ({ ...f, label: e.target.value }))}
+                />
+                <TextArea
+                  label={activeSection === "products" ? "Blurb" : "Hint"}
+                  placeholder={
+                    activeSection === "products"
+                      ? "one line under the notebook's name"
+                      : "tooltip on the driver row — blank = no tooltip"
+                  }
+                  value={entryForm.hint}
+                  onChange={e => setEntryForm(f => ({ ...f, hint: e.target.value }))}
+                  minRows={2}
+                />
+                {activeSection === "products" && (
+                  <>
+                    <TextArea
+                      label="Description"
+                      placeholder="the longer prose the Details tab shows"
+                      value={entryForm.description}
+                      onChange={e => setEntryForm(f => ({ ...f, description: e.target.value }))}
+                      minRows={4}
+                    />
+                    {/* Segments are HTML, SANITISED ON SAVE by `sanitizeSegmentsHtml`; what the table shows after saving is what is stored */}
+                    <TextArea
+                      label="Segments (HTML)"
+                      className="font-mono"
+                      placeholder="<p>Who buys this notebook, and what they care about.</p>"
+                      value={entryForm.segments}
+                      onChange={e => setEntryForm(f => ({ ...f, segments: e.target.value }))}
+                      minRows={8}
+                      description={
+                        <>
+                          Rendered as HTML on the player&apos;s Segments tab. Cleaned on save:
+                          scripts, embeds, event handlers and links are removed.
+                        </>
+                      }
+                    />
+                    {/* Both render as bullet lists on the Details tab, one line per bullet; blank is a legitimate empty panel */}
+                    <TextArea
+                      label="Best for (Strengths)"
+                      placeholder="one strength per line"
+                      value={entryForm.bestFor}
+                      onChange={e => setEntryForm(f => ({ ...f, bestFor: e.target.value }))}
+                      minRows={4}
+                    />
+                    <TextArea
+                      label="Watch out (Weakness)"
+                      placeholder="one weakness per line"
+                      value={entryForm.watchOut}
+                      onChange={e => setEntryForm(f => ({ ...f, watchOut: e.target.value }))}
+                      minRows={4}
+                    />
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Channels render no artwork, so the image picker is offered only where it does something */}
+            {fields.includes("image") && (
+              <div className="flex flex-wrap items-end gap-2">
+                <TextField
+                  label="Image Asset"
+                  placeholder="imageAssetId URL or leave blank"
+                  value={entryForm.imageAssetId}
+                  onChange={e => setEntryForm(f => ({ ...f, imageAssetId: e.target.value }))}
+                />
+                {imageAssets.length > 0 && (
+                  <Select
+                    aria-label="pick from uploads"
+                    width="fit"
+                    placeholder="pick from uploads…"
+                    value={null}
+                    onValueChange={v => v && setEntryForm(f => ({ ...f, imageAssetId: v }))}
+                    options={imageAssets.map((a: any) => ({ value: a.url ?? a._id, label: a.filename ?? a._id }))}
                   />
-                  {idOptions.length > 0 && editingIndex === null && (
-                    <select
-                      style={{ marginLeft: 6 }}
-                      value=""
-                      onChange={e => setEntryForm(f => ({ ...f, id: e.target.value }))}
-                    >
-                      <option value="">pick from list…</option>
-                      {idOptions.map(a => (
-                        <option key={a.id} value={a.id}>{a.label}</option>
-                      ))}
-                    </select>
-                  )}
-                </td>
-              </tr>
-              {/* The NAME always comes from the backend object; these overrides
-                  exist for when the player-facing wording should differ from the
-                  one the operator administers by. */}
-              {sectionFields(activeSection).includes("copy") && (
-                <>
-                  <tr>
-                    <td>Label override</td>
-                    <td>
-                      <input
-                        placeholder={
-                          activeSection === "products"
-                            ? "blank = use the Product's own productName"
-                            : "blank = use the ProductField's own label"
-                        }
-                        value={entryForm.label}
-                        onChange={e => setEntryForm(f => ({ ...f, label: e.target.value }))}
-                        style={{ width: 320 }}
-                      />
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>{activeSection === "products" ? "Blurb" : "Hint"}</td>
-                    <td>
-                      <textarea
-                        placeholder={
-                          activeSection === "products"
-                            ? "one line under the notebook's name"
-                            : "tooltip on the driver row — blank = no tooltip"
-                        }
-                        value={entryForm.hint}
-                        onChange={e => setEntryForm(f => ({ ...f, hint: e.target.value }))}
-                        rows={2}
-                        style={{ width: 320 }}
-                      />
-                    </td>
-                  </tr>
-                  {activeSection === "products" && (
-                    <>
-                      <tr>
-                        <td>Description</td>
-                        <td>
-                          <textarea
-                            placeholder="the longer prose the Details tab shows"
-                            value={entryForm.description}
-                            onChange={e => setEntryForm(f => ({ ...f, description: e.target.value }))}
-                            rows={4}
-                            style={{ width: 320 }}
-                          />
-                        </td>
-                      </tr>
-                      {/* SEGMENTS — the notebook's buyers, as flavour and lore.
-                          HTML, SANITISED ON SAVE by `sanitizeSegmentsHtml`:
-                          object/embed/link, every on* handler and every URL
-                          attribute are stripped, and a document containing a
-                          script tag is escaped whole so the player sees its
-                          source instead of it running. What the table shows
-                          after saving is what is stored. */}
-                      <tr>
-                        <td>Segments (HTML)</td>
-                        <td>
-                          <textarea
-                            placeholder="<p>Who buys this notebook, and what they care about.</p>"
-                            value={entryForm.segments}
-                            onChange={e => setEntryForm(f => ({ ...f, segments: e.target.value }))}
-                            rows={8}
-                            style={{ width: 320, fontFamily: "monospace" }}
-                          />
-                          <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
-                            Rendered as HTML on the player&apos;s Segments tab. Cleaned on save:
-                            scripts, embeds, event handlers and links are removed.
-                          </div>
-                        </td>
-                      </tr>
-                      {/* Both render as BULLET LISTS on the Details tab, so the
-                          textarea is line-per-bullet. Blank = the panel renders
-                          empty, which is a legitimate state. */}
-                      <tr>
-                        <td>Best for (Strengths)</td>
-                        <td>
-                          <textarea
-                            placeholder="one strength per line"
-                            value={entryForm.bestFor}
-                            onChange={e => setEntryForm(f => ({ ...f, bestFor: e.target.value }))}
-                            rows={4}
-                            style={{ width: 320 }}
-                          />
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Watch out (Weakness)</td>
-                        <td>
-                          <textarea
-                            placeholder="one weakness per line"
-                            value={entryForm.watchOut}
-                            onChange={e => setEntryForm(f => ({ ...f, watchOut: e.target.value }))}
-                            rows={4}
-                            style={{ width: 320 }}
-                          />
-                        </td>
-                      </tr>
-                    </>
-                  )}
-                </>
-              )}
-              {/* Channels render no artwork, so the player's hydrator ignores
-                  imageAssetId for them — offering the picker would invite an
-                  operator to set a value that does nothing. */}
-              {sectionFields(activeSection).includes("image") && (
-              <tr>
-                <td>Image Asset</td>
-                <td>
-                  <input
-                    placeholder="imageAssetId URL or leave blank"
-                    value={entryForm.imageAssetId}
-                    onChange={e => setEntryForm(f => ({ ...f, imageAssetId: e.target.value }))}
-                    style={{ width: 320 }}
-                  />
-                  {imageAssets.length > 0 && (
-                    <select
-                      style={{ marginLeft: 6 }}
-                      value=""
-                      onChange={e => setEntryForm(f => ({ ...f, imageAssetId: e.target.value }))}
-                    >
-                      <option value="">pick from uploads…</option>
-                      {imageAssets.map((a: any) => (
-                        <option key={a._id} value={a.url ?? a._id}>{a.filename ?? a._id}</option>
-                      ))}
-                    </select>
-                  )}
-                </td>
-              </tr>
-              )}
-              {sectionFields(activeSection).includes("caseStudy") && (
-                <>
-                  <tr><td colSpan={2}><strong>Case Study</strong></td></tr>
-                  <tr>
-                    <td>Title</td>
-                    <td><input value={entryForm.caseStudy.title} onChange={e => setCaseStudyField("title", e.target.value)} style={{ width: 320 }} /></td>
-                  </tr>
-                  <tr>
-                    <td>Brief</td>
-                    <td><textarea value={entryForm.caseStudy.brief} onChange={e => setCaseStudyField("brief", e.target.value)} rows={3} style={{ width: 320 }} /></td>
-                  </tr>
-                  <tr>
-                    <td>Best When</td>
-                    <td><textarea value={entryForm.caseStudy.bestWhen} onChange={e => setCaseStudyField("bestWhen", e.target.value)} rows={2} style={{ width: 320 }} /></td>
-                  </tr>
-                  <tr>
-                    <td>Watch Out</td>
-                    <td><textarea value={entryForm.caseStudy.watchOut} onChange={e => setCaseStudyField("watchOut", e.target.value)} rows={2} style={{ width: 320 }} /></td>
-                  </tr>
-                </>
-              )}
-            </tbody>
-          </table>
-          <div style={{ marginTop: 6 }}>
-            <button onClick={handleAddOrUpdate}>{editingIndex !== null ? "Update" : "Add"}</button>
-            {editingIndex !== null && <button onClick={resetForm} style={{ marginLeft: 4 }}>Cancel</button>}
-          </div>
+                )}
+              </div>
+            )}
+
+            {fields.includes("caseStudy") && (
+              <Card variant="panel">
+                <Heading level={5}>Case Study</Heading>
+                <TextField label="Title" value={entryForm.caseStudy.title} onChange={e => setCaseStudyField("title", e.target.value)} />
+                <TextArea label="Brief" value={entryForm.caseStudy.brief} onChange={e => setCaseStudyField("brief", e.target.value)} minRows={3} />
+                <TextArea label="Best When" value={entryForm.caseStudy.bestWhen} onChange={e => setCaseStudyField("bestWhen", e.target.value)} minRows={2} />
+                <TextArea label="Watch Out" value={entryForm.caseStudy.watchOut} onChange={e => setCaseStudyField("watchOut", e.target.value)} minRows={2} />
+              </Card>
+            )}
+
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleAddOrUpdate}>{editingIndex !== null ? "Update" : "Add"}</Button>
+              {editingIndex !== null && <Button variant="text" onClick={resetForm}>Cancel</Button>}
+            </div>
+          </Card>
 
           {/* ── Save ── */}
-          <div style={{ marginTop: 16, borderTop: "1px solid #ccc", paddingTop: 12 }}>
-            <button onClick={handleSave} disabled={loading} style={{ fontWeight: "bold" }}>
-              {loading ? "Saving…" : configId ? "Save Changes" : "Create Config"}
-            </button>
-          </div>
+          <Button className="self-start" onClick={handleSave} disabled={loading}>
+            {loading ? "Saving…" : configId ? "Save Changes" : "Create Config"}
+          </Button>
         </>
       )}
-    </div>
+    </>
   );
 }

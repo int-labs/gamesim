@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, PageHeader, PasswordField, Select, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getUsers, createUser, deleteUser, regeneratePasskey } from "../api";
 import type { User } from "../types";
 
@@ -61,56 +62,49 @@ export default function UsersPage() {
   };
 
   return (
-    <div>
-      <h2>Users</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Users" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr><td>Email (optional)</td><td><input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></td></tr>
-          <tr><td>Password</td><td><input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></td></tr>
-          <tr>
-            <td>Role</td>
-            <td>
-              <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-                <option value="admin">admin</option>
-                <option value="operator">operator</option>
-                <option value="client">client</option>
-                <option value="team">team</option>
-              </select>
-            </td>
-          </tr>
-          <tr><td>Team ID</td><td><input value={form.teamId} onChange={e => setForm(f => ({ ...f, teamId: e.target.value }))} /></td></tr>
-          <tr><td>Simulation ID</td><td><input value={form.simulationId} onChange={e => setForm(f => ({ ...f, simulationId: e.target.value }))} /></td></tr>
-          <tr><td>Passkey</td><td><input value={form.passkey} onChange={e => setForm(f => ({ ...f, passkey: e.target.value }))} placeholder="leave blank to auto-generate" /></td></tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Email (optional)" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+          <PasswordField label="Password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+          <Select label="Role" options={ROLE_OPTIONS} value={form.role} onValueChange={v => v && setForm(f => ({ ...f, role: v }))} />
+          <TextField label="Team ID" value={form.teamId} onChange={e => setForm(f => ({ ...f, teamId: e.target.value }))} />
+          <TextField label="Simulation ID" value={form.simulationId} onChange={e => setForm(f => ({ ...f, simulationId: e.target.value }))} />
+          <TextField label="Passkey" value={form.passkey} onChange={e => setForm(f => ({ ...f, passkey: e.target.value }))} placeholder="leave blank to auto-generate" />
+        </div>
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
 
-      <h3>All Users</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>_id</th><th>Email</th><th>Role</th><th>TeamId</th><th>SimId</th><th>Passkey</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.email ?? "—"}</td>
-              <td>{r.role}</td>
-              <td>{r.teamId ?? "—"}</td>
-              <td>{r.simulationId ?? "—"}</td>
-              <td>{r.passkey ?? "—"}</td>
-              <td>
-                <button onClick={() => handleRegenPasskey(r._id)}>Regen Passkey</button>
-                {" "}
-                <button onClick={() => handleDelete(r._id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Users</Heading>
+        <DataTable
+          label="All Users"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => (
+            <>
+              <Button variant="text" onClick={() => handleRegenPasskey(r._id)}>Regen Passkey</Button>
+              <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>
+            </>
+          )}
+        />
+      </Card>
+    </>
   );
 }
+
+const ROLE_OPTIONS = ["admin", "operator", "client", "team"].map(role => ({ value: role, label: role }));
+
+const COLUMNS: DataTableColumn<User>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "email", header: "Email", cell: r => r.email ?? "—", primary: true },
+  { id: "role", header: "Role", cell: r => r.role },
+  { id: "teamId", header: "TeamId", cell: r => r.teamId ?? "—" },
+  { id: "simulationId", header: "SimId", cell: r => r.simulationId ?? "—" },
+  { id: "passkey", header: "Passkey", cell: r => r.passkey ?? "—" },
+];

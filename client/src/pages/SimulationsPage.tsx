@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, DatePicker, Heading, Input, PageHeader, Select, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getSimulations, createSimulation, deleteSimulation, updateSimulation } from "../api";
 import type { Simulation } from "../types";
 
@@ -97,117 +98,85 @@ export default function SimulationsPage() {
     }
   };
 
+  const columns: DataTableColumn<Simulation>[] = [
+    { id: "_id", header: "_id", cell: r => r._id },
+    { id: "simulationName", header: "Name", cell: r => r.simulationName, primary: true },
+    { id: "status", header: "Status", cell: r => r.status },
+    { id: "simulationTypeId", header: "SimTypeId", cell: r => r.simulationTypeId },
+    { id: "startDate", header: "Start", cell: r => (r.startDate ? new Date(r.startDate).toLocaleDateString() : "") },
+    { id: "endDate", header: "End", cell: r => (r.endDate ? new Date(r.endDate).toLocaleDateString() : "") },
+    {
+      id: "config",
+      header: "Config",
+      cell: r =>
+        editingId === r._id ? (
+          <div className="flex flex-col gap-2">
+            <Input size="sm" type="number" min={1} aria-label="Total" placeholder="Total" value={editForm.totalRounds} onChange={e => setEditForm(f => ({ ...f, totalRounds: Number(e.target.value) }))} />
+            <Input size="sm" type="number" min={1} aria-label="Curr" placeholder="Curr" value={editForm.currRounds} onChange={e => setEditForm(f => ({ ...f, currRounds: Number(e.target.value) }))} />
+            <Select
+              size="sm"
+              aria-label="Mode"
+              options={MODE_OPTIONS.map(o => ({ value: o.value, label: o.value }))}
+              value={editForm.mode}
+              onValueChange={v => v && setEditForm(f => ({ ...f, mode: v }))}
+            />
+          </div>
+        ) : (
+          <>
+            Total: {r.config?.totalRounds ?? "—"} / Curr: {r.config?.currRounds ?? "—"}
+            <br />
+            Mode: {(r.config?.mode as string) ?? "competitive"}
+          </>
+        ),
+    },
+  ];
+
   return (
-    <div>
-      <h2>Simulations</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Simulations" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr>
-            <td>Name</td>
-            <td><input value={form.simulationName} onChange={e => setForm(f => ({ ...f, simulationName: e.target.value }))} /></td>
-          </tr>
-          <tr>
-            <td>Status</td>
-            <td>
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option>Active</option>
-                <option>Inactive</option>
-                <option>Completed</option>
-              </select>
-            </td>
-          </tr>
-          <tr>
-            <td>Simulation Type ID</td>
-            <td><input value={form.simulationTypeId} onChange={e => setForm(f => ({ ...f, simulationTypeId: e.target.value }))} /></td>
-          </tr>
-          <tr>
-            <td>Start Date</td>
-            <td><input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} /></td>
-          </tr>
-          <tr>
-            <td>End Date</td>
-            <td><input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></td>
-          </tr>
-          <tr>
-            <td>Total Rounds</td>
-            <td><input type="number" min={1} value={form.totalRounds} onChange={e => setForm(f => ({ ...f, totalRounds: Number(e.target.value) }))} /></td>
-          </tr>
-          <tr>
-            <td>Mode</td>
-            <td>
-              <select
-                value={form.mode}
-                onChange={e => setForm(f => ({ ...f, mode: e.target.value as SimulationMode }))}
-              >
-                {MODE_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Name" value={form.simulationName} onChange={e => setForm(f => ({ ...f, simulationName: e.target.value }))} />
+          <Select label="Status" options={STATUS_OPTIONS} value={form.status} onValueChange={v => v && setForm(f => ({ ...f, status: v }))} />
+          <TextField label="Simulation Type ID" value={form.simulationTypeId} onChange={e => setForm(f => ({ ...f, simulationTypeId: e.target.value }))} />
+          <TextField label="Total Rounds" type="number" min={1} value={form.totalRounds} onChange={e => setForm(f => ({ ...f, totalRounds: Number(e.target.value) }))} />
+          <DatePicker label="Start Date" value={form.startDate || null} onValueChange={v => setForm(f => ({ ...f, startDate: v ?? "" }))} />
+          <DatePicker label="End Date" value={form.endDate || null} onValueChange={v => setForm(f => ({ ...f, endDate: v ?? "" }))} />
+          <Select<SimulationMode>
+            label="Mode"
+            options={MODE_OPTIONS}
+            value={form.mode}
+            onValueChange={v => v && setForm(f => ({ ...f, mode: v }))}
+          />
+        </div>
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
 
-      <h3>All Simulations</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr>
-            <th>_id</th><th>Name</th><th>Status</th><th>SimTypeId</th><th>Start</th><th>End</th><th>Config</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.simulationName}</td>
-              <td>{r.status}</td>
-              <td>{r.simulationTypeId}</td>
-              <td>{r.startDate ? new Date(r.startDate).toLocaleDateString() : ""}</td>
-              <td>{r.endDate ? new Date(r.endDate).toLocaleDateString() : ""}</td>
-              <td>
-                {editingId === r._id ? (
-                  <>
-                    Total: <input type="number" min={1} style={{ width: 50 }} value={editForm.totalRounds} onChange={e => setEditForm(f => ({ ...f, totalRounds: Number(e.target.value) }))} /><br />
-                    Curr: <input type="number" min={1} style={{ width: 50 }} value={editForm.currRounds} onChange={e => setEditForm(f => ({ ...f, currRounds: Number(e.target.value) }))} /><br />
-                    Mode:{" "}
-                    <select
-                      value={editForm.mode}
-                      onChange={e => setEditForm(f => ({ ...f, mode: e.target.value as SimulationMode }))}
-                    >
-                      {MODE_OPTIONS.map(o => (
-                        <option key={o.value} value={o.value}>{o.value}</option>
-                      ))}
-                    </select>
-                  </>
-                ) : (
-                  <>
-                    Total: {r.config?.totalRounds ?? "—"} / Curr: {r.config?.currRounds ?? "—"}
-                    <br />
-                    Mode: {(r.config?.mode as string) ?? "competitive"}
-                  </>
-                )}
-              </td>
-              <td>
-                {editingId === r._id ? (
-                  <>
-                    <button onClick={() => handleUpdate(r._id)}>Save</button>{" "}
-                    <button onClick={() => setEditingId(null)}>Cancel</button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => handleEditStart(r)}>Edit</button>{" "}
-                    <button onClick={() => handleDelete(r._id)}>Delete</button>
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Simulations</Heading>
+        <DataTable
+          label="All Simulations"
+          columns={columns}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => editingId === r._id ? (
+            <>
+              <Button variant="text" onClick={() => handleUpdate(r._id)}>Save</Button>
+              <Button variant="text" onClick={() => setEditingId(null)}>Cancel</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="text" onClick={() => handleEditStart(r)}>Edit</Button>
+              <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>
+            </>
+          )}
+        />
+      </Card>
+    </>
   );
 }
+
+const STATUS_OPTIONS = ["Active", "Inactive", "Completed"].map(s => ({ value: s, label: s }));

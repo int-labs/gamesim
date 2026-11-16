@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, Input, PageHeader, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getSegments, createSegment, updateSegment, deleteSegment, activateSegment, deactivateSegment } from "../api";
 import type { Segment } from "../types";
 
@@ -79,83 +80,93 @@ export default function SegmentsPage() {
     catch (e: any) { setError(e.response?.data?.message ?? e.message); }
   };
 
+  const editing = (r: Segment) => editingId === r._id;
+
+  const columns: DataTableColumn<Segment>[] = [
+    { id: "_id", header: "_id", cell: r => r._id },
+    { id: "simulationTypeId", header: "SimTypeId", cell: r => r.simulationTypeId },
+    {
+      id: "name",
+      header: "Name",
+      primary: true,
+      cell: r => editing(r)
+        ? <Input size="sm" aria-label="Name" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+        : r.name,
+    },
+    {
+      id: "key",
+      header: "Key",
+      cell: r => editing(r)
+        ? <Input size="sm" aria-label="Key" value={editForm.key} onChange={e => setEditForm(f => ({ ...f, key: e.target.value }))} />
+        : r.key,
+    },
+    {
+      id: "icon",
+      header: "Icon",
+      cell: r => editing(r)
+        ? <Input size="sm" aria-label="Icon" value={editForm.icon} onChange={e => setEditForm(f => ({ ...f, icon: e.target.value }))} />
+        : r.icon,
+    },
+    {
+      id: "description",
+      header: "Description",
+      cell: r => editing(r)
+        ? <Input size="sm" aria-label="Description" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
+        : r.description,
+    },
+    { id: "active", header: "Active", cell: r => (r.active ? "✓" : "✗") },
+    {
+      id: "order",
+      header: "Order",
+      cell: r => editing(r)
+        ? <Input size="sm" type="number" aria-label="Order" value={editForm.order} onChange={e => setEditForm(f => ({ ...f, order: Number(e.target.value) }))} />
+        : r.order,
+    },
+  ];
+
   return (
-    <div>
-      <h2>Segments</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Segments" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label>Filter by Simulation Type ID: <input value={filterSimType} onChange={e => setFilterSimType(e.target.value)} /></label>
+      <TextField label="Filter by Simulation Type ID" value={filterSimType} onChange={e => setFilterSimType(e.target.value)} />
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr><td>Simulation Type ID</td><td><input value={form.simulationTypeId} onChange={e => setForm(f => ({ ...f, simulationTypeId: e.target.value }))} /></td></tr>
-          <tr><td>Name</td><td><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></td></tr>
-          <tr><td>Description</td><td><input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></td></tr>
-          <tr><td>Key</td><td><input value={form.key} onChange={e => setForm(f => ({ ...f, key: e.target.value }))} /></td></tr>
-          <tr><td>Icon</td><td><input value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} /></td></tr>
-          <tr><td>Order</td><td><input type="number" value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} /></td></tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Simulation Type ID" value={form.simulationTypeId} onChange={e => setForm(f => ({ ...f, simulationTypeId: e.target.value }))} />
+          <TextField label="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <TextField label="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <TextField label="Key" value={form.key} onChange={e => setForm(f => ({ ...f, key: e.target.value }))} />
+          <TextField label="Icon" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} />
+          <TextField label="Order" type="number" value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} />
+        </div>
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
 
-      <h3>All Segments</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>_id</th><th>SimTypeId</th><th>Name</th><th>Key</th><th>Icon</th><th>Description</th><th>Active</th><th>Order</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.simulationTypeId}</td>
-              <td>
-                {editingId === r._id
-                  ? <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-                  : r.name}
-              </td>
-              <td>
-                {editingId === r._id
-                  ? <input value={editForm.key} onChange={e => setEditForm(f => ({ ...f, key: e.target.value }))} />
-                  : r.key}
-              </td>
-              <td>
-                {editingId === r._id
-                  ? <input value={editForm.icon} onChange={e => setEditForm(f => ({ ...f, icon: e.target.value }))} />
-                  : r.icon}
-              </td>
-              <td>
-                {editingId === r._id
-                  ? <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
-                  : r.description}
-              </td>
-              <td>{r.active ? "✓" : "✗"}</td>
-              <td>
-                {editingId === r._id
-                  ? <input type="number" style={{ width: 50 }} value={editForm.order} onChange={e => setEditForm(f => ({ ...f, order: Number(e.target.value) }))} />
-                  : r.order}
-              </td>
-              <td>
-                {editingId === r._id ? (
-                  <>
-                    <button onClick={() => handleUpdate(r._id)}>Save</button>{" "}
-                    <button onClick={() => setEditingId(null)}>Cancel</button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => handleEditStart(r)}>Edit</button>{" "}
-                    {r.active
-                      ? <button onClick={() => handleDeactivate(r._id)}>Deactivate</button>
-                      : <button onClick={() => handleActivate(r._id)}>Activate</button>}
-                    {" "}
-                    <button onClick={() => handleDelete(r._id)}>Delete</button>
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Segments</Heading>
+        <DataTable
+          label="All Segments"
+          columns={columns}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => editing(r) ? (
+            <>
+              <Button variant="text" onClick={() => handleUpdate(r._id)}>Save</Button>
+              <Button variant="text" onClick={() => setEditingId(null)}>Cancel</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="text" onClick={() => handleEditStart(r)}>Edit</Button>
+              {r.active
+                ? <Button variant="text" onClick={() => handleDeactivate(r._id)}>Deactivate</Button>
+                : <Button variant="text" onClick={() => handleActivate(r._id)}>Activate</Button>}
+              <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>
+            </>
+          )}
+        />
+      </Card>
+    </>
   );
 }

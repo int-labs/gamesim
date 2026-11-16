@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, PageHeader, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getProjections, deleteProjection } from "../api";
 import type { Projection } from "../types";
 
@@ -34,44 +35,42 @@ export default function ProjectionsPage() {
     }
   };
 
-  const hasData = (val: unknown) => val !== null && val !== undefined;
-
   return (
-    <div>
-      <h2>Projections</h2>
-      <p>Read / Delete only. Projections are written by recalcProjections (not yet implemented).</p>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Projections" description="Read / Delete only. Projections are written by recalcProjections (not yet implemented)." />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label>Filter Sim ID: <input value={filterSim} onChange={e => setFilterSim(e.target.value)} /></label>
-      {" "}
-      <label>Filter Team ID: <input value={filterTeam} onChange={e => setFilterTeam(e.target.value)} /></label>
-      {" "}
-      <label>Filter Round#: <input type="number" value={filterRound} onChange={e => setFilterRound(e.target.value)} style={{ width: 60 }} /></label>
-      {" "}
-      <button onClick={load}>Refresh</button>
+      <div className="flex flex-wrap items-end gap-4">
+        <TextField label="Filter Sim ID" value={filterSim} onChange={e => setFilterSim(e.target.value)} />
+        <TextField label="Filter Team ID" value={filterTeam} onChange={e => setFilterTeam(e.target.value)} />
+        <TextField label="Filter Round#" type="number" value={filterRound} onChange={e => setFilterRound(e.target.value)} />
+        <Button variant="outline" onClick={load}>Refresh</Button>
+      </div>
 
-      <h3>All Projections</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>_id</th><th>SimId</th><th>TeamId</th><th>Round</th><th>bizperf</th><th>pnl</th><th>balanceSheet</th><th>cashflow</th><th>projections</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.simulationId}</td>
-              <td>{r.teamId}</td>
-              <td>{r.roundNumber}</td>
-              <td>{hasData(r.bizperf) ? "✓" : "null"}</td>
-              <td>{hasData(r.pnl) ? "✓" : "null"}</td>
-              <td>{hasData(r.balanceSheet) ? "✓" : "null"}</td>
-              <td>{hasData(r.cashflow) ? "✓" : "null"}</td>
-              <td>{hasData(r.projections) ? "✓" : "null"}</td>
-              <td><button onClick={() => handleDelete(r._id)}>Delete</button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Projections</Heading>
+        <DataTable
+          label="All Projections"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>}
+        />
+      </Card>
+    </>
   );
 }
+
+const hasData = (val: unknown) => val !== null && val !== undefined;
+
+const COLUMNS: DataTableColumn<Projection>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "simulationId", header: "SimId", cell: r => r.simulationId },
+  { id: "teamId", header: "TeamId", cell: r => r.teamId },
+  { id: "roundNumber", header: "Round", cell: r => r.roundNumber },
+  { id: "bizperf", header: "bizperf", cell: r => (hasData(r.bizperf) ? "✓" : "null") },
+  { id: "pnl", header: "pnl", cell: r => (hasData(r.pnl) ? "✓" : "null") },
+  { id: "balanceSheet", header: "balanceSheet", cell: r => (hasData(r.balanceSheet) ? "✓" : "null") },
+  { id: "cashflow", header: "cashflow", cell: r => (hasData(r.cashflow) ? "✓" : "null") },
+  { id: "projections", header: "projections", cell: r => (hasData(r.projections) ? "✓" : "null") },
+];

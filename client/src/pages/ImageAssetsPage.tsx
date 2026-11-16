@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { Alert, Button, Card, DataTable, Heading, LinkButton, PageHeader, Select, Text, type DataTableColumn } from "@stratagem/design-system";
 import {
   getImageAssets,
   uploadImageAsset,
@@ -110,90 +111,68 @@ export default function ImageAssetsPage() {
   };
 
   return (
-    <div>
-      <h2>Image Assets</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {notice && <p style={{ color: "#8a4a00" }}>{notice}</p>}
+    <>
+      <PageHeader title="Image Assets" />
+      {error && <Alert tone="danger">{error}</Alert>}
+      {notice && <Alert tone="warning">{notice}</Alert>}
 
-      {/* Storage banner. Shown for BOTH states on purpose: silence when healthy
-          would make the durable case indistinguishable from the check never
-          having run — which is how uploads previously went to local disk with
-          nobody the wiser. */}
+      {/* Storage banner, shown in both states so a healthy check is distinguishable from no check */}
       {storage ? (
-        <p
-          style={{
-            padding: "6px 10px",
-            border: `1px solid ${storage.durable ? "#3a7" : "#c60"}`,
-            background: storage.durable ? "#eefaf3" : "#fff6e8",
-            color: storage.durable ? "#264" : "#8a4a00",
-            fontSize: 13,
-          }}
-        >
+        <Alert tone={storage.durable ? "success" : "warning"}>
           <strong>Storage: {storage.driver}</strong>
           {storage.durable ? " · durable" : " · NOT durable"} — {storage.message}
-        </p>
+        </Alert>
       ) : (
-        <p style={{ fontSize: 13, color: "#8a4a00" }}>
-          Storage status unavailable — uploads may not be durable.
-        </p>
+        <Alert tone="warning">Storage status unavailable — uploads may not be durable.</Alert>
       )}
 
-      <h3>Upload</h3>
+      <Card>
+        <Heading level={3}>Upload</Heading>
 
-      {/* Bucket choice sits ABOVE the file input: it decides where the file
-          lands, so it has to be settled before one is picked. Hidden entirely
-          on the local driver, where buckets do not exist and an empty dropdown
-          would just raise a question with no answer. */}
-      {buckets.length > 0 && (
-        <p style={{ margin: "0 0 8px" }}>
-          <label>
-            Bucket{" "}
-            <select value={bucket} onChange={(e) => setBucket(e.target.value)}>
-              <option value="">Select a bucket…</option>
-              {buckets.map((b) => (
-                <option key={b.name} value={b.name}>
-                  {b.name}
-                  {b.public ? "" : " (private)"}
-                </option>
-              ))}
-            </select>
-          </label>
-          {/* A private bucket's public URL resolves to nothing the player app
-              can load, so the consequence is stated where the choice is made. */}
-          {buckets.find((b) => b.name === bucket && !b.public) && (
-            <span style={{ marginLeft: 8, fontSize: 12, color: "#8a4a00" }}>
-              This bucket is private — its URLs will not load in the player app.
-            </span>
-          )}
-        </p>
-      )}
+        {/* Bucket sits above the file input and is hidden on the local driver, which has no buckets */}
+        {buckets.length > 0 && (
+          <Select
+            label="Bucket"
+            placeholder="Select a bucket…"
+            options={buckets.map(b => ({ value: b.name, label: `${b.name}${b.public ? "" : " (private)"}` }))}
+            value={bucket || null}
+            onValueChange={v => setBucket(v ?? "")}
+            description={
+              // A private bucket's public URL does not load in the player app
+              buckets.find((b) => b.name === bucket && !b.public)
+                ? <Text as="span" tone="warning">This bucket is private — its URLs will not load in the player app.</Text>
+                : undefined
+            }
+          />
+        )}
 
-      <input type="file" ref={fileRef} accept="image/png,image/jpeg,image/webp" />
-      {" "}
-      <button onClick={handleUpload} disabled={uploading || (buckets.length > 0 && !bucket)}>
-        {uploading ? "Uploading…" : "Upload"}
-      </button>
-      <p style={{ fontSize: 12, color: "#666" }}>PNG / JPEG / WebP only. Max 5 MB.</p>
+        <div className="flex flex-wrap items-center gap-4">
+          {/* The design system has no file picker, so the native input stays */}
+          <input type="file" ref={fileRef} accept="image/png,image/jpeg,image/webp" className="type-body" />
+          <Button onClick={handleUpload} disabled={uploading || (buckets.length > 0 && !bucket)}>
+            {uploading ? "Uploading…" : "Upload"}
+          </Button>
+        </div>
+        <Text variant="caption" tone="muted">PNG / JPEG / WebP only. Max 5 MB.</Text>
+      </Card>
 
-      <h3>All Image Assets</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>image_id</th><th>filename</th><th>Preview</th><th>URL</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r.image_id}>
-              <td>{r.image_id}</td>
-              <td>{r.filename}</td>
-              <td>
-                <img src={r.url} alt={r.filename} style={{ maxHeight: 48, maxWidth: 80 }} />
-              </td>
-              <td><a href={r.url} target="_blank" rel="noreferrer">open</a></td>
-              <td><button onClick={() => handleDelete(r.image_id)}>Delete</button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Image Assets</Heading>
+        <DataTable
+          label="All Image Assets"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r.image_id}
+          rowActions={r => <Button variant="text" tone="danger" onClick={() => handleDelete(r.image_id)}>Delete</Button>}
+        />
+      </Card>
+    </>
   );
 }
+
+const COLUMNS: DataTableColumn<ImageAsset>[] = [
+  { id: "image_id", header: "image_id", cell: r => r.image_id },
+  { id: "filename", header: "filename", cell: r => r.filename, primary: true },
+  { id: "preview", header: "Preview", cell: r => <img src={r.url} alt={r.filename} className="max-h-12 max-w-20" /> },
+  { id: "url", header: "URL", cell: r => <LinkButton variant="text" href={r.url} target="_blank" rel="noreferrer">open</LinkButton> },
+];

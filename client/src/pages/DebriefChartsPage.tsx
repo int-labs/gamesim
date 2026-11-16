@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Input, PageHeader, Select, Text, type DataTableColumn } from "@stratagem/design-system";
 import {
   createDebriefChart, deleteDebriefChart,
   getDebriefCharts, getDebriefChartStyles, getDebriefDimensions, getSimulationTypes,
@@ -11,10 +12,6 @@ import {
 } from "./ChartConfigForm";
 
 /** Which charts a simulation type's debrief shows, and where. An operator surface: shapes are picked from the gallery, never authored here. */
-
-const box = { border: "1px solid #ddd", padding: 12, marginBottom: 24 };
-const th  = { textAlign: "left" as const, fontSize: 11, color: "#888", padding: "4px 6px" };
-const td  = { padding: "3px 6px", verticalAlign: "top" as const };
 
 /** Render the draft binding against a real round. The SVG arrives already drawn by the server; the console never receives a spec. */
 function Preview({ draft }: { draft: ChartDraft }) {
@@ -52,45 +49,45 @@ function Preview({ draft }: { draft: ChartDraft }) {
   };
 
   return (
-    <div style={{ borderTop: "1px solid #eee", marginTop: 14, paddingTop: 10 }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-        <strong style={{ fontSize: 12 }}>Preview</strong>
-        <input placeholder="simulationId" value={simulationId}
-               onChange={(e) => setSimulationId(e.target.value)} style={{ width: 240 }} />
-        <input placeholder="round (0-based)" value={roundNumber}
-               onChange={(e) => setRoundNumber(e.target.value)} style={{ width: 120 }} />
-        <button onClick={render} disabled={!canRender || busy}>
+    <Card variant="panel">
+      <div className="flex flex-wrap items-center gap-2">
+        <Text as="strong" variant="label">Preview</Text>
+        <Input size="sm" className="w-60" aria-label="simulationId" placeholder="simulationId" value={simulationId}
+               onChange={(e) => setSimulationId(e.target.value)} />
+        <Input size="sm" className="w-32" aria-label="round (0-based)" placeholder="round (0-based)" value={roundNumber}
+               onChange={(e) => setRoundNumber(e.target.value)} />
+        <Button variant="outline" size="sm" onClick={render} disabled={!canRender || busy}>
           {busy ? "Rendering…" : "Render"}
-        </button>
+        </Button>
         {!draft.chartStyle && (
-          <span style={{ fontSize: 11, color: "#888" }}>pick a shape first</span>
+          <Text as="span" variant="caption" tone="muted">pick a shape first</Text>
         )}
         {instances.length > 1 && (
-          <span style={{ fontSize: 11, color: "#888" }}>
+          <Text as="span" variant="caption" tone="muted">
             {instances.length} charts — one per notebook
-          </span>
+          </Text>
         )}
       </div>
 
-      {err && <div style={{ color: "#b00", fontSize: 12, marginTop: 6 }}>{err}</div>}
+      {err && <Alert tone="danger">{err}</Alert>}
 
       {instances.map((inst) => (
-        <div key={inst.productId ?? "summary"} style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 11, color: "#888" }}>
+        <div key={inst.productId ?? "summary"} className="flex flex-col gap-1">
+          <Text variant="caption" tone="muted">
             {/* Named even when there is only one: "every notebook at once" is
                 a claim about what the numbers mean, not a heading. */}
             {inst.productName ?? "Overall — every notebook at once"}
             {" · "}
             {/* The row count is the diagnostic, and it is per instance. */}
-            <span style={{ color: inst.rows === 0 ? "#b00" : "#888" }}>
+            <Text as="span" tone={inst.rows === 0 ? "danger" : "muted"}>
               {inst.rows} row(s){inst.rows === 0 ? " — the bindings matched no data" : ""}
-            </span>
-          </div>
-          <div style={{ overflowX: "auto" }}
+            </Text>
+          </Text>
+          <div className="overflow-x-auto"
                dangerouslySetInnerHTML={{ __html: inst.svg }} />
         </div>
       ))}
-    </div>
+    </Card>
   );
 }
 
@@ -157,114 +154,99 @@ export default function DebriefChartsPage() {
     else run(() => createDebriefChart({ simulationTypeId: selectedSimType, ...payload }), "Chart added.").then(reset);
   };
 
+  const columns: DataTableColumn<DebriefChartConfig>[] = [
+    { id: "order", header: "ORDER", cell: (c) => c.order },
+    { id: "category", header: "SLIDE GROUP", cell: (c) => c.category || <Text as="span" tone="faint">—</Text> },
+    { id: "name", header: "NAME", cell: (c) => c.name, primary: true },
+    {
+      id: "scope",
+      header: "SCOPE",
+      cell: (c) => c.scope === "each"
+        ? <span title="one chart per notebook; a summary is a separate chart">per notebook</span>
+        : "overall",
+    },
+    {
+      id: "shape",
+      header: "SHAPE",
+      cell: (c) => c.clientChart
+        ? <span title="the player draws this one; it takes no shape">player-drawn</span>
+        : c.chartStyle
+          ? c.chartStyle.name
+          : <Text as="span" tone="danger">none</Text>,
+    },
+    { id: "x", header: "X", cell: (c) => dimLabel(dims, c.xAxis) },
+    {
+      id: "y",
+      header: "Y",
+      // Every measure, comma-separated; showing only the first would hide half of what the chart plots
+      cell: (c) => c.yAxis.length === 0
+        ? dimLabel(dims, null)
+        : c.yAxis.map((m, i) => (
+            <span key={m}>
+              {i > 0 && ", "}
+              {dimLabel(dims, m)}
+            </span>
+          )),
+    },
+    { id: "grouping", header: "GROUPING", cell: (c) => dimLabel(dims, c.grouping) },
+  ];
+
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Debrief Charts</h2>
-      <p style={{ maxWidth: 720, color: "#555" }}>
-        Which charts this simulation type's debrief shows, and in what order. One type
-        has one set, shared by every simulation under it. Shapes come from the Chart
-        Gallery; descriptions are written per round on the Round Debrief page.
-      </p>
+    <>
+      <PageHeader
+        title="Debrief Charts"
+        description="Which charts this simulation type's debrief shows, and in what order. One type has one set, shared by every simulation under it. Shapes come from the Chart Gallery; descriptions are written per round on the Round Debrief page."
+      />
 
-      {error && <div style={{ color: "#b00", marginBottom: 8 }}>{error}</div>}
-      {notice && <div style={{ color: "#2a7", marginBottom: 8 }}>{notice}</div>}
+      {error && <Alert tone="danger">{error}</Alert>}
+      {notice && <Alert tone="success">{notice}</Alert>}
 
-      <div style={box}>
-        <label>
-          Simulation Type:{" "}
-          <select
-            value={selectedSimType}
-            onChange={(e) => { setSelectedSimType(e.target.value); reset(); }}
-          >
-            <option value="">-- select --</option>
-            {simulationTypes.map((st: any) => (
-              <option key={st._id} value={st._id}>{st.name ?? st._id}</option>
-            ))}
-          </select>
-        </label>
+      <Card>
+        <Select
+          label="Simulation Type"
+          placeholder="-- select --"
+          value={selectedSimType || null}
+          onValueChange={(v) => { setSelectedSimType(v ?? ""); reset(); }}
+          options={simulationTypes.map((st: any) => ({ value: st._id, label: st.name ?? st._id }))}
+        />
 
         {styles.length === 0 && (
-          <div style={{ color: "#b00", fontSize: 12, marginTop: 8 }}>
+          <Alert tone="danger">
             The chart gallery is empty, so no chart can be given a shape yet. Add one on
             the Chart Gallery page.
-          </div>
+          </Alert>
         )}
 
         {selectedSimType && (
-          <div style={{ marginTop: 12 }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 10 }}>
-              <thead>
-                <tr>
-                  <th style={th}>ORDER</th><th style={th}>SLIDE GROUP</th><th style={th}>NAME</th>
-                  <th style={th}>SCOPE</th>
-                  <th style={th}>SHAPE</th><th style={th}>X</th><th style={th}>Y</th>
-                  <th style={th}>GROUPING</th><th style={th} />
-                </tr>
-              </thead>
-              <tbody>
-                {charts.map((c) => (
-                  <tr key={c._id} style={{ borderTop: "1px solid #eee" }}>
-                    <td style={td}>{c.order}</td>
-                    <td style={td}>{c.category || <span style={{ color: "#bbb" }}>—</span>}</td>
-                    <td style={td}>{c.name}</td>
-                    <td style={td}>
-                      {c.scope === "each"
-                        ? <span title="one chart per notebook; a summary is a separate chart">per notebook</span>
-                        : "overall"}
-                    </td>
-                    <td style={td}>
-                      {c.clientChart
-                        ? <span title="the player draws this one; it takes no shape">player-drawn</span>
-                        : c.chartStyle
-                          ? c.chartStyle.name
-                          : <span style={{ color: "#b00" }}>none</span>}
-                    </td>
-                    <td style={td}>{dimLabel(dims, c.xAxis)}</td>
-                    {/* Every measure, comma-separated, a column showing only
-                        the first would hide half of what the chart plots. */}
-                    <td style={td}>
-                      {c.yAxis.length === 0
-                        ? dimLabel(dims, null)
-                        : c.yAxis.map((m, i) => (
-                            <span key={m}>
-                              {i > 0 && ", "}
-                              {dimLabel(dims, m)}
-                            </span>
-                          ))}
-                    </td>
-                    <td style={td}>{dimLabel(dims, c.grouping)}</td>
-                    <td style={td}>
-                      <button
-                        onClick={() => { setEditing(c._id); setForm(draftFromChart(c)); }}
-                      >
-                        Edit
-                      </button>{" "}
-                      <button onClick={() => run(() => deleteDebriefChart(c._id))}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-                {charts.length === 0 && (
-                  <tr>
-                    <td style={{ ...td, color: "#999" }} colSpan={9}>
-                      No charts — this type's debrief is empty.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <>
+            <DataTable
+              label="Debrief charts"
+              columns={columns}
+              rows={charts}
+              rowKey={(c) => c._id}
+              empty="No charts — this type's debrief is empty."
+              rowActions={(c) => (
+                <>
+                  <Button variant="text" onClick={() => { setEditing(c._id); setForm(draftFromChart(c)); }}>
+                    Edit
+                  </Button>
+                  <Button variant="text" tone="danger" onClick={() => run(() => deleteDebriefChart(c._id))}>Delete</Button>
+                </>
+              )}
+            />
 
-            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <div className="flex flex-wrap items-center gap-2">
               <ChartConfigFields draft={form} styles={styles} dims={dims} onChange={setForm} />
-              <button onClick={submit} disabled={!form.name.trim()}>
+              <Button size="sm" onClick={submit} disabled={!form.name.trim()}>
                 {editing ? "Save" : "Add chart"}
-              </button>
-              {editing && <button onClick={reset}>Cancel</button>}
+              </Button>
+              {editing && <Button variant="outline" size="sm" onClick={reset}>Cancel</Button>}
             </div>
 
             <Preview draft={form} />
-          </div>
+          </>
         )}
-      </div>
-    </div>
+      </Card>
+    </>
   );
 }

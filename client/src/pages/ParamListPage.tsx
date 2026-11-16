@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Alert, Button, Card, DataTable, Heading, PageHeader, TextArea, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getParamLists, createParamList, deleteParamList } from "../api";
 import type { ParamList } from "../types";
 
@@ -50,41 +51,46 @@ export default function ParamListPage() {
   };
 
   return (
-    <div>
-      <h2>Param List</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Param List" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label>Filter Segment ID: <input value={filterSegment} onChange={e => setFilterSegment(e.target.value)} /></label>
-      {" "}
-      <label>Filter Product ID: <input value={filterProduct} onChange={e => setFilterProduct(e.target.value)} /></label>
+      <div className="flex flex-wrap items-end gap-4">
+        <TextField label="Filter Segment ID" value={filterSegment} onChange={e => setFilterSegment(e.target.value)} />
+        <TextField label="Filter Product ID" value={filterProduct} onChange={e => setFilterProduct(e.target.value)} />
+      </div>
 
-      <h3>Create</h3>
-      <table>
-        <tbody>
-          <tr><td>Segment ID</td><td><input value={form.segmentId} onChange={e => setForm(f => ({ ...f, segmentId: e.target.value }))} /></td></tr>
-          <tr><td>Product ID</td><td><input value={form.productId} onChange={e => setForm(f => ({ ...f, productId: e.target.value }))} /></td></tr>
-          <tr><td>Parameters (JSON array)</td><td><textarea value={form.parameters} rows={4} cols={50} onChange={e => setForm(f => ({ ...f, parameters: e.target.value }))} /></td></tr>
-        </tbody>
-      </table>
-      <button onClick={handleCreate} disabled={loading}>Create</button>
+      <Card>
+        <Heading level={3}>Create</Heading>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Segment ID" value={form.segmentId} onChange={e => setForm(f => ({ ...f, segmentId: e.target.value }))} />
+          <TextField label="Product ID" value={form.productId} onChange={e => setForm(f => ({ ...f, productId: e.target.value }))} />
+        </div>
+        <TextArea label="Parameters (JSON array)" value={form.parameters} minRows={4} onChange={e => setForm(f => ({ ...f, parameters: e.target.value }))} />
+        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+      </Card>
 
-      <h3>All Param Lists</h3>
-      <table border={1} cellPadding={4}>
-        <thead>
-          <tr><th>_id</th><th>SegmentId</th><th>ProductId</th><th>Parameters</th><th>Actions</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.segmentId}</td>
-              <td>{r.productId}</td>
-              <td><pre style={{ margin: 0, maxWidth: 300, overflow: "auto", fontSize: 11 }}>{JSON.stringify(r.parameters, null, 2)}</pre></td>
-              <td><button onClick={() => handleDelete(r._id)}>Delete</button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <Heading level={3}>All Param Lists</Heading>
+        <DataTable
+          label="All Param Lists"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>}
+        />
+      </Card>
+    </>
   );
 }
+
+const COLUMNS: DataTableColumn<ParamList>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "segmentId", header: "SegmentId", cell: r => r.segmentId },
+  { id: "productId", header: "ProductId", cell: r => r.productId },
+  {
+    id: "parameters",
+    header: "Parameters",
+    cell: r => <pre className="m-0 max-w-72 overflow-auto type-caption">{JSON.stringify(r.parameters, null, 2)}</pre>,
+  },
+];

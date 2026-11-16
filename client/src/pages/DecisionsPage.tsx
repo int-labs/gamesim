@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Alert, Button, Card, DataTable, PageHeader, TextField, type DataTableColumn } from "@stratagem/design-system";
 import { getDecisions, deleteDecision } from "../api";
 
 export default function DecisionsPage() {
@@ -38,70 +39,68 @@ export default function DecisionsPage() {
   };
 
   return (
-    <div>
-      <h2>Decisions</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <>
+      <PageHeader title="Decisions" />
+      {error && <Alert tone="danger">{error}</Alert>}
 
-      <label>Filter Sim ID (required): <input value={filterSim} onChange={e => setFilterSim(e.target.value)} /></label>{" "}
-      <label>Filter Team ID: <input value={filterTeam} onChange={e => setFilterTeam(e.target.value)} /></label>{" "}
-      <label>Filter Round#: <input type="number" value={filterRound} onChange={e => setFilterRound(e.target.value)} style={{ width: 60 }} /></label>
+      <div className="flex flex-wrap items-end gap-4">
+        <TextField label="Filter Sim ID (required)" value={filterSim} onChange={e => setFilterSim(e.target.value)} />
+        <TextField label="Filter Team ID" value={filterTeam} onChange={e => setFilterTeam(e.target.value)} />
+        <TextField label="Filter Round#" type="number" value={filterRound} onChange={e => setFilterRound(e.target.value)} />
+      </div>
 
-      <table border={1} cellPadding={4} style={{ marginTop: 12 }}>
-        <thead>
-          <tr>
-            <th>_id</th>
-            <th>SimId</th>
-            <th>TeamId</th>
-            <th>Round</th>
-            <th>Segment</th>
-            <th>Products</th>
-            <th>Global Inputs</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r: any) => (
-            <tr key={r._id}>
-              <td>{r._id}</td>
-              <td>{r.simulationId}</td>
-              <td>{r.teamId}</td>
-              <td>{r.roundNumber}</td>
-              <td>
-                {/* segmentId from first input entry — all entries share the same segment */}
-                {r.inputs?.[0]?.segmentId ?? "—"}
-              </td>
-              <td>
-                {(r.inputs ?? []).map((inp: any) => (
-                  <div key={inp.productId} style={{ fontSize: 11, marginBottom: 4 }}>
-                    <strong>{inp.productName}</strong>
-                    <div style={{ paddingLeft: 8 }}>
-                      {(inp.fields ?? []).map((f: any) => (
-                        <div key={f[0]?.fieldId}>
-                          {f[0]?.fieldId}: {f[0]?.value}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </td>
-              <td>
-                {(r.globalInputs ?? []).length === 0
-                  ? "—"
-                  : (r.globalInputs ?? []).map((gi: any) => (
-                      <div key={gi.globalInputItemId} style={{ fontSize: 11 }}>
-                        [{gi.category}] {gi.label}
-                        {gi.selectedStepKey ? ` → ${gi.selectedStepKey}` : ""}
-                      </div>
-                    ))
-                }
-              </td>
-              <td>
-                <button onClick={() => handleDelete(r._id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <Card>
+        <DataTable
+          label="Decisions"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={r => r._id}
+          rowActions={r => <Button variant="text" tone="danger" onClick={() => handleDelete(r._id)}>Delete</Button>}
+        />
+      </Card>
+    </>
   );
 }
+
+const COLUMNS: DataTableColumn<any>[] = [
+  { id: "_id", header: "_id", cell: r => r._id },
+  { id: "simulationId", header: "SimId", cell: r => r.simulationId },
+  { id: "teamId", header: "TeamId", cell: r => r.teamId },
+  { id: "roundNumber", header: "Round", cell: r => r.roundNumber },
+  {
+    id: "segment",
+    header: "Segment",
+    // segmentId from first input entry — all entries share the same segment
+    cell: r => r.inputs?.[0]?.segmentId ?? "—",
+  },
+  {
+    id: "products",
+    header: "Products",
+    cell: r =>
+      (r.inputs ?? []).map((inp: any) => (
+        <div key={inp.productId} className="mb-1 type-caption">
+          <strong>{inp.productName}</strong>
+          <div className="ps-2">
+            {(inp.fields ?? []).map((f: any) => (
+              <div key={f[0]?.fieldId}>
+                {f[0]?.fieldId}: {f[0]?.value}
+              </div>
+            ))}
+          </div>
+        </div>
+      )),
+  },
+  {
+    id: "globalInputs",
+    header: "Global Inputs",
+    cell: r =>
+      (r.globalInputs ?? []).length === 0
+        ? "—"
+        : (r.globalInputs ?? []).map((gi: any) => (
+            <div key={gi.globalInputItemId} className="type-caption">
+              [{gi.category}] {gi.label}
+              {gi.selectedStepKey ? ` → ${gi.selectedStepKey}` : ""}
+            </div>
+          )),
+  },
+];
