@@ -310,6 +310,7 @@ export const VALIDATION = {
   // `customersObtained` outright when the total channel weight is 0, so the
   // team builds its stock, pays the COGS and sells none of it.
   noChannel: 'No sales channel',
+  incompleteSpec: 'Notebook spec unfinished',
   // Not a missing-thing block, so it keeps a sentence: there is nothing to tap
   // to fix, and the player needs to be told where to go.
   runEnded: 'This run is finished. Start a new game from Home.',

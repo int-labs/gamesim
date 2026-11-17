@@ -58,6 +58,13 @@ export const PAGE_DESIGN_OPTIONS: ConfigOption[] = [
   { id: 'storyboarding', name: 'Storyboarding', score: 8 },
 ];
 
+export const QUALITY_OPTIONS: ConfigOption[] = [
+  { id: 'poor', name: 'Poor', score: 4 },
+  { id: 'average', name: 'Average', score: 7 },
+  { id: 'good', name: 'Good', score: 8.5 },
+  { id: 'perfect', name: 'Perfect', score: 9.5 },
+];
+
 // ADDON_OPTIONS and the `addon` axis were DELETED 2026-09-23. "Add-ons" is a
 // CATEGORY — the umbrella over charms / ribbons / stickers / functional in
 // ProductPanel's ADDON_GROUPS — not something a notebook submits. Its table had
@@ -125,6 +132,7 @@ export const CONFIG_TABLES = {
   size: { fieldKey: 'page_size', options: SIZE_OPTIONS },
   pageDesign: { fieldKey: 'page_design', options: PAGE_DESIGN_OPTIONS },
   cover: { fieldKey: 'cover_page', options: COVER_OPTIONS },
+  quality: { fieldKey: 'quality', options: QUALITY_OPTIONS },
   // `categories` — the canvas categories this axis OWNS. Several fold into one
   // axis (two sticker kinds, three functional pieces), and the axis holds ONE
   // id, so the drawer's swap rule is per AXIS and not per category. Declared
@@ -177,6 +185,7 @@ export interface ProductionSpec {
   size: string;
   pageDesign: string;
   cover: string;
+  quality: string;
   /** OPTIONAL — a notebook need not carry any of these, and an absent axis
    *  scores 0 via `optionScore`. Required keys would force one of each onto
    *  every notebook and move the price anchor with them. */
@@ -189,11 +198,9 @@ export interface ProductionSpec {
 /**
  * The REFERENCE spec PER NOTEBOOK, keyed by `Product._id`.
  *
- * Two jobs, deliberately one table so they cannot disagree:
- *   1. what a newly added notebook of that type starts on (`defaultLine`), and
- *   2. the basis of the PRICE ANCHOR on the market cards — what a sensible
- *      build of THIS notebook costs, so a player has something to price
- *      against instead of guessing.
+ * ONE job: the basis of the PRICE ANCHOR on the market cards, what a sensible
+ * build of THIS notebook costs, so a player has something to price against.
+ * It is NOT a starting spec; a new notebook starts empty.
  *
  * KEYED, not shared. One spec for every market priced them all off the same
  * build, so the anchor differed between notebooks only by their unit costs and
@@ -217,6 +224,7 @@ const DEFAULT_PRICE_ANCHOR: Omit<ProductionSpec, 'type'> = {
   size: 'b5',
   pageDesign: 'blank',
   cover: 'plastic',
+  quality: 'perfect',
 };
 
 export const PRICE_ANCHOR: Record<string, Omit<ProductionSpec, 'type'>> = {
@@ -228,11 +236,11 @@ export const PRICE_ANCHOR: Record<string, Omit<ProductionSpec, 'type'>> = {
   // Values are OPTION IDS, not display names — `configOption` throws on an
   // unknown id rather than scoring 0, so a name here crashes the market card.
   '6a43956f9833d0924dd7e991': { // Anime book
-    paper: 'fountain', size: 'b4', pageDesign: 'storyboarding', cover: 'holographic',
+    paper: 'fountain', size: 'b4', pageDesign: 'storyboarding', cover: 'holographic', quality: 'perfect',
     charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
   },
   '6a66f4e596e2931bcd3a0cb1': { // Minimalist Notebook
-    paper: 'fountain', size: 'b4', pageDesign: 'numbered', cover: 'hard',
+    paper: 'fountain', size: 'b4', pageDesign: 'numbered', cover: 'hard', quality: 'perfect',
 	charms: 'charm_cat',
     // No charm, ribbon or sticker: an OMITTED axis scores 0 through
     // `optionScore`, which is what a minimalist anchor should be.
@@ -241,12 +249,12 @@ export const PRICE_ANCHOR: Record<string, Omit<ProductionSpec, 'type'>> = {
   '6a66f4f796e2931bcd3a0cbd': { // Indie Notebook
     // `a4` was specified and does not exist — SIZE_OPTIONS is a5 / b4 / b5, and
     // `configOption` THROWS on an unknown id. `a5` is the only A size.
-    paper: 'cream', size: 'b4', pageDesign: 'numbered', cover: 'hard',
+    paper: 'cream', size: 'b4', pageDesign: 'numbered', cover: 'hard', quality: 'perfect',
     charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
   },
   
   '6a66f56596e2931bcd3a0cf2': { // Cutesy Notebook
-    paper: 'fountain', size: 'b4', pageDesign: 'storyboarding', cover: 'holographic',
+    paper: 'fountain', size: 'b4', pageDesign: 'storyboarding', cover: 'holographic', quality: 'perfect',
     charms: 'charm_cat', ribbons: 'ribbon_red', stickers: 'sticker_basic', functional: 'bookmark',
   },
 };

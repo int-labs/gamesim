@@ -43,7 +43,6 @@ import type {
   LedgerEntry, ProductLine, Archetype, AddOnInstance,
   FinlitGenreId, FinlitProductionSpec,
 } from '@/types';
-import { priceAnchorSpec } from '@/engine/finlit/core/config/production';
 import { hireStep } from '@/engine/finlit/core/config/hiring';
 import { vendorStep } from '@/engine/finlit/core/config/vendors';
 import type { GlobalInputItemDto } from '@/gamesim/types';
@@ -185,9 +184,8 @@ const defaultLine = (
     addOnsByProduct: { [productId]: [] },
     quantityTarget: 30,
     inventory: { raw: 0, finished: 0, stockoutDays: 0, overstockDays: 0, producedToday: 0 },
-    // The reference spec, shared with the price anchor on the market cards, so
-    // what a notebook is quoted at and what it starts as cannot drift apart.
-    finlitSpec: priceAnchorSpec(productId),
+    // !important starts empty: every spec choice is the player's, and PRICE_ANCHOR only prices the market card.
+    finlitSpec: {},
   };
 };
 

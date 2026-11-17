@@ -21,6 +21,11 @@ export interface FieldConfig {
    *  see `driverAxes`. */
   label:      string;
   order:      number;
+  /** The operator's `ProductField.required`; a required spec axis blocks Confirm until chosen. */
+  required:   boolean;
+  /** The operator's `ProductField.type`; `enum` means `options` maps an option id to a multiplier. */
+  type:       string;
+  options:    Record<string, number>;
 }
 
 /**
@@ -54,6 +59,9 @@ export function hydrateFieldConfig(products: ProductDto[]): void {
         unitCost:   field.unitCost   ?? 0,
         label:      field.label || field.key,
         order:      field.order ?? 0,
+        required:   field.required === true,
+        type:       field.type,
+        options:    field.options ?? {},
       };
     }
   }
@@ -61,7 +69,14 @@ export function hydrateFieldConfig(products: ProductDto[]): void {
 
 export const fieldCfg = (genre: string, key: string): FieldConfig =>
   FIELD_CONFIG[genre]?.[key]
-  ?? { direction: 0, minValue: 0, maxValue: 100, tightening: 3, unitCost: 0, label: key, order: 0 };
+  ?? { direction: 0, minValue: 0, maxValue: 100, tightening: 3, unitCost: 0, label: key, order: 0, required: false, type: 'money', options: {} };
+
+/** The spec axes this product's fields mark `required` that the spec has not chosen, in CONFIG_TABLES order. */
+export const missingSpecAxes = (productId: string, spec: Partial<ProductionSpec> | undefined): ConfigAxis[] =>
+  (Object.keys(CONFIG_TABLES) as ConfigAxis[]).filter((axis) => {
+    const fieldKey = CONFIG_TABLES[axis].fieldKey;
+    return fieldKey != null && FIELD_CONFIG[productId]?.[fieldKey]?.required === true && !spec?.[axis];
+  });
 
 /**
  * What one option on an axis ADDS to the unit cost: `score × unitCost`.
@@ -136,7 +151,7 @@ export interface DriverAxis {
  */
 export const typeBaseCost = (genre: string): number =>
   Object.values(FIELD_CONFIG[genre] ?? {}).reduce(
-    (sum, cfg) => (cfg.unitCost ? sum + cfg.minValue * cfg.unitCost : sum),
+    (sum, cfg) => (cfg.type === 'money' && cfg.unitCost ? sum + cfg.minValue * cfg.unitCost : sum),
     0,
   );
 
@@ -162,10 +177,21 @@ export const specUnitCost = (genre: string, spec: ProductionSpec): number => {
     submitted[fieldKey] = (submitted[fieldKey] ?? 0) + optionScore(axis, spec[axis]);
   }
 
-  return Object.entries(FIELD_CONFIG[genre] ?? {}).reduce((sum, [fieldKey, cfg]) => {
-    if (!cfg.unitCost) return sum;
+  // Money fields only, as the server's `costFields`; an enum's leftover `unitCost` charges nothing there.
+  const build = Object.entries(FIELD_CONFIG[genre] ?? {}).reduce((sum, [fieldKey, cfg]) => {
+    if (cfg.type !== 'money' || !cfg.unitCost) return sum;
     return sum + (cfg.minValue + (submitted[fieldKey] ?? 0)) * cfg.unitCost;
   }, 0);
+
+  // !important the server's qualityMult: each enum axis's chosen multiplier scales the whole build.
+  const mult = (Object.keys(CONFIG_TABLES) as ConfigAxis[]).reduce((m, axis) => {
+    const fieldKey = CONFIG_TABLES[axis].fieldKey;
+    const cfg = fieldKey ? FIELD_CONFIG[genre]?.[fieldKey] : undefined;
+    const v = cfg?.type === 'enum' ? cfg.options[spec[axis] ?? ''] : undefined;
+    return typeof v === 'number' && Number.isFinite(v) && v > 0 ? m * v : m;
+  }, 1);
+
+  return build * mult;
 };
 
 /** The price anchor for a market: what the reference build of it costs. */

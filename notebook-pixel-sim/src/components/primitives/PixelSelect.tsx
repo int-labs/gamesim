@@ -22,12 +22,15 @@ export function PixelSelect({
   options,
   onChange,
   ariaLabel,
+  placeholder,
   className,
 }: {
   value: string;
   options: PixelSelectOption[];
   onChange: (id: string) => void;
   ariaLabel?: string;
+  /** Shown when `value` matches no option; without it the first option is shown. */
+  placeholder?: string;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -36,7 +39,7 @@ export function PixelSelect({
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const menuId = useId();
 
-  const current = options.find((o) => o.id === value) ?? options[0];
+  const current = options.find((o) => o.id === value) ?? (placeholder != null ? null : options[0]);
 
   const place = () => {
     const r = btnRef.current?.getBoundingClientRect();
@@ -92,7 +95,9 @@ export function PixelSelect({
           open ? 'border-primary' : 'border-border hover:border-primary',
         )}
       >
-        <span className="flex-1 min-w-0 text-left truncate">{current?.label}</span>
+        <span className={clsx('flex-1 min-w-0 text-left truncate', !current && 'text-text-3')}>
+          {current ? current.label : placeholder}
+        </span>
         <PixelIcon kind="chevron-down" size={10} color="var(--c-text-3)" />
       </button>
 

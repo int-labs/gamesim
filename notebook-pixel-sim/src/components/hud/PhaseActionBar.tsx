@@ -10,6 +10,7 @@ import { playSfx } from '@/audio/audioManager';
 import { Tooltip } from '@/components/primitives/Tooltip';
 import { SessionChip } from '@/components/hud/SessionChip';
 import { finlitCompanyChannels } from '@/engine/mockEngine';
+import { missingSpecAxes } from '@/engine/finlit/core/config/fieldConfig';
 import type { MainPage } from '@/components/hud/MainNav';
 import { useTotalRounds, useGamesimSession } from '@/gamesim/GamesimProvider';
 import { downloadRoundReport } from '@/gamesim/client';
@@ -37,6 +38,10 @@ export function PhaseActionBar({
   // call, so subscribing to it directly would re-render this bar on every
   // store mutation.
   const channelCount = useGame((s) => finlitCompanyChannels(s).length);
+  // A BOOLEAN, for the same reason: true while any notebook leaves a required spec axis unchosen.
+  const incompleteSpec = useGame((s) =>
+    s.portfolio.productLines.some((l) => missingSpecAxes(l.productId, l.finlitSpec).length > 0),
+  );
   const pushMascot = useGame((s) => s.pushMascot);
   const pushMascotSequence = useGame((s) => s.pushMascotSequence);
   const showToast = useGame((s) => s.showToast);
@@ -72,18 +77,22 @@ export function PhaseActionBar({
   // A `needsSegment` gate sat here. It could never fire — `targetSegment` was
   // seeded at startup and `segmentForGenre` never returned null — and the axis
   // it guarded is gone.
-  const blocked = stateBlocked || needsAnyNotebook || needsAnyChannel;
+  // Every required spec axis (the operator's `ProductField.required`) must be chosen on every notebook.
+  const needsSpec = !needsAnyNotebook && incompleteSpec;
+  const blocked = stateBlocked || needsAnyNotebook || needsSpec || needsAnyChannel;
 
   const blockReason = ended
     ? VALIDATION.runEnded
     : needsAnyNotebook
     ? VALIDATION.noNotebook
+    : needsSpec
+    ? VALIDATION.incompleteSpec
     : needsAnyChannel
     ? VALIDATION.noChannel
     : null;
 
   /** Which section fixes the current block, for the chip's "Tap to fix". */
-  const fixPage: MainPage | null = needsAnyNotebook
+  const fixPage: MainPage | null = needsAnyNotebook || needsSpec
     ? 'notebook'
     : needsAnyChannel
     ? 'sales'
@@ -122,6 +131,19 @@ export function PhaseActionBar({
         id: 'no-notebook',
         type: 'warning',
         body: 'You need at least one notebook product before simulating the phase. Add one on the Product page.',
+        priority: 1,
+        mood: 'concerned_soft',
+      });
+      return;
+    }
+    if (needsSpec) {
+      playSfx('warning');
+      flashWarn();
+      showToast({ kind: 'warning', text: VALIDATION.incompleteSpec, ms: 2800 });
+      pushMascot({
+        id: 'incomplete-spec',
+        type: 'warning',
+        body: 'A notebook still has an empty production spec. Open Notebook and pick every option marked "No ... selected" before you confirm.',
         priority: 1,
         mood: 'concerned_soft',
       });
@@ -197,8 +219,10 @@ export function PhaseActionBar({
           fixPage ? (
             <Tooltip
               content={
-                fixPage === 'notebook'
+                needsAnyNotebook
                   ? 'Add a notebook in the Notebook section first.'
+                  : needsSpec
+                  ? 'Finish every notebook\'s production spec in the Notebook section first.'
                   : 'Switch on a sales channel in Sales & Marketing first.'
               }
               placement="top"

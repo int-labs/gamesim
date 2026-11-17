@@ -371,6 +371,20 @@ const getDecisionInput = (
   );
 };
 
+/** An enum field's multiplier, `options[chosenKey]`; 1 when unanswered or unknown, so an absent choice is neutral. */
+const enumMultiplier = (
+  decision:     DecisionDocument | undefined,
+  productId:    mongoose.Types.ObjectId,
+  productField: ProductField
+): number => {
+  const key = String(
+    decision?.inputs.find((inp) => inp.productId.equals(productId))
+      ?.fields.find((f) => f.fieldId.equals(productField._id))?.value ?? ""
+  );
+  const m = productField.options?.[key];
+  return typeof m === "number" && Number.isFinite(m) && m > 0 ? m : 1;
+};
+
 /**
  * THE step multiplier. One implementation — callers differ only in where they
  * get the two operands, never in the rule.
@@ -493,6 +507,11 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       return sum + contribution;
     }, 0);
 
+    // !important one quality multiplier per team: unit cost x m, production ceiling / m, productScore x m.
+    const qualityMult = productFields
+      .filter((f) => f.type === "enum")
+      .reduce((acc, f) => acc * enumMultiplier(decision, productId, f), 1);
+
     // ── Cost contribution (raw value * unitCost, no bell curve) ───────────────
     const productCostBreakdown: ProductCostBreakdown[] = [];
     let dynamicCost = 0;
@@ -520,6 +539,13 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
         value: costContribution,
       });
     });
+
+    // Quality scales the build before the dynamic_cost impacts; its row is what it added.
+    if (qualityMult !== 1) {
+      const buildCost = dynamicCost;
+      dynamicCost = buildCost * qualityMult;
+      productCostBreakdown.push({ key: "quality", label: "Quality", value: dynamicCost - buildCost });
+    }
 
     let inventoryAugmentation = 1;
     let customersObtainedAugment = baseVariables.customersObtainedBase ?? 0.3;
@@ -670,13 +696,13 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     }
     
     const inventoryQty = productFields
-      .filter((f) => f.direction !== undefined && f.direction !== null && f.key !== SELLING_PRICE_KEY)
+      .filter((f) => f.direction !== undefined && f.direction !== null && f.key !== SELLING_PRICE_KEY && f.type !== "enum")
       .reduce((product, field) => {
         const value = getDecisionInput(decision, productId, field);
         // A zero contributes NOTHING. Must not round here: rounding
         // mid-reduction made the result depend on `productFields` ORDER.
         return value === 0 ? product : product * Math.max(0, 1 - (value * 0.01));
-      }, INVENTORY_BASE) * inventoryAugmentation;
+      }, INVENTORY_BASE) * inventoryAugmentation / qualityMult;
 
     const augmentedDynamicPrice = dynamicPrice * dynamicPriceAugment;
 
@@ -695,7 +721,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       augmentedDynamicPrice, // shifted center point
       sellingPriceField?.minValue ?? null,
       sellingPriceField?.maxValue ?? null,
-    )
+    ) * qualityMult
     : 0;
     
     let potentialObtained = marketFit * availableMarket * productScore;

@@ -1,10 +1,11 @@
+import { Fragment } from 'react';
 import { useGame } from '@/state/store';
 import { setFinlitAxis, setPrice } from '@/engine/mockEngine';
 import {
   CONFIG_TABLES, CHANNEL_META, PRICE_MAX,
   type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
 } from '@/data/finlit';
-import { optionUnitCost } from '@/engine/finlit/core/config/fieldConfig';
+import { fieldCfg, optionUnitCost } from '@/engine/finlit/core/config/fieldConfig';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
 import { fmt$, fmtInt } from '@/utils/format';
 import type { ServerProjectionResult } from '@/gamesim/sync';
@@ -18,13 +19,8 @@ const AXES: { axis: ConfigAxis; label: string }[] = [
   { axis: 'size', label: 'Size' },
   { axis: 'pageDesign', label: 'Page Design' },
   { axis: 'cover', label: 'Cover Material' },
+  { axis: 'quality', label: 'Quality' },
 ];
-
-// No `type`: this only supplies the five design axes below, and a hardcoded
-// type slug named a notebook the catalogue no longer has.
-const DEFAULT_SPEC: Omit<ProductionSpec, 'type'> = {
-  paper: 'cream', size: 'a5', pageDesign: 'lined', cover: 'plastic',
-};
 
 export function FinlitDesignControls({
   liveProjection,
@@ -49,19 +45,8 @@ export function FinlitDesignControls({
   if (!line) return null;
 
   const genre: GenreId = line.productId;
-  // Full spec = the line's overrides on top of defaults (type follows genre).
-  const spec: ProductionSpec = {
-    type: line.finlitSpec?.type ?? genre,
-    paper: line.finlitSpec?.paper ?? DEFAULT_SPEC.paper,
-    size: line.finlitSpec?.size ?? DEFAULT_SPEC.size,
-    pageDesign: line.finlitSpec?.pageDesign ?? DEFAULT_SPEC.pageDesign,
-    cover: line.finlitSpec?.cover ?? DEFAULT_SPEC.cover,
-    // The canvas axes carry no default, unchosen means 0, not a free charm.
-    charms: line.finlitSpec?.charms,
-    ribbons: line.finlitSpec?.ribbons,
-    stickers: line.finlitSpec?.stickers,
-    functional: line.finlitSpec?.functional,
-  };
+  // !important no defaults: an unchosen axis stays empty and shows its placeholder.
+  const spec: Partial<ProductionSpec> = line.finlitSpec ?? {};
   const channelLabel = activeChannels.map((c) => CHANNEL_META[c].name).join(' + ');
 
   // !important unit cost and capacity come from the server's projection, with no local fallback.
@@ -77,16 +62,21 @@ export function FinlitDesignControls({
       {/* ── Production spec (5 axes; type mirrors genre) ── */}
       <Section title="Production Spec" hint="Each choice changes production speed and unit cost.">
         <div className="flex flex-col gap-2">
-          {AXES.map(({ axis, label }) => (
-            <div key={axis} className="flex items-center justify-between gap-2">
+          {AXES.map(({ axis, label }, i) => {
+            // !important an enum axis multiplies the whole build at the end, so it adds no $ and sits after a divider.
+            const isMultiplier = fieldCfg(genre, CONFIG_TABLES[axis].fieldKey ?? '').type === 'enum';
+            return (
+            <Fragment key={axis}>
+            {isMultiplier && i > 0 && <div className="border-t border-border-soft my-1" role="separator" />}
+            <div className="flex items-center justify-between gap-2">
               <span className="field-label w-28 shrink-0">{label}</span>
               <PixelSelect
                 ariaLabel={label}
-                // The canvas axes are optional, so `spec[axis]` may be undefined.
                 value={spec[axis] ?? ''}
+                placeholder={`No ${label} selected`}
                 // Computed, not stored: the same arithmetic the server's `dynamicCost` runs.
                 options={CONFIG_TABLES[axis].options.map((o) => {
-                  const added = optionUnitCost(genre, axis, o.id);
+                  const added = isMultiplier ? null : optionUnitCost(genre, axis, o.id);
                   return {
                     id: o.id,
                     label: o.name,
@@ -102,7 +92,9 @@ export function FinlitDesignControls({
                 className="flex-1 min-w-0"
               />
             </div>
-          ))}
+            </Fragment>
+            );
+          })}
         </div>
       </Section>
 

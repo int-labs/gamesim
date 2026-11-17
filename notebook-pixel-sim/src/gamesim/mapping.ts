@@ -89,7 +89,7 @@ export function toDecisionFields(
   spec: Partial<ProductionSpec> = {},
 ): DecisionFieldEntry[] {
   return (Object.entries(FIELD_KEYS) as [keyof LineDecisionValues, string][])
-    .flatMap(([valueKey, fieldKey]) => {
+    .flatMap(([valueKey, fieldKey]): DecisionFieldEntry[] => {
       const field = findField(product, fieldKey);
       if (!field) return [];
       // `valueKey` is the AXIS name for every spec field, which is exactly the
@@ -98,6 +98,11 @@ export function toDecisionFields(
       const isSpecAxis = axis in CONFIG_TABLES;
       const chosen = isSpecAxis ? spec[axis] : undefined;
       const name = chosen ? CONFIG_TABLES[axis].options.find((o) => o.id === chosen)?.name : undefined;
+
+      // !important an enum field submits the chosen option id; the server resolves it to a multiplier.
+      if (field.type === 'enum') {
+        return chosen ? [{ fieldId: field._id, value: chosen, ...(name ? { name } : {}) }] : [];
+      }
 
       // THE FIELD'S BASE RIDES WITH THE SUBMISSION. `minValue` is what the
       // notebook costs before a single choice — `page_design` carries the

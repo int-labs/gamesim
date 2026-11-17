@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useGame } from '@/state/store';
 import { genreById, type GenreId, type ProductionSpec } from '@/data/finlit';
 import { vocFit } from '@/engine/finlit/fit';
+import { missingSpecAxes } from '@/engine/finlit/core/config/fieldConfig';
 import type { ServerProjectionResult } from '@/gamesim/sync';
 import { fmt$ } from '@/utils/format';
 
@@ -20,26 +21,24 @@ import { fmt$ } from '@/utils/format';
  * Stays quiet during the phase sequence, and renders nothing — a pure watcher
  * mounted by SimulationScreen.
  */
-const DEFAULT_SPEC: ProductionSpec = {
-  type: 'indie', paper: 'cream', size: 'a5', pageDesign: 'lined', cover: 'plastic',
-};
-
 export function AmeliaReactions({ liveProjection }: { liveProjection?: ServerProjectionResult | null }) {
   const pushMascot = useGame((s) => s.pushMascot);
   const line = useGame((s) => s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId));
   const genre: GenreId = (line?.productId ?? '') as GenreId;
-  const spec: ProductionSpec = { ...DEFAULT_SPEC, type: genre, ...(line?.finlitSpec ?? {}) };
+  // !important no reactions to a build the player has not finished choosing.
+  const specComplete = line != null && missingSpecAxes(line.productId, line.finlitSpec).length === 0;
+  const spec = { ...(line?.finlitSpec ?? {}), type: genre } as ProductionSpec;
   const price = line?.price ?? 0;
   // Stickers are a spec axis now, so `vocFit` reads them off `spec` like every
   // other field — no canvas-derived spend passed in.
-  const fit = line ? vocFit(spec, price, genre) : 1;
+  const fit = line && specComplete ? vocFit(spec, price, genre) : 1;
 
   // The SERVER's `dynamicCost` — the same figure the P&L shows, so her warning
   // cannot contradict it. `null` = no projection yet; the margin check is
   // SKIPPED rather than defaulting the cost to 0 (which reads as infinite margin).
   const proj = liveProjection?.byProduct.find((p) => p.productId === line?.productId) ?? null;
   const serverUnitCost = proj?.dynamicCost ?? null;
-  const margin = line && serverUnitCost != null ? price - serverUnitCost : null;
+  const margin = line && specComplete && serverUnitCost != null ? price - serverUnitCost : null;
 
   const quiet = () => useGame.getState().meta.sequenceActive;
 
