@@ -223,37 +223,26 @@ function ChartSlide({ chart, data }: { chart: DebriefChartDto; data: RoundDebrie
   // A `clientChart` key with no component here renders as copy with no figure.
   const Client = chart.clientChart ? CLIENT_CHARTS[chart.clientChart] : undefined;
 
-  // No figure means no split row, or the copy is stranded beside an empty cell.
   const hasFigure = !!Client || !!chart.svg;
 
   return (
     <PixelPanel title={title}>
-      {/* Figure 70%, rule, reading 30%: the chart clears its 720px natively. */}
-      <div
-        className={clsx(
-          'grid gap-4 items-start',
-          hasFigure && 'lg:grid-cols-[7fr_1px_3fr]',
+      {/* Notes on top, then the chart across the full panel width. */}
+      <div className="flex flex-col gap-4">
+        {chart.description && (
+          <div className="body text-ink-700 leading-relaxed">{chart.description}</div>
         )}
-      >
         {hasFigure && (
-          // !important `min-w-0`, or the SVG's intrinsic width pushes the copy out of the panel.
+          // !important `min-w-0`, or the SVG's intrinsic width pushes past the panel.
           <div className="min-w-0">
             {Client && <Client chart={chart} data={data} />}
             {chart.svg && (
-              // Native size, never scaled: shrinking the root <svg> shrinks its type too.
+              // Native size where it fits; scales down (type included) only when the panel is narrower.
               <div
-                className="w-full overflow-x-auto"
+                className="w-full [&>svg]:max-w-full [&>svg]:h-auto"
                 dangerouslySetInnerHTML={{ __html: chart.svg }}
               />
             )}
-          </div>
-        )}
-        {hasFigure && chart.description && (
-          <div aria-hidden className="hidden lg:block w-px h-full bg-border-soft" />
-        )}
-        {chart.description && (
-          <div className="min-w-0 body text-ink-700 leading-relaxed">
-            {chart.description}
           </div>
         )}
       </div>
@@ -384,10 +373,15 @@ function VocSection({ chart, data }: ClientChartProps) {
   if (rows.length === 0) return null;
 
   return (
-    <>
-      <PixelVocPlot rows={rows} youId={data.you} />
-      <ChartLegend entries={legend} youId={data.you} />
-    </>
+    // Legend to the right of the plot; stacks under it only on a narrow screen.
+    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+      <div className="flex-1 min-w-0">
+        <PixelVocPlot rows={rows} youId={data.you} />
+      </div>
+      <div className="shrink-0 sm:pt-4">
+        <ChartLegend entries={legend} youId={data.you} />
+      </div>
+    </div>
   );
 }
 

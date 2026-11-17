@@ -29,17 +29,18 @@ export function ChartLegend({
   if (entries.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 chart-label">
+    // !important a vertical list beside the chart, as the server's Vega legends sit.
+    <div className="flex flex-col gap-1.5 body-sm text-ink-800">
       {entries.map((e) => {
         const you = e.id === youId;
         return (
-          <div key={e.id} className="flex items-center gap-1">
+          <div key={e.id} className="flex items-center gap-2">
             {e.tick ? (
-              <span className="inline-block w-0.5 h-3 bg-ink-900" />
+              <span className="inline-block w-0.5 h-4 bg-ink-900 shrink-0" />
             ) : (
               <span
                 className={clsx(
-                  'inline-block w-2 h-2 border',
+                  'inline-block w-3.5 h-3.5 shrink-0 border',
                   you ? 'border-ink-900 border-2' : 'border-ink-900',
                 )}
                 style={{ background: e.color }}

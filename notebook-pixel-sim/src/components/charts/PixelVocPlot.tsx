@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { CHART_INK } from './chartTheme';
 import { EmptyPlot } from './PixelBarChart';
 
@@ -61,17 +62,32 @@ interface Props {
 
 const PAD = { top: 16, right: 16, left: 44 };
 
+const TILT_DEG = 45;
+
 export function PixelVocPlot({ rows, height = 300, colW = 86, youId = null }: Props) {
+  // !important measured, not estimated: `chart-label` is a fluid pixel face, so a per-glyph constant misjudges it.
+  const labelRefs = useRef<(SVGTextElement | null)[]>([]);
+  const [widestLabel, setWidestLabel] = useState(0);
+  useLayoutEffect(() => {
+    const measure = () =>
+      setWidestLabel(Math.max(0, ...labelRefs.current.map((t) => t?.getComputedTextLength() ?? 0)));
+    measure();
+    // The type scale follows the viewport, so a resize changes the label lengths.
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [rows]);
+
   if (rows.length === 0) return <EmptyPlot width={360} height={120} />;
 
-  // Tilt the spec names only when the longest cannot sit flat in its column.
-  // ~5.2px per glyph at `chart-label` size — an estimate, since SVG cannot
-  // measure text before it lays out. Tilted labels need the deeper gutter.
-  const widestLabel = Math.max(...rows.map((r) => r.label.length)) * 5.2;
+  // Flat when the longest fits its column; otherwise tilted, with a gutter as deep as the tilted text.
   const tilt = widestLabel > colW - 8;
-  const padBottom = tilt ? 48 : 24;
+  const padBottom = tilt ? Math.ceil(widestLabel * Math.sin((TILT_DEG * Math.PI) / 180)) + 20 : 24;
+  // The first tilted label reaches left of its column; the gutter widens so it is not clipped.
+  const padLeft = tilt
+    ? Math.max(PAD.left, Math.ceil(widestLabel * Math.cos((TILT_DEG * Math.PI) / 180) - colW / 2) + 8)
+    : PAD.left;
 
-  const width = PAD.left + rows.length * colW + PAD.right;
+  const width = padLeft + rows.length * colW + PAD.right;
   const plotH = height - PAD.top - padBottom;
   const y = (v: number) => PAD.top + plotH - Math.max(0, Math.min(1, v)) * plotH;
 
@@ -100,7 +116,7 @@ export function PixelVocPlot({ rows, height = 300, colW = 86, youId = null }: Pr
           normalised share nobody needs to quote. The gridlines stay as a
           straightedge for the eye. */}
       {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-        <line key={t} x1={PAD.left} y1={y(t)} x2={width - PAD.right} y2={y(t)}
+        <line key={t} x1={padLeft} y1={y(t)} x2={width - PAD.right} y2={y(t)}
               stroke={CHART_INK.grid} strokeDasharray="2 3" />
       ))}
 
@@ -112,9 +128,9 @@ export function PixelVocPlot({ rows, height = 300, colW = 86, youId = null }: Pr
           between neighbours that does not exist. */}
       {first != null && last != null && (
         <line
-          x1={PAD.left + colW / 2}
+          x1={padLeft + colW / 2}
           y1={y(first)}
-          x2={PAD.left + (rows.length - 1) * colW + colW / 2}
+          x2={padLeft + (rows.length - 1) * colW + colW / 2}
           y2={y(last)}
           stroke={CHART_INK.frame}
           strokeWidth={2}
@@ -122,15 +138,17 @@ export function PixelVocPlot({ rows, height = 300, colW = 86, youId = null }: Pr
       )}
 
       {rows.map((r, i) => {
-        const cx = PAD.left + i * colW + colW / 2;
-        const labelY = height - (tilt ? 14 : 8);
+        const cx = padLeft + i * colW + colW / 2;
+        // Tilted labels hang from the top of the gutter, ending at their column.
+        const labelY = tilt ? PAD.top + plotH + 14 : height - 8;
         return (
           <g key={r.id}>
             <text
+              ref={(el) => { labelRefs.current[i] = el; }}
               x={cx}
               y={labelY}
               textAnchor={tilt ? 'end' : 'middle'}
-              transform={tilt ? `rotate(-30 ${cx} ${labelY})` : undefined}
+              transform={tilt ? `rotate(-${TILT_DEG} ${cx} ${labelY})` : undefined}
               className="chart-label"
               fill={CHART_INK.label}
             >
