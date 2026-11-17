@@ -211,7 +211,7 @@ const resolveCharts = async (
     };
 
     // !important the same fan-out the preview uses, over the same notebook list.
-    for (const inst of chartInstances(base.scope, payload.products)) {
+    for (const inst of chartInstances(base.scope, payload.products, { payload, measures: base.yAxis })) {
       instance(inst.productId, inst.productName);
     }
   }

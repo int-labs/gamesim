@@ -5,6 +5,9 @@ import { CLIENT_CHARTS, type ClientChart } from "../constants/clientCharts";
 /** !important one definition of the "every key" suffix; lives here because debriefChartData imports from this module. */
 export const ALL_KEYS = "*";
 
+/** Units sold over customers obtained, per notebook; derived in `debriefChartData`, never stored. */
+export const FULFILMENT_RATE = "byProduct.fulfilmentRate";
+
 /** What a chart may plot, per simulation type. The operator's X / Y / grouping selects read this. */
 
 export interface DebriefDimension {
@@ -39,6 +42,8 @@ const PRODUCT_MEASURES: DebriefDimension[] = [
   { field: "byProduct.inventoryQty",      label: "Capacity",                kind: "measure", source: "product" },
   { field: "byProduct.closingStock",      label: "Closing stock",           kind: "measure", source: "product" },
   { field: "byProduct.customersObtained", label: "Customers (notebook)",    kind: "measure", source: "product" },
+  // Derived in `measure()` from unitsSold and customersObtained, never stored on the block
+  { field: FULFILMENT_RATE,               label: "% customers fulfilled",   kind: "measure", source: "product" },
   { field: "byProduct.marketFit",         label: "Market fit",              kind: "measure", source: "product" },
   { field: "byProduct.marketShare",       label: "Market share",            kind: "measure", source: "product" },
   { field: "byProduct.grossProfit",       label: "Gross profit (notebook)", kind: "measure", source: "product" },
