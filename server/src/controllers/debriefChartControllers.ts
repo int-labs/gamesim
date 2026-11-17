@@ -171,7 +171,7 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
     };
 
     const instances = await Promise.all(
-      chartInstances(parsed.data.scope, payload.products).map(async (inst) => {
+      chartInstances(parsed.data.scope, payload.products, { payload, measures }).map(async (inst) => {
         const rows = buildChartRows({
           payload,
           xAxis:     parsed.data.xAxis ?? null,

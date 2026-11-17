@@ -4,7 +4,7 @@ import Decision from "../models/decisions";
 import Simulation from "../models/simulations";
 import PlayerConfig from "../models/playerConfig";
 import { buildDebriefSeries, type DebriefPayload } from "./debriefSeries";
-import { ALL_KEYS, measureLabel } from "./debriefDimensions";
+import { ALL_KEYS, FULFILMENT_RATE, measureLabel } from "./debriefDimensions";
 import { groupByRound, openingCashFrom } from "./roundReport";
 
 /** Turn a chart's bindings into the rows its shape plots. One builder, two callers: the preview and the slide. */
@@ -77,6 +77,16 @@ function measure(
 
   const at = (prefix: string) =>
     field.startsWith(prefix) ? field.slice(prefix.length) : null;
+
+  // A ratio of sums, so an overall chart divides the totals instead of adding rates; no demand means no value
+  if (field === FULFILMENT_RATE) {
+    const blocks: any[] = slice.productId
+      ? [teamBlock.byProduct?.[slice.productId]]
+      : Object.values(teamBlock.byProduct ?? {});
+    const fulfilled = sum(blocks.map((b) => (b?.unitsSold == null ? null : num(b.unitsSold))));
+    const demand = sum(blocks.map((b) => (b?.customersObtained == null ? null : num(b.customersObtained))));
+    return fulfilled !== null && demand ? fulfilled / demand : null;
+  }
 
   const perProduct = at("byProduct.");
   if (perProduct) {
@@ -222,14 +232,29 @@ export interface ChartInstanceRef {
   productName: string | null;
 }
 
+/** Customers obtained for one notebook, summed over every team, in the payload's own round. */
+const notebookDemand = (payload: DebriefPayload, productId: string): number => {
+  const here = payload.rounds.find((r) => r.roundNumber === payload.roundNumber);
+  if (!here) return 0;
+  return payload.teams.reduce((total, t) => {
+    const v = (here.teams[t.teamId] as any)?.byProduct?.[productId]?.customersObtained;
+    return total + (v == null ? 0 : num(v) ?? 0);
+  }, 0);
+};
+
 /** !important the one definition of `scope`; both the preview and the slide call it. */
 export const chartInstances = (
   scope: "overall" | "each",
   products: readonly { productId: string; productName: string }[],
-): ChartInstanceRef[] =>
-  scope === "each"
-    ? products.map((p) => ({ productId: p.productId, productName: p.productName }))
-    : [{ productId: null, productName: null }];
+  // A fulfilment chart has no notebook instance where nobody had demand
+  binding?: { payload: DebriefPayload; measures: string[] },
+): ChartInstanceRef[] => {
+  if (scope !== "each") return [{ productId: null, productName: null }];
+  const needsDemand = !!binding && binding.measures.includes(FULFILMENT_RATE);
+  return products
+    .filter((p) => !needsDemand || notebookDemand(binding!.payload, p.productId) > 0)
+    .map((p) => ({ productId: p.productId, productName: p.productName }));
+};
 
 /** The round's figures for the preview, loaded once. Ungated: an admin sees a chart before it is scored. */
 export async function loadPreviewPayload(args: {
