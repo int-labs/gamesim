@@ -9,8 +9,6 @@
 //   • `split` (the `sales_channel` impact) was the only field that varied by
 //     genre, and only the reach table read it. The SERVER reads that impact
 //     itself — the client never computed with it.
-//   • `sellRate` was bundled teaching content for the other table, per-day, from
-//     the retired local engine.
 //   • `consignment` / `inventoryCost` were written identically across every
 //     genre, so the axis carried no information for them at all.
 //
@@ -61,11 +59,7 @@ export const channelRow = (channel: ChannelId): ChannelRow => {
   return r;
 };
 
-// Impact key → ChannelRow field. There is deliberately no `sell_rate` impact:
-// one that moves no number is a field the operator fills in for nothing, and
-// hydration for a key nobody authors is a path that says nothing. Both crowd
-// the thinking rather than clarifying it. `inventory_cost` was dropped from
-// this list on 2026-09-17 for the same reason once the holding charge went.
+// Impact key to ChannelRow field; only impacts that move a number belong here.
 const FIELDS: { impactKey: string; rowField: 'consignment' }[] = [
   { impactKey: 'consignment', rowField: 'consignment' },
 ];

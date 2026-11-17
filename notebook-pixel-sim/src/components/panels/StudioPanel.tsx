@@ -9,7 +9,7 @@ import {
   vendorStep, vendorQuality, vendorCoversProduct, VENDOR_IMAGE,
 } from '@/engine/finlit/core/config/vendors';
 import type { GlobalInputItemDto } from '@/gamesim/types';
-import { impactFor, INVESTMENT_LEVELS, investmentLevelLabel } from '@/gamesim/impacts';
+import { INVESTMENT_LEVELS, investmentLevelLabel } from '@/gamesim/impacts';
 import { canSpend, selectCashBalance } from '@/engine/selectors';
 import { useGamesimSession, roundNumberFromPhase } from '@/gamesim/GamesimProvider';
 import { fmt$, fmtPct } from '@/utils/format';
@@ -237,10 +237,7 @@ export function StudioPanel({
     return {
       item, itemId, stepKeys, idx, stepKey,
       active: mult !== 0,
-      /** Per notebook: `sell_rate` carries per-product `selections[]`. */
-      sellRate: impactFor(item, 'sell_rate', stepKey, activeProductId),
-      // !important NOT through `impactFor` with the step: the cut is a rate and
-      // calcFinancials deliberately does not scale it. Read the base value.
+      // !important the base value, unscaled by the step: calcFinancials does not scale the cut.
       consignment: Number(item.impacts?.consignment?.value ?? 0),
       spend:  (item.cost ?? 0) * mult,
       energy: Math.ceil((item.energy ?? 0) * energyMult),
@@ -401,8 +398,6 @@ export function StudioPanel({
                 spend={lv.spend}
                 energy={lv.energy}
                 fallbackIcon="sales"
-                effectLabel="Sell rate"
-                effect={lv.sellRate ? fmtPct(lv.sellRate) : '--'}
                 extraLabel="Per sale"
                 extra={lv.consignment > 0 ? fmtPct(lv.consignment) : 'None'}
                 extraTone={lv.consignment > 0 ? 'money' : 'good'}
@@ -799,10 +794,10 @@ function BudgetLever({
   /** Money this step costs per phase: `item.cost × options[stepKey]`. */
   spend: number;
   energy: number;
-  /** What the spend moves, e.g. "Demand". */
-  effectLabel: string;
+  /** What the spend moves, e.g. "Demand". Omit it and no effect chip renders. */
+  effectLabel?: string;
   /** The live figure for that effect at the current spend, e.g. "+5%". */
-  effect: string;
+  effect?: string;
   canActivate: boolean;
   onChange: (v: number) => void;
   /** Interaction END — pointer released, or a keyboard drag finished. */
@@ -847,7 +842,9 @@ function BudgetLever({
         {/* `spend` is already a per-phase figure, the step's configured cost,
             so it is NOT run through perPhase(). */}
         <StatChip label={`Spend / phase`} value={fmt$(spend)} tone={active ? 'money' : 'muted'} />
-        <StatChip label={effectLabel} value={effect} tone={active ? 'good' : 'muted'} />
+        {effectLabel != null && (
+          <StatChip label={effectLabel} value={effect ?? '--'} tone={active ? 'good' : 'muted'} />
+        )}
         {/* A second effect, for a lever whose step buys more than one thing. */}
         {extraLabel != null && (
           <StatChip label={extraLabel} value={extra ?? '--'} tone={extraTone ?? 'money'} />

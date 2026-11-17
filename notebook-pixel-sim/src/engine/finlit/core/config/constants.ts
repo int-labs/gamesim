@@ -83,14 +83,10 @@ export let PRICE_MAX = 40;                // $ cap on any selling price
 export let BUDGET_MAX = 40;               // $/day cap per lever
 export let BUDGET_LEVER_ENERGY = 4;       // flat ⚡ to activate a budget lever
 export let MARKETING_DEMAND_RATE = 0.005; // +demand fraction per $/day
-export let SALES_SELL_RATE = 0.004;       // +sell-rate per $/day
 
 /** Demand multiplier from the marketing budget (1.0 = no spend). */
 export const marketingDemandMult = (budget: number): number =>
   1 + Math.max(0, budget) * MARKETING_DEMAND_RATE;
-/** Sell-rate bonus from the sales budget (0 = no spend). */
-export const salesSellBonus = (budget: number): number =>
-  Math.max(0, budget) * SALES_SELL_RATE;
 
 /** Days per phase / per demand step. */
 export let PHASE_LENGTH_DAYS = 30;
@@ -136,7 +132,6 @@ const SCALAR_SETTERS: Record<string, (v: number) => void> = {
   BUDGET_MAX: (v) => { BUDGET_MAX = v; },
   BUDGET_LEVER_ENERGY: (v) => { BUDGET_LEVER_ENERGY = v; },
   MARKETING_DEMAND_RATE: (v) => { MARKETING_DEMAND_RATE = v; },
-  SALES_SELL_RATE: (v) => { SALES_SELL_RATE = v; },
   PHASE_LENGTH_DAYS: (v) => { PHASE_LENGTH_DAYS = v; },
   ENERGY_START: (v) => { ENERGY_START = v; },
   ENERGY_PER_PHASE: (v) => { ENERGY_PER_PHASE = v; },

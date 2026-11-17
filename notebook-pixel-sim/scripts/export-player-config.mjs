@@ -169,7 +169,6 @@ function buildConfig(m) {
       maintenance: r.maintenance,
       consignment: r.consignment,
       inventoryCost: r.inventoryCost,
-      sellRate: r.sellRate,
     })),
   }));
 
@@ -254,7 +253,6 @@ function buildConfig(m) {
     BUDGET_MAX: f.BUDGET_MAX,
     BUDGET_LEVER_ENERGY: f.BUDGET_LEVER_ENERGY,
     MARKETING_DEMAND_RATE: f.MARKETING_DEMAND_RATE,
-    SALES_SELL_RATE: f.SALES_SELL_RATE,
     PHASE_LENGTH_DAYS: f.PHASE_LENGTH_DAYS,
     ENERGY_START: f.ENERGY_START,
     ENERGY_PER_PHASE: f.ENERGY_PER_PHASE,
