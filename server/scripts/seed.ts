@@ -71,8 +71,13 @@ const INSIDE_TOP = { baseline: "top", dy: 4 };
 /** Dark ink, just above a point. */
 const ABOVE_POINT = { baseline: "bottom", dy: -8 };
 
-/** !important `detail` keeps a stacked label stacking per series once its colour is a constant. */
-const PER_SERIES = { detail: { field: "series", type: "nominal" } };
+/** !important the bars' own colour FIELD, so labels stack in the bars' order; a separate one-colour scale paints them. */
+const STACK_LABEL = (ink: string) => ({
+  color: { ...SERIES_ENC, legend: null, scale: { range: [ink] } },
+});
+
+/** Keeps a stacked label's one-colour scale from merging with the bars' palette. */
+const OWN_LABEL_SCALE = { resolve: { scale: { color: "independent" } } };
 
 /** Every shape the gallery ships with; all bind `@rows` (`{x, y, series}`) except the combo, which binds `@combo`. */
 export const STYLES: { _id: string; category: string; name: string; spec: object }[] = [
@@ -108,8 +113,9 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       },
       layer: [
         { mark: BAR },
-        label(INSIDE_TOP, { color: { value: WHITE }, ...PER_SERIES }),
+        label(INSIDE_TOP, STACK_LABEL(WHITE)),
       ],
+      ...OWN_LABEL_SCALE,
     },
   },
   {
@@ -186,8 +192,9 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       layer: [
         { mark: { type: "area", line: true, opacity: 0.85 } },
         // Above each band's top edge, showing that band's own value.
-        label(ABOVE_POINT, { color: { value: INK.frame }, ...PER_SERIES }),
+        label(ABOVE_POINT, STACK_LABEL(INK.frame)),
       ],
+      ...OWN_LABEL_SCALE,
     },
   },
   {
@@ -202,7 +209,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
         // !important `bandPosition: 0.5` centres each label in its own segment.
         label(
           { baseline: "middle" },
-          { y: qty({ stack: "zero", bandPosition: 0.5 }), color: { value: WHITE }, ...PER_SERIES },
+          { y: qty({ stack: "zero", bandPosition: 0.5 }), ...STACK_LABEL(WHITE) },
         ),
         // !important no `color` here, so `sum` runs over the whole column.
         label(
@@ -213,6 +220,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
           },
         ),
       ],
+      ...OWN_LABEL_SCALE,
     },
   },
   {
