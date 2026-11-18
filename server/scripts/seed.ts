@@ -21,15 +21,16 @@ const CONFIG = {
   axis: {
     labelFont: FONT, titleFont: FONT,
     labelColor: INK.label, titleColor: INK.label,
-    labelFontSize: 13, titleFontSize: 14,
+    labelFontSize: 16, titleFontSize: 16,
     domainColor: INK.frame, tickColor: INK.frame,
     gridColor: INK.grid, gridOpacity: 0.7,
   },
   legend: {
     labelFont: FONT, titleFont: FONT,
     labelColor: INK.label, titleColor: INK.label,
-    labelFontSize: 13, titleFontSize: 13,
+    labelFontSize: 16, titleFontSize: 16,
   },
+  title: { font: FONT, color: INK.label, fontSize: 20 },
   range: { category: SERIES },
 };
 
@@ -61,7 +62,7 @@ const VALUE = (field = "y") => ({ field, type: "quantitative", format: ",.2~f" }
 
 /** !important a constant colour overrides the series colour, or each label takes its own bar's colour and vanishes. */
 const label = (mark: object, encoding: object = {}) => ({
-  mark: { type: "text", font: FONT, fontSize: 12, ...mark },
+  mark: { type: "text", font: FONT, fontSize: 16, ...mark },
   encoding: { text: VALUE(), ...encoding },
 });
 
@@ -213,7 +214,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
         ),
         // !important no `color` here, so `sum` runs over the whole column.
         label(
-          { baseline: "bottom", dy: -6, fontSize: 14, color: INK.frame },
+          { baseline: "bottom", dy: -6, fontSize: 16, color: INK.frame },
           {
             y: { aggregate: "sum", field: "y", type: "quantitative" },
             text: { aggregate: "sum", field: "y", type: "quantitative", format: ",.2~f" },
