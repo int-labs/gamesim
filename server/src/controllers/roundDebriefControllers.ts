@@ -11,7 +11,7 @@ import PlayerConfig from "../models/playerConfig";
 import { ROLES } from "../constants/roles";
 import DebriefChartModel from "../models/debriefChart";
 import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
-import { buildChartRows, chartInstances, toMeasures } from "../services/debriefChartData";
+import { chartDatasets, chartInstances, toMeasures } from "../services/debriefChartData";
 import { renderChartToSvg } from "../services/chartRenderer";
 import { axisLabel, measureLabel } from "../services/debriefDimensions";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
@@ -186,7 +186,7 @@ const resolveCharts = async (
 
       // !important THE SAME ROW BUILDER THE PREVIEW USES. That is the whole guarantee
       // behind the preview: what the operator approved is what the team reads.
-      const rows = buildChartRows({
+      const datasets = chartDatasets({
         payload,
         xAxis:    base.xAxis,
         yAxis:    base.yAxis,
@@ -197,7 +197,7 @@ const resolveCharts = async (
       drawing.push(
         renderChartToSvg({
           spec,
-          datasets: { rows },
+          datasets,
           // Axes only, no title: every surface draws the chart's name as its own heading.
           labels: {
             x: axisLabel(base.xAxis),

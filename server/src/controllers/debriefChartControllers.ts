@@ -154,7 +154,7 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const { buildChartRows, chartInstances, loadPreviewPayload } =
+    const { chartDatasets, chartInstances, loadPreviewPayload } =
       await import("../services/debriefChartData");
 
     // ONE LOAD for every instance, they all read the same round.
@@ -172,7 +172,7 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
 
     const instances = await Promise.all(
       chartInstances(parsed.data.scope, payload.products, { payload, measures }).map(async (inst) => {
-        const rows = buildChartRows({
+        const datasets = chartDatasets({
           payload,
           xAxis:     parsed.data.xAxis ?? null,
           yAxis:     parsed.data.yAxis ?? null,
@@ -181,14 +181,14 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
         });
         const svg = await renderChartToSvg({
           spec,
-          datasets: { rows },
+          datasets,
           // The notebook's name rides on the title, so a column of previews
           // says which is which without the console labelling them itself.
           labels: inst.productName
             ? { ...labels, title: `${labels.title ?? ""} · ${inst.productName}`.trim() }
             : labels,
         });
-        return { ...inst, svg, rows: rows.length };
+        return { ...inst, svg, rows: datasets.rows.length };
       }),
     );
 

@@ -54,7 +54,27 @@ const BASE = {
 
 const BAR = { type: "bar", stroke: INK.frame, strokeWidth: 1 };
 
-/** Every shape the gallery ships with, all drawable from `{x, y, series}`. */
+const WHITE = "#ffffff";
+
+/** A value label's text: one format for every measure, since a shape cannot know what it plots. */
+const VALUE = (field = "y") => ({ field, type: "quantitative", format: ",.2~f" });
+
+/** !important a constant colour overrides the series colour, or each label takes its own bar's colour and vanishes. */
+const label = (mark: object, encoding: object = {}) => ({
+  mark: { type: "text", font: FONT, fontSize: 12, ...mark },
+  encoding: { text: VALUE(), ...encoding },
+});
+
+/** White, just inside the top of a vertical bar. */
+const INSIDE_TOP = { baseline: "top", dy: 4 };
+
+/** Dark ink, just above a point. */
+const ABOVE_POINT = { baseline: "bottom", dy: -8 };
+
+/** !important `detail` keeps a stacked label stacking per series once its colour is a constant. */
+const PER_SERIES = { detail: { field: "series", type: "nominal" } };
+
+/** Every shape the gallery ships with; all bind `@rows` (`{x, y, series}`) except the combo, which binds `@combo`. */
 export const STYLES: { _id: string; category: string; name: string; spec: object }[] = [
   {
     _id: "a11ca11c0000000000000001",
@@ -62,13 +82,16 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
     name: "Grouped bar",
     spec: {
       ...BASE,
-      mark: BAR,
       encoding: {
         x: cat("x", { axis: { labelAngle: 0 } }),
         xOffset: cat("series"),
         y: qty(),
         color: SERIES_ENC,
       },
+      layer: [
+        { mark: BAR },
+        label(INSIDE_TOP, { color: { value: WHITE } }),
+      ],
     },
   },
   {
@@ -77,13 +100,16 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
     name: "Stacked bar",
     spec: {
       ...BASE,
-      mark: BAR,
       encoding: {
         x: cat("x", { axis: { labelAngle: 0 } }),
         // !important `stack` is an encoding property; `transform` is denied by `assertSafeSpec`.
         y: qty({ stack: "zero" }),
         color: SERIES_ENC,
       },
+      layer: [
+        { mark: BAR },
+        label(INSIDE_TOP, { color: { value: WHITE }, ...PER_SERIES }),
+      ],
     },
   },
   {
@@ -92,13 +118,17 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
     name: "Horizontal bar",
     spec: {
       ...BASE,
-      mark: BAR,
       encoding: {
         y: cat("x"),
         yOffset: cat("series"),
         x: { field: "y", type: "quantitative" },
         color: SERIES_ENC,
       },
+      layer: [
+        { mark: BAR },
+        // Inside the bar's right end, the horizontal equivalent of inside-top.
+        label({ align: "right", baseline: "middle", dx: -4 }, { color: { value: WHITE } }),
+      ],
     },
   },
   {
@@ -107,16 +137,21 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
     name: "Line with points",
     spec: {
       ...BASE,
-      mark: {
-        type: "line",
-        strokeWidth: 2,
-        point: { filled: true, size: 70, stroke: INK.frame, strokeWidth: 1 },
-      },
       encoding: {
         x: cat("x", { axis: { labelAngle: 0 } }),
         y: qty(),
         color: SERIES_ENC,
       },
+      layer: [
+        {
+          mark: {
+            type: "line",
+            strokeWidth: 2,
+            point: { filled: true, size: 70, stroke: INK.frame, strokeWidth: 1 },
+          },
+        },
+        label(ABOVE_POINT, { color: { value: INK.frame } }),
+      ],
     },
   },
   {
@@ -125,13 +160,16 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
     name: "Scatter",
     spec: {
       ...BASE,
-      mark: { type: "point", filled: true, size: 110, stroke: INK.frame, strokeWidth: 1 },
       encoding: {
         // !important the only shape with a quantitative x; bind x to a measure, never a categorical.
         x: { field: "x", type: "quantitative", scale: { zero: false } },
         y: qty({ scale: { zero: false } }),
         color: SERIES_ENC,
       },
+      layer: [
+        { mark: { type: "point", filled: true, size: 110, stroke: INK.frame, strokeWidth: 1 } },
+        label(ABOVE_POINT, { color: { value: INK.frame } }),
+      ],
     },
   },
   {
@@ -140,12 +178,74 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
     name: "Stacked area",
     spec: {
       ...BASE,
-      mark: { type: "area", line: true, opacity: 0.85 },
       encoding: {
         x: cat("x", { axis: { labelAngle: 0 } }),
         y: qty({ stack: "zero" }),
         color: SERIES_ENC,
       },
+      layer: [
+        { mark: { type: "area", line: true, opacity: 0.85 } },
+        // Above each band's top edge, showing that band's own value.
+        label(ABOVE_POINT, { color: { value: INK.frame }, ...PER_SERIES }),
+      ],
+    },
+  },
+  {
+    _id: "a11ca11c0000000000000007",
+    category: "bar chart",
+    name: "Stacked bar with total",
+    spec: {
+      ...BASE,
+      encoding: { x: cat("x", { axis: { labelAngle: 0 } }) },
+      layer: [
+        { mark: BAR, encoding: { y: qty({ stack: "zero" }), color: SERIES_ENC } },
+        // !important `bandPosition: 0.5` centres each label in its own segment.
+        label(
+          { baseline: "middle" },
+          { y: qty({ stack: "zero", bandPosition: 0.5 }), color: { value: WHITE }, ...PER_SERIES },
+        ),
+        // !important no `color` here, so `sum` runs over the whole column.
+        label(
+          { baseline: "bottom", dy: -6, fontSize: 14, color: INK.frame },
+          {
+            y: { aggregate: "sum", field: "y", type: "quantitative" },
+            text: { aggregate: "sum", field: "y", type: "quantitative", format: ",.2~f" },
+          },
+        ),
+      ],
+    },
+  },
+  {
+    _id: "a11ca11c0000000000000008",
+    category: "combo chart",
+    name: "Bar with target and ratio",
+    spec: {
+      ...BASE,
+      // !important one row per x and series from `toComboRows`: y = yAxis[0], marker = yAxis[1], ratio = y / marker.
+      data: { values: "@combo" },
+      // `xOffset` puts each series in its own sub-column, so bar, labels, marker and ratio line up per series.
+      encoding: { x: cat("x", { axis: { labelAngle: 0 } }), xOffset: cat("series") },
+      layer: [
+        // `sort: null` keeps the bar on the first colour and the marker on the second.
+        { mark: BAR, encoding: { y: qty(), color: { field: "barName", type: "nominal", title: null, sort: null } } },
+        // !important stacking one value from zero plus bandPosition 0.5 centres the label without `transform`.
+        label({ baseline: "middle" }, { y: qty({ stack: "zero", bandPosition: 0.5 }), color: { value: WHITE } }),
+        {
+          mark: { type: "tick", thickness: 3, stroke: INK.frame },
+          encoding: {
+            y: { field: "marker", type: "quantitative", title: null },
+            color: { field: "markerName", type: "nominal", title: null, sort: null },
+          },
+        },
+        label(
+          { ...ABOVE_POINT, dy: -6, color: INK.frame },
+          { y: { field: "marker", type: "quantitative", title: null }, text: VALUE("marker") },
+        ),
+        label(
+          { baseline: "top", fontSize: 16, color: INK.frame },
+          { y: { value: 4 }, text: { field: "ratio", type: "quantitative", format: ".1%" } },
+        ),
+      ],
     },
   },
 ];
@@ -170,6 +270,14 @@ const SAMPLE_ROWS = [
   { x: "Round 3", y: null, series: "Studio B" },
 ];
 
+/** What `toComboRows` emits: one row per x and series; a missing marker leaves no ratio. */
+const COMBO_ROWS = [
+  { x: "Round 1", series: "Studio A", y: 240, marker: 350, ratio: 240 / 350, barName: "Measure A", markerName: "Measure B" },
+  { x: "Round 1", series: "Studio B", y: 230, marker: 340, ratio: 230 / 340, barName: "Measure A", markerName: "Measure B" },
+  { x: "Round 2", series: "Studio A", y: 260, marker: 330, ratio: 260 / 330, barName: "Measure A", markerName: "Measure B" },
+  { x: "Round 2", series: "Studio B", y: 120, marker: null, ratio: null, barName: "Measure A", markerName: "Measure B" },
+];
+
 /** Draw every shape before writing any: an unrenderable row is worse than a missing one. */
 export async function verify(): Promise<void> {
   for (const s of STYLES) {
@@ -178,7 +286,7 @@ export async function verify(): Promise<void> {
     const xType = (s.spec as any)?.encoding?.x?.type;
     const rows = xType === "quantitative" ? SCATTER_ROWS : SAMPLE_ROWS;
 
-    const svg = await renderChartToSvg({ spec: s.spec, datasets: { rows } });
+    const svg = await renderChartToSvg({ spec: s.spec, datasets: { rows, combo: COMBO_ROWS } });
     // Furniture alone means the encoding never bound to the rows.
     const marks = svg.match(/<(path|rect|line|circle|symbol)\b/g)?.length ?? 0;
     if (marks <= 6) {

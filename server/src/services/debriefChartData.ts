@@ -14,6 +14,19 @@ export interface ChartRow {
   x: string | number | null;
   y: number | null;
   series: string;
+  /** !important the measure's KEY, so a pivot matches by key, never by its display label. */
+  measure: string;
+}
+
+/** One combo row per x and series: `y` is yAxis[0] (the bar), `marker` is yAxis[1], `ratio` is their quotient. */
+export interface ComboRow {
+  x: string | number | null;
+  series: string;
+  y: number | null;
+  marker: number | null;
+  ratio: number | null;
+  barName: string;
+  markerName: string;
 }
 
 export interface ChartDatasets {
@@ -29,6 +42,8 @@ export interface BuildRowsArgs {
   grouping:  string | null;
   /** Narrows every row to one notebook, the `each` instances. */
   productId: string | null;
+  /** Emit one row per bound measure in every cell, keeping the chart's own grouping. Only the combo asks. */
+  allMeasures?: boolean;
 }
 
 /** !important the only place `yAxis`'s shape is interpreted; never index it directly. */
@@ -137,14 +152,17 @@ const mapForMeasure = (yAxis: string): "costByCategory" | "energyByLever" =>
 
 /** Rows for one chart: the cross of `xAxis` and `grouping`. Teams are always iterated. */
 export function buildChartRows({
-  payload, xAxis, yAxis, grouping, productId,
+  payload, xAxis, yAxis, grouping, productId, allMeasures = false,
 }: BuildRowsArgs): ChartRow[] {
   const rows: ChartRow[] = [];
   const measures = toMeasures(yAxis);
   if (measures.length === 0) return rows;
 
   // !important several measures with nothing naming them fall back to `grouping: measure`.
-  const group = grouping ?? (measures.length > 1 ? "measure" : null);
+  const group = allMeasures
+    // !important for the combo the measures are bar and marker ROLES, never a series.
+    ? (grouping === "measure" ? null : grouping)
+    : grouping ?? (measures.length > 1 ? "measure" : null);
 
   // X bound to a measure makes this a scatter: nothing expands along the axis.
   const xIsMeasure = !!xAxis && !DIMENSIONS.has(xAxis);
@@ -210,19 +228,57 @@ export function buildChartRows({
             ...xv.slice,
             ...gv.slice,
           };
-          rows.push({
-            x: xIsMeasure
-              ? measure(block, xAxis as string, slice, payload.products)
-              : xv.label,
-            y: measure(block, slice.measure ?? measures[0], slice, payload.products),
-            series: gv.label,
-          });
+          // !important a measure-grouped cell already names its measure; otherwise the combo reads every one.
+          const cellMeasures = allMeasures && !slice.measure ? measures : [slice.measure ?? measures[0]];
+          for (const m of cellMeasures) {
+            rows.push({
+              x: xIsMeasure
+                ? measure(block, xAxis as string, slice, payload.products)
+                : xv.label,
+              y: measure(block, m, slice, payload.products),
+              series: gv.label,
+              measure: m,
+            });
+          }
         }
       }
     }
   }
 
   return rows;
+}
+
+/** Pivot all-measure rows to one row per x and series; the ratio is bar / marker, null when the marker is missing or zero. */
+export function toComboRows(rows: ChartRow[], measures: string[]): ComboRow[] {
+  const [barKey, markerKey] = measures;
+  if (!barKey || !markerKey) return [];
+
+  // !important keyed by x AND series, so each team (or notebook) under one x keeps its own bar.
+  const byCell = new Map<string, ComboRow>();
+  for (const r of rows) {
+    const key = `${String(r.x)}|${r.series}`;
+    const row = byCell.get(key) ?? {
+      x: r.x, series: r.series, y: null, marker: null, ratio: null,
+      barName: measureLabel(barKey), markerName: measureLabel(markerKey),
+    };
+    if (r.measure === barKey) row.y = r.y;
+    if (r.measure === markerKey) row.marker = r.y;
+    byCell.set(key, row);
+  }
+
+  for (const row of byCell.values()) {
+    row.ratio = row.y != null && row.marker ? row.y / row.marker : null;
+  }
+  return [...byCell.values()];
+}
+
+/** Every named dataset a shape may bind: `@rows` for all, `@combo` for the combo. One call, both callers. */
+export function chartDatasets(args: BuildRowsArgs): ChartDatasets {
+  return {
+    rows:  buildChartRows(args),
+    // The chart's own x and grouping, with every bound measure read in each cell.
+    combo: toComboRows(buildChartRows({ ...args, allMeasures: true }), toMeasures(args.yAxis)),
+  };
 }
 
 /** One drawable instance of a configured chart. */
