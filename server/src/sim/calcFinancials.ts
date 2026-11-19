@@ -209,6 +209,10 @@ export interface TeamFinancials {
   productScoreBreakdown: ProductScoreBreakdown[];
   incurredCosts:       IncurredCostBreakdown[];
   globalInputCosts:    GlobalInputCostBreakdown[];
+  /** The final demand multiplier, so one item's share of it can be reversed. */
+  customersObtainedAugment: number;
+  /** The final capacity multiplier, so one item's share of it can be reversed. */
+  inventoryAugmentation:    number;
 }
 
 /** The metric block persisted under `projections[productId]`.
@@ -246,6 +250,8 @@ export const toProjectionMetrics = (f: TeamFinancials) => ({
   // Both readers must take BOTH arrays: COGS and opex totals are only whole
   // when the globalInput rows are added to the unit rows.
   globalInputCosts:  f.globalInputCosts,
+  customersObtainedAugment: f.customersObtainedAugment,
+  inventoryAugmentation:    f.inventoryAugmentation,
 });
 
 /** Named so storing collections can declare it honestly — two of the metrics
@@ -567,7 +573,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
 
     let inventoryAugmentation = 1;
     let customersObtainedAugment = baseVariables.customersObtainedBase ?? 0.3;
-    let dynamicPriceAugment      = baseVariables.dynamicPriceBase      ?? 0.55; // quality augmentation from inventory-affecting global inputs
+    const dynamicPriceAugment    = baseVariables.dynamicPriceBase      ?? 0.55; // the pricing-curve center's per-product seed
 
     /**
      * One entry per SELECTED channel: its cut as a RATE on the selling price,
@@ -625,14 +631,10 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
         // below runs exactly as it did before this was wired.
         const impactValue = resolveImpactValue(impact, productId);
 
+        // Capacity only; the pricing center is not touched by any impact.
         if (config.affects === "inventoryRate") {
-          if (impact.type === "relative") {
-            inventoryAugmentation *= (1 + impactValue * effectiveMultiplier);
-            dynamicPriceAugment   *= (1 + impactValue * effectiveMultiplier);
-          } else {
-            inventoryAugmentation += (impactValue * effectiveMultiplier);
-            dynamicPriceAugment   += (impactValue * effectiveMultiplier);
-          }
+          if (impact.type === "relative") inventoryAugmentation *= (1 + impactValue * effectiveMultiplier);
+          else                            inventoryAugmentation += (impactValue * effectiveMultiplier);
         }
 
         if (config.affects === "customersObtained") {
@@ -924,6 +926,8 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       productScoreBreakdown,
       incurredCosts,
       globalInputCosts,
+      customersObtainedAugment,
+      inventoryAugmentation,
     };
   });
 

@@ -86,7 +86,7 @@ function keyedTotal(map: any, key: string): number | null {
   return sum(values.map(num));
 }
 
-/** Measures a channel item splits by its share of each notebook's sales; any other measure on an item is a gap. */
+/** Measures an item carries in `byItem`; any other measure on an item is a gap. */
 const ITEM_SPLIT = new Map([
   ["customersObtained", "customersObtained"], ["byProduct.customersObtained", "customersObtained"],
   ["unitsSold", "unitsSold"],                 ["byProduct.unitsSold", "unitsSold"],
@@ -102,7 +102,7 @@ function measure(
 ): number | null {
   if (!teamBlock) return null;
 
-  // Per notebook, because each notebook carries its own channel shares.
+  // Summed per notebook, because each notebook carries its own item figures.
   const inputId = slice.inputId;
   if (inputId) {
     const base = ITEM_SPLIT.get(field);
@@ -110,11 +110,7 @@ function measure(
     const blocks: any[] = slice.productId
       ? [teamBlock.byProduct?.[slice.productId]]
       : Object.values(teamBlock.byProduct ?? {});
-    return sum(blocks.map((b) => {
-      const share = b?.channelShare?.[inputId];
-      const v = num(b?.[base]);
-      return share == null || v === null ? null : v * share;
-    }));
+    return sum(blocks.map((b) => num(b?.byItem?.[inputId]?.[base] ?? null)));
   }
 
   const at = (prefix: string) =>

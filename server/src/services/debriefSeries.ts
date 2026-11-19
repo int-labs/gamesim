@@ -23,7 +23,8 @@
  */
 
 import { SELLING_PRICE_KEY } from "../constants/impacts";
-import { stepMultiplier } from "../sim/calcFinancials";
+import { resolveImpactValue, stepMultiplier } from "../sim/calcFinancials";
+import { IMPACT_CONFIG } from "../constants/impacts";
 import {
   buildCashWalk,
   channelSharesFor,
@@ -115,8 +116,15 @@ export interface DebriefTeamProduct {
   /** fieldId → the team's submitted value. The client normalises it against
    *  the matching `DebriefField` bounds; see the header. */
   fieldValues:       Record<string, number>;
-  /** Channel item id to its share of this notebook's sales; an unselected channel is absent. */
-  channelShare:      Record<string, number>;
+  /** Global input item id to its figures on this notebook; an unselected or unreversible item is absent. */
+  byItem:            Record<string, ItemFigures>;
+}
+
+/** One item's demand, sales and revenue on one notebook. */
+export interface ItemFigures {
+  customersObtained: number;
+  unitsSold:         number;
+  revenue:           number;
 }
 
 export interface DebriefTeamRound {
@@ -222,10 +230,84 @@ function costsByCategory(dec: ReportDecision | null): Record<string, number> {
   return out;
 }
 
+type DecisionItem = NonNullable<ReportDecision["globalInputs"]>[number];
+
+/** What one selected item added: the final figures minus the figures with its factor reversed out of the stored augments. */
+function itemEffect(
+  sel: DecisionItem,
+  sc: Record<string, unknown>,
+  productId: unknown,
+  producedRaw: number,
+  opening: number,
+): ItemFigures | null {
+  const demandAug = num(sc.customersObtainedAugment);
+  const capAug    = num(sc.inventoryAugmentation);
+  const customers = num(sc.customersObtained);
+  const units     = num(sc.unitsSold);
+  const capacity  = num(sc.inventoryQty);
+  const price     = num(sc.sellingPrice);
+  // A round scored before the augments were stored cannot be reversed.
+  if (demandAug === null || capAug === null || customers === null || units === null
+      || capacity === null || price === null || demandAug === 0 || capAug === 0) return null;
+
+  const m = stepMultiplier(sel.options, sel.selectedStepKey);
+  let demandWithout = demandAug;
+  let capWithout    = capAug;
+  for (const [key, impact] of Object.entries(sel.impacts ?? {})) {
+    const affects = IMPACT_CONFIG[key]?.affects;
+    if (affects !== "customersObtained" && affects !== "inventoryRate") continue;
+    const v = resolveImpactValue(impact, productId) * m;
+    if (impact.type === "relative" && 1 + v <= 0) return null;
+    // Relative multiplied the augment by (1 + v), absolute added v; undo whichever it did.
+    const undo = (aug: number) => (impact.type === "relative" ? aug / (1 + v) : aug - v);
+    if (affects === "customersObtained") demandWithout = undo(demandWithout);
+    else                                 capWithout    = undo(capWithout);
+  }
+
+  // Both figures are linear in their augment, so the ratio reverses them; the clamps follow calcFinancials.
+  const customersWithout = customers * (demandWithout / demandAug);
+  const producedWithout  = Math.min(producedRaw, capacity * (capWithout / capAug));
+  const unitsWithout     = Math.min(customersWithout, opening + producedWithout);
+  return {
+    customersObtained: customers - customersWithout,
+    unitsSold:         units - unitsWithout,
+    revenue:           (units - unitsWithout) * price,
+  };
+}
+
+/** Every selected item's figures on one notebook: a channel takes its share of the totals, any other item its reversed effect. */
+function itemFigures(
+  dec: ReportDecision | null,
+  sc: Record<string, unknown> | null,
+  productId: unknown,
+  producedRaw: number,
+  opening: number,
+): Record<string, ItemFigures> {
+  const out: Record<string, ItemFigures> = {};
+  if (!sc) return out;
+  const shares = channelSharesFor(dec, productId);
+  for (const sel of dec?.globalInputs ?? []) {
+    const key = id(sel.globalInputItemId);
+    const share = shares.get(key);
+    if (share != null) {
+      out[key] = {
+        customersObtained: (num(sc.customersObtained) ?? 0) * share,
+        unitsSold:         (num(sc.unitsSold) ?? 0) * share,
+        revenue:           (num(sc.revenue) ?? 0) * share,
+      };
+      continue;
+    }
+    const effect = itemEffect(sel, sc, productId, producedRaw, opening);
+    if (effect) out[key] = effect;
+  }
+  return out;
+}
+
 function productBlock(
   dec: ReportDecision | null,
   product: ReportProduct,
   vocFieldIds: Set<string>,
+  opening: number,
 ): DebriefTeamProduct {
   const sc = scoredFor(dec, product._id) as Record<string, unknown> | null;
   const input = (dec?.inputs ?? []).find((i) => id(i.productId) === id(product._id)) ?? null;
@@ -261,7 +343,7 @@ function productBlock(
     dynamicPrice:      sc ? num(sc.dynamicPrice) : null,
     sellingPrice:      sc ? num(sc.sellingPrice) : null,
     fieldValues,
-    channelShare:      Object.fromEntries(channelSharesFor(dec, product._id)),
+    byItem:            itemFigures(dec, sc, product._id, num(input?.produced) ?? 0, opening),
   };
 }
 
@@ -358,8 +440,13 @@ export function buildDebriefSeries(input: DebriefInput): DebriefPayload {
         const revenue = sumScored(dec, "revenue");
         const net     = sumScored(dec, "operatingProfit");
 
+        // Opening stock is the previous round's stored closingStock, the same source the calculation reads.
+        const prev = (byRound.get(r - 1) ?? []).find((d) => id(d.teamId) === t) ?? null;
         const byProduct: Record<string, DebriefTeamProduct> = {};
-        for (const p of ordered) byProduct[id(p._id)] = productBlock(dec, p, vocFieldIds);
+        for (const p of ordered) {
+          const opening = num(scoredFor(prev, p._id)?.closingStock) ?? 0;
+          byProduct[id(p._id)] = productBlock(dec, p, vocFieldIds, opening);
+        }
 
         teamsOut[t] = {
           energy,
