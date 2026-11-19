@@ -18,8 +18,9 @@ const chartSchema = z.object({
   name:       z.string().trim().min(1, "A chart needs a name.").max(160),
   category:   z.string().trim().max(64).default(""),
   order:      z.number().int().min(0).max(99999).default(0),
-  // `each` fans this one row out to N + 1 instances at render time.
-  scope:      z.enum(["overall", "each"]).default("overall"),
+  // `each` fans out per notebook, `eachItem` per global input item in `categories`.
+  scope:      z.enum(["overall", "each", "eachItem"]).default("overall"),
+  categories: z.array(z.string().trim().min(1).max(64)).max(24).default([]),
   chartStyle: objectId.nullish(),
   // An ENUM, not free text: a typo here produces a chart that is configured,
   // described and permanently blank, with nothing to say why.
@@ -122,7 +123,8 @@ const previewSchema = z.object({
             ]).nullish(),
   grouping: z.string().trim().max(64).nullish(),
   // !important the preview fans out too, or the operator approves one chart and the team sees four.
-  scope:    z.enum(["overall", "each"]).default("overall"),
+  scope:      z.enum(["overall", "each", "eachItem"]).default("overall"),
+  categories: z.array(z.string().trim().min(1).max(64)).max(24).default([]),
 });
 
 // POST /debrief-charts/preview: render a draft binding before it is saved.
@@ -171,21 +173,25 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
     };
 
     const instances = await Promise.all(
-      chartInstances(parsed.data.scope, payload.products, { payload, measures }).map(async (inst) => {
+      chartInstances(parsed.data.scope, payload.products, {
+        payload, measures, categories: parsed.data.categories,
+      }).map(async (inst) => {
         const datasets = chartDatasets({
           payload,
           xAxis:     parsed.data.xAxis ?? null,
           yAxis:     parsed.data.yAxis ?? null,
           grouping:  parsed.data.grouping ?? null,
           productId: inst.productId,
+          inputId:   inst.inputId,
         });
+        const suffix = inst.productName ?? inst.inputLabel;
         const svg = await renderChartToSvg({
           spec,
           datasets,
           // The notebook's name rides on the title, so a column of previews
           // says which is which without the console labelling them itself.
-          labels: inst.productName
-            ? { ...labels, title: `${labels.title ?? ""} · ${inst.productName}`.trim() }
+          labels: suffix
+            ? { ...labels, title: `${labels.title ?? ""} · ${suffix}`.trim() }
             : labels,
         });
         return { ...inst, svg, rows: datasets.rows.length };

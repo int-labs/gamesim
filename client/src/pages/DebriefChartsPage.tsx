@@ -39,6 +39,7 @@ function Preview({ draft }: { draft: ChartDraft }) {
         // !important WITHOUT THIS the preview shows the summary alone while the slide
         // ships N + 1. The point of previewing is that they match.
         scope: draft.scope,
+        categories: draft.scope === "eachItem" ? draft.categories : [],
       });
       setInstances(res.instances);
     } catch (e: any) {
@@ -72,11 +73,11 @@ function Preview({ draft }: { draft: ChartDraft }) {
       {err && <Alert tone="danger">{err}</Alert>}
 
       {instances.map((inst) => (
-        <div key={inst.productId ?? "summary"} className="flex flex-col gap-1">
+        <div key={inst.productId ?? inst.inputId ?? "summary"} className="flex flex-col gap-1">
           <Text variant="caption" tone="muted">
             {/* Named even when there is only one: "every notebook at once" is
                 a claim about what the numbers mean, not a heading. */}
-            {inst.productName ?? "Overall — every notebook at once"}
+            {inst.productName ?? inst.inputLabel ?? "Overall — every notebook at once"}
             {" · "}
             {/* The row count is the diagnostic, and it is per instance. */}
             <Text as="span" tone={inst.rows === 0 ? "danger" : "muted"}>
@@ -96,7 +97,7 @@ export default function DebriefChartsPage() {
   const [selectedSimType, setSelectedSimType] = useState("");
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
   const [charts, setCharts] = useState<DebriefChartConfig[]>([]);
-  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [] });
+  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [], itemCategories: [] });
   const [form, setForm] = useState<ChartDraft>({ ...EMPTY_CHART });
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -122,7 +123,7 @@ export default function DebriefChartsPage() {
 
   // Per type, so it reloads with the gate: notebooks and lever keys differ by type.
   useEffect(() => {
-    if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [] }); return; }
+    if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [], itemCategories: [] }); return; }
     getDebriefDimensions(selectedSimType)
       .then(setDims)
       .catch((e: any) => setError(e.message));
@@ -163,7 +164,9 @@ export default function DebriefChartsPage() {
       header: "SCOPE",
       cell: (c) => c.scope === "each"
         ? <span title="one chart per notebook; a summary is a separate chart">per notebook</span>
-        : "overall",
+        : c.scope === "eachItem"
+          ? <span title="one chart per global input item in these categories">per item · {(c.categories ?? []).join(", ") || "no category"}</span>
+          : "overall",
     },
     {
       id: "shape",

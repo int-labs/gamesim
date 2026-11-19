@@ -23,6 +23,8 @@ const noteSchema = z.object({
   // Which instance of that chart — a Product `_id` for a per-notebook chart,
   // null for the summary. A note is keyed by the PAIR.
   productId: objectId.nullish(),
+  // A GlobalInput item `_id` for a per-item chart.
+  inputId: objectId.nullish(),
   title: z.string().trim().min(1, "A note needs a title.").max(120),
   body: z.string().max(5000).default(""),
   imageAssetId: objectId.nullish(),
@@ -86,6 +88,7 @@ export const createRoundNote = async (req: Request, res: Response): Promise<void
       teamId: parsed.data.teamId ?? null,
       chartId: parsed.data.chartId ?? null,
       productId: parsed.data.productId ?? null,
+      inputId: parsed.data.inputId ?? null,
       imageAssetId: parsed.data.imageAssetId ?? null,
       authorUserId: (req as any).user?._id ?? (req as any).user?.userId ?? null,
     });

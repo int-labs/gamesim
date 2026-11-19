@@ -1,5 +1,5 @@
 import { Badge, FilterChip, Input, Select, Text } from "@stratagem/design-system";
-import type { DebriefChartStyle, DebriefDimension, DebriefDimensions } from "../types";
+import type { ChartScope, DebriefChartStyle, DebriefDimension, DebriefDimensions } from "../types";
 
 /** One chart's configuration as a form, shared by the Debrief Charts and Round Debrief pages. Fields only, not the buttons. */
 
@@ -8,7 +8,9 @@ export interface ChartDraft {
   name:       string;
   category:   string;
   order:      number;
-  scope:      "overall" | "each";
+  scope:      ChartScope;
+  /** Container categories an `eachItem` chart fans over. */
+  categories: string[];
   chartStyle: string;
   /** Set means the player draws it, and the shape and bindings below are inert. */
   clientChart: string;
@@ -20,7 +22,7 @@ export interface ChartDraft {
 }
 
 export const EMPTY_CHART: ChartDraft = {
-  name: "", category: "", order: 0, scope: "overall",
+  name: "", category: "", order: 0, scope: "overall", categories: [],
   chartStyle: "", clientChart: "", xAxis: "", yAxis: [], grouping: "",
 };
 
@@ -29,7 +31,8 @@ export interface ChartConfigLike {
   name:     string;
   category: string;
   order:    number;
-  scope?:   "overall" | "each";
+  scope?:   ChartScope;
+  categories?: string[];
   chartStyle: { _id: string } | null;
   clientChart?: string | null;
   xAxis:    string | null;
@@ -44,6 +47,7 @@ export const draftFromChart = (c: ChartConfigLike): ChartDraft => ({
   category:   c.category,
   order:      c.order,
   scope:      c.scope ?? "overall",
+  categories: c.categories ?? [],
   chartStyle:  c.chartStyle?._id ?? "",
   clientChart: c.clientChart ?? "",
   xAxis:      c.xAxis ?? "",
@@ -57,6 +61,8 @@ export const chartPayload = (d: ChartDraft) => ({
   category:   d.category,
   order:      Number(d.order) || 0,
   scope:      d.scope,
+  // !important categories only mean something to `eachItem`; any other scope stores none.
+  categories: d.scope === "eachItem" ? d.categories : [],
   chartStyle:  d.chartStyle || null,
   clientChart: d.clientChart || null,
   xAxis:      d.xAxis || null,
@@ -151,6 +157,44 @@ function MeasureList({
   );
 }
 
+/** !important same add-control pattern as the measures: chips are the binding, a stale category is kept and marked. */
+function CategoryList({
+  options, value, onChange,
+}: {
+  options: Array<{ category: string; label: string }>;
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const remaining = options.filter((o) => !value.includes(o.category));
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {value.map((category) => {
+        const hit = options.find((o) => o.category === category);
+        return (
+          <FilterChip
+            key={category}
+            title={hit ? category : `"${category}" is not offered by this type any more`}
+            onRemove={() => onChange(value.filter((c) => c !== category))}
+            removeLabel="remove this category"
+          >
+            {hit ? hit.label : <Text as="span" tone="danger">{category} (missing)</Text>}
+          </FilterChip>
+        );
+      })}
+      <Select
+        size="sm"
+        width="fit"
+        aria-label="item categories"
+        placeholder={value.length ? "-- add category --" : "-- category --"}
+        value={null}
+        onValueChange={(v) => { if (v) onChange([...value, v]); }}
+        disabled={remaining.length === 0}
+        options={remaining.map((o) => ({ value: o.category, label: o.label }))}
+      />
+    </span>
+  );
+}
+
 export function ChartConfigFields({
   draft, styles, dims, onChange,
 }: {
@@ -182,8 +226,8 @@ export function ChartConfigFields({
         placeholder="chart name" value={draft.name}
         onChange={(e) => set({ name: e.target.value })}
       />
-      <span title="each = one chart per notebook, each needing its own description. A summary is a separate chart with scope overall.">
-        <Select<"overall" | "each">
+      <span title="each = one chart per notebook, each item = one chart per global input item in the chosen categories. Each instance takes its own description.">
+        <Select<ChartScope>
           size="sm"
           width="fit"
           aria-label="scope"
@@ -192,9 +236,17 @@ export function ChartConfigFields({
           options={[
             { value: "overall", label: "overall" },
             { value: "each", label: "each notebook" },
+            { value: "eachItem", label: "each item" },
           ]}
         />
       </span>
+      {draft.scope === "eachItem" && (
+        <CategoryList
+          options={dims.itemCategories ?? []}
+          value={draft.categories}
+          onChange={(v) => set({ categories: v })}
+        />
+      )}
       <span title="charts the player draws itself — they take no shape and no axes">
         <Select
           size="sm"

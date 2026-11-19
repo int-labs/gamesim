@@ -11,8 +11,10 @@ export interface DebriefChartInterface extends Document {
   category: string;
   /** Position within the slide. */
   order: number;
-  /** `overall` draws one chart; `each` draws one per notebook, with no summary. */
-  scope: "overall" | "each";
+  /** `overall` draws one chart; `each` one per notebook; `eachItem` one per global input item in `categories`. */
+  scope: "overall" | "each" | "eachItem";
+  /** Container categories an `eachItem` chart fans over, e.g. ["channel"]. */
+  categories: string[];
   /** Which gallery shape draws it. An ObjectId, not the style's name, so
    *  renaming a gallery entry costs nothing here. */
   chartStyle: Types.ObjectId | null;
@@ -38,7 +40,8 @@ const debriefChartSchema = new Schema<DebriefChartInterface>(
     name:     { type: String, required: true, trim: true, maxlength: 160 },
     category: { type: String, default: "", trim: true, maxlength: 64 },
     order:    { type: Number, required: true, default: 0 },
-    scope:    { type: String, enum: ["overall", "each"], default: "overall" },
+    scope:      { type: String, enum: ["overall", "each", "eachItem"], default: "overall" },
+    categories: { type: [String], default: [] },
 
     chartStyle: {
       type: Schema.Types.ObjectId,

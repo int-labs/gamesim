@@ -88,6 +88,8 @@ export interface DebriefDimensions {
   /** The charts the player draws itself. Served rather than hardcoded in the
    *  console, so the two cannot drift into offering different keys. */
   clientCharts: ClientChart[];
+  /** The type's GlobalInput container categories, what an `eachItem` chart fans over. */
+  itemCategories: Array<{ category: string; label: string }>;
 }
 
 /** The fixed dimensions plus the ones this type's own configuration creates. */
@@ -165,5 +167,7 @@ export const buildDebriefDimensions = async (
       : []),
   ];
 
-  return { categorical, measures, clientCharts: CLIENT_CHARTS };
+  const itemCategories = [...levers].map(([category, label]) => ({ category, label }));
+
+  return { categorical, measures, clientCharts: CLIENT_CHARTS, itemCategories };
 };

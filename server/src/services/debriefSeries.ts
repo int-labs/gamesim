@@ -141,6 +141,14 @@ export interface DebriefRound {
   teams:       Record<string, DebriefTeamRound>;
 }
 
+/** One live global input item; labels resolve here, never from the decision snapshot. */
+export interface DebriefItem {
+  inputId:  string;
+  key:      string;
+  label:    string;
+  category: string;
+}
+
 export interface DebriefPayload {
   simulationId: string;
   roundNumber:  number;
@@ -152,6 +160,8 @@ export interface DebriefPayload {
   /** Round 0 .. the reported round, ascending — the progress lines need the
    *  whole run, not just this round. */
   rounds:       DebriefRound[];
+  /** The type's live global input items, for the `eachItem` fan. */
+  items:        DebriefItem[];
 }
 
 // ── Derived: energy and lever investment ─────────────────────────────────────
@@ -264,12 +274,25 @@ export interface DebriefInput {
   byRound:      Map<number, ReportDecision[]>;
   /** Configured opening cash, or `null` when the operator set none. */
   cashSeed:     number | null;
+  /** The type's GlobalInput containers, for the item fan. */
+  globalInputs: Array<{
+    category?: unknown;
+    inputs?:   Array<{ _id: unknown; key?: unknown; label?: unknown }>;
+  }>;
 }
 
 export function buildDebriefSeries(input: DebriefInput): DebriefPayload {
-  // NOTE: no `containers`. Everything the energy sum needs is snapshotted on
-  // the decision itself — see `leverEnergy`.
-  const { simulationId, roundNumber, you, teams, products, byRound, cashSeed } = input;
+  // The energy sum reads the decision snapshot; `globalInputs` feeds only the item fan.
+  const { simulationId, roundNumber, you, teams, products, byRound, cashSeed, globalInputs } = input;
+
+  const items: DebriefItem[] = globalInputs.flatMap((gi) =>
+    (gi.inputs ?? []).map((it) => ({
+      inputId:  id(it._id),
+      key:      String(it.key ?? ""),
+      label:    String(it.label ?? it.key ?? ""),
+      category: String(gi.category ?? ""),
+    })),
+  );
 
   const teamRefs: DebriefTeamRef[] = teams.map((t) => ({
     teamId:   id(t._id),
@@ -354,5 +377,5 @@ export function buildDebriefSeries(input: DebriefInput): DebriefPayload {
       return { roundNumber: r, teams: teamsOut };
     });
 
-  return { simulationId, roundNumber, you, teams: teamRefs, products: productMeta, rounds };
+  return { simulationId, roundNumber, you, teams: teamRefs, products: productMeta, rounds, items };
 }

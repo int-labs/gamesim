@@ -10,6 +10,8 @@ export interface RoundNoteInterface extends Document {
   chartId: Types.ObjectId | null;
   /** !important which instance, when `scope` is `each`. Keyed by the pair, never `_id` alone. */
   productId: Types.ObjectId | null;
+  /** Which item instance, when `scope` is `eachItem`. */
+  inputId: Types.ObjectId | null;
   title: string;
   /** Markdown. Rendered as plain text until a renderer is wired in. */
   body: string;
@@ -33,6 +35,7 @@ const roundNoteSchema = new Schema<RoundNoteInterface>(
     teamId: { type: Schema.Types.ObjectId, ref: "Team", default: null },
     chartId:   { type: Schema.Types.ObjectId, ref: "DebriefChart", default: null },
     productId: { type: Schema.Types.ObjectId, ref: "Product", default: null },
+    inputId:   { type: Schema.Types.ObjectId, default: null },
     title: { type: String, required: true, trim: true, maxlength: 120 },
     body: { type: String, default: "", maxlength: 5000 },
     imageAssetId: { type: Schema.Types.ObjectId, ref: "ImageAsset", default: null },

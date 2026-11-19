@@ -11,7 +11,8 @@ import PlayerConfig from "../models/playerConfig";
 import { ROLES } from "../constants/roles";
 import DebriefChartModel from "../models/debriefChart";
 import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
-import { chartDatasets, chartInstances, toMeasures } from "../services/debriefChartData";
+import { chartDatasets, chartInstances, toMeasures, type ChartInstanceRef } from "../services/debriefChartData";
+import GlobalInput from "../models/globalInputs";
 import { renderChartToSvg } from "../services/chartRenderer";
 import { axisLabel, measureLabel } from "../services/debriefDimensions";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
@@ -33,10 +34,14 @@ interface DebriefChartDto {
   productId:   string | null;
   /** Carried so a reader need not re-join the product list to label it. */
   productName: string | null;
+  /** The global input item this instance is for; set only on an `eachItem` chart. */
+  inputId:     string | null;
+  /** The item's live label, so a reader need not re-join the config to name it. */
+  inputLabel:  string | null;
   name:       string;
   category:   string;
   order:      number;
-  scope:      "overall" | "each";
+  scope:      "overall" | "each" | "eachItem";
   /** The gallery shape's identity only. !important `shape` is never on the wire. */
   chartStyle: { _id: string; name: string; category: string } | null;
   /** Set means the client draws it; `svg` is null and the bindings are inert. */
@@ -125,12 +130,12 @@ const resolveCharts = async (
   ]);
 
   // !important keyed by the pair as strings: two ObjectIds for one value are different identities.
-  const key = (chartId: unknown, productId: unknown) =>
-    `${String(chartId)}:${productId ? String(productId) : ""}`;
+  const key = (chartId: unknown, productId: unknown, inputId: unknown) =>
+    `${String(chartId)}:${productId ? String(productId) : ""}:${inputId ? String(inputId) : ""}`;
 
   const byInstance = new Map<string, string>();
   for (const n of notes) {
-    if (n.chartId) byInstance.set(key(n.chartId, n.productId), n.body ?? "");
+    if (n.chartId) byInstance.set(key(n.chartId, n.productId, n.inputId), n.body ?? "");
   }
 
   const out: DebriefChartDto[] = [];
@@ -152,7 +157,7 @@ const resolveCharts = async (
       name:     c.name,
       category: c.category,
       order:    c.order,
-      scope:    (c.scope ?? "overall") as "overall" | "each",
+      scope:    (c.scope ?? "overall") as "overall" | "each" | "eachItem",
       chartStyle: style
         ? {
             _id:      String(style._id),
@@ -168,12 +173,15 @@ const resolveCharts = async (
       grouping: c.grouping ?? null,
     };
 
-    const instance = (productId: string | null, productName: string | null) => {
-      const description = byInstance.get(key(c._id, productId)) ?? null;
+    const instance = (inst: ChartInstanceRef) => {
+      const { productId, productName, inputId, inputLabel } = inst;
+      const description = byInstance.get(key(c._id, productId, inputId)) ?? null;
       const dto: DebriefChartDto = {
         ...base,
         productId,
         productName,
+        inputId,
+        inputLabel,
         description,
         resolved: description !== null,
         svg: null,
@@ -192,6 +200,7 @@ const resolveCharts = async (
         yAxis:    base.yAxis,
         grouping: base.grouping,
         productId,
+        inputId,
       });
 
       drawing.push(
@@ -210,9 +219,10 @@ const resolveCharts = async (
       );
     };
 
-    // !important the same fan-out the preview uses, over the same notebook list.
-    for (const inst of chartInstances(base.scope, payload.products, { payload, measures: base.yAxis })) {
-      instance(inst.productId, inst.productName);
+    // !important the same fan-out the preview uses, over the same notebook and item lists.
+    const categories: string[] = Array.isArray(c.categories) ? c.categories : [];
+    for (const inst of chartInstances(base.scope, payload.products, { payload, measures: base.yAxis, categories })) {
+      instance(inst);
     }
   }
 
@@ -272,8 +282,8 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
     // Derived, never a parameter: a simulation belongs to exactly one type.
     const simulationTypeId = (simulation as { simulationTypeId?: unknown }).simulationTypeId;
 
-    // No GlobalInput load: the decision snapshots every lever figure the debrief needs.
-    const [teams, products, allDecisions, playerConfig, allRunReports, lbConfig] =
+    // GlobalInputs feed only the item fan; lever figures still come off the decision snapshot.
+    const [teams, products, allDecisions, playerConfig, allRunReports, lbConfig, globalInputs] =
       await Promise.all([
         Team.find({ simulationId }).lean(),
         Product.find({ simulationTypeId }).lean(),
@@ -284,6 +294,7 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
         // The leaderboard's client-origin half, and the metrics that rank on it.
         TeamRunReport.find({ simulationId, roundNumber: { $lte: round } }).lean(),
         LeaderboardConfig.findOne({ simulationTypeId }).lean(),
+        GlobalInput.find({ simulationTypeId }).lean(),
       ]);
 
     if (teams.length === 0) {
@@ -299,6 +310,7 @@ export const getRoundDebrief = async (req: Request, res: Response): Promise<void
       products:     products as never,
       byRound:      groupByRound(allDecisions) as never,
       cashSeed:     openingCashFrom(playerConfig),
+      globalInputs: globalInputs as never,
     });
 
     const charts = await resolveCharts(

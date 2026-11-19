@@ -1,6 +1,6 @@
 import axios from "axios";
 import type {
-  DebriefChartConfig, DebriefChartStyle, DebriefDimensions, RoundDebrief, RoundNote,
+  ChartScope, DebriefChartConfig, DebriefChartStyle, DebriefDimensions, RoundDebrief, RoundNote,
 } from "./types";
 
 const api = axios.create({
@@ -303,6 +303,8 @@ export const createRoundNote = (data: {
   chartId?:     string | null;
   /** Which instance, for a `scope: "each"` chart. Null = the summary. */
   productId?:   string | null;
+  /** Which item instance, for a `scope: "eachItem"` chart. */
+  inputId?:     string | null;
   teamId?:      string | null;
   pinned?:      boolean;
 }) => api.post("/round-notes", data);
@@ -341,7 +343,7 @@ export const getDebriefDimensions = async (
   simulationTypeId: string,
 ): Promise<DebriefDimensions> => {
   const res = await api.get("/debrief-dimensions", { params: { simulationTypeId } });
-  return (res.data ?? { categorical: [], measures: [], clientCharts: [] }) as DebriefDimensions;
+  return (res.data ?? { categorical: [], measures: [], clientCharts: [], itemCategories: [] }) as DebriefDimensions;
 };
 
 // Which charts a simulation type's debrief shows.
@@ -357,7 +359,8 @@ export const createDebriefChart = (data: {
   name:        string;
   category?:   string;
   order?:      number;
-  scope?:      "overall" | "each";
+  scope?:      ChartScope;
+  categories?: string[];
   chartStyle?: string | null;
   xAxis?:      string | null;
   yAxis?:      string[] | null;
@@ -376,7 +379,8 @@ export const previewDebriefChart = async (data: {
   grouping?:    string | null;
   /** `each` previews ONE PER NOTEBOOK, which is exactly what the slide will
    *  emit. There is no summary instance, a summary is its own `overall` row. */
-  scope?:       "overall" | "each";
+  scope?:       ChartScope;
+  categories?:  string[];
 }): Promise<{ instances: PreviewInstance[] }> => {
   const res = await api.post("/debrief-charts/preview", data);
   return res.data as { instances: PreviewInstance[] };
@@ -386,6 +390,9 @@ export interface PreviewInstance {
   /** null = an `overall` chart, which reads every notebook at once. */
   productId:   string | null;
   productName: string | null;
+  /** Set only on an `eachItem` preview instance. */
+  inputId:     string | null;
+  inputLabel:  string | null;
   svg:         string;
   rows:        number;
 }
@@ -393,7 +400,7 @@ export interface PreviewInstance {
 export const updateDebriefChart = (
   id: string,
   data: Partial<{
-    name: string; category: string; order: number; scope: "overall" | "each";
+    name: string; category: string; order: number; scope: ChartScope; categories: string[];
     chartStyle: string | null; clientChart: string | null;
     xAxis: string | null; yAxis: string[]; grouping: string | null;
   }>,

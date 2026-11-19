@@ -3,6 +3,7 @@ import Product from "../models/products";
 import Decision from "../models/decisions";
 import Simulation from "../models/simulations";
 import PlayerConfig from "../models/playerConfig";
+import GlobalInput from "../models/globalInputs";
 import { buildDebriefSeries, type DebriefPayload } from "./debriefSeries";
 import { ALL_KEYS, FULFILMENT_RATE, measureLabel } from "./debriefDimensions";
 import { groupByRound, openingCashFrom } from "./roundReport";
@@ -42,6 +43,8 @@ export interface BuildRowsArgs {
   grouping:  string | null;
   /** Narrows every row to one notebook, the `each` instances. */
   productId: string | null;
+  /** Narrows every row to one global input item, the `eachItem` instances. Read by no measure yet. */
+  inputId?:  string | null;
   /** Emit one row per bound measure in every cell, keeping the chart's own grouping. Only the combo asks. */
   allMeasures?: boolean;
 }
@@ -65,6 +68,8 @@ const sum = (vals: (number | null)[]): number | null => {
 /** Which slice of a team's round a row reads; what makes a dimension a pivot. */
 interface Slice {
   productId?: string;
+  /** The `eachItem` instance's item; the instance floor, like `productId`. */
+  inputId?:   string;
   lever?:     string;
   spec?:      string;
   /** Which of the chart's measures this row reads. Only meaningful once more
@@ -152,7 +157,7 @@ const mapForMeasure = (yAxis: string): "costByCategory" | "energyByLever" =>
 
 /** Rows for one chart: the cross of `xAxis` and `grouping`. Teams are always iterated. */
 export function buildChartRows({
-  payload, xAxis, yAxis, grouping, productId, allMeasures = false,
+  payload, xAxis, yAxis, grouping, productId, inputId = null, allMeasures = false,
 }: BuildRowsArgs): ChartRow[] {
   const rows: ChartRow[] = [];
   const measures = toMeasures(yAxis);
@@ -225,6 +230,7 @@ export function buildChartRows({
           // further, never widen past it.
           const slice: Slice = {
             productId: productId ?? undefined,
+            inputId:   inputId ?? undefined,
             ...xv.slice,
             ...gv.slice,
           };
@@ -286,6 +292,9 @@ export interface ChartInstanceRef {
   /** null = the all-notebooks summary, and an `overall` chart's only entry. */
   productId:   string | null;
   productName: string | null;
+  /** Set only on an `eachItem` instance. */
+  inputId:     string | null;
+  inputLabel:  string | null;
 }
 
 /** Customers obtained for one notebook, summed over every team, in the payload's own round. */
@@ -300,16 +309,24 @@ const notebookDemand = (payload: DebriefPayload, productId: string): number => {
 
 /** !important the one definition of `scope`; both the preview and the slide call it. */
 export const chartInstances = (
-  scope: "overall" | "each",
+  scope: "overall" | "each" | "eachItem",
   products: readonly { productId: string; productName: string }[],
   // A fulfilment chart has no notebook instance where nobody had demand
-  binding?: { payload: DebriefPayload; measures: string[] },
+  binding?: { payload: DebriefPayload; measures: string[]; categories?: string[] },
 ): ChartInstanceRef[] => {
-  if (scope !== "each") return [{ productId: null, productName: null }];
+  const noItem = { inputId: null, inputLabel: null };
+  // !important matched by container category, never by item key, so a new sim's containers fan out unchanged.
+  if (scope === "eachItem") {
+    const wanted = binding?.categories ?? [];
+    return (binding?.payload.items ?? [])
+      .filter((it) => wanted.includes(it.category))
+      .map((it) => ({ productId: null, productName: null, inputId: it.inputId, inputLabel: it.label }));
+  }
+  if (scope !== "each") return [{ productId: null, productName: null, ...noItem }];
   const needsDemand = !!binding && binding.measures.includes(FULFILMENT_RATE);
   return products
     .filter((p) => !needsDemand || notebookDemand(binding!.payload, p.productId) > 0)
-    .map((p) => ({ productId: p.productId, productName: p.productName }));
+    .map((p) => ({ productId: p.productId, productName: p.productName, ...noItem }));
 };
 
 /** The round's figures for the preview, loaded once. Ungated: an admin sees a chart before it is scored. */
@@ -321,11 +338,12 @@ export async function loadPreviewPayload(args: {
   if (!simulation) throw new Error("Simulation not found.");
   const simulationTypeId = (simulation as { simulationTypeId?: unknown }).simulationTypeId;
 
-  const [teams, products, decisions, playerConfig] = await Promise.all([
+  const [teams, products, decisions, playerConfig, globalInputs] = await Promise.all([
     Team.find({ simulationId: args.simulationId }).lean(),
     Product.find({ simulationTypeId }).lean(),
     Decision.find({ simulationId: args.simulationId, roundNumber: { $lte: args.roundNumber } }).lean(),
     PlayerConfig.findOne({ simulationTypeId }).lean(),
+    GlobalInput.find({ simulationTypeId }).lean(),
   ]);
 
   if (teams.length === 0) throw new Error("No teams on this simulation.");
@@ -338,5 +356,6 @@ export async function loadPreviewPayload(args: {
     products:     products as never,
     byRound:      groupByRound(decisions) as never,
     cashSeed:     openingCashFrom(playerConfig),
+    globalInputs: globalInputs as never,
   });
 }

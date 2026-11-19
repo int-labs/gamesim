@@ -28,7 +28,7 @@ export default function RoundDebriefPage() {
 
   // A chart's configuration is edited against the gallery and this type's dimensions.
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
-  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [] });
+  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [], itemCategories: [] });
 
   useEffect(() => {
     getSimulationTypes()
@@ -42,7 +42,7 @@ export default function RoundDebriefPage() {
   // PER TYPE. The notebooks, lever keys and cost bands differ by type, and
   // offering another type's dimensions would be worse than offering none.
   useEffect(() => {
-    if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [] }); return; }
+    if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [], itemCategories: [] }); return; }
     getDebriefDimensions(selectedSimType)
       .then(setDims)
       .catch((e: any) => setError(e.message));
@@ -171,14 +171,14 @@ function ChartDescriptions({
     return () => { cancelled = true; };
   }, [simulationId, roundNumber, charts]);
 
-  /** !important keyed by the pair, never `_id` alone; `charts` carries one entry per instance. */
-  const instanceKey = (chartId: string, productId: string | null) =>
-    `${chartId}:${productId ?? ""}`;
+  /** !important keyed by chart plus instance, never `_id` alone; `charts` carries one entry per instance. */
+  const instanceKey = (chartId: string, productId: string | null, inputId: string | null) =>
+    `${chartId}:${productId ?? ""}:${inputId ?? ""}`;
 
   const byInstance = useMemo(() => {
     const m = new Map<string, RoundNote>();
     for (const n of notes) {
-      if (n.chartId) m.set(instanceKey(String(n.chartId), n.productId ?? null), n);
+      if (n.chartId) m.set(instanceKey(String(n.chartId), n.productId ?? null, n.inputId ?? null), n);
     }
     return m;
   }, [notes]);
@@ -186,7 +186,7 @@ function ChartDescriptions({
   // Sort a copy: `charts` is the payload's own array and `.sort()` is in place.
   const ordered = useMemo(() => [...charts].sort((a, b) => a.order - b.order), [charts]);
 
-  const keyOf = (c: DebriefChart) => instanceKey(c._id, c.productId);
+  const keyOf = (c: DebriefChart) => instanceKey(c._id, c.productId, c.inputId ?? null);
 
   const textFor = (c: DebriefChart) =>
     drafts[keyOf(c)] ?? byInstance.get(keyOf(c))?.body ?? c.description ?? "";
@@ -208,7 +208,7 @@ function ChartDescriptions({
         // the chart's own name is the heading, so it is filled, not asked for.
         await createRoundNote({
           simulationId, roundNumber,
-          chartId: c._id, productId: c.productId,
+          chartId: c._id, productId: c.productId, inputId: c.inputId ?? null,
           title: c.name, body,
         });
       }
@@ -268,7 +268,7 @@ function ChartDescriptions({
         // !important keyed on the chart, not `productId`: an `each` chart has no summary instance.
         const firstOfChart = c._id !== lastChartId;
         lastChartId = c._id;
-        const isBreakdown = c.productId !== null;
+        const isBreakdown = c.productId !== null || (c.inputId ?? null) !== null;
 
         return (
           <div key={k} className="flex flex-col gap-2">
@@ -283,7 +283,7 @@ function ChartDescriptions({
                   {firstOfChart && c.name}
                   {isBreakdown && (
                     <Text as="span" tone="muted">
-                      {firstOfChart ? " · " : ""}{c.productName ?? "notebook"}
+                      {firstOfChart ? " · " : ""}{c.productName ?? c.inputLabel ?? "instance"}
                     </Text>
                   )}
                 </Text>

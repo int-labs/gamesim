@@ -269,6 +269,8 @@ export interface RoundNote {
   /** Which instance of that chart, a Product `_id`, or null for the summary.
    *  A note is keyed by the PAIR; there is no fallback between them. */
   productId: string | null;
+  /** Which item instance of a `scope: "eachItem"` chart, a GlobalInput item `_id`. */
+  inputId: string | null;
   title: string;
   body: string;
   pinned: boolean;
@@ -294,6 +296,8 @@ export interface DebriefDimensions {
   categorical: DebriefDimension[];
   measures: DebriefDimension[];
   clientCharts: ClientChart[];
+  /** The type's GlobalInput container categories, what an `eachItem` chart fans over. */
+  itemCategories: Array<{ category: string; label: string }>;
 }
 
 /** The gallery shape. `category` is the family, `name` the variant. */
@@ -305,6 +309,9 @@ export interface DebriefChartStyle {
   shape: string;
 }
 
+/** `overall` draws one chart; `each` one per notebook; `eachItem` one per global input item in `categories`. */
+export type ChartScope = "overall" | "each" | "eachItem";
+
 /** A configured chart as stored. Mirrors `models/debriefChart.ts`. */
 export interface DebriefChartConfig {
   _id: string;
@@ -312,9 +319,9 @@ export interface DebriefChartConfig {
   name: string;
   category: string;
   order: number;
-  /** `each` fans this row out to N + 1 instances, one per notebook plus an
-   *  needing its own description. A summary is a separate `overall` row. */
-  scope: "overall" | "each";
+  scope: ChartScope;
+  /** Container categories an `eachItem` chart fans over. */
+  categories: string[];
   chartStyle: DebriefChartStyle | null;
   /** Set = the PLAYER draws it, and the shape and bindings are ignored. */
   clientChart: string | null;
@@ -331,6 +338,9 @@ export interface DebriefChart
    *  tells them apart, null is the summary. Key by the pair, never `_id`. */
   productId: string | null;
   productName: string | null;
+  /** Set only on an `eachItem` instance; key by chart, notebook and item together. */
+  inputId: string | null;
+  inputLabel: string | null;
   description: string | null;
   resolved: boolean;
   /** !important IDENTITY ONLY, no `shape`. `/round-debrief` withholds the spec and
