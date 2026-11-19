@@ -1,7 +1,7 @@
 /** Round reports as matrices. Pure, no I/O; if a figure is stored, read it. */
 
 import { SELLING_PRICE_KEY } from "../constants/impacts";
-import { stepMultiplier } from "../sim/calcFinancials";
+import { resolveImpactValue, stepMultiplier, withChannelShares } from "../sim/calcFinancials";
 import type { LeaderboardMetric } from "../models/leaderboardConfig";
 import type { RoundScore, Standings } from "./leaderboard";
 
@@ -212,16 +212,13 @@ export function buildCashWalk(
   return { opening, closing };
 }
 
-/** !important a second implementation of calcFinancials' channel weighting; that one wins. */
+/** Item id to its share of one notebook's sales, through calcFinancials' own weighting. */
 export function channelSharesFor(
   dec: ReportDecision | null,
   productId: unknown,
 ): Map<string, number> {
-  const terms = leverTerms(dec, productId, ["sales_channel"]);
-  const total = terms.reduce((a, t) => a + t.weight, 0);
-  const out = new Map<string, number>();
-  for (const t of terms) out.set(t.key, total > 0 ? t.weight / total : 0);
-  return out;
+  const { terms } = withChannelShares(leverTerms(dec, productId, ["sales_channel"]));
+  return new Map(terms.map((t) => [t.key, t.share]));
 }
 
 /** One lever's impact on a product, override and step multiplier applied. */
@@ -236,17 +233,7 @@ function leverWeight(
   const mult = stepMultiplier(gi.options, gi.selectedStepKey);
   if (mult === 0) return 0;
 
-  const override = (impact.selections ?? []).find(
-    (s) => id(s.productId) === id(productId),
-  )?.value;
-  const base = Number(impact.value) || 0;
-  // `relative` multiplies the base, `absolute` adds to it, as in calcFinancials.
-  const impactValue =
-    override == null ? base
-    : impact.type === "relative" ? base * Number(override)
-    : base + Number(override);
-
-  return Math.max(0, impactValue * mult);
+  return Math.max(0, resolveImpactValue(impact, productId) * mult);
 }
 
 /** Every entry in the decision carrying one of `metricKeys`, weighted. */

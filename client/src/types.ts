@@ -235,6 +235,8 @@ export interface DebriefTeamProductDto {
   dynamicPrice: number | null;
   sellingPrice: number | null;
   fieldValues: Record<string, number>;
+  /** Channel item id to its share of this notebook's sales; an unselected channel is absent. */
+  channelShare: Record<string, number>;
 }
 
 export interface DebriefTeamRoundDto {

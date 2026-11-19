@@ -430,6 +430,24 @@ const getGlobalInputQuantity = (
   return stepMultiplier(entry.options, match.selectedStepKey);
 };
 
+/** An impact's value for one product: an override multiplies a relative value and adds to an absolute one. */
+export const resolveImpactValue = (
+  impact:    { type?: string; value?: unknown; selections?: Array<{ productId: unknown; value: unknown }> },
+  productId: unknown,
+): number => {
+  const key = (v: unknown) => String((v as { $oid?: string })?.$oid ?? v);
+  const base = Number(impact.value) || 0;
+  const override = impact.selections?.find((s) => key(s.productId) === key(productId))?.value;
+  if (override == null) return base;
+  return impact.type === "relative" ? base * Number(override) : base + Number(override);
+};
+
+/** Each term with its share of the sales: weight over the selected total, 0 when the total is 0. */
+export const withChannelShares = <T extends { weight: number }>(terms: T[]) => {
+  const total = terms.reduce((s, t) => s + t.weight, 0);
+  return { total, terms: terms.map((t) => ({ ...t, share: total > 0 ? t.weight / total : 0 })) };
+};
+
 const INVENTORY_BASE = 1000;
 
 // ─── Core Calculation ────────────────────────────────────────────────────────
@@ -605,14 +623,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
         //
         // With no override, `impactValue` is `impact.value` and each branch
         // below runs exactly as it did before this was wired.
-        const override = impact.selections?.find(
-          (sel) => String(sel.productId) === String(productId)
-        )?.value;
-
-        const impactValue =
-          override == null       ? impact.value
-          : impact.type === "relative" ? impact.value * override
-          :                              impact.value + override;
+        const impactValue = resolveImpactValue(impact, productId);
 
         if (config.affects === "inventoryRate") {
           if (impact.type === "relative") {
@@ -677,20 +688,16 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
      * that picked only one sends 100% of its sales through it, not that
      * channel's share of a full line-up.
      */
-    const totalChannelWeight = channelTerms.reduce((sum, t) => sum + t.weight, 0);
+    const { total: totalChannelWeight, terms: sharedTerms } = withChannelShares(channelTerms);
 
     // Accumulated PER SIDE, because the treatment is the operator's per-item
     // choice — two selected channels may sit on opposite sides of the line, and
     // one blended figure could not honour both.
     let consignmentCogsPerUnit = 0;
     let consignmentOpexPerUnit = 0;
-    for (const t of channelTerms) {
-      // `: 0` — a DELETED fallback, not a default. This arm was `: 1`, summing
-      // the rates where there was nothing to apportion by. An override of 0
-      // means the notebook is not sold there, so it takes no cut (2026-09-24).
-      const share = totalChannelWeight > 0 ? t.weight / totalChannelWeight : 0;
+    for (const t of sharedTerms) {
       // A RATE on the selling price — retail 0.2 takes a fifth of every sale.
-      const perUnit = sellingPrice * t.rate * share;
+      const perUnit = sellingPrice * t.rate * t.share;
       if (t.side === "cogs") consignmentCogsPerUnit += perUnit;
       else                   consignmentOpexPerUnit += perUnit;
     }

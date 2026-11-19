@@ -26,6 +26,7 @@ import { SELLING_PRICE_KEY } from "../constants/impacts";
 import { stepMultiplier } from "../sim/calcFinancials";
 import {
   buildCashWalk,
+  channelSharesFor,
   id,
   scoredFor,
   sumScored,
@@ -114,6 +115,8 @@ export interface DebriefTeamProduct {
   /** fieldId → the team's submitted value. The client normalises it against
    *  the matching `DebriefField` bounds; see the header. */
   fieldValues:       Record<string, number>;
+  /** Channel item id to its share of this notebook's sales; an unselected channel is absent. */
+  channelShare:      Record<string, number>;
 }
 
 export interface DebriefTeamRound {
@@ -258,6 +261,7 @@ function productBlock(
     dynamicPrice:      sc ? num(sc.dynamicPrice) : null,
     sellingPrice:      sc ? num(sc.sellingPrice) : null,
     fieldValues,
+    channelShare:      Object.fromEntries(channelSharesFor(dec, product._id)),
   };
 }
 

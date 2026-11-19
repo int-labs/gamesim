@@ -43,7 +43,7 @@ export interface BuildRowsArgs {
   grouping:  string | null;
   /** Narrows every row to one notebook, the `each` instances. */
   productId: string | null;
-  /** Narrows every row to one global input item, the `eachItem` instances. Read by no measure yet. */
+  /** Narrows every row to one global input item, the `eachItem` instances. */
   inputId?:  string | null;
   /** Emit one row per bound measure in every cell, keeping the chart's own grouping. Only the combo asks. */
   allMeasures?: boolean;
@@ -86,6 +86,13 @@ function keyedTotal(map: any, key: string): number | null {
   return sum(values.map(num));
 }
 
+/** Measures a channel item splits by its share of each notebook's sales; any other measure on an item is a gap. */
+const ITEM_SPLIT = new Map([
+  ["customersObtained", "customersObtained"], ["byProduct.customersObtained", "customersObtained"],
+  ["unitsSold", "unitsSold"],                 ["byProduct.unitsSold", "unitsSold"],
+  ["revenue", "revenue"],                     ["byProduct.revenue", "revenue"],
+]);
+
 /** !important the slice overrides the measure's own key, so a `lever` axis reads each in turn. */
 function measure(
   teamBlock: any,
@@ -94,6 +101,21 @@ function measure(
   products: DebriefPayload["products"],
 ): number | null {
   if (!teamBlock) return null;
+
+  // Per notebook, because each notebook carries its own channel shares.
+  const inputId = slice.inputId;
+  if (inputId) {
+    const base = ITEM_SPLIT.get(field);
+    if (!base) return null;
+    const blocks: any[] = slice.productId
+      ? [teamBlock.byProduct?.[slice.productId]]
+      : Object.values(teamBlock.byProduct ?? {});
+    return sum(blocks.map((b) => {
+      const share = b?.channelShare?.[inputId];
+      const v = num(b?.[base]);
+      return share == null || v === null ? null : v * share;
+    }));
+  }
 
   const at = (prefix: string) =>
     field.startsWith(prefix) ? field.slice(prefix.length) : null;
