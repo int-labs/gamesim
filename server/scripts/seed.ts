@@ -250,9 +250,17 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
           { ...ABOVE_POINT, dy: -6, color: INK.frame },
           { y: { field: "marker", type: "quantitative", title: null }, text: VALUE("marker") },
         ),
+        // !important a negative pixel y draws the ratio above the plot frame, apart from the marker's own label.
         label(
-          { baseline: "top", fontSize: 16, color: INK.frame },
-          { y: { value: 4 }, text: { field: "ratio", type: "quantitative", format: ".1%" } },
+          { baseline: "bottom", fontSize: 16, color: INK.label },
+          {
+            y: { value: -10 },
+            // A predicate, not an expression: a missing ratio prints nothing instead of "null".
+            text: {
+              condition: { test: { field: "ratio", valid: true }, field: "ratio", type: "quantitative", format: ".1%" },
+              value: "",
+            },
+          },
         ),
       ],
     },
