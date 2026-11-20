@@ -32,12 +32,12 @@ const CONFIG = {
     domainColor: INK.frame, tickColor: INK.frame,
     gridColor: INK.grid, gridOpacity: 0.7,
   },
-  // Below the plot, one entry per row, never truncated.
+  // Below the plot, entries side by side in one row, never truncated.
   legend: {
     labelFont: FONT, titleFont: FONT,
     labelColor: INK.label, titleColor: INK.label,
     labelFontSize: 16, titleFontSize: 16,
-    orient: "bottom", columns: 1, labelLimit: 0,
+    orient: "bottom", direction: "horizontal", columnPadding: 16, labelLimit: 0,
   },
   title: { font: FONT, color: INK.label, fontSize: 20 },
   range: { category: SERIES },
@@ -50,7 +50,10 @@ const cat = (field: string, extra: object = {}) =>
 const qty = (extra: object = {}) =>
   ({ field: "y", type: "quantitative", ...extra });
 
-const SERIES_ENC = { field: "series", type: "nominal", title: null };
+/** !important set per encoding: vega-lite derives the symbol from the mark and ignores `config.legend.symbolType`. */
+const SQUARE_KEY = { symbolType: "square" };
+
+const SERIES_ENC = { field: "series", type: "nominal", title: null, legend: SQUARE_KEY };
 
 const BASE = {
   $schema: "https://vega.github.io/schema/vega-lite/v5.json",
@@ -190,7 +193,14 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
         color: SERIES_ENC,
       },
       layer: [
-        { mark: { type: "point", filled: true, size: 110, stroke: INK.frame, strokeWidth: 1 } },
+        {
+          mark: { type: "point", filled: true, stroke: INK.frame, strokeWidth: 1 },
+          // !important zero kept, so the area is 110 x the row's `size` multiplier.
+          encoding: {
+            size: { field: "size", type: "quantitative", legend: null,
+                    scale: { type: "linear", domain: [0, 1], range: [0, 110] } },
+          },
+        },
         label(ABOVE_POINT, { color: { value: INK.frame } }),
       ],
     },
@@ -268,14 +278,14 @@ function COMBO_SPEC(grouped: boolean): object {
         : { x: cat("x", { axis: { labelAngle: 0 } }) },
       layer: [
         // `sort: null` keeps the bar on the first colour and the marker on the second.
-        { mark: BAR, encoding: { y: qty(), color: { field: "barName", type: "nominal", title: null, sort: null } } },
+        { mark: BAR, encoding: { y: qty(), color: { field: "barName", type: "nominal", title: null, sort: null, legend: SQUARE_KEY } } },
         // !important stacking one value from zero plus bandPosition 0.5 centres the label without `transform`.
         label({ baseline: "middle" }, { y: qty({ stack: "zero", bandPosition: 0.5 }), color: { value: WHITE } }),
         {
           mark: { type: "tick", thickness: 3, stroke: INK.frame },
           encoding: {
             y: { field: "marker", type: "quantitative", title: null },
-            color: { field: "markerName", type: "nominal", title: null, sort: null },
+            color: { field: "markerName", type: "nominal", title: null, sort: null, legend: SQUARE_KEY },
           },
         },
         label(
@@ -292,6 +302,8 @@ function COMBO_SPEC(grouped: boolean): object {
               condition: { test: { field: "ratio", valid: true }, field: "ratio", type: "quantitative", format: ".1%" },
               value: "",
             },
+            // !important a one-value opacity key, not colour: a colour key would repaint the ratio text in a palette colour.
+            opacity: { datum: "ratio", type: "nominal", scale: { range: [1] }, legend: { ...SQUARE_KEY, title: null } },
           },
         ),
       ],

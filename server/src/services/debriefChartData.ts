@@ -14,10 +14,22 @@ export interface ChartRow {
   /** A label, or a number when `xAxis` is bound to a measure (a scatter). */
   x: string | number | null;
   y: number | null;
+  /** The scatter's area multiplier, from `sizeFactor`. */
+  size: number | null;
   series: string;
   /** !important the measure's KEY, so a pivot matches by key, never by its display label. */
   measure: string;
 }
+
+/** The scatter's area multiplier: 1 + y / 100, with y divided by 100 until it is under 300. */
+const sizeFactor = (y: number | null): number | null => {
+  if (y === null) return null;
+  let n = y;
+  while (n >= 300) {
+    n = n / 100;
+  }
+  return 1 + n / 100;
+};
 
 /** One combo row per x and series: `y` is yAxis[0] (the bar), `marker` is yAxis[1], `ratio` is their quotient. */
 export interface ComboRow {
@@ -255,11 +267,13 @@ export function buildChartRows({
           // !important a measure-grouped cell already names its measure; otherwise the combo reads every one.
           const cellMeasures = allMeasures && !slice.measure ? measures : [slice.measure ?? measures[0]];
           for (const m of cellMeasures) {
+            const y = measure(block, m, slice, payload.products);
             rows.push({
               x: xIsMeasure
                 ? measure(block, xAxis as string, slice, payload.products)
                 : xv.label,
-              y: measure(block, m, slice, payload.products),
+              y,
+              size: sizeFactor(y),
               series: gv.label,
               measure: m,
             });
