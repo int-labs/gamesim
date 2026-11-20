@@ -119,11 +119,8 @@ function toSegments(charts: DebriefChartDto[]): Segment[] {
     else segments.push({ category, charts: [chart] });
   }
 
-  // !important client-drawn segments come first, whatever their `order`.
-  return [
-    ...segments.filter((s) => s.charts.some((c) => c.clientChart)),
-    ...segments.filter((s) => !s.charts.some((c) => c.clientChart)),
-  ];
+  // !important segments follow the operator's `order`; client-drawn charts get no special place.
+  return segments;
 }
 
 function DebriefBody({
