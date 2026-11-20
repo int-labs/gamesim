@@ -2,9 +2,10 @@ import { Fragment } from 'react';
 import { useGame } from '@/state/store';
 import { setFinlitAxis, setPrice } from '@/engine/mockEngine';
 import {
-  CONFIG_TABLES, CHANNEL_META, PRICE_MAX,
-  type GenreId, type ConfigAxis, type ChannelId, type ProductionSpec,
+  CONFIG_TABLES, PRICE_MAX,
+  type GenreId, type ConfigAxis, type ProductionSpec,
 } from '@/data/finlit';
+import { stepMultiplier } from '@/gamesim/impacts';
 import { fieldCfg, optionUnitCost } from '@/engine/finlit/core/config/fieldConfig';
 import { PixelSelect } from '@/components/primitives/PixelSelect';
 import { fmt$, fmtInt } from '@/utils/format';
@@ -34,12 +35,8 @@ export function FinlitDesignControls({
     s.portfolio.productLines.find((l) => l.id === s.portfolio.activeLineId) ?? s.portfolio.productLines[0],
   );
   const apply = useGame((s) => s.apply);
-  // Channels from globalInputSelections (backend-driven, company-wide).
-  const activeChannels = useGame((s) =>
-    s.globalInputSelections
-      .filter((sel) => sel.key === 'channel' && sel.selectedStepKey != null)
-      .map((sel) => sel.selectedStepKey as ChannelId),
-  );
+  const selections = useGame((s) => s.globalInputSelections);
+  const availableGlobalInputs = useGame((s) => s.availableGlobalInputs);
 
   // !important the canvas popup owns the "no notebook" message for the whole screen.
   if (!line) return null;
@@ -47,7 +44,21 @@ export function FinlitDesignControls({
   const genre: GenreId = line.productId;
   // !important no defaults: an unchosen axis stays empty and shows its placeholder.
   const spec: Partial<ProductionSpec> = line.finlitSpec ?? {};
-  const channelLabel = activeChannels.map((c) => CHANNEL_META[c].name).join(' + ');
+  // !important named from the backend item matched by `inputId`; a channel at step 0 sells nothing and is left out.
+  const channelItems = availableGlobalInputs
+    .filter((g) => g.category === 'channel')
+    .flatMap((g) => g.inputs);
+  const channelLabel = selections
+    .flatMap((sel) => {
+      const item = channelItems.find((i) => String(i._id) === sel.inputId);
+      return item && stepMultiplier(item, sel.selectedStepKey) > 0 ? [item.label] : [];
+    })
+    .join(' + ') || 'no channel yet';
+  // !important the guard: the hint shows only while every channel sits at step 0.
+  const noChannel = !selections.some((sel) => {
+    const item = channelItems.find((i) => String(i._id) === sel.inputId);
+    return item != null && stepMultiplier(item, sel.selectedStepKey) !== 0;
+  });
 
   // !important unit cost and capacity come from the server's projection, with no local fallback.
   const proj = liveProjection?.byProduct.find((p) => p.productId === line?.productId) ?? null;
@@ -129,11 +140,13 @@ export function FinlitDesignControls({
       )}
 
       {/* Signpost, these used to live here; tell the player where they went. */}
-      <div className="hint border-t border-border-soft pt-3">
-        Selling through <span className="strong text-text-2">{channelLabel}</span>.
-        Set sales channels in <span className="strong text-text-2">Business ▸ Operations</span>,
-        and how many to make in <span className="strong text-text-2">Business ▸ Inventory</span>.
-      </div>
+      {noChannel && (
+        <div className="hint border-t border-border-soft pt-3">
+          Selling through <span className="strong text-text-2">{channelLabel}</span>.
+          Set sales channels in <span className="strong text-text-2">Business ▸ Operations</span>,
+          and how many to make in <span className="strong text-text-2">Business ▸ Inventory</span>.
+        </div>
+      )}
     </div>
   );
 }
