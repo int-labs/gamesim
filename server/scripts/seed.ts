@@ -201,7 +201,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
                     scale: { type: "linear", domain: [0, 1], range: [0, 110] } },
           },
         },
-        label(ABOVE_POINT, { color: { value: INK.frame } }),
+        // No value labels: points that sit close together would overlap theirs.
       ],
     },
   },
