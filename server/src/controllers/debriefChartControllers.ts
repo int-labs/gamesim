@@ -4,7 +4,9 @@ import { z } from "zod";
 import DebriefChart from "../models/debriefChart";
 import DebriefChartStyle from "../models/debriefChartStyle";
 import RoundNote from "../models/roundNote";
-import { renderChartToSvg, UnsafeSpecError } from "../services/chartRenderer";
+import {
+  DEFAULT_MONEY_LOCALE, MONEY_LOCALES, renderChartToSvg, UnsafeSpecError, type MoneyLocale,
+} from "../services/chartRenderer";
 import { CLIENT_CHART_KEYS } from "../constants/clientCharts";
 import { toMeasures } from "../services/debriefChartData";
 import { axisLabel, measureLabel } from "../services/debriefDimensions";
@@ -12,6 +14,11 @@ import { axisLabel, measureLabel } from "../services/debriefDimensions";
 /** A simulation type's configured charts. !important the axes are nullable: an unfinished chart saves and shows as-is. */
 
 const objectId = z.string().length(24);
+
+/** A region from the renderer's registry, so a chart can never name one it cannot print. */
+const localeSchema = z
+  .enum(MONEY_LOCALES.map((m) => m.locale) as [MoneyLocale, ...MoneyLocale[]])
+  .default(DEFAULT_MONEY_LOCALE);
 
 const chartSchema = z.object({
   simulationTypeId: objectId,
@@ -21,6 +28,8 @@ const chartSchema = z.object({
   // `each` fans out per notebook, `eachItem` per global input item in `categories`.
   scope:      z.enum(["overall", "each", "eachItem"]).default("overall"),
   categories: z.array(z.string().trim().min(1).max(64)).max(24).default([]),
+  valueFormat: z.enum(["plain", "moneyFmt"]).default("plain"),
+  locale:     localeSchema,
   chartStyle: objectId.nullish(),
   // An ENUM, not free text: a typo here produces a chart that is configured,
   // described and permanently blank, with nothing to say why.
@@ -125,6 +134,8 @@ const previewSchema = z.object({
   // !important the preview fans out too, or the operator approves one chart and the team sees four.
   scope:      z.enum(["overall", "each", "eachItem"]).default("overall"),
   categories: z.array(z.string().trim().min(1).max(64)).max(24).default([]),
+  valueFormat: z.enum(["plain", "moneyFmt"]).default("plain"),
+  locale:     localeSchema,
 });
 
 // POST /debrief-charts/preview: render a draft binding before it is saved.
@@ -193,6 +204,8 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
           labels: suffix
             ? { ...labels, title: `${labels.title ?? ""} · ${suffix}`.trim() }
             : labels,
+          valueFormat: parsed.data.valueFormat,
+          locale:      parsed.data.locale,
         });
         return { ...inst, svg, rows: datasets.rows.length };
       }),

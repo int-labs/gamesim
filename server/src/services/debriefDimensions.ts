@@ -1,11 +1,12 @@
 import Product from "../models/products";
 import GlobalInput from "../models/globalInputs";
 import { CLIENT_CHARTS, type ClientChart } from "../constants/clientCharts";
+import { MONEY_LOCALES } from "./chartRenderer";
 
 /** !important one definition of the "every key" suffix; lives here because debriefChartData imports from this module. */
 export const ALL_KEYS = "*";
 
-/** Units sold over customers obtained, per notebook; derived in `debriefChartData`, never stored. */
+/** Units sold over demand, per notebook; derived in `debriefChartData`, never stored. */
 export const FULFILMENT_RATE = "byProduct.fulfilmentRate";
 
 /** What a chart may plot, per simulation type. The operator's X / Y / grouping selects read this. */
@@ -29,7 +30,7 @@ const TEAM_MEASURES: DebriefDimension[] = [
   { field: "operatingExpenses", label: "Operating expenses", kind: "measure", source: "team" },
   { field: "netProfit",         label: "Net profit",         kind: "measure", source: "team" },
   { field: "unitsSold",         label: "Units sold",         kind: "measure", source: "team" },
-  { field: "customersObtained", label: "Customers obtained", kind: "measure", source: "team" },
+  { field: "customersObtained", label: "Demand",             kind: "measure", source: "team" },
   { field: "energy",            label: "Energy spent",       kind: "measure", source: "team" },
   { field: "cashOpening",       label: "Cash at open",       kind: "measure", source: "team" },
   { field: "cashClosing",       label: "Cash at close",      kind: "measure", source: "team" },
@@ -42,7 +43,7 @@ const PRODUCT_MEASURES: DebriefDimension[] = [
   { field: "byProduct.produced",          label: "Produced",                kind: "measure", source: "product" },
   { field: "byProduct.inventoryQty",      label: "Capacity",                kind: "measure", source: "product" },
   { field: "byProduct.closingStock",      label: "Closing stock",           kind: "measure", source: "product" },
-  { field: "byProduct.customersObtained", label: "Customers (notebook)",    kind: "measure", source: "product" },
+  { field: "byProduct.customersObtained", label: "Demand (notebook)",       kind: "measure", source: "product" },
   // Derived in `measure()` from unitsSold and customersObtained, never stored on the block
   { field: FULFILMENT_RATE,               label: "% customers fulfilled",   kind: "measure", source: "product" },
   { field: "byProduct.marketFit",         label: "Market fit",              kind: "measure", source: "product" },
@@ -91,6 +92,8 @@ export interface DebriefDimensions {
   clientCharts: ClientChart[];
   /** The type's GlobalInput container categories, what an `eachItem` chart fans over. */
   itemCategories: Array<{ category: string; label: string }>;
+  /** The regions a `moneyFmt` chart may print in, from the renderer's registry. */
+  moneyLocales: Array<{ locale: string; label: string }>;
 }
 
 /** The fixed dimensions plus the ones this type's own configuration creates. */
@@ -170,5 +173,7 @@ export const buildDebriefDimensions = async (
 
   const itemCategories = [...levers].map(([category, label]) => ({ category, label }));
 
-  return { categorical, measures, clientCharts: CLIENT_CHARTS, itemCategories };
+  const moneyLocales = MONEY_LOCALES.map(({ locale, label }) => ({ locale, label }));
+
+  return { categorical, measures, clientCharts: CLIENT_CHARTS, itemCategories, moneyLocales };
 };

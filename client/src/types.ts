@@ -302,6 +302,8 @@ export interface DebriefDimensions {
   clientCharts: ClientChart[];
   /** The type's GlobalInput container categories, what an `eachItem` chart fans over. */
   itemCategories: Array<{ category: string; label: string }>;
+  /** The regions a `moneyFmt` chart may print in, served by the renderer's registry. */
+  moneyLocales: Array<{ locale: string; label: string }>;
 }
 
 /** The gallery shape. `category` is the family, `name` the variant. */
@@ -316,6 +318,9 @@ export interface DebriefChartStyle {
 /** `overall` draws one chart; `each` one per notebook; `eachItem` one per global input item in `categories`. */
 export type ChartScope = "overall" | "each" | "eachItem";
 
+/** `moneyFmt` prints values and the axis in the regional money format of the chart's `locale`. */
+export type ValueFormat = "plain" | "moneyFmt";
+
 /** A configured chart as stored. Mirrors `models/debriefChart.ts`. */
 export interface DebriefChartConfig {
   _id: string;
@@ -326,6 +331,9 @@ export interface DebriefChartConfig {
   scope: ChartScope;
   /** Container categories an `eachItem` chart fans over. */
   categories: string[];
+  valueFormat: ValueFormat;
+  /** The region a `moneyFmt` chart prints in, e.g. "en-GB". */
+  locale: string;
   chartStyle: DebriefChartStyle | null;
   /** Set = the PLAYER draws it, and the shape and bindings are ignored. */
   clientChart: string | null;

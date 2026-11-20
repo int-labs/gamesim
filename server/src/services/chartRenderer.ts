@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import * as vega from "vega";
 import * as vegaLite from "vega-lite";
 
@@ -104,6 +105,61 @@ function applyLabels(node: any, labels: ChartLabels): any {
   return out;
 }
 
+/** How a chart prints its values. `moneyFmt` is the regional money format of the chart's `locale`. */
+export type ValueFormat = "plain" | "moneyFmt";
+
+/** A d3-format number locale, the shape Vega's per-view `locale` takes. */
+interface NumberLocale {
+  decimal:   string;
+  thousands: string;
+  grouping:  number[];
+  currency:  [string, string];
+}
+
+/** d3-format's own locale file for a region. */
+const d3Locale = (locale: string): NumberLocale =>
+  JSON.parse(readFileSync(require.resolve(`d3-format/locale/${locale}`), "utf8"));
+
+/** The regions a money chart may use. d3-format ships en-US and en-GB; it has no id-ID, so that one is written here. */
+export const MONEY_LOCALES = [
+  { locale: "en-US", label: "United States ($)",  number: () => d3Locale("en-US") },
+  { locale: "en-GB", label: "United Kingdom (£)", number: () => d3Locale("en-GB") },
+  {
+    locale: "id-ID", label: "Indonesia (Rp)",
+    number: (): NumberLocale => ({ decimal: ",", thousands: ".", grouping: [3], currency: ["Rp", ""] }),
+  },
+] as const;
+
+export type MoneyLocale = (typeof MONEY_LOCALES)[number]["locale"];
+
+export const DEFAULT_MONEY_LOCALE: MoneyLocale = "en-US";
+
+/** The region's d3 number locale; an unknown region falls to the default, never throws. */
+const numberLocaleFor = (locale: MoneyLocale): NumberLocale =>
+  (MONEY_LOCALES.find((m) => m.locale === locale) ?? MONEY_LOCALES[0]).number();
+
+/** The shapes' value-label format, the only one `moneyFmt` replaces; a ratio's `.1%` is left alone. */
+const VALUE_FORMAT = ",.2~f";
+
+/** Value labels and quantitative axes in money: d3's `$` prints the view locale's currency. */
+function applyMoney(node: any): any {
+  const walk = (n: any): any => {
+    if (Array.isArray(n)) return n.map(walk);
+    if (!n || typeof n !== "object") return n;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(n)) {
+      out[key] = key === "format" && value === VALUE_FORMAT ? "$,.2f" : walk(value);
+    }
+    return out;
+  };
+  const out = walk(node);
+  out.config = {
+    ...(out.config ?? {}),
+    axisQuantitative: { ...(out.config?.axisQuantitative ?? {}), format: "$,.2~f" },
+  };
+  return out;
+}
+
 export interface RenderChartArgs {
   /** The stored shape, parsed. */
   spec: unknown;
@@ -111,6 +167,10 @@ export interface RenderChartArgs {
   datasets?: Record<string, unknown[]>;
   /** The chart's name and what its axes are bound to. */
   labels?: ChartLabels;
+  /** The chart's own choice; the shape does not know what it plots. */
+  valueFormat?: ValueFormat;
+  /** The region a `moneyFmt` chart prints in. */
+  locale?: MoneyLocale;
 }
 
 /** Spec + rows to SVG. Throws `UnsafeSpecError` for executable surface. */
@@ -118,11 +178,15 @@ export async function renderChartToSvg({
   spec,
   datasets = {},
   labels,
+  valueFormat = "plain",
+  locale = DEFAULT_MONEY_LOCALE,
 }: RenderChartArgs): Promise<string> {
   assertSafeSpec(spec);
 
-  // Labels are our own strings, applied after the safety check.
-  const bound = applyLabels(bindDatasets(spec, datasets), labels ?? {});
+  // Labels and formats are our own strings, applied after the safety check.
+  const labelled = applyLabels(bindDatasets(spec, datasets), labels ?? {});
+  const money = valueFormat === "moneyFmt";
+  const bound = money ? applyMoney(labelled) : labelled;
 
   // Vega-Lite to Vega, then `renderer: "none"` + `toSVG`. No DOM, no canvas.
   const compiled = vegaLite.compile(bound as any).spec;
@@ -133,7 +197,9 @@ export async function renderChartToSvg({
     // Vega logs scale and encoding warnings to stderr otherwise, once per
     // chart per team per round.
     logLevel: vega.Error,
-  });
+    // !important per view, never the global `vega.formatLocale`, which would leak between concurrent renders.
+    ...(money ? { locale: { number: numberLocaleFor(locale) } } : {}),
+  } as vega.ViewOptions);
 
   try {
     return await view.toSVG();

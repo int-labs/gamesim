@@ -587,7 +587,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
      *
      * Collected as pairs rather than summed in place, because the split between
      * channels is not a free choice — a channel's `sales_channel` impact IS its
-     * share of the customers obtained, so the same weighting that decides how
+     * share of the demand, so the same weighting that decides how
      * many units sell decides which channel sold them. Summing the raw rates
      * would charge every channel's cut on every unit; a plain average would
      * ignore that a channel pulling 67% of demand carries 67% of the sales.

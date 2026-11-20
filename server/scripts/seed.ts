@@ -18,7 +18,8 @@ const LABEL_INK = [
   "#000000", "#ffffff", "#000000", "#ffffff",
 ];
 
-const FONT = "Pixelify Sans, ui-monospace, monospace";
+// The admin preview's font, so the slide and the slide creator read the same.
+const FONT = "ui-monospace, monospace";
 
 const CONFIG = {
   // Transparent: the panel behind it is the sheet's paper.
@@ -31,10 +32,12 @@ const CONFIG = {
     domainColor: INK.frame, tickColor: INK.frame,
     gridColor: INK.grid, gridOpacity: 0.7,
   },
+  // Below the plot, one entry per row, never truncated.
   legend: {
     labelFont: FONT, titleFont: FONT,
     labelColor: INK.label, titleColor: INK.label,
     labelFontSize: 16, titleFontSize: 16,
+    orient: "bottom", columns: 1, labelLimit: 0,
   },
   title: { font: FONT, color: INK.label, fontSize: 20 },
   range: { category: SERIES },
@@ -91,7 +94,7 @@ const INSIDE_LABEL = {
 /** Keeps a label's own colour scale from merging with the bars' palette. */
 const OWN_LABEL_SCALE = { resolve: { scale: { color: "independent" } } };
 
-/** Every shape the gallery ships with; all bind `@rows` (`{x, y, series}`) except the combo, which binds `@combo`. */
+/** Every shape the gallery ships with; all bind `@rows` (`{x, y, series}`) except the two combos, which bind `@combo`. */
 export const STYLES: { _id: string; category: string; name: string; spec: object }[] = [
   {
     _id: "a11ca11c0000000000000001",
@@ -241,12 +244,28 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
     _id: "a11ca11c0000000000000008",
     category: "combo chart",
     name: "Bar with target and ratio",
-    spec: {
+    // One bar, marker and ratio centred on each x; grouping is ignored.
+    spec: COMBO_SPEC(false),
+  },
+  {
+    _id: "a11ca11c0000000000000009",
+    category: "combo chart",
+    name: "Grouped bar with target and ratio",
+    // One sub-column per series under each x, e.g. x = round, grouping = team.
+    spec: COMBO_SPEC(true),
+  },
+];
+
+/** The combo's spec; `grouped` gives each series its own sub-column under x. */
+function COMBO_SPEC(grouped: boolean): object {
+  return {
       ...BASE,
       // !important one row per x and series from `toComboRows`: y = yAxis[0], marker = yAxis[1], ratio = y / marker.
       data: { values: "@combo" },
       // `xOffset` puts each series in its own sub-column, so bar, labels, marker and ratio line up per series.
-      encoding: { x: cat("x", { axis: { labelAngle: 0 } }), xOffset: cat("series") },
+      encoding: grouped
+        ? { x: cat("x", { axis: { labelAngle: 0 } }), xOffset: cat("series") }
+        : { x: cat("x", { axis: { labelAngle: 0 } }) },
       layer: [
         // `sort: null` keeps the bar on the first colour and the marker on the second.
         { mark: BAR, encoding: { y: qty(), color: { field: "barName", type: "nominal", title: null, sort: null } } },
@@ -276,9 +295,8 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
           },
         ),
       ],
-    },
-  },
-];
+  };
+}
 
 /** A scatter's rows: x is a MEASURE, so it arrives as a number. One point per
  *  team per notebook, which is what `priceVsUnits` draws. */

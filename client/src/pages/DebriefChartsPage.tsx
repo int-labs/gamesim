@@ -40,6 +40,8 @@ function Preview({ draft }: { draft: ChartDraft }) {
         // ships N + 1. The point of previewing is that they match.
         scope: draft.scope,
         categories: draft.scope === "eachItem" ? draft.categories : [],
+        valueFormat: draft.valueFormat,
+        locale: draft.locale,
       });
       setInstances(res.instances);
     } catch (e: any) {
@@ -97,7 +99,7 @@ export default function DebriefChartsPage() {
   const [selectedSimType, setSelectedSimType] = useState("");
   const [styles, setStyles] = useState<DebriefChartStyle[]>([]);
   const [charts, setCharts] = useState<DebriefChartConfig[]>([]);
-  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [], itemCategories: [] });
+  const [dims, setDims] = useState<DebriefDimensions>({ categorical: [], measures: [], clientCharts: [], itemCategories: [], moneyLocales: [] });
   const [form, setForm] = useState<ChartDraft>({ ...EMPTY_CHART });
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -123,7 +125,7 @@ export default function DebriefChartsPage() {
 
   // Per type, so it reloads with the gate: notebooks and lever keys differ by type.
   useEffect(() => {
-    if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [], itemCategories: [] }); return; }
+    if (!selectedSimType) { setDims({ categorical: [], measures: [], clientCharts: [], itemCategories: [], moneyLocales: [] }); return; }
     getDebriefDimensions(selectedSimType)
       .then(setDims)
       .catch((e: any) => setError(e.message));

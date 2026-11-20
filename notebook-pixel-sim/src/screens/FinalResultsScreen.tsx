@@ -372,7 +372,7 @@ export function FinalResultsScreen() {
                     <ServerStat label="Revenue" value={fmt$(latestFinancials?.revenue ?? 0)} tone="good" />
                     <ServerStat label="Gross Profit" value={fmt$(latestFinancials?.grossProfit ?? 0)} tone="good" />
                     <ServerStat label="COGS" value={fmt$(latestFinancials?.cogs ?? 0)} tone="cost" />
-                    <ServerStat label="Customers" value={fmtInt(Math.round(latestFinancials?.customersObtained ?? 0))} />
+                    <ServerStat label="Demand" value={fmtInt(Math.round(latestFinancials?.customersObtained ?? 0))} />
                     {/* "Strength", not "Market share": calcMarketModel multiplies a
                         competed share by each team's OWN declared projection, so the
                         values rank teams correctly but do not partition the market —

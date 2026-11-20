@@ -13,7 +13,9 @@ import DebriefChartModel from "../models/debriefChart";
 import { buildDebriefSeries, type DebriefPayload } from "../services/debriefSeries";
 import { chartDatasets, chartInstances, toMeasures, type ChartInstanceRef } from "../services/debriefChartData";
 import GlobalInput from "../models/globalInputs";
-import { renderChartToSvg } from "../services/chartRenderer";
+import {
+  DEFAULT_MONEY_LOCALE, MONEY_LOCALES, renderChartToSvg, type MoneyLocale, type ValueFormat,
+} from "../services/chartRenderer";
 import { axisLabel, measureLabel } from "../services/debriefDimensions";
 import { groupByRound, openingCashFrom } from "../services/roundReport";
 import TeamRunReport from "../models/teamRunReport";
@@ -42,6 +44,9 @@ interface DebriefChartDto {
   category:   string;
   order:      number;
   scope:      "overall" | "each" | "eachItem";
+  /** `moneyFmt` prints values and the axis in the regional money format of `locale`. */
+  valueFormat: ValueFormat;
+  locale:      MoneyLocale;
   /** The gallery shape's identity only. !important `shape` is never on the wire. */
   chartStyle: { _id: string; name: string; category: string } | null;
   /** Set means the client draws it; `svg` is null and the bindings are inert. */
@@ -158,6 +163,9 @@ const resolveCharts = async (
       category: c.category,
       order:    c.order,
       scope:    (c.scope ?? "overall") as "overall" | "each" | "eachItem",
+      valueFormat: (c.valueFormat === "moneyFmt" ? "moneyFmt" : "plain") as ValueFormat,
+      // A stored region the registry no longer offers prints in the default.
+      locale: (MONEY_LOCALES.find((m) => m.locale === c.locale)?.locale ?? DEFAULT_MONEY_LOCALE) as MoneyLocale,
       chartStyle: style
         ? {
             _id:      String(style._id),
@@ -212,6 +220,8 @@ const resolveCharts = async (
             x: axisLabel(base.xAxis),
             y: base.yAxis.map(measureLabel).join(" · ") || null,
           },
+          valueFormat: base.valueFormat,
+          locale:      base.locale,
         })
           .then((svg) => { dto.svg = svg; })
           // !important swallowed: one unrenderable shape must not fail the debrief for every team.

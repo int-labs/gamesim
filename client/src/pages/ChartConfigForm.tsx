@@ -1,5 +1,5 @@
 import { Badge, FilterChip, Input, Select, Text } from "@stratagem/design-system";
-import type { ChartScope, DebriefChartStyle, DebriefDimension, DebriefDimensions } from "../types";
+import type { ChartScope, DebriefChartStyle, DebriefDimension, DebriefDimensions, ValueFormat } from "../types";
 
 /** One chart's configuration as a form, shared by the Debrief Charts and Round Debrief pages. Fields only, not the buttons. */
 
@@ -11,18 +11,22 @@ export interface ChartDraft {
   scope:      ChartScope;
   /** Container categories an `eachItem` chart fans over. */
   categories: string[];
+  valueFormat: ValueFormat;
+  /** The region a `moneyFmt` chart prints in. */
+  locale:     string;
   chartStyle: string;
   /** Set means the player draws it, and the shape and bindings below are inert. */
   clientChart: string;
   xAxis:      string;
   /** The measures plotted. Several means the series is the MEASURE, picking a
-   *  second one is how "units sold vs customers obtained" is authored. */
+   *  second one is how "units sold vs demand" is authored. */
   yAxis:      string[];
   grouping:   string;
 }
 
 export const EMPTY_CHART: ChartDraft = {
   name: "", category: "", order: 0, scope: "overall", categories: [],
+  valueFormat: "plain", locale: "en-US",
   chartStyle: "", clientChart: "", xAxis: "", yAxis: [], grouping: "",
 };
 
@@ -33,6 +37,8 @@ export interface ChartConfigLike {
   order:    number;
   scope?:   ChartScope;
   categories?: string[];
+  valueFormat?: ValueFormat;
+  locale?:  string;
   chartStyle: { _id: string } | null;
   clientChart?: string | null;
   xAxis:    string | null;
@@ -48,6 +54,8 @@ export const draftFromChart = (c: ChartConfigLike): ChartDraft => ({
   order:      c.order,
   scope:      c.scope ?? "overall",
   categories: c.categories ?? [],
+  valueFormat: c.valueFormat ?? "plain",
+  locale:     c.locale ?? "en-US",
   chartStyle:  c.chartStyle?._id ?? "",
   clientChart: c.clientChart ?? "",
   xAxis:      c.xAxis ?? "",
@@ -63,6 +71,8 @@ export const chartPayload = (d: ChartDraft) => ({
   scope:      d.scope,
   // !important categories only mean something to `eachItem`; any other scope stores none.
   categories: d.scope === "eachItem" ? d.categories : [],
+  valueFormat: d.valueFormat,
+  locale:     d.locale,
   chartStyle:  d.chartStyle || null,
   clientChart: d.clientChart || null,
   xAxis:      d.xAxis || null,
@@ -288,6 +298,35 @@ export function ChartConfigFields({
                        value={draft.yAxis} onChange={(v) => set({ yAxis: v })} />
           <DimensionSelect label="grouping" options={dims.categorical}
                            value={draft.grouping} onChange={(v) => set({ grouping: v })} />
+          <span title="moneyFmt prints the values and the axis in the chosen region's money format; a ratio stays a percentage">
+            <Select<ValueFormat>
+              size="sm"
+              width="fit"
+              aria-label="value format"
+              value={draft.valueFormat}
+              onValueChange={(v) => v && set({ valueFormat: v })}
+              options={[
+                { value: "plain", label: "plain numbers" },
+                { value: "moneyFmt", label: "moneyFmt" },
+              ]}
+            />
+          </span>
+          {draft.valueFormat === "moneyFmt" && (
+            // !important a stored region the server no longer offers is kept and marked, never dropped.
+            <Select
+              size="sm"
+              width="fit"
+              aria-label="region"
+              value={draft.locale || null}
+              onValueChange={(v) => v && set({ locale: v })}
+              options={[
+                ...((dims.moneyLocales ?? []).some((m) => m.locale === draft.locale)
+                  ? []
+                  : [{ value: draft.locale, label: `${draft.locale} (missing)` }]),
+                ...(dims.moneyLocales ?? []).map((m) => ({ value: m.locale, label: m.label })),
+              ]}
+            />
+          )}
         </>
       )}
     </>

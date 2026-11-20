@@ -470,6 +470,9 @@ export interface DebriefChartDto {
   order: number;
   /** `each` emits one per notebook plus a summary; `eachItem` one per global input item. */
   scope: 'overall' | 'each' | 'eachItem';
+  /** Already applied by the server to `svg`; `moneyFmt` prints in the region of `locale`. */
+  valueFormat: 'plain' | 'moneyFmt';
+  locale: string;
   chartStyle: DebriefChartStyleDto | null;
   /** Set, and this client draws it; `svg` is null and the bindings are inert. */
   clientChart: string | null;

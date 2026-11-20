@@ -1,6 +1,6 @@
 import axios from "axios";
 import type {
-  ChartScope, DebriefChartConfig, DebriefChartStyle, DebriefDimensions, RoundDebrief, RoundNote,
+  ChartScope, DebriefChartConfig, DebriefChartStyle, DebriefDimensions, RoundDebrief, RoundNote, ValueFormat,
 } from "./types";
 
 const api = axios.create({
@@ -343,7 +343,7 @@ export const getDebriefDimensions = async (
   simulationTypeId: string,
 ): Promise<DebriefDimensions> => {
   const res = await api.get("/debrief-dimensions", { params: { simulationTypeId } });
-  return (res.data ?? { categorical: [], measures: [], clientCharts: [], itemCategories: [] }) as DebriefDimensions;
+  return (res.data ?? { categorical: [], measures: [], clientCharts: [], itemCategories: [], moneyLocales: [] }) as DebriefDimensions;
 };
 
 // Which charts a simulation type's debrief shows.
@@ -361,6 +361,8 @@ export const createDebriefChart = (data: {
   order?:      number;
   scope?:      ChartScope;
   categories?: string[];
+  valueFormat?: ValueFormat;
+  locale?:     string;
   chartStyle?: string | null;
   xAxis?:      string | null;
   yAxis?:      string[] | null;
@@ -381,6 +383,8 @@ export const previewDebriefChart = async (data: {
    *  emit. There is no summary instance, a summary is its own `overall` row. */
   scope?:       ChartScope;
   categories?:  string[];
+  valueFormat?: ValueFormat;
+  locale?:      string;
 }): Promise<{ instances: PreviewInstance[] }> => {
   const res = await api.post("/debrief-charts/preview", data);
   return res.data as { instances: PreviewInstance[] };
@@ -401,6 +405,7 @@ export const updateDebriefChart = (
   id: string,
   data: Partial<{
     name: string; category: string; order: number; scope: ChartScope; categories: string[];
+    valueFormat: ValueFormat; locale: string;
     chartStyle: string | null; clientChart: string | null;
     xAxis: string | null; yAxis: string[]; grouping: string | null;
   }>,

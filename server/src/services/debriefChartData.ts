@@ -315,7 +315,7 @@ export interface ChartInstanceRef {
   inputLabel:  string | null;
 }
 
-/** Customers obtained for one notebook, summed over every team, in the payload's own round. */
+/** Demand for one notebook, summed over every team, in the payload's own round. */
 const notebookDemand = (payload: DebriefPayload, productId: string): number => {
   const here = payload.rounds.find((r) => r.roundNumber === payload.roundNumber);
   if (!here) return 0;

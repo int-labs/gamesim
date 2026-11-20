@@ -457,7 +457,7 @@ export default function TeamDecisionPage() {
     };
 
     const previewRows: [string, string | undefined][] = preview ? [
-        ["Customers Obtained", preview.customersObtained?.toFixed(2)],
+        ["Demand", preview.customersObtained?.toFixed(2)],
         ["Selling Price", preview.sellingPrice?.toFixed(2)],
         ["Product Score (will be hidden)", preview.dynamicPrice?.toFixed(2)],
         ["Estimated Customer Purchase Rate (will be hidden)", preview.productScore?.toFixed(4)],
