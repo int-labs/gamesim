@@ -23,7 +23,8 @@ export interface DebriefDimension {
 /** Fixed by the model, the team-level figures on `DebriefTeamRound`. */
 const TEAM_MEASURES: DebriefDimension[] = [
   { field: "revenue",           label: "Revenue",            kind: "measure", source: "team" },
-  { field: "cogs",              label: "COGS",               kind: "measure", source: "team" },
+  { field: "cogs",              label: "COGS after T&O",     kind: "measure", source: "team" },
+  { field: "cogsBeforeTnO",     label: "COGS before T&O",    kind: "measure", source: "team" },
   { field: "grossProfit",       label: "Gross profit",       kind: "measure", source: "team" },
   { field: "operatingExpenses", label: "Operating expenses", kind: "measure", source: "team" },
   { field: "netProfit",         label: "Net profit",         kind: "measure", source: "team" },

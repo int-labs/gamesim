@@ -245,6 +245,8 @@ export interface DebriefTeamRoundDto {
   cashClosing: number | null;
   revenue: number | null;
   cogs: number | null;
+  /** COGS at the unit cost before cost-reduction impacts; `cogs` is the after-T&O figure. */
+  cogsBeforeTnO: number | null;
   grossProfit: number | null;
   operatingExpenses: number | null;
   netProfit: number | null;

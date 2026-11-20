@@ -209,7 +209,7 @@ function PageRail({
           because the energy gate, the cash gate, the case-study modal and the
           reference sheet are shared by all four blocks. */}
       {page === 'capacity' && (
-        <StudioPanel liveProjection={liveProjection} recalc={recalc} sections={['hiring', 'vendor']} />
+        <StudioPanel liveProjection={liveProjection} recalc={recalc} sections={['hiring' /* , 'vendor' */]} />
       )}
       {page === 'sales' && (
         <StudioPanel liveProjection={liveProjection} recalc={recalc} sections={['channels', 'budget']} />
@@ -237,7 +237,7 @@ function PageTabs({ page, onChange }: { page: MainPage; onChange: (p: MainPage) 
     { id: 'financial' as const, label: 'Financial', icon: ReceiptText },
     { id: 'notebook' as const, label: 'Notebook', icon: BookOpen },
     { id: 'inventory' as const, label: 'Inventory & Production', icon: Boxes },
-    { id: 'capacity' as const, label: 'Capacity & R&D', icon: Factory },
+    { id: 'capacity' as const, label: 'Investment', icon: Factory },
     { id: 'sales' as const, label: 'Sales & Marketing', icon: Megaphone },
   ];
   return (

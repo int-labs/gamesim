@@ -134,6 +134,8 @@ export interface DebriefTeamRound {
   cashClosing:       number | null;
   revenue:           number | null;
   cogs:              number | null;
+  /** COGS at the unit cost before cost-reduction impacts; `cogs` is the after-T&O figure. */
+  cogsBeforeTnO:     number | null;
   grossProfit:       number | null;
   operatingExpenses: number | null;
   netProfit:         number | null;
@@ -454,6 +456,7 @@ export function buildDebriefSeries(input: DebriefInput): DebriefPayload {
           cashClosing:       cash?.closing.get(t) ?? null,
           revenue,
           cogs:              sumScored(dec, "COGS"),
+          cogsBeforeTnO:     sumScored(dec, "COGSBeforeTnO"),
           grossProfit:       sumScored(dec, "grossProfit"),
           operatingExpenses: sumScored(dec, "operatingExpenses"),
           netProfit:         net,

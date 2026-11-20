@@ -213,6 +213,8 @@ export interface TeamFinancials {
   customersObtainedAugment: number;
   /** The final capacity multiplier, so one item's share of it can be reversed. */
   inventoryAugmentation:    number;
+  /** COGS at the unit cost before cost-reduction impacts. Debrief only; `COGS` is the after-T&O figure. */
+  COGSBeforeTnO:            number;
 }
 
 /** The metric block persisted under `projections[productId]`.
@@ -252,6 +254,7 @@ export const toProjectionMetrics = (f: TeamFinancials) => ({
   globalInputCosts:  f.globalInputCosts,
   customersObtainedAugment: f.customersObtainedAugment,
   inventoryAugmentation:    f.inventoryAugmentation,
+  COGSBeforeTnO:            f.COGSBeforeTnO,
 });
 
 /** Named so storing collections can declare it honestly — two of the metrics
@@ -570,6 +573,9 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       dynamicCost = buildCost * qualityMult;
       productCostBreakdown.push({ key: "quality", label: "Quality", value: dynamicCost - buildCost });
     }
+
+    // The unit cost before any cost-reduction impact; COGS before T&O is built on it.
+    const dynamicCostBeforeTnO = dynamicCost;
 
     let inventoryAugmentation = 1;
     let customersObtainedAugment = baseVariables.customersObtainedBase ?? 0.3;
@@ -901,6 +907,8 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
     // min(customersObtained, inventoryQty), which is what that branch computed.
     const revenue           = unitsSold * sellingPrice;
     const COGS              = unitCOGS + globalInputCOGS + consignmentCogs;
+    // Debrief only: the same build at the unit cost before cost-reduction impacts; nothing else reads it.
+    const COGSBeforeTnO     = produced * dynamicCostBeforeTnO + globalInputCOGS + consignmentCogs;
     const grossProfit       = revenue - COGS;
     const operatingExpenses = consignmentOpex + globalInputOpex;
     const operatingProfit   = grossProfit - operatingExpenses;
@@ -928,6 +936,7 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       globalInputCosts,
       customersObtainedAugment,
       inventoryAugmentation,
+      COGSBeforeTnO,
     };
   });
 
