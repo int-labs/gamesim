@@ -212,11 +212,11 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
           { baseline: "middle" },
           { y: qty({ stack: "zero", bandPosition: 0.5 }), ...STACK_LABEL(WHITE) },
         ),
-        // !important no `color` here, so `sum` runs over the whole column.
+        // !important no `color` here, so `sum` runs over the whole column; a negative pixel y puts it above the plot frame.
         label(
-          { baseline: "bottom", dy: -6, fontSize: 16, color: INK.frame },
+          { baseline: "bottom", fontSize: 16, color: INK.label },
           {
-            y: { aggregate: "sum", field: "y", type: "quantitative" },
+            y: { value: -10 },
             text: { aggregate: "sum", field: "y", type: "quantitative", format: ",.2~f" },
           },
         ),
