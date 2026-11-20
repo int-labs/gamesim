@@ -21,14 +21,14 @@ export interface ChartRow {
   measure: string;
 }
 
-/** The scatter's area multiplier: 1 + y / 25, with y divided by 100 until it is under 50. */
+/** The scatter's area multiplier: 1 + y / 10, with y divided by 50 until it is under 50. */
 const sizeFactor = (y: number | null): number | null => {
   if (y === null) return null;
   let n = y;
   while (n >= 50) {
-    n = n / 100;
+    n = n / 50;
   }
-  return 1 + n / 25;
+  return 1 + n / 10;
 };
 
 /** One combo row per x and series: `y` is yAxis[0] (the bar), `marker` is yAxis[1], `ratio` is their quotient. */
