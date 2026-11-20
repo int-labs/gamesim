@@ -67,14 +67,25 @@ const TILT_DEG = 45;
 export function PixelVocPlot({ rows, height = 300, colW = 86, youId = null }: Props) {
   // !important measured, not estimated: `chart-label` is a fluid pixel face, so a per-glyph constant misjudges it.
   const labelRefs = useRef<(SVGTextElement | null)[]>([]);
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const [widestLabel, setWidestLabel] = useState(0);
   useLayoutEffect(() => {
-    const measure = () =>
+    let live = true;
+    const measure = () => {
+      if (!live) return;
       setWidestLabel(Math.max(0, ...labelRefs.current.map((t) => t?.getComputedTextLength() ?? 0)));
+    };
     measure();
-    // The type scale follows the viewport, so a resize changes the label lengths.
+    // !important a hidden plot measures 0, so re-measure when it is shown, resized, or the pixel font lands.
+    const observer = new ResizeObserver(measure);
+    if (svgRef.current) observer.observe(svgRef.current);
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    void document.fonts?.ready.then(measure);
+    return () => {
+      live = false;
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, [rows]);
 
   if (rows.length === 0) return <EmptyPlot width={360} height={120} />;
@@ -99,6 +110,7 @@ export function PixelVocPlot({ rows, height = 300, colW = 86, youId = null }: Pr
 
   return (
     <svg
+      ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
       // NOT "none": it stretches the viewBox to the container and squashes the
       // label glyphs. Uniform scaling only.

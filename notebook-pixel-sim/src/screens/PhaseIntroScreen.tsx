@@ -7,15 +7,13 @@ import {
   useReducedMotion,
 } from 'framer-motion';
 import { useGame } from '@/state/store';
-import { A } from '@/assets';
+import { A, ROUND_BG, forRound } from '@/assets';
 import { PHASE_INTRO, LEARNING_POINTS } from '@/content/copy';
 import { playSfx } from '@/audio/audioManager';
 import { HeartRain, patHeartRain, originOf } from '@/components/fx/HeartRain';
 import clsx from 'clsx';
 import { useTotalRounds } from '@/gamesim/GamesimProvider';
 
-// Round art is a cycled list, not a table keyed 1/2/3: the round count is operator-configured.
-const ROUND_BG = [A.env.round1, A.env.round2, A.env.round3, A.env.round4];
 
 // Full-body poses only, all gesturing toward screen-right where the panel sits.
 const ROUND_POSE = [
@@ -26,9 +24,6 @@ const ROUND_POSE = [
   A.mascot.poses.idle_soft_wave,
 ];
 
-/** Cycle a list by 1-based round, so it never runs out and never returns undefined. */
-const forRound = <T,>(list: readonly T[], phase: number): T =>
-  list[(Math.max(1, phase) - 1) % list.length];
 
 // Splits the authored title into its eyebrow half and its theme half.
 function splitTitle(title: string): [string, string] {

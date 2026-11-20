@@ -19,6 +19,7 @@ import {
 import { diminishingReturnsFactor } from '@/engine/finlit/core/mathUtils';
 import { RoundNotesCard } from '@/gamesim/OperatorContent';
 import { LEARNING_POINTS, PHASE_INTRO } from '@/content/copy';
+import { ROUND_BG, forRound } from '@/assets';
 import { fmt$, fmtInt, fmtPct } from '@/utils/format';
 
 /** Limbo: the round debrief, read after the operator calculates and before the next phase. Arranges only; the server draws. */
@@ -136,8 +137,16 @@ function DebriefBody({
   return (
     // A full screen with its own opaque surface, or a long debrief cannot scroll.
     <div className="absolute inset-0 z-10 overflow-y-auto bg-cream-100">
+      {/* The round intro's scene art, fixed behind the scroll and blurred under the page's cream. */}
+      <img
+        src={forRound(ROUND_BG, roundNumber + 1)}
+        alt=""
+        draggable={false}
+        className="pointer-events-none fixed inset-0 h-full w-full object-cover"
+      />
+      <div className="pointer-events-none fixed inset-0 bg-cream-100/60 backdrop-blur-md" />
       {/* 80vw, not a `max-w-*` step, so the page scales with the rail and the stage. */}
-      <div className="flex flex-col gap-4 p-3 sm:p-4 w-[80vw] mx-auto">
+      <div className="relative flex flex-col gap-4 p-3 sm:p-4 w-[80vw] mx-auto">
         <header className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <div className="eyebrow eyebrow-sm text-ink-700">Round debrief</div>

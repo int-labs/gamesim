@@ -292,3 +292,10 @@ export const A = {
 } as const;
 
 export type AssetMap = typeof A;
+
+// Round art is a cycled list, not a table keyed 1/2/3: the round count is operator-configured.
+export const ROUND_BG = [A.env.round1, A.env.round2, A.env.round3, A.env.round4];
+
+/** Cycle a list by 1-based round, so it never runs out and never returns undefined. */
+export const forRound = <T,>(list: readonly T[], phase: number): T =>
+  list[(Math.max(1, phase) - 1) % list.length];
