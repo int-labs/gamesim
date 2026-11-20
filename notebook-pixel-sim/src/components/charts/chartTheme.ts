@@ -19,19 +19,17 @@ export const CHART_INK = {
 /**
  * Series colours, in assignment order.
  *
- * Chosen for separation at small size on cream paper; the first three match the
- * operator's own chart mockups so a reviewer comparing them sees the same
- * companies in the same colours.
+ * The first three are the operator's navy, pink and yellow; mirrors `SERIES` in server/scripts/seed.ts.
  */
 export const SERIES_COLORS = [
-  '#4C72B0',
+  '#2e2d7e',
+  '#f9137d',
+  '#fee606',
   '#DD8452',
   '#55A868',
-  '#C44E52',
   '#9B59B6',
-  '#8C8C8C',
-  '#CCB974',
   '#64B5CD',
+  '#4C72B0',
 ] as const;
 
 /**
@@ -67,7 +65,8 @@ export function buildTeamPalette(teamIds: readonly string[]): Map<string, string
  */
 export const SIGN_COLORS = {
   positive: SERIES_COLORS[0],
-  negative: SERIES_COLORS[3],
+  // !important a loss stays red; it is not a series colour.
+  negative: '#C44E52',
 } as const;
 
 /** A colour for a team that the palette has never seen — a defensive fallback,

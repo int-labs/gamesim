@@ -8,8 +8,14 @@ import { renderChartToSvg } from "../src/services/chartRenderer";
 const INK = { frame: "#2a2017", grid: "#bfae90", label: "#5a4a37" };
 
 const SERIES = [
-  "#4C72B0", "#DD8452", "#55A868", "#C44E52",
-  "#9B59B6", "#8C8C8C", "#CCB974", "#64B5CD",
+  "#2e2d7e", "#f9137d", "#fee606", "#DD8452",
+  "#55A868", "#9B59B6", "#64B5CD", "#4C72B0",
+];
+
+/** The label ink inside each series' bar, index for index with `SERIES`: black on yellow, white elsewhere. */
+const LABEL_INK = [
+  "#ffffff", "#ffffff", "#000000", "#ffffff",
+  "#ffffff", "#ffffff", "#ffffff", "#ffffff",
 ];
 
 const FONT = "Pixelify Sans, ui-monospace, monospace";
@@ -77,7 +83,12 @@ const STACK_LABEL = (ink: string) => ({
   color: { ...SERIES_ENC, legend: null, scale: { range: [ink] } },
 });
 
-/** Keeps a stacked label's one-colour scale from merging with the bars' palette. */
+/** !important same field and sort as the bars, so each label takes its own bar's `LABEL_INK` entry. */
+const INSIDE_LABEL = {
+  color: { ...SERIES_ENC, legend: null, scale: { range: LABEL_INK } },
+};
+
+/** Keeps a label's own colour scale from merging with the bars' palette. */
 const OWN_LABEL_SCALE = { resolve: { scale: { color: "independent" } } };
 
 /** Every shape the gallery ships with; all bind `@rows` (`{x, y, series}`) except the combo, which binds `@combo`. */
@@ -96,8 +107,9 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       },
       layer: [
         { mark: BAR },
-        label(INSIDE_TOP, { color: { value: WHITE } }),
+        label(INSIDE_TOP, INSIDE_LABEL),
       ],
+      ...OWN_LABEL_SCALE,
     },
   },
   {
@@ -114,7 +126,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       },
       layer: [
         { mark: BAR },
-        label(INSIDE_TOP, STACK_LABEL(WHITE)),
+        label(INSIDE_TOP, INSIDE_LABEL),
       ],
       ...OWN_LABEL_SCALE,
     },
@@ -134,8 +146,9 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       layer: [
         { mark: BAR },
         // Inside the bar's right end, the horizontal equivalent of inside-top.
-        label({ align: "right", baseline: "middle", dx: -4 }, { color: { value: WHITE } }),
+        label({ align: "right", baseline: "middle", dx: -4 }, INSIDE_LABEL),
       ],
+      ...OWN_LABEL_SCALE,
     },
   },
   {
@@ -210,7 +223,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
         // !important `bandPosition: 0.5` centres each label in its own segment.
         label(
           { baseline: "middle" },
-          { y: qty({ stack: "zero", bandPosition: 0.5 }), ...STACK_LABEL(WHITE) },
+          { y: qty({ stack: "zero", bandPosition: 0.5 }), ...INSIDE_LABEL },
         ),
         // !important no `color` here, so `sum` runs over the whole column; a negative pixel y puts it above the plot frame.
         label(
