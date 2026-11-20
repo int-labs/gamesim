@@ -144,6 +144,8 @@ export interface DebriefTeamRound {
   /** category → incurred cost. Operator-owned FREE TEXT: take the keys from
    *  here, never from a hardcoded list, or renaming a row drops a cost band. */
   costByCategory:    Record<string, number>;
+  /** item id (or `consignment_opex`) → that item's OpEx; empty for rounds scored before contributors carried `inputId`. */
+  opexByItem:        Record<string, number>;
   /** container label → energy spent on it. The TnO breakdown. */
   energyByLever:     Record<string, number>;
   byProduct:         Record<string, DebriefTeamProduct>;
@@ -228,6 +230,39 @@ function costsByCategory(dec: ReportDecision | null): Record<string, number> {
     };
     for (const row of m.incurredCosts ?? []) add(row.category, row.incurredCost);
     for (const row of m.globalInputCosts ?? []) add(row.category, row.incurredCost);
+  }
+  return out;
+}
+
+/** The channel cut's key in `opexByItem`; every other key is a global input item's id. */
+export const CONSIGNMENT_OPEX = "consignment_opex";
+
+/** OpEx per item across the team's products: the opex rows' contributors by `inputId`, plus the channel cut. */
+function opexByItem(dec: ReportDecision | null): Record<string, number> {
+  const out: Record<string, number> = {};
+  const add = (key: unknown, value: unknown) => {
+    const k = String(key ?? "").trim();
+    const n = Number(value);
+    if (!k || !Number.isFinite(n)) return;
+    out[k] = (out[k] ?? 0) + n;
+  };
+
+  for (const metrics of Object.values(dec?.scored ?? {})) {
+    const m = metrics as unknown as {
+      incurredCosts?:    Array<{ key?: unknown; treatment?: unknown; incurredCost?: unknown }>;
+      globalInputCosts?: Array<{
+        treatment?:    unknown;
+        contributors?: Array<{ inputId?: unknown; incurredCost?: unknown }>;
+      }>;
+    };
+    for (const row of m.incurredCosts ?? []) {
+      if (row.treatment === "opex" && row.key === CONSIGNMENT_OPEX) add(CONSIGNMENT_OPEX, row.incurredCost);
+    }
+    for (const row of m.globalInputCosts ?? []) {
+      if (row.treatment !== "opex") continue;
+      // !important a contributor scored before `inputId` existed has none and is skipped, never matched by label.
+      for (const c of row.contributors ?? []) add(c.inputId, c.incurredCost);
+    }
   }
   return out;
 }
@@ -463,6 +498,7 @@ export function buildDebriefSeries(input: DebriefInput): DebriefPayload {
           unitsSold:         sumScored(dec, "unitsSold"),
           customersObtained: sumScored(dec, "customersObtained"),
           costByCategory:    costsByCategory(dec),
+          opexByItem:        opexByItem(dec),
           energyByLever,
           byProduct,
         };

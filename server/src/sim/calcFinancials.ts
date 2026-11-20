@@ -169,6 +169,8 @@ export interface GlobalInputCostBreakdown {
   incurredCost: number;
   /** The items summed into this row, so the sheet can show what made it up. */
   contributors: Array<{
+    /** The item's `globalInputItemId`, so a reader matches by id, never by label. */
+    inputId:      string;
     label:        string;
     /** The selected option's multiplier; 1 for a radio/checkbox. */
     stepValue:    number;
@@ -878,8 +880,9 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       // Listed per SIDE, and only when it actually charged: an item with
       // cogs 0 / opex 40 belongs to the OpEx row alone, and an unselected one
       // (step 0) belongs to neither.
-      if (cogs !== 0) row.cogsItems.push({ label: entry.label, stepValue: m, incurredCost: cogs });
-      if (opex !== 0) row.opexItems.push({ label: entry.label, stepValue: m, incurredCost: opex });
+      const inputId = String(entry.globalInputItemId);
+      if (cogs !== 0) row.cogsItems.push({ inputId, label: entry.label, stepValue: m, incurredCost: cogs });
+      if (opex !== 0) row.opexItems.push({ inputId, label: entry.label, stepValue: m, incurredCost: opex });
 
       globalInputCOGS += cogs;
       globalInputOpex += opex;

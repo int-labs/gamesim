@@ -2,6 +2,18 @@ import Product from "../models/products";
 import GlobalInput from "../models/globalInputs";
 import { CLIENT_CHARTS, type ClientChart } from "../constants/clientCharts";
 import { MONEY_LOCALES } from "./chartRenderer";
+import { CONSIGNMENT_OPEX, type DebriefItem } from "./debriefSeries";
+
+/** The per-item OpEx measures' prefix; the key after it is an item id, `consignment_opex` or `ALL_KEYS`. */
+export const OPEX_ITEM = "opexByItem.";
+
+/** An OpEx item measure's label; the item label comes from the live items, matched by id. */
+const opexItemLabel = (key: string, items: DebriefItem[]): string => {
+  if (key === ALL_KEYS) return "OpEx — all items";
+  if (key === CONSIGNMENT_OPEX) return "OpEx — Channel consignment";
+  const hit = items.find((i) => i.inputId === key);
+  return `OpEx — ${hit ? hit.label : key}`;
+};
 
 /** !important one definition of the "every key" suffix; lives here because debriefChartData imports from this module. */
 export const ALL_KEYS = "*";
@@ -69,19 +81,20 @@ const STATIC_LABELS = new Map(
   [...TEAM_MEASURES, ...PRODUCT_MEASURES].map((d) => [d.field, d.label] as const),
 );
 
-/** A measure's display name. Synchronous and registry-free on purpose. */
-export const measureLabel = (field: string): string => {
+/** A measure's display name. Synchronous; `items` names the per-item OpEx measures. */
+export const measureLabel = (field: string, items: DebriefItem[] = []): string => {
   const hit = STATIC_LABELS.get(field);
   if (hit) return hit;
+  if (field.startsWith(OPEX_ITEM)) return opexItemLabel(field.slice(OPEX_ITEM.length), items);
   const dot = field.indexOf(".");
   return dot >= 0 ? field.slice(dot + 1) : field;
 };
 
 /** !important the axis title is a property of the binding, not of the shape. */
-export const axisLabel = (field: string | null | undefined): string | null => {
+export const axisLabel = (field: string | null | undefined, items: DebriefItem[] = []): string | null => {
   if (!field) return null;
   const dim = CATEGORICALS.find((d) => d.field === field);
-  return dim ? dim.label : measureLabel(field);
+  return dim ? dim.label : measureLabel(field, items);
 };
 
 export interface DebriefDimensions {
@@ -121,6 +134,13 @@ export const buildDebriefDimensions = async (
     if (key && !levers.has(key)) levers.set(key, g.label ?? key);
   }
 
+  // Every live item, keyed by id; the OpEx measures name them.
+  const items: DebriefItem[] = (globalInputs as any[]).flatMap((g) =>
+    (g?.inputs ?? []).map((i: any) => ({
+      inputId: String(i._id), key: i.key, label: i.label ?? i.key, category: g.category,
+    })),
+  );
+
   const measures: DebriefDimension[] = [
     ...TEAM_MEASURES,
     ...PRODUCT_MEASURES,
@@ -156,6 +176,13 @@ export const buildDebriefDimensions = async (
     ...[...levers].map(([key, label]): DebriefDimension => ({
       field: `costByCategory.${key}`,
       label: `Cost — ${label}`,
+      kind: "measure",
+      source: "cost",
+    })),
+    // Total first, then the channel cut, then one per live item.
+    ...[ALL_KEYS, CONSIGNMENT_OPEX, ...items.map((i) => i.inputId)].map((key): DebriefDimension => ({
+      field: `${OPEX_ITEM}${key}`,
+      label: opexItemLabel(key, items),
       kind: "measure",
       source: "cost",
     })),

@@ -4,8 +4,8 @@ import Decision from "../models/decisions";
 import Simulation from "../models/simulations";
 import PlayerConfig from "../models/playerConfig";
 import GlobalInput from "../models/globalInputs";
-import { buildDebriefSeries, type DebriefPayload } from "./debriefSeries";
-import { ALL_KEYS, FULFILMENT_RATE, measureLabel } from "./debriefDimensions";
+import { buildDebriefSeries, type DebriefItem, type DebriefPayload } from "./debriefSeries";
+import { ALL_KEYS, FULFILMENT_RATE, OPEX_ITEM, measureLabel } from "./debriefDimensions";
 import { groupByRound, openingCashFrom } from "./roundReport";
 
 /** Turn a chart's bindings into the rows its shape plots. One builder, two callers: the preview and the slide. */
@@ -155,6 +155,9 @@ function measure(
   const cost = at("costByCategory.");
   if (cost !== null) return keyedTotal(teamBlock.costByCategory, slice.lever ?? cost);
 
+  const opexItem = at(OPEX_ITEM);
+  if (opexItem !== null) return keyedTotal(teamBlock.opexByItem, opexItem);
+
   const spec = at("spec.");
   if (spec !== null) {
     // Spec values are stored by `fieldId`, and a chart binds by `key`, the
@@ -234,7 +237,7 @@ export function buildChartRows({
         if (dim === "lever")   return leverKeys.map((k) => ({ label: k, slice: { lever: k } }));
         if (dim === "spec")    return [...specKeys].map(([k, l]) => ({ label: l, slice: { spec: k } }));
         if (dim === "measure") {
-          return measures.map((m) => ({ label: measureLabel(m), slice: { measure: m } }));
+          return measures.map((m) => ({ label: measureLabel(m, payload.items), slice: { measure: m } }));
         }
         if (dim === "product") {
           // A per-notebook INSTANCE is already narrowed to one notebook, so the
@@ -287,7 +290,7 @@ export function buildChartRows({
 }
 
 /** Pivot all-measure rows to one row per x and series; the ratio is bar / marker, null when the marker is missing or zero. */
-export function toComboRows(rows: ChartRow[], measures: string[]): ComboRow[] {
+export function toComboRows(rows: ChartRow[], measures: string[], items: DebriefItem[] = []): ComboRow[] {
   const [barKey, markerKey] = measures;
   if (!barKey || !markerKey) return [];
 
@@ -297,7 +300,7 @@ export function toComboRows(rows: ChartRow[], measures: string[]): ComboRow[] {
     const key = `${String(r.x)}|${r.series}`;
     const row = byCell.get(key) ?? {
       x: r.x, series: r.series, y: null, marker: null, ratio: null,
-      barName: measureLabel(barKey), markerName: measureLabel(markerKey),
+      barName: measureLabel(barKey, items), markerName: measureLabel(markerKey, items),
     };
     if (r.measure === barKey) row.y = r.y;
     if (r.measure === markerKey) row.marker = r.y;
@@ -315,7 +318,7 @@ export function chartDatasets(args: BuildRowsArgs): ChartDatasets {
   return {
     rows:  buildChartRows(args),
     // The chart's own x and grouping, with every bound measure read in each cell.
-    combo: toComboRows(buildChartRows({ ...args, allMeasures: true }), toMeasures(args.yAxis)),
+    combo: toComboRows(buildChartRows({ ...args, allMeasures: true }), toMeasures(args.yAxis), args.payload.items),
   };
 }
 

@@ -259,7 +259,8 @@ export interface GlobalInputCostEntryDto {
   label: string;
   treatment: 'cogs' | 'opex';
   incurredCost: number;
-  contributors: Array<{ label: string; stepValue: number; incurredCost: number }>;
+  /** `inputId` is absent on rounds scored before it was stored. */
+  contributors: Array<{ inputId?: string; label: string; stepValue: number; incurredCost: number }>;
 }
 
 export interface ProductProjectionDto {
@@ -435,6 +436,8 @@ export interface DebriefTeamRoundDto {
   customersObtained: number | null;
   /** Operator-owned FREE TEXT keys. Read them from the data; never hardcode. */
   costByCategory: Record<string, number>;
+  /** Item id (or `consignment_opex`) to that item's OpEx. */
+  opexByItem: Record<string, number>;
   /** Lever container → energy spent. The TnO breakdown. */
   energyByLever: Record<string, number>;
   byProduct: Record<string, DebriefTeamProductDto>;

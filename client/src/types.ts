@@ -254,6 +254,8 @@ export interface DebriefTeamRoundDto {
   customersObtained: number | null;
   /** Operator-owned FREE TEXT keys, read them from the data, never hardcode. */
   costByCategory: Record<string, number>;
+  /** Item id (or `consignment_opex`) to that item's OpEx. */
+  opexByItem: Record<string, number>;
   energyByLever: Record<string, number>;
   byProduct: Record<string, DebriefTeamProductDto>;
 }

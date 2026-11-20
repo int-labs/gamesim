@@ -217,8 +217,8 @@ const resolveCharts = async (
           datasets,
           // Axes only, no title: every surface draws the chart's name as its own heading.
           labels: {
-            x: axisLabel(base.xAxis),
-            y: base.yAxis.map(measureLabel).join(" · ") || null,
+            x: axisLabel(base.xAxis, payload.items),
+            y: base.yAxis.map((m) => measureLabel(m, payload.items)).join(" · ") || null,
           },
           valueFormat: base.valueFormat,
           locale:      base.locale,

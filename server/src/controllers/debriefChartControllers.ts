@@ -179,8 +179,8 @@ export const previewDebriefChart = async (req: Request, res: Response): Promise<
     const measures = toMeasures(parsed.data.yAxis);
     const labels = {
       title: parsed.data.name || null,
-      x: axisLabel(parsed.data.xAxis),
-      y: measures.map(measureLabel).join(" · ") || null,
+      x: axisLabel(parsed.data.xAxis, payload.items),
+      y: measures.map((m) => measureLabel(m, payload.items)).join(" · ") || null,
     };
 
     const instances = await Promise.all(
