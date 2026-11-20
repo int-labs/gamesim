@@ -191,7 +191,7 @@ function DebriefBody({
 /** !important key by the pair; a `scope: each` chart's instances share an `_id`. */
 const instanceKey = (c: DebriefChartDto) => `${c._id}:${c.productId ?? ''}`;
 
-/** One category of the slide, open by default: a closed segment is never found. */
+/** One category of the slide, closed by default; the header opens it. */
 function CollapsibleSegment({
   title,
   children,
@@ -199,7 +199,7 @@ function CollapsibleSegment({
   title: string;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-2">

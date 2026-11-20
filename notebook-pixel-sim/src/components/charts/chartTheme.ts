@@ -25,11 +25,11 @@ export const SERIES_COLORS = [
   '#2e2d7e',
   '#f9137d',
   '#fee606',
-  '#DD8452',
-  '#55A868',
-  '#9B59B6',
-  '#64B5CD',
-  '#4C72B0',
+  '#ff7a00',
+  '#00d26a',
+  '#9d2bff',
+  '#00c2ff',
+  '#3d5afe',
 ] as const;
 
 /**

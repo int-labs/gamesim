@@ -8,14 +8,14 @@ import { renderChartToSvg } from "../src/services/chartRenderer";
 const INK = { frame: "#2a2017", grid: "#bfae90", label: "#5a4a37" };
 
 const SERIES = [
-  "#2e2d7e", "#f9137d", "#fee606", "#DD8452",
-  "#55A868", "#9B59B6", "#64B5CD", "#4C72B0",
+  "#2e2d7e", "#f9137d", "#fee606", "#ff7a00",
+  "#00d26a", "#9d2bff", "#00c2ff", "#3d5afe",
 ];
 
-/** The label ink inside each series' bar, index for index with `SERIES`: black on yellow, white elsewhere. */
+/** The label ink inside each series' bar, index for index with `SERIES`: black on the light fills, white on the dark. */
 const LABEL_INK = [
-  "#ffffff", "#ffffff", "#000000", "#ffffff",
-  "#ffffff", "#ffffff", "#ffffff", "#ffffff",
+  "#ffffff", "#ffffff", "#000000", "#000000",
+  "#000000", "#ffffff", "#000000", "#ffffff",
 ];
 
 const FONT = "Pixelify Sans, ui-monospace, monospace";
