@@ -164,10 +164,10 @@ function DebriefBody({
           segments.map((s, i) =>
             s.category ? (
               <CollapsibleSegment key={`${s.category}:${i}`} title={s.category}>
-                {s.charts.map((c) => <ChartSlide key={instanceKey(c)} chart={c} data={data} />)}
+                <ChartGallery charts={s.charts} data={data} />
               </CollapsibleSegment>
             ) : (
-              s.charts.map((c) => <ChartSlide key={instanceKey(c)} chart={c} data={data} />)
+              <ChartGallery key={`:${i}`} charts={s.charts} data={data} />
             ),
           )
         )}
@@ -188,8 +188,8 @@ function DebriefBody({
   );
 }
 
-/** !important key by the pair; a `scope: each` chart's instances share an `_id`. */
-const instanceKey = (c: DebriefChartDto) => `${c._id}:${c.productId ?? ''}`;
+/** !important key by chart, notebook and item; the instances of one chart share an `_id`. */
+const instanceKey = (c: DebriefChartDto) => `${c._id}:${c.productId ?? ''}:${c.inputId ?? ''}`;
 
 /** One category of the slide, closed by default; the header opens it. */
 function CollapsibleSegment({
@@ -211,14 +211,56 @@ function CollapsibleSegment({
         <span className="eyebrow uppercase text-ink-800">{title}</span>
         <span className="body-sm text-ink-700">{open ? '−' : '+'}</span>
       </button>
-      {open && <div className="flex flex-col gap-4">{children}</div>}
+      {open && children}
+    </div>
+  );
+}
+
+/** A triangle pointing left or right, the gallery's step buttons. */
+function StepArrow({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
+      <polygon points={dir === 'left' ? '10,1 10,11 2,6' : '2,1 2,11 10,6'} fill="currentColor" />
+    </svg>
+  );
+}
+
+/** One chart at a time; every slide stays mounted and only the current one shows. */
+function ChartGallery({ charts, data }: { charts: DebriefChartDto[]; data: RoundDebriefDto }) {
+  const [curr, setCurr] = useState(0);
+  const last = charts.length - 1;
+  const step = 'game-btn min-h-[44px] min-w-[44px] flex items-center justify-center disabled:opacity-40';
+
+  return (
+    <div className="flex items-center gap-2">
+      {charts.length > 1 && (
+        <button onClick={() => setCurr(curr - 1)} disabled={curr === 0} className={step} aria-label="Previous chart">
+          <StepArrow dir="left" />
+        </button>
+      )}
+      <div className="min-w-0 flex-1 flex flex-col gap-2">
+        {charts.map((c, index) => (
+          <div key={instanceKey(c)} className={index === curr ? 'block' : 'hidden'}>
+            <ChartSlide chart={c} data={data} />
+          </div>
+        ))}
+        {charts.length > 1 && (
+          <div className="body-sm text-ink-700 text-center">{curr + 1} / {charts.length}</div>
+        )}
+      </div>
+      {charts.length > 1 && (
+        <button onClick={() => setCurr(curr + 1)} disabled={curr === last} className={step} aria-label="Next chart">
+          <StepArrow dir="right" />
+        </button>
+      )}
     </div>
   );
 }
 
 /** One chart instance. !important the SVG is injected unsanitised on purpose: it is our own output, sanitised at the console boundary. */
 function ChartSlide({ chart, data }: { chart: DebriefChartDto; data: RoundDebriefDto }) {
-  const title = chart.productName ? `${chart.name} · ${chart.productName}` : chart.name;
+  const instance = chart.productName ?? chart.inputLabel;
+  const title = instance ? `${chart.name} · ${instance}` : chart.name;
 
   // A `clientChart` key with no component here renders as copy with no figure.
   const Client = chart.clientChart ? CLIENT_CHARTS[chart.clientChart] : undefined;

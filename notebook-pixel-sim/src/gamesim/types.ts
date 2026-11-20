@@ -460,11 +460,14 @@ export interface DebriefChartDto {
    *  `overall` chart. */
   productId: Id | null;
   productName: string | null;
+  /** Set only on an `eachItem` instance; key by chart, notebook and item together. */
+  inputId: Id | null;
+  inputLabel: string | null;
   name: string;
   category: string;
   order: number;
-  /** `each` means the server emitted N + 1 of these from one stored row. */
-  scope: 'overall' | 'each';
+  /** `each` emits one per notebook plus a summary; `eachItem` one per global input item. */
+  scope: 'overall' | 'each' | 'eachItem';
   chartStyle: DebriefChartStyleDto | null;
   /** Set, and this client draws it; `svg` is null and the bindings are inert. */
   clientChart: string | null;
