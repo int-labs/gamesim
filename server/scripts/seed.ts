@@ -94,6 +94,21 @@ const INSIDE_LABEL = {
   color: { ...SERIES_ENC, legend: null, scale: { range: LABEL_INK } },
 };
 
+/** The value as text only on one side of zero; a predicate, since `baseline` and `dy` cannot follow the sign. */
+const VALUE_WHEN = (side: "gte" | "lt") => ({
+  condition: { test: { and: [{ field: "y", valid: true }, { field: "y", [side]: 0 }] }, ...VALUE() },
+  value: "",
+});
+
+/** Two label layers, each inside the bar's value end on its own side of zero. */
+const SIGNED_LABELS = (positive: object, negative: object, encoding: object) => [
+  label(positive, { ...encoding, text: VALUE_WHEN("gte") }),
+  label(negative, { ...encoding, text: VALUE_WHEN("lt") }),
+];
+
+/** White, just inside the bottom of a negative vertical bar. */
+const INSIDE_BOTTOM = { baseline: "bottom", dy: -4 };
+
 /** Keeps a label's own colour scale from merging with the bars' palette. */
 const OWN_LABEL_SCALE = { resolve: { scale: { color: "independent" } } };
 
@@ -113,7 +128,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       },
       layer: [
         { mark: BAR },
-        label(INSIDE_TOP, INSIDE_LABEL),
+        ...SIGNED_LABELS(INSIDE_TOP, INSIDE_BOTTOM, INSIDE_LABEL),
       ],
       ...OWN_LABEL_SCALE,
     },
@@ -132,7 +147,7 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       },
       layer: [
         { mark: BAR },
-        label(INSIDE_TOP, INSIDE_LABEL),
+        ...SIGNED_LABELS(INSIDE_TOP, INSIDE_BOTTOM, INSIDE_LABEL),
       ],
       ...OWN_LABEL_SCALE,
     },
@@ -151,8 +166,12 @@ export const STYLES: { _id: string; category: string; name: string; spec: object
       },
       layer: [
         { mark: BAR },
-        // Inside the bar's right end, the horizontal equivalent of inside-top.
-        label({ align: "right", baseline: "middle", dx: -4 }, INSIDE_LABEL),
+        // Inside the bar's value end: the right end of a positive bar, the left end of a negative one.
+        ...SIGNED_LABELS(
+          { align: "right", baseline: "middle", dx: -4 },
+          { align: "left", baseline: "middle", dx: 4 },
+          INSIDE_LABEL,
+        ),
       ],
       ...OWN_LABEL_SCALE,
     },

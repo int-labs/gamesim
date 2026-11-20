@@ -179,7 +179,10 @@ export function PixelVocPlot({ rows, height = 300, colW = 86, youId = null }: Pr
                 here (several teams land near the same weight), and an opaque
                 disc hid whoever was drawn first. The initials also carry the
                 identity when two teams share a wrapped palette colour. */}
-            {r.dots.map((d) => {
+            {/* SVG paints in order, so the larger "you" bubble goes first and the smaller ones sit on top. */}
+            {[...r.dots]
+              .sort((a, b) => Number(b.teamId === youId) - Number(a.teamId === youId))
+              .map((d) => {
               const you = d.teamId === youId;
               return (
                 <g key={d.teamId}>
