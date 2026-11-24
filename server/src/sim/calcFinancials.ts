@@ -202,15 +202,13 @@ export interface TeamFinancials {
   revenue:             number;
   COGS:                number;
   grossProfit:         number;
-  /** Period costs: the channel's cut of each sale, plus every globalInput cost
-   *  declared as opex. Sits BELOW the gross-profit line. */
+  /** Period costs of this notebook: the channel's cut of each sale. Global input costs are team-level. */
   operatingExpenses:   number;
   operatingProfit:     number;
   productCostBreakdown: ProductCostBreakdown[];
   /** Per-field contributions to `dynamicPrice`. Sums to it by construction. */
   productScoreBreakdown: ProductScoreBreakdown[];
   incurredCosts:       IncurredCostBreakdown[];
-  globalInputCosts:    GlobalInputCostBreakdown[];
   /** The final demand multiplier, so one item's share of it can be reversed. */
   customersObtainedAugment: number;
   /** The final capacity multiplier, so one item's share of it can be reversed. */
@@ -251,9 +249,6 @@ export const toProjectionMetrics = (f: TeamFinancials) => ({
   // report reads it like every other figure.
   productScoreBreakdown: f.productScoreBreakdown,
   incurredCosts:     f.incurredCosts,
-  // Both readers must take BOTH arrays: COGS and opex totals are only whole
-  // when the globalInput rows are added to the unit rows.
-  globalInputCosts:  f.globalInputCosts,
   customersObtainedAugment: f.customersObtainedAugment,
   inventoryAugmentation:    f.inventoryAugmentation,
   COGSBeforeTnO:            f.COGSBeforeTnO,
@@ -807,7 +802,6 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
 
     // ── Cost breakdown, partitioned by declared treatment ────────────────────
     const incurredCosts: IncurredCostBreakdown[] = [];
-    const globalInputCosts: GlobalInputCostBreakdown[] = [];
 
     incurredCosts.push({
       key:          "inventory",
@@ -849,71 +843,17 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       });
     }
 
-    // Group global inputs by category. No branch and no default: the entry
-    // arrives already normalised by readCostTreatment at the entry point.
-    let globalInputCOGS = 0;
-    let globalInputOpex = 0;
-
-    type Contribution = GlobalInputCostBreakdown["contributors"][number];
-
-    const categoryMap: Record<string, {
-      cogs:      number;
-      opex:      number;
-      cogsItems: Contribution[];
-      opexItems: Contribution[];
-    }> = {};
-
-    globalInputs.forEach((entry) => {
-      // Slider — cost scales with the selected step; radio/checkbox — full
-      // cost; never selected — nothing. All three come from the one resolver;
-      // see the note at the channel loop for what the removed ternary broke.
-      const m    = getGlobalInputQuantity(decision, entry);
-      const cogs = entry.costTreatment.cogs * m;
-      const opex = entry.costTreatment.opex * m;
-
-      if (!categoryMap[entry.category]) {
-        categoryMap[entry.category] = { cogs: 0, opex: 0, cogsItems: [], opexItems: [] };
-      }
-      const row = categoryMap[entry.category];
-      row.cogs += cogs;
-      row.opex += opex;
-      // Listed per SIDE, and only when it actually charged: an item with
-      // cogs 0 / opex 40 belongs to the OpEx row alone, and an unselected one
-      // (step 0) belongs to neither.
-      const inputId = String(entry.globalInputItemId);
-      if (cogs !== 0) row.cogsItems.push({ inputId, label: entry.label, stepValue: m, incurredCost: cogs });
-      if (opex !== 0) row.opexItems.push({ inputId, label: entry.label, stepValue: m, incurredCost: opex });
-
-      globalInputCOGS += cogs;
-      globalInputOpex += opex;
-    });
-
-    // One row per category, per side of the line it lands on. The category IS
-    // the expense name — it names the sum, which no single item's label can.
-    Object.entries(categoryMap).forEach(([category, r]) => {
-      if (r.cogs !== 0) {
-        globalInputCosts.push({
-          category, label: category, treatment: "cogs",
-          incurredCost: r.cogs, contributors: r.cogsItems,
-        });
-      }
-      if (r.opex !== 0) {
-        globalInputCosts.push({
-          category, label: category, treatment: "opex",
-          incurredCost: r.opex, contributors: r.opexItems,
-        });
-      }
-    });
+    // Global input costs are charged once per team in `teamGlobalInputCosts`, not here.
 
     // ── The sheet ────────────────────────────────────────────────────────────
     // Revenue is arithmetically identical to the old ternary: unitsSold is
     // min(customersObtained, inventoryQty), which is what that branch computed.
     const revenue           = unitsSold * sellingPrice;
-    const COGS              = unitCOGS + globalInputCOGS + consignmentCogs;
+    const COGS              = unitCOGS + consignmentCogs;
     // Debrief only: the same build at the unit cost before cost-reduction impacts; nothing else reads it.
-    const COGSBeforeTnO     = produced * dynamicCostBeforeTnO + globalInputCOGS + consignmentCogs;
+    const COGSBeforeTnO     = produced * dynamicCostBeforeTnO + consignmentCogs;
     const grossProfit       = revenue - COGS;
-    const operatingExpenses = consignmentOpex + globalInputOpex;
+    const operatingExpenses = consignmentOpex;
     const operatingProfit   = grossProfit - operatingExpenses;
 
     return {
@@ -936,7 +876,6 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
       productCostBreakdown,
       productScoreBreakdown,
       incurredCosts,
-      globalInputCosts,
       customersObtainedAugment,
       inventoryAugmentation,
       COGSBeforeTnO,
@@ -944,4 +883,49 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
   });
 
   return { results };
+}
+
+/** A team's global input costs, charged once per round however many notebooks it entered. */
+export interface TeamGlobalInputCosts {
+  globalInputCosts: GlobalInputCostBreakdown[];
+  cogs:             number;
+  opex:             number;
+}
+
+/** Charges each selected global input `costTreatment x step` once for the team; per-product overrides touch impacts only. */
+export function teamGlobalInputCosts(
+  decision:     DecisionDocument | undefined,
+  globalInputs: DecisionGlobalInputEntry[],
+): TeamGlobalInputCosts {
+  type Contribution = GlobalInputCostBreakdown["contributors"][number];
+  const categoryMap: Record<string, { cogs: number; opex: number; cogsItems: Contribution[]; opexItems: Contribution[] }> = {};
+  let cogsTotal = 0;
+  let opexTotal = 0;
+
+  globalInputs.forEach((entry) => {
+    // Slider scales with the step, radio/checkbox is 1, never selected is 0.
+    const m    = getGlobalInputQuantity(decision, entry);
+    const cogs = entry.costTreatment.cogs * m;
+    const opex = entry.costTreatment.opex * m;
+
+    const row = (categoryMap[entry.category] ??= { cogs: 0, opex: 0, cogsItems: [], opexItems: [] });
+    row.cogs += cogs;
+    row.opex += opex;
+    // Listed per side, and only when that side charged.
+    const inputId = String(entry.globalInputItemId);
+    if (cogs !== 0) row.cogsItems.push({ inputId, label: entry.label, stepValue: m, incurredCost: cogs });
+    if (opex !== 0) row.opexItems.push({ inputId, label: entry.label, stepValue: m, incurredCost: opex });
+
+    cogsTotal += cogs;
+    opexTotal += opex;
+  });
+
+  // One row per category per side; the category names the sum.
+  const globalInputCosts: GlobalInputCostBreakdown[] = [];
+  Object.entries(categoryMap).forEach(([category, r]) => {
+    if (r.cogs !== 0) globalInputCosts.push({ category, label: category, treatment: "cogs", incurredCost: r.cogs, contributors: r.cogsItems });
+    if (r.opex !== 0) globalInputCosts.push({ category, label: category, treatment: "opex", incurredCost: r.opex, contributors: r.opexItems });
+  });
+
+  return { globalInputCosts, cogs: cogsTotal, opex: opexTotal };
 }

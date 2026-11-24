@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
-import type { ScoredMetrics } from "../sim/calcFinancials";
+import type { ScoredMetrics, TeamGlobalInputCosts } from "../sim/calcFinancials";
 
   // ---------- Field entry sub-schema (per-product decision input)
 const DecisionFieldSchema = new Schema(
@@ -171,6 +171,8 @@ export interface IDecision extends Document {
    *  absent until calculated. Also the immutable carry-forward source for
    *  `closingStock`. See ../../README.md#the-four-collections */
   scored?:          Record<string, ScoredMetrics> | null;
+  /** OFFICIAL team-level global input costs, charged once per round; written with `scored`, null until calculated. */
+  scoredTeam?:      TeamGlobalInputCosts | null;
   /**
    * CLIENT-ORIGIN LEADERBOARD METRICS for this round — insight answers and
    * anything else only the browser can compute.
@@ -207,6 +209,7 @@ const DecisionSchema = new Schema<IDecision>(
     globalInputs: { type: [decisionGlobalInputSchema], required: true, default: [] },
     // null = not scored yet, which differs from an empty object.
     scored:       { type: Schema.Types.Mixed, default: null },
+    scoredTeam:   { type: Schema.Types.Mixed, default: null },
     // null = the team has reported none yet. Mixed, because the key set is
     // LeaderboardConfig's — adding a client metric must not need a migration.
     clientMetrics: { type: Schema.Types.Mixed, default: null },

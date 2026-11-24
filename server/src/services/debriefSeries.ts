@@ -28,6 +28,7 @@ import { IMPACT_CONFIG } from "../constants/impacts";
 import {
   buildCashWalk,
   channelSharesFor,
+  hasUnkeyedOpex,
   id,
   opexByItem,
   scoredFor,
@@ -466,7 +467,8 @@ export function buildDebriefSeries(input: DebriefInput): DebriefPayload {
           unitsSold:         sumScored(dec, "unitsSold"),
           customersObtained: sumScored(dec, "customersObtained"),
           costByCategory:    costsByCategory(dec),
-          opexByItem:        opexByItem(dec),
+          // Empty, so every item reads as a gap, when the round was scored before item ids were stored.
+          opexByItem:        hasUnkeyedOpex(dec) ? {} : opexByItem(dec),
           energyByLever,
           byProduct,
         };

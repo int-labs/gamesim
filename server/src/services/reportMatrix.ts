@@ -158,6 +158,17 @@ export const scoredFor = (dec: ReportDecision | null, productId: unknown) =>
 /** The channel cut's key in `opexByItem`; every other key is a global input item's id. */
 export const CONSIGNMENT_OPEX = "consignment_opex";
 
+/** True when any opex contributor has no `inputId`, i.e. the round was scored before ids were stored. */
+export function hasUnkeyedOpex(dec: ReportDecision | null): boolean {
+  return Object.values(dec?.scored ?? {}).some((metrics) => {
+    const m = metrics as unknown as {
+      globalInputCosts?: Array<{ treatment?: unknown; contributors?: Array<{ inputId?: unknown }> }>;
+    };
+    return (m.globalInputCosts ?? []).some((row) =>
+      row.treatment === "opex" && (row.contributors ?? []).some((c) => !c.inputId));
+  });
+}
+
 /** OpEx per item across the team's products: the opex rows' contributors by `inputId`, plus the channel cut. */
 export function opexByItem(dec: ReportDecision | null): Record<string, number> {
   const out: Record<string, number> = {};
@@ -537,6 +548,8 @@ function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
 /** One indented PnL row per OpEx item any team was charged for this round; labels from the live items by id. */
 function emitOpexItemRows(ctx: Ctx, containers: ReportContainer[]): void {
   const perTeam = new Map([...ctx.byTeam].map(([teamId, dec]) => [teamId, opexByItem(dec)]));
+  // A team with any opex item lacking an id was scored before ids were stored: its split is incomplete.
+  const unsplit = new Set([...ctx.byTeam].filter(([, dec]) => hasUnkeyedOpex(dec)).map(([teamId]) => teamId));
 
   // Union of charged keys, in the operator's item order, the channel cut first.
   const charged = new Set([...perTeam.values()].flatMap((m) => Object.keys(m)));
@@ -554,11 +567,8 @@ function emitOpexItemRows(ctx: Ctx, containers: ReportContainer[]): void {
       ? "Channel consignment"
       : item ? item.label ?? item.key ?? key : `${key} (deleted)`;
     ctx.emit("PnL", `  ${label}`, (dec, c) => {
-      if (!dec?.scored) return BLANK;
-      const byItem = perTeam.get(c.id) ?? {};
-      // Opex with no item ids is a round scored before they were stored: unknown, not zero.
-      if (Object.keys(byItem).length === 0 && (sumScored(dec, "operatingExpenses") ?? 0) !== 0) return BLANK;
-      return money(byItem[key] ?? 0);
+      if (!dec?.scored || unsplit.has(c.id)) return BLANK;
+      return money((perTeam.get(c.id) ?? {})[key] ?? 0);
     });
   }
 }
