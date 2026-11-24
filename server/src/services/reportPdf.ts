@@ -162,8 +162,8 @@ export function writeReportPdf(
     const labelW = (widths[1] + 2) * CHAR_W;
 
     /**
-     * A GROUP HEADER in the label column — `Design Notebook`, `Marketing`,
-     * `Sales Channel`.
+     * A GROUP HEADER in the label column — `Design Notebook`, `Channels`,
+     * `Operating Expenses`.
      *
      * Detected STRUCTURALLY: a row whose own label is not indented and whose
      * NEXT row's is. The cascade emits children as `"  " + label`, so a parent

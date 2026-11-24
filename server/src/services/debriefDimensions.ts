@@ -2,7 +2,8 @@ import Product from "../models/products";
 import GlobalInput from "../models/globalInputs";
 import { CLIENT_CHARTS, type ClientChart } from "../constants/clientCharts";
 import { MONEY_LOCALES } from "./chartRenderer";
-import { CONSIGNMENT_OPEX, type DebriefItem } from "./debriefSeries";
+import type { DebriefItem } from "./debriefSeries";
+import { CONSIGNMENT_OPEX } from "./reportMatrix";
 
 /** The per-item OpEx measures' prefix; the key after it is an item id, `consignment_opex` or `ALL_KEYS`. */
 export const OPEX_ITEM = "opexByItem.";

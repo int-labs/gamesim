@@ -155,6 +155,39 @@ export function sumScored(
 export const scoredFor = (dec: ReportDecision | null, productId: unknown) =>
   dec?.scored?.[id(productId)] ?? null;
 
+/** The channel cut's key in `opexByItem`; every other key is a global input item's id. */
+export const CONSIGNMENT_OPEX = "consignment_opex";
+
+/** OpEx per item across the team's products: the opex rows' contributors by `inputId`, plus the channel cut. */
+export function opexByItem(dec: ReportDecision | null): Record<string, number> {
+  const out: Record<string, number> = {};
+  const add = (key: unknown, value: unknown) => {
+    const k = String(key ?? "").trim();
+    const n = Number(value);
+    if (!k || !Number.isFinite(n)) return;
+    out[k] = (out[k] ?? 0) + n;
+  };
+
+  for (const metrics of Object.values(dec?.scored ?? {})) {
+    const m = metrics as unknown as {
+      incurredCosts?:    Array<{ key?: unknown; treatment?: unknown; incurredCost?: unknown }>;
+      globalInputCosts?: Array<{
+        treatment?:    unknown;
+        contributors?: Array<{ inputId?: unknown; incurredCost?: unknown }>;
+      }>;
+    };
+    for (const row of m.incurredCosts ?? []) {
+      if (row.treatment === "opex" && row.key === CONSIGNMENT_OPEX) add(CONSIGNMENT_OPEX, row.incurredCost);
+    }
+    for (const row of m.globalInputCosts ?? []) {
+      if (row.treatment !== "opex") continue;
+      // !important a contributor scored before `inputId` existed has none and is skipped, never matched by label.
+      for (const c of row.contributors ?? []) add(c.inputId, c.incurredCost);
+    }
+  }
+  return out;
+}
+
 /** Per-field weighted scores from calcFinancials. Read, never derived. */
 function scoreTerms(
   dec: ReportDecision | null,
@@ -256,6 +289,9 @@ function leverTerms(
 /** Impacts declaring `affects: "customersObtained"`; not a demand split. */
 export const DEMAND_METRICS = ["sales_channel", "marketing"];
 
+/** The one impact a lever's Weighted Score reads; `sales_channel` reaches the report as demand and revenue instead. */
+const SCORED_LEVER_METRIC = "marketing";
+
 /** Capacity split across levers; contributions compound, so walk incrementally. */
 export function capacityTermsFor(
   dec: ReportDecision | null,
@@ -331,7 +367,6 @@ function configWeightOf(
 /** Weight anchors per family, keyed by container so a label rename cannot move one. */
 const DESIGN_ANCHOR = 0.95;
 const CONTAINER_ANCHOR: Record<string, number> = {
-  marketing: 0.77,
   channel:   0.75,
 };
 
@@ -364,14 +399,13 @@ export function weightTopsOf(
   const byContainer: Record<string, number> = {};
   for (const gi of containers) {
     const key = String(gi.key ?? gi.category ?? "");
-    if (CONTAINER_ANCHOR[key] == null) continue; // unanchored family: Vendors
+    if (CONTAINER_ANCHOR[key] == null) continue; // an unanchored container is left unscaled
     let top = 0;
     for (const item of gi.inputs ?? [])
-      for (const metric of DEMAND_METRICS)
-        if (item.impacts?.[metric])
-          // Through `leverMaxWeight` so overrides and the top step both count.
-          for (const p of products)
-            top = Math.max(top, leverMaxWeight(item, metric, p._id));
+      // `marketing` alone, the only metric a lever is scored on; through `leverMaxWeight` so overrides and the top step count.
+      if (item.impacts?.[SCORED_LEVER_METRIC])
+        for (const p of products)
+          top = Math.max(top, leverMaxWeight(item, SCORED_LEVER_METRIC, p._id));
     byContainer[key] = top;
   }
 
@@ -500,6 +534,56 @@ function emitLeverRows(ctx: Ctx, gi: ReportContainer): void {
   ctx.rows.push([]);
 }
 
+/** One indented PnL row per OpEx item any team was charged for this round; labels from the live items by id. */
+function emitOpexItemRows(ctx: Ctx, containers: ReportContainer[]): void {
+  const perTeam = new Map([...ctx.byTeam].map(([teamId, dec]) => [teamId, opexByItem(dec)]));
+
+  // Union of charged keys, in the operator's item order, the channel cut first.
+  const charged = new Set([...perTeam.values()].flatMap((m) => Object.keys(m)));
+  const liveItems = containers.flatMap((gi) => gi.inputs ?? []);
+  const keys = [
+    ...(charged.has(CONSIGNMENT_OPEX) ? [CONSIGNMENT_OPEX] : []),
+    ...liveItems.map((it) => id(it._id)).filter((k) => charged.has(k)),
+    // An item deleted since the round was scored still printed, under its id.
+    ...[...charged].filter((k) => k !== CONSIGNMENT_OPEX && !liveItems.some((it) => id(it._id) === k)),
+  ];
+
+  for (const key of keys) {
+    const item = liveItems.find((it) => id(it._id) === key);
+    const label = key === CONSIGNMENT_OPEX
+      ? "Channel consignment"
+      : item ? item.label ?? item.key ?? key : `${key} (deleted)`;
+    ctx.emit("PnL", `  ${label}`, (dec, c) => {
+      if (!dec?.scored) return BLANK;
+      const byItem = perTeam.get(c.id) ?? {};
+      // Opex with no item ids is a round scored before they were stored: unknown, not zero.
+      if (Object.keys(byItem).length === 0 && (sumScored(dec, "operatingExpenses") ?? 0) !== 0) return BLANK;
+      return money(byItem[key] ?? 0);
+    });
+  }
+}
+
+/** Impacts that make an item an investment: capacity or unit cost. Detected, never a container key. */
+const INVESTMENT_METRICS = ["inventory", "dynamic_cost"];
+
+/** Team-wide: every investment item and the level each team picked. */
+function emitInvestmentRows(ctx: Ctx, containers: ReportContainer[]): void {
+  const items = leverItemsOf(containers, INVESTMENT_METRICS);
+  if (items.length === 0) return;
+  for (const it of items) {
+    ctx.emit("Investment", it.label, (dec) => {
+      // "-" only when the team submitted nothing at all.
+      if (!dec) return BLANK;
+      const sel = (dec.globalInputs ?? []).find((g) => id(g.globalInputItemId) === it.id);
+      if (!sel) return "No";
+      return sel.selectedStepKey != null && sel.selectedStepKey !== ""
+        ? String(sel.selectedStepKey)
+        : "Yes";
+    });
+  }
+  ctx.rows.push([]);
+}
+
 /** One notebook: Inventory, Demand, Fulfilled. Financials are per team. */
 function emitNotebookAnalysis(
   ctx: Ctx,
@@ -523,7 +607,7 @@ function emitNotebookAnalysis(
   // 40-character column has something to scan down.
   emitHeading(ctx, name);
 
-  // Capacity, not inventory: a vendor raises the ceiling, not the warehouse.
+  // Capacity, not inventory: an investment raises the build ceiling, not the warehouse.
   const cap = "Capacity";
   ctx.emit(cap, "Raw Capacity", (dec) =>
     dec == null ? BLANK : plain(capacityTermsFor(dec, p._id, qtyFor(dec)).base));
@@ -609,28 +693,6 @@ function emitNotebookAnalysis(
       : "Yes";
   };
 
-  /** A metric group spanning containers. Only `sales_channel` uses it, and one
-   *  container carries it, so the anchor is named rather than resolved. */
-  const leverGroup = (label: string, metric: string, anchorKey: string): DriverGroup => {
-    const items = leverItemsOf(containers, [metric]);
-    const scale = scalerFor(CONTAINER_ANCHOR[anchorKey], tops.byContainer[anchorKey] ?? 0);
-    // Same scaler as the weight, so a team on the top step scores exactly the
-    // weight shown beside it.
-    const scaleScore = scoreScalerFor(
-      CONTAINER_ANCHOR[anchorKey],
-      tops.byContainer[anchorKey] ?? 0,
-    );
-    return {
-      label,
-      rows: items.map((item) => ({
-        label:  item.label,
-        weight: scale(leverMaxWeight(item.item, metric, p._id)),
-        choice: (dec) => leverChoiceFor(dec, item.id),
-        score:  (dec) => scaleScore(leverScoreFor(dec, item.id, metric)),
-      })),
-    };
-  };
-
   /** !important one group per container; each item once or `grandScore` double-counts. */
   const leverGroupsByContainer = (metric: string): DriverGroup[] =>
     containers
@@ -645,7 +707,7 @@ function emitNotebookAnalysis(
         Number(String(b.gi.key ?? b.gi.category ?? "") === metric) -
         Number(String(a.gi.key ?? a.gi.category ?? "") === metric))
       .map(({ gi, items }) => {
-        // Per container, so Vendors is left unscaled.
+        // Per container, so a container with no anchor is left unscaled.
         const key = String(gi.key ?? gi.category ?? "");
         const scale = scalerFor(CONTAINER_ANCHOR[key], tops.byContainer[key] ?? 0);
         // SAME scaler as the weight, see the note on `scalerFor`.
@@ -721,9 +783,8 @@ function emitNotebookAnalysis(
             designScoreFor(f)(scoreTermFor(dec, p._id, String(f.key ?? ""))),
         })),
     },
-    // Marketing and Vendors get their own headings; Sales Channel stays a metric group.
-    ...leverGroupsByContainer("marketing"),
-    leverGroup("Sales Channel", "sales_channel", "channel"),
+    // !important channels score on `marketing` only; `sales_channel` shows as demand and revenue, never a score.
+    ...leverGroupsByContainer(SCORED_LEVER_METRIC),
   ].filter((g) => g.rows.length > 0);
 
   /** Σ of every row in every group, for one team. The Market Fit denominator
@@ -828,6 +889,19 @@ function emitNotebookAnalysis(
     pct(scoredFor(dec, p._id)?.marketShare));
   ctx.rows.push([]);
 
+  // The demand each channel generated: the notebook's demand times the channel's `sales_channel` share.
+  const channels = channelItemsOf(containers);
+  for (const ch of channels) {
+    ctx.emit("Channel Demand", ch.label, (dec) => {
+      const sc = scoredFor(dec, p._id);
+      if (!sc) return BLANK;
+      const share = channelSharesFor(dec, p._id).get(ch.id);
+      // undefined = the channel was not selected, which is not "generated nothing".
+      return share == null ? "No" : plain(Number(sc.customersObtained ?? 0) * share);
+    });
+  }
+  if (channels.length > 0) ctx.rows.push([]);
+
   ctx.emit("Customers Fulfilled", "Demand", (dec) =>
     plain(scoredFor(dec, p._id)?.customersObtained));
   ctx.emit("Customers Fulfilled", "Notebooks Produced", (dec) => {
@@ -917,6 +991,7 @@ function emitAllNotebooks(
   ];
   for (const [label, field, fmt] of FINANCIALS) {
     emit("PnL", label, (dec) => fmt(sumScored(dec, field)));
+    if (field === "operatingExpenses") emitOpexItemRows(ctx, containers);
   }
   // Net profit ÷ revenue. Blank rather than 0% with no revenue: a team that sold
   // nothing has no margin, and 0% reads as one that broke even.
@@ -975,6 +1050,8 @@ export function buildCompetitorMatrix(
   // Summary sits under the leaderboard here; the analysis report keeps it at the foot.
   emitAllNotebooks(ctx, ordered, containers, false);
 
+  emitInvestmentRows(ctx, containers);
+
   // Same block and order as the analysis report, with `withScoring: false`.
   const tops = weightTopsOf(ordered, containers);
   for (const p of ordered) emitNotebookAnalysis(ctx, p, containers, tops, opening, false);
@@ -984,7 +1061,7 @@ export function buildCompetitorMatrix(
     containers
       .filter((gi) =>
         (gi.inputs ?? []).some((item) =>
-          [...DEMAND_METRICS, "inventory"].some((m) => item.impacts?.[m]),
+          [...DEMAND_METRICS, ...INVESTMENT_METRICS].some((m) => item.impacts?.[m]),
         ),
       )
       .map((gi) => id(gi._id)),
@@ -1024,6 +1101,8 @@ export function buildDecisionMatrix(
 
   emitCashRows(ctx, cash);
 
+  emitInvestmentRows(ctx, containers);
+
   // ── PER NOTEBOOK: capacity, production, demand, share, fulfilment ─────────
   // ONCE, before the loop: the weight divisors span the whole catalogue.
   const tops = weightTopsOf(ordered, containers);
@@ -1034,7 +1113,7 @@ export function buildDecisionMatrix(
     containers
       .filter((gi) =>
         (gi.inputs ?? []).some((item) =>
-          [...DEMAND_METRICS, "inventory"].some((m) => item.impacts?.[m]),
+          [...DEMAND_METRICS, ...INVESTMENT_METRICS].some((m) => item.impacts?.[m]),
         ),
       )
       .map((gi) => id(gi._id)),
