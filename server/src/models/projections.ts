@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
+import type { TeamGlobalInputCosts } from "../sim/calcFinancials";
 
 // ============================================================
 // Interfaces
@@ -35,6 +36,8 @@ export interface ProjectionsInterface extends Document {
   balanceSheet:  BalanceSheet;
   cashflow:      Cashflow;
   projections:   Projection;
+  /** Team-level global input costs, charged once per round; the what-if twin of `Decision.scoredTeam`. */
+  team:          TeamGlobalInputCosts | null;
   createdAt:     Date;
   updatedAt:     Date;
 }
@@ -79,6 +82,10 @@ const projectionsSchema = new Schema<ProjectionsInterface>(
     },
     projections: {
       type:    Schema.Types.Mixed, // { [productKey]: { [metricKey]: value } }
+      default: null,
+    },
+    team: {
+      type:    Schema.Types.Mixed,
       default: null,
     },
   },

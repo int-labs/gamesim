@@ -80,6 +80,13 @@ export interface ReportDecision {
   }>;
   /** Written by roundCalculation at round close, keyed by productId. */
   scored?: Record<string, Record<string, number>> | null;
+  /** Team-level global input costs, charged once per round; null before calculation or on a round scored before it existed. */
+  scoredTeam?: {
+    inputs?:           Array<{ globalInputItemId?: unknown; cogs?: number; opex?: number }>;
+    globalInputCosts?: Array<{ category?: unknown; incurredCost?: unknown }>;
+    cogs?:             number;
+    opex?:             number;
+  } | null;
   /** CLIENT-ORIGIN leaderboard figures for this round, insight answers and
    *  anything else only the browser can compute. Submitted with the decision. */
   clientMetrics?: Record<string, number> | null;
@@ -141,14 +148,26 @@ const FORMATTERS: Record<LeaderboardMetric["format"], (n: number | null) => stri
 // `SELLING_PRICE_KEY` comes from constants/impacts.ts so a rename cannot leave
 // this file matching a key nobody sends.
 
-/** Summed across a team's products, because a column is a team. `null` before
+/** What the team-level global input charge adds to each team total; G sits on both COGS sides so the T&O ratio stays clean. */
+const TEAM_CHARGE: Record<string, (cogs: number, opex: number) => number> = {
+  COGS:              (cogs) => cogs,
+  COGSBeforeTnO:     (cogs) => cogs,
+  grossProfit:       (cogs) => -cogs,
+  operatingExpenses: (_cogs, opex) => opex,
+  operatingProfit:   (cogs, opex) => -(cogs + opex),
+};
+
+/** Summed across a team's products plus the team-level charge once, because a column is a team. `null` before
  *  the round is calculated; zero would read as "scored and earned nothing". */
 export function sumScored(
   dec: ReportDecision | null,
   field: string,
 ): number | null {
   if (!dec?.scored) return null;
-  return Object.values(dec.scored).reduce((a, m) => a + (Number(m?.[field]) || 0), 0);
+  const perNotebook = Object.values(dec.scored).reduce((a, m) => a + (Number(m?.[field]) || 0), 0);
+  const charge = TEAM_CHARGE[field];
+  if (!charge || !dec.scoredTeam) return perNotebook;
+  return perNotebook + charge(Number(dec.scoredTeam.cogs) || 0, Number(dec.scoredTeam.opex) || 0);
 }
 
 /** One product's scored metrics, or null before the round is calculated. */
@@ -190,11 +209,15 @@ export function opexByItem(dec: ReportDecision | null): Record<string, number> {
     for (const row of m.incurredCosts ?? []) {
       if (row.treatment === "opex" && row.key === CONSIGNMENT_OPEX) add(CONSIGNMENT_OPEX, row.incurredCost);
     }
+    // Per-notebook global input rows exist only on rounds scored before the team-level charge.
     for (const row of m.globalInputCosts ?? []) {
       if (row.treatment !== "opex") continue;
       // !important a contributor scored before `inputId` existed has none and is skipped, never matched by label.
       for (const c of row.contributors ?? []) add(c.inputId, c.incurredCost);
     }
+  }
+  for (const i of dec?.scoredTeam?.inputs ?? []) {
+    if (Number(i.opex)) add(id(i.globalInputItemId), i.opex);
   }
   return out;
 }

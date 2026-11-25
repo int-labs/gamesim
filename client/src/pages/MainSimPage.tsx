@@ -43,6 +43,8 @@ export default function TeamDecisionPage() {
     const [productFields, setProductFields] = useState<any[]>([]);
     const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
     const [preview, setPreview] = useState<any | null>(null);
+    // Team-level global input costs from the recalc, charged once rather than per product.
+    const [teamCosts, setTeamCosts] = useState<any | null>(null);
     const [previewError, setPreviewError] = useState("");
     const [previewLoading, setPreviewLoading] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,6 +144,7 @@ export default function TeamDecisionPage() {
                 });
                 const projection = res.data?.data ?? res.data;
                 setPreview(projection.projections?.[selectedProductId] ?? null);
+                setTeamCosts(projection.team ?? null);
             } catch (e: any) {
                 setPreviewError(e.response?.data?.message ?? e.message);
             } finally {
@@ -174,6 +177,7 @@ export default function TeamDecisionPage() {
                     globalInputs: buildGlobalInputsPayload(currentGlobalItems, stepsToUse),
                 });
                 const projection = res.data?.data ?? res.data;
+                setTeamCosts(projection.team ?? null);
                 if (selectedProductId) {
                     setPreview(projection.projections?.[selectedProductId] ?? null);
                 }
@@ -609,15 +613,15 @@ export default function TeamDecisionPage() {
                         />
                     </>
                 )}
-                {preview?.globalInputCosts?.length > 0 && (
+                {teamCosts?.globalInputCosts?.length > 0 && (
                     <>
-                        <Heading level={4}>Global Input Costs</Heading>
+                        <Heading level={4}>Global Input Costs (team, once per round)</Heading>
                         {/* No Qty/Cost-Unit columns: the charge is already final, so there is no quantity to divide by */}
                         <DataTable
                             label="Global Input Costs"
                             density="compact"
                             columns={GLOBAL_COST_COLUMNS}
-                            rows={preview.globalInputCosts}
+                            rows={teamCosts.globalInputCosts}
                             rowKey={(entry: any) => entry.treatment + ':' + entry.category}
                         />
                     </>

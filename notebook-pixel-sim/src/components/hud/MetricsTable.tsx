@@ -679,6 +679,10 @@ export function FinanceTable() {
         add(c.treatment + ':' + c.category, containerLabel(c.category), c.treatment, c.incurredCost ?? 0);
       }
     }
+    // The team-level global input rows, once per round, under the same keys as the legacy per-notebook rows.
+    for (const c of f.team?.globalInputCosts ?? []) {
+      add(c.treatment + ':' + c.category, containerLabel(c.category), c.treatment, c.incurredCost ?? 0);
+    }
     costByPhase.set(p, m);
   }
 

@@ -30,8 +30,10 @@ import {
   DecisionGlobalInputEntry,
   ProductField,
   TeamFinancials,
+  TeamGlobalInputCosts,
   calcFinancials,
   readCostTreatment,
+  teamGlobalInputCosts,
   toProjectionMetrics,
 } from "../sim/calcFinancials";
 
@@ -49,6 +51,13 @@ export interface RoundCalcFailure {
 }
 
 export type RoundCalcOutcome = RoundCalcSuccess | RoundCalcFailure;
+
+/** A stored decision's global inputs, normalised through the same reader /projections/recalc uses. */
+const globalInputEntriesOf = (teamDecision: any): DecisionGlobalInputEntry[] =>
+  (teamDecision?.globalInputs ?? []).map((gi: any) => ({
+    ...(typeof gi?.toObject === "function" ? gi.toObject() : gi),
+    costTreatment: readCostTreatment(gi),
+  }));
 
 /**
  * MARKET FIT — the normalised `productScore` across the teams competing for
@@ -116,7 +125,7 @@ export function normaliseShares(
  * slice depends on the other teams' scores, so a round can only be scored as a
  * whole, and `calcFinancials` never computes a share of its own.
  *
- * Writes Results + Decision.scored. NOT Projections.
+ * Writes Results + Decision.scored + Decision.scoredTeam. NOT Projections.
  * See ../../README.md#calculation-order and ../../README.md#market-share
  *
  * Returns a failure object rather than throwing for the "expected" invalid
@@ -294,14 +303,7 @@ export async function runRoundCalculation(
        * removing.
        */
       const runFinancials = (teamId: mongoose.Types.ObjectId, teamDecision: any, marketFit: number) => {
-        // Normalised through the SAME reader the live-projection path uses, so
-        // a stored decision cannot be interpreted one way here and another way
-        // by /projections/recalc.
-        const globalInputEntries: DecisionGlobalInputEntry[] =
-          ((teamDecision as any).globalInputs ?? []).map((gi: any) => ({
-            ...(typeof gi?.toObject === "function" ? gi.toObject() : gi),
-            costTreatment: readCostTreatment(gi),
-          }));
+        const globalInputEntries = globalInputEntriesOf(teamDecision);
 
         const baseVariables: BaseVariables = {
           ...((product.baseVariables as BaseVariables) ?? {}),
@@ -435,6 +437,18 @@ export async function runRoundCalculation(
     )
   );
 
+  // Global input costs, charged once per team rather than once per notebook.
+  const scoredTeamByTeam: Record<string, TeamGlobalInputCosts> = {};
+  for (const teamDecision of decisionDocs as any[]) {
+    const tidStr = String(teamDecision.teamId);
+    if (!scoredByTeam[tidStr]) continue;
+    const entries = globalInputEntriesOf(teamDecision);
+    scoredTeamByTeam[tidStr] = teamGlobalInputCosts(
+      { teamId: teamDecision.teamId, inputs: [], globalInputs: entries },
+      entries,
+    );
+  }
+
   // The official figures go onto the DECISION that produced them.
   // `updateOne`, NOT upsert — the docs were loaded above and the run aborts
   // without them. `scored` is REPLACED, not merged: a round scores as a unit.
@@ -442,7 +456,7 @@ export async function runRoundCalculation(
     Object.entries(scoredByTeam).map(([tidStr, productMap]) =>
       Decision.updateOne(
         { simulationId, teamId: tidStr, roundNumber },
-        { $set: { scored: productMap } },
+        { $set: { scored: productMap, scoredTeam: scoredTeamByTeam[tidStr] ?? null } },
         s
       )
     )

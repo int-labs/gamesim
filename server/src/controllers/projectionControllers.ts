@@ -6,7 +6,7 @@ import Decision from "../models/decisions";
 import { ROLES } from "../constants/roles";
 import BaseData from "../models/baseData";
 import Round from "../models/rounds";
-import { calcFinancials, readCostTreatment, toProjectionMetrics, ProductField, BaseVariables } from "../sim/calcFinancials";
+import { calcFinancials, readCostTreatment, teamGlobalInputCosts, toProjectionMetrics, ProductField, BaseVariables, DecisionGlobalInputEntry } from "../sim/calcFinancials";
 
 // GET /projections?simulationId=&teamId=&roundNumber=
 export const getProjectionsByTeam = async (req: Request, res: Response): Promise<void> => {
@@ -178,6 +178,28 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
     // contributes an empty fields array (global input change only).
     const teamObjectId = new mongoose.Types.ObjectId(teamId);
 
+    // Normalised once; every product below and the team charge read the same entries.
+    const draftGlobalInputs: DecisionGlobalInputEntry[] = (globalInputs as any[]).map((gi: any) => ({
+      globalInputItemId: new mongoose.Types.ObjectId(gi.globalInputItemId),
+      category:          gi.category,
+      key:               gi.key,
+      label:             gi.label,
+      selectedStepKey:   gi.selectedStepKey ?? null,
+      options:           gi.options,
+      impacts:           gi.impacts,
+      impactLevel:       gi.impactLevel,
+      cost:              gi.cost,
+      costTreatment:     readCostTreatment(gi),
+      energy:            gi.energy,
+      productsImpacted:  (gi.productsImpacted ?? []).map((id: any) => new mongoose.Types.ObjectId(id)),
+    }));
+
+    // Global input costs, charged once per team for this call, not per product.
+    const team = teamGlobalInputCosts(
+      { teamId: teamObjectId, inputs: [], globalInputs: draftGlobalInputs },
+      draftGlobalInputs,
+    );
+
     // ── Compute projections for each product ──────────────────────────────
     const projectionUpdates: Record<string, any> = {};
 
@@ -211,20 +233,7 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
             value:   f.value,
           })),
         }],
-        globalInputs: (globalInputs as any[]).map((gi: any) => ({
-          globalInputItemId: new mongoose.Types.ObjectId(gi.globalInputItemId),
-          category:          gi.category,
-          key:               gi.key,
-          label:             gi.label,
-          selectedStepKey:   gi.selectedStepKey ?? null,
-          options:           gi.options,
-          impacts:           gi.impacts,
-          impactLevel:       gi.impactLevel,
-          cost:              gi.cost,
-          costTreatment:     readCostTreatment(gi),
-          energy:            gi.energy,
-          productsImpacted:  (gi.productsImpacted ?? []).map((id: any) => new mongoose.Types.ObjectId(id)),
-        })),
+        globalInputs: draftGlobalInputs,
       };
 
       const baseVariables: BaseVariables = {
@@ -278,7 +287,7 @@ export const recalcProjections = async (req: Request, res: Response): Promise<vo
     // ── Upsert all product projections in one operation ───────────────────
     const projection = await Projection.findOneAndUpdate(
       { simulationId, teamId, roundNumber },
-      { $set: projectionUpdates },
+      { $set: { ...projectionUpdates, team } },
       { upsert: true, new: true, runValidators: true }
     );
 

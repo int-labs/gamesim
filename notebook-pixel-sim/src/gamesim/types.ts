@@ -232,6 +232,28 @@ export interface DecisionDto extends CreateDecisionBody {
   /** OFFICIAL scored outcome per productId, THE money source. Absent until
    *  the round is calculated. Projections is what-if only. */
   scored?: Record<Id, ProductProjectionDto & { marketShare?: number }> | null;
+  /** OFFICIAL team-level global input costs, charged once per round; null before calculation or on older rounds. */
+  scoredTeam?: TeamGlobalInputCostsDto | null;
+}
+
+/** One selected global input's charge, bound to the team; mirrors `TeamGlobalInputCost`. */
+export interface TeamGlobalInputCostDto {
+  teamId: Id;
+  globalInputItemId: Id;
+  category: string;
+  label: string;
+  stepValue: number;
+  cogs: number;
+  opex: number;
+}
+
+/** A team's global input costs, charged once per round; mirrors `TeamGlobalInputCosts`. */
+export interface TeamGlobalInputCostsDto {
+  teamId: Id;
+  inputs: TeamGlobalInputCostDto[];
+  globalInputCosts: GlobalInputCostEntryDto[];
+  cogs: number;
+  opex: number;
 }
 
 // ── Projections (own financials, authoritative for money) ──────────────
@@ -291,9 +313,7 @@ export interface ProductProjectionDto {
   revenue?: number;
   COGS?: number;
   grossProfit?: number;
-  /** Period costs, the channel's cut of each sale plus every globalInput cost
-   *  declared as opex. Sits BELOW the gross-profit line. Unsold stock adds
-   *  NOTHING here: COGS is recognised on the build. */
+  /** This notebook's period costs, the channel's cut of each sale; global input costs are team-level. */
   operatingExpenses?: number;
   operatingProfit?: number;
   productCostBreakdown?: Record<string, number>;
@@ -305,9 +325,7 @@ export interface ProductProjectionDto {
    * labels nor `treatment`.
    */
   incurredCosts?: IncurredCostEntryDto[];
-  /** GlobalInput spend, split out because it has no unit quantity. Rounds
-   *  scored before the split still carry these rows inside `incurredCosts`, so
-   *  readers must take BOTH arrays or the P&L will not add up. */
+  /** Per-notebook global input rows, present only on rounds scored before the team-level charge. */
   globalInputCosts?: GlobalInputCostEntryDto[];
   /** Only written by the operator's round calculation, not by /projections/recalc. */
   marketShare?: number;
@@ -323,6 +341,8 @@ export interface ProjectionDto {
   balanceSheet: Record<string, number> | null;
   cashflow: Record<string, number> | null;
   projections: Record<string, ProductProjectionDto>;
+  /** Team-level global input costs for this what-if, charged once; the twin of `DecisionDto.scoredTeam`. */
+  team?: TeamGlobalInputCostsDto | null;
   createdAt: string;
   updatedAt: string;
 }

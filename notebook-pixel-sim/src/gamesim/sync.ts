@@ -22,6 +22,7 @@ import type {
   ProductProjectionDto,
   ProjectionDto,
   ResultDto,
+  TeamGlobalInputCostsDto,
 } from './types';
 
 export class GamesimSyncError extends Error {
@@ -285,6 +286,8 @@ export interface OfficialFinancials {
   operatingProfit: number;
   customersObtained: number;
   byProduct: ServerProductProjection[];
+  /** Team-level global input costs, charged once and already added to the totals above; null on older rounds. */
+  team: TeamGlobalInputCostsDto | null;
   /** The source document — a Decision, since `scored` lives there. */
   raw: DecisionDto;
 }
@@ -307,16 +310,21 @@ function financialsFromDecision(
   );
   const sum = (pick: (p: ProductProjectionDto) => number | undefined) =>
     byProduct.reduce((a, p) => a + (pick(p) ?? 0), 0);
+  // The team charge, added once: the server's `sumScored` applies the same five adjustments.
+  const team = raw.scoredTeam ?? null;
+  const teamCogs = team?.cogs ?? 0;
+  const teamOpex = team?.opex ?? 0;
 
   return {
     roundNumber: raw.roundNumber,
     revenue: sum((p) => p.revenue),
-    cogs: sum((p) => p.COGS),
-    grossProfit: sum((p) => p.grossProfit),
-    operatingExpenses: sum((p) => p.operatingExpenses),
-    operatingProfit: sum((p) => p.operatingProfit),
+    cogs: sum((p) => p.COGS) + teamCogs,
+    grossProfit: sum((p) => p.grossProfit) - teamCogs,
+    operatingExpenses: sum((p) => p.operatingExpenses) + teamOpex,
+    operatingProfit: sum((p) => p.operatingProfit) - teamCogs - teamOpex,
     customersObtained: sum((p) => p.customersObtained),
     byProduct,
+    team,
     raw,
   };
 }

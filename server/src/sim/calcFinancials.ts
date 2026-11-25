@@ -885,8 +885,23 @@ export function calcFinancials(input: CalcFinancialsInput): CalcFinancialsOutput
   return { results };
 }
 
+/** One selected global input's charge, bound to the team that chose it. */
+export interface TeamGlobalInputCost {
+  teamId:            mongoose.Types.ObjectId;
+  globalInputItemId: mongoose.Types.ObjectId;
+  category:          string;
+  label:             string;
+  /** The selected option's multiplier; 1 for a radio/checkbox. */
+  stepValue:         number;
+  cogs:              number;
+  opex:              number;
+}
+
 /** A team's global input costs, charged once per round however many notebooks it entered. */
 export interface TeamGlobalInputCosts {
+  teamId:           mongoose.Types.ObjectId;
+  inputs:           TeamGlobalInputCost[];
+  /** The inputs grouped into one row per category per side of the line, as the operator's cogs/opex treatment set them. */
   globalInputCosts: GlobalInputCostBreakdown[];
   cogs:             number;
   opex:             number;
@@ -894,38 +909,48 @@ export interface TeamGlobalInputCosts {
 
 /** Charges each selected global input `costTreatment x step` once for the team; per-product overrides touch impacts only. */
 export function teamGlobalInputCosts(
-  decision:     DecisionDocument | undefined,
+  decision:     DecisionDocument,
   globalInputs: DecisionGlobalInputEntry[],
 ): TeamGlobalInputCosts {
-  type Contribution = GlobalInputCostBreakdown["contributors"][number];
-  const categoryMap: Record<string, { cogs: number; opex: number; cogsItems: Contribution[]; opexItems: Contribution[] }> = {};
-  let cogsTotal = 0;
-  let opexTotal = 0;
+  const inputs: TeamGlobalInputCost[] = [];
 
   globalInputs.forEach((entry) => {
-    // Slider scales with the step, radio/checkbox is 1, never selected is 0.
-    const m    = getGlobalInputQuantity(decision, entry);
-    const cogs = entry.costTreatment.cogs * m;
-    const opex = entry.costTreatment.opex * m;
-
-    const row = (categoryMap[entry.category] ??= { cogs: 0, opex: 0, cogsItems: [], opexItems: [] });
-    row.cogs += cogs;
-    row.opex += opex;
-    // Listed per side, and only when that side charged.
-    const inputId = String(entry.globalInputItemId);
-    if (cogs !== 0) row.cogsItems.push({ inputId, label: entry.label, stepValue: m, incurredCost: cogs });
-    if (opex !== 0) row.opexItems.push({ inputId, label: entry.label, stepValue: m, incurredCost: opex });
-
-    cogsTotal += cogs;
-    opexTotal += opex;
+    // Slider scales with the step, radio/checkbox is 1, never selected is 0 and is left out.
+    const m = getGlobalInputQuantity(decision, entry);
+    if (m === 0) return;
+    inputs.push({
+      teamId:            decision.teamId,
+      globalInputItemId: entry.globalInputItemId,
+      category:          entry.category,
+      label:             entry.label,
+      stepValue:         m,
+      cogs:              entry.costTreatment.cogs * m,
+      opex:              entry.costTreatment.opex * m,
+    });
   });
 
   // One row per category per side; the category names the sum.
+  type Contribution = GlobalInputCostBreakdown["contributors"][number];
+  const categoryMap: Record<string, { cogs: number; opex: number; cogsItems: Contribution[]; opexItems: Contribution[] }> = {};
+  for (const i of inputs) {
+    const row = (categoryMap[i.category] ??= { cogs: 0, opex: 0, cogsItems: [], opexItems: [] });
+    row.cogs += i.cogs;
+    row.opex += i.opex;
+    const inputId = String(i.globalInputItemId);
+    if (i.cogs !== 0) row.cogsItems.push({ inputId, label: i.label, stepValue: i.stepValue, incurredCost: i.cogs });
+    if (i.opex !== 0) row.opexItems.push({ inputId, label: i.label, stepValue: i.stepValue, incurredCost: i.opex });
+  }
   const globalInputCosts: GlobalInputCostBreakdown[] = [];
   Object.entries(categoryMap).forEach(([category, r]) => {
     if (r.cogs !== 0) globalInputCosts.push({ category, label: category, treatment: "cogs", incurredCost: r.cogs, contributors: r.cogsItems });
     if (r.opex !== 0) globalInputCosts.push({ category, label: category, treatment: "opex", incurredCost: r.opex, contributors: r.opexItems });
   });
 
-  return { globalInputCosts, cogs: cogsTotal, opex: opexTotal };
+  return {
+    teamId: decision.teamId,
+    inputs,
+    globalInputCosts,
+    cogs: inputs.reduce((s, i) => s + i.cogs, 0),
+    opex: inputs.reduce((s, i) => s + i.opex, 0),
+  };
 }

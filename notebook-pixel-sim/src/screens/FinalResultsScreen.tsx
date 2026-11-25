@@ -102,6 +102,12 @@ export function FinalResultsScreen() {
         byLabel.set(name, (byLabel.get(name) ?? 0) + (entry.incurredCost ?? 0));
       }
     }
+    // The team-level global input rows, once.
+    for (const entry of latestFinancials?.team?.globalInputCosts ?? []) {
+      if (!entry?.category) continue;
+      const name = containerLabel(entry.category);
+      byLabel.set(name, (byLabel.get(name) ?? 0) + (entry.incurredCost ?? 0));
+    }
     return [...byLabel.entries()]
       .filter(([, value]) => Math.abs(value) > 0.005)
       .sort((a, b) => b[1] - a[1]);

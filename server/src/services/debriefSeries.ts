@@ -100,10 +100,7 @@ export interface DebriefTeamProduct {
   marketFit:         number | null;
   /** `customersObtained / Σ customersObtained` — the share of customers WON. */
   marketShare:       number | null;
-  /** Per-notebook profit, the breakdown of the team-level figures above: these
-   *  sum to `DebriefTeamRound.grossProfit` / `.netProfit` by construction, both
-   *  being `sumScored` over exactly these keys. `netProfit` is the scored
-   *  `operatingProfit`, renamed to match the team-level name. */
+  /** Per-notebook profit before the team-level global input charge, which `sumScored` adds once to the team figures; `netProfit` is the scored `operatingProfit`. */
   grossProfit:       number | null;
   netProfit:         number | null;
   /** The server's 0..1 pricing score. Already normalised, so it is READ, not
@@ -233,6 +230,7 @@ function costsByCategory(dec: ReportDecision | null): Record<string, number> {
     for (const row of m.incurredCosts ?? []) add(row.category, row.incurredCost);
     for (const row of m.globalInputCosts ?? []) add(row.category, row.incurredCost);
   }
+  for (const row of dec?.scoredTeam?.globalInputCosts ?? []) add(row.category, row.incurredCost);
   return out;
 }
 
