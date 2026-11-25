@@ -662,6 +662,18 @@ export default function PlayerConfigPage() {
                         </>
                       }
                     />
+                    {entryForm.segments.trim() && (
+                      <div className="flex flex-col gap-1">
+                        <Text as="strong" variant="label">Preview (after cleaning)</Text>
+                        {/* !important sandboxed with no permissions: what the cleaned HTML renders as, with browser defaults and no scripts */}
+                        <iframe
+                          title="Segments preview"
+                          sandbox=""
+                          srcDoc={sanitizeSegmentsHtml(entryForm.segments)}
+                          className="w-full min-h-48 resize-y border border-line bg-white"
+                        />
+                      </div>
+                    )}
                     {/* Both render as bullet lists on the Details tab, one line per bullet; blank is a legitimate empty panel */}
                     <TextArea
                       label="Best for (Strengths)"
