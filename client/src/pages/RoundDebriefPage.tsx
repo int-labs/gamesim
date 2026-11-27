@@ -106,7 +106,7 @@ export default function RoundDebriefPage() {
           value={filterSim || null}
           onValueChange={(v) => { setFilterSim(v ?? ""); setData(null); }}
           disabled={!selectedSimType}
-          options={simulations.map((s: any) => ({ value: s._id, label: s.name ?? s._id }))}
+          options={simulations.map((s: any) => ({ value: s._id, label: s.simulationName || "(unnamed simulation)" }))}
         />
 
         <TextField

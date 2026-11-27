@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, DataTable, Heading, PageHeader, Select, TextField, type DataTableColumn } from "@stratagem/design-system";
-import { getRounds, createRound, patchRound, deleteRound, calculateRound, endRound, deleteDecisionsByRound, deleteResultsByRound, deleteProjectionsByRound } from "../api";
+import { getRounds, createRound, patchRound, deleteRound, calculateRound, endRound, deleteDecisionsByRound, deleteResultsByRound, deleteProjectionsByRound, getSimulations, getSimulationTypes } from "../api";
 import type { Round } from "../types";
 
-const BLANK = { simulationId: "", roundNumber: 0, status: "Pending", durationMinutes: "" };
+const BLANK = { roundNumber: 0, status: "Pending", durationMinutes: "" };
 
 export default function RoundsPage() {
   const [rows, setRows] = useState<Round[]>([]);
   const [form, setForm] = useState({ ...BLANK });
+  const [simulationTypes, setSimulationTypes] = useState<any[]>([]);
+  const [selectedSimType, setSelectedSimType] = useState("");
+  const [simulations, setSimulations] = useState<any[]>([]);
   const [filterSim, setFilterSim] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,14 +27,33 @@ export default function RoundsPage() {
     }
   };
 
-  useEffect(() => { load(); }, [filterSim]);
+  useEffect(() => {
+    getSimulationTypes()
+      .then((res) => setSimulationTypes(res.data?.data ?? res.data))
+      .catch((e: any) => setError(e.message));
+  }, []);
+
+  // Narrowed in the browser: `GET /simulations` takes no simulationTypeId filter.
+  useEffect(() => {
+    if (!selectedSimType) { setSimulations([]); return; }
+    getSimulations()
+      .then((res) => {
+        const all = res.data?.data ?? res.data ?? [];
+        setSimulations((all as any[]).filter((s) => String(s.simulationTypeId) === selectedSimType));
+      })
+      .catch((e: any) => setError(e.message));
+  }, [selectedSimType]);
+
+  // No simulation chosen lists nothing, so rounds of another type never show under this one.
+  useEffect(() => { if (filterSim) load(); else setRows([]); }, [filterSim]);
 
   const handleCreate = async () => {
+    if (!filterSim) return;
     setLoading(true);
     setError("");
     try {
       const payload: any = {
-        simulationId: form.simulationId,
+        simulationId: filterSim,
         roundNumber: Number(form.roundNumber),
         status: form.status,
       };
@@ -135,17 +157,33 @@ export default function RoundsPage() {
       {error && <Alert tone="danger">{error}</Alert>}
       {calcResult && <Alert tone="success">{calcResult}</Alert>}
 
-      <TextField label="Filter by Simulation ID" value={filterSim} onChange={e => setFilterSim(e.target.value)} />
+      <div className="flex flex-wrap items-end gap-4">
+        <Select
+          label="Simulation Type"
+          placeholder="-- select --"
+          value={selectedSimType || null}
+          // Clearing the chosen simulation is load-bearing: one from the previous type stays selectable otherwise.
+          onValueChange={(v) => { setSelectedSimType(v ?? ""); setFilterSim(""); }}
+          options={simulationTypes.map((st: any) => ({ value: st._id, label: st.name || "(unnamed type)" }))}
+        />
+        <Select
+          label="Simulation"
+          placeholder="-- select --"
+          value={filterSim || null}
+          onValueChange={(v) => setFilterSim(v ?? "")}
+          disabled={!selectedSimType}
+          options={simulations.map((s: any) => ({ value: s._id, label: s.simulationName || "(unnamed simulation)" }))}
+        />
+      </div>
 
       <Card>
         <Heading level={3}>Create</Heading>
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextField label="Simulation ID" value={form.simulationId} onChange={e => setForm(f => ({ ...f, simulationId: e.target.value }))} />
           <TextField label="Round Number" type="number" value={form.roundNumber} onChange={e => setForm(f => ({ ...f, roundNumber: Number(e.target.value) }))} />
           <Select label="Status" options={STATUS_OPTIONS} value={form.status} onValueChange={v => v && setForm(f => ({ ...f, status: v }))} />
           <TextField label="Duration (minutes)" type="number" value={form.durationMinutes} onChange={e => setForm(f => ({ ...f, durationMinutes: e.target.value }))} />
         </div>
-        <Button className="self-start" onClick={handleCreate} disabled={loading}>Create</Button>
+        <Button className="self-start" onClick={handleCreate} disabled={loading || !filterSim}>Create</Button>
       </Card>
 
       <Card>
